@@ -1,17 +1,20 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 
+import { topicName } from '@/domain/curriculum';
+import { examNeedsAnalysis } from '@/domain/exam-analysis';
 import { formatNet, net } from '@/domain/net';
 import { useAppState, useStored } from '@/state/app-state';
-import { deleteMockExam, getMockExam } from '@/storage/mock-exams';
+import { deleteMockExam, getExamMarks, getMockExam } from '@/storage/mock-exams';
 import { tr } from '@/strings';
-import { Button, Card, Label, Row, Screen } from '@/ui/components';
+import { Button, Card, Label, Row, Screen, Tag } from '@/ui/components';
 import { formatDay } from '@/ui/format';
 
 export default function ExamDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { dataVersion, notifyDataChanged } = useAppState();
   const exam = useStored(`${id}|${dataVersion}`, () => (id ? getMockExam(id) : null));
+  const marks = useStored(`marks|${id}|${dataVersion}`, () => (id ? getExamMarks(id) : []));
   const [confirming, setConfirming] = useState(false);
 
   if (exam === null) {
@@ -52,6 +55,32 @@ export default function ExamDetailScreen() {
           <Label variant="heading">{formatNet(exam.totalNet)}</Label>
         </Row>
       </Card>
+
+      {examNeedsAnalysis(exam.scores) ? (
+        <Card>
+          <Row>
+            <Label variant="heading" style={{ flex: 1 }}>
+              {tr.analysis.marksTitle}
+            </Label>
+            {exam.analysisDoneAt === null ? <Tag title={tr.analysis.pendingTag} /> : null}
+          </Row>
+          {marks.length === 0 ? <Label variant="muted">{tr.analysis.noMarks}</Label> : null}
+          {marks.map((m) => (
+            <Row key={`${m.sectionId}|${m.topicId}`}>
+              <Label variant="muted" style={{ flex: 1 }}>
+                {tr.subject(m.sectionId)} · {topicName(m.topicId) ?? m.topicId}
+              </Label>
+              <Label variant="muted">{tr.analysis.markRow(m.wrong, m.blank)}</Label>
+            </Row>
+          ))}
+          <Button
+            testID="exam-open-analysis"
+            kind={exam.analysisDoneAt === null ? 'primary' : 'secondary'}
+            title={exam.analysisDoneAt === null ? tr.analysis.complete : tr.analysis.edit}
+            onPress={() => router.push({ pathname: '/analiz/[id]', params: { id: exam.id } })}
+          />
+        </Card>
+      ) : null}
 
       {confirming ? (
         <Card>

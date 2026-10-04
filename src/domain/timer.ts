@@ -13,10 +13,21 @@
  */
 
 import type { Interval } from './istanbul-day';
+import {
+  isPomodoroState,
+  type PomodoroConfig,
+  pomodoroBreaks,
+  type PomodoroState,
+  skipBreak as skipPomodoroBreak,
+} from './pomodoro';
 
 export const BACKGROUND_TOLERANCE_MS = 10_000;
 
-export type PauseKind = 'manual' | 'away';
+/** `break` = a pomodoro break (stored on finished sessions only; derived while running). */
+export type PauseKind = 'manual' | 'away' | 'break';
+
+/** `manual` = added afterwards by the student ("elle"), shown with that label everywhere. */
+export type SessionSource = 'timer' | 'manual';
 
 export interface Pause {
   start: number;
@@ -32,6 +43,8 @@ export interface ClosedPause extends Pause {
 export interface ActiveSession {
   id: string;
   subjectId: string;
+  /** Optional curriculum topic (see `curriculum/`). */
+  topicId: string | null;
   startedAt: number;
   pauses: Pause[];
   /** When the app went to the background while the timer was running; `null` otherwise. */
@@ -43,26 +56,42 @@ export interface ActiveSession {
    * background event (force quit, crash, battery), the gap after it is treated as away time.
    */
   lastSeenAt: number | null;
+  /** Pomodoro mode; `null` = plain stopwatch ("kronometre"). */
+  pomodoro: PomodoroState | null;
 }
 
 export interface CompletedSession {
   id: string;
   subjectId: string;
+  topicId: string | null;
   startedAt: number;
   endedAt: number;
   pauses: ClosedPause[];
   durationMs: number;
+  source: SessionSource;
 }
 
-export function startSession(id: string, subjectId: string, now: number): ActiveSession {
+export interface StartOptions {
+  topicId?: string | null;
+  pomodoro?: PomodoroConfig | null;
+}
+
+export function startSession(
+  id: string,
+  subjectId: string,
+  now: number,
+  options: StartOptions = {},
+): ActiveSession {
   return {
     id,
     subjectId,
+    topicId: options.topicId ?? null,
     startedAt: now,
     pauses: [],
     backgroundedAt: null,
     pendingAway: null,
     lastSeenAt: now,
+    pomodoro: options.pomodoro ? { config: { ...options.pomodoro }, skips: [] } : null,
   };
 }
 
@@ -114,8 +143,19 @@ export function intervalsTotal(intervals: Interval[]): number {
   return intervals.reduce((sum, i) => sum + (i.end - i.start), 0);
 }
 
+/**
+ * All breaks of a running session up to `now`: the stored pauses plus, in pomodoro mode, the
+ * derived pomodoro breaks (kind `break`).
+ */
+export function effectivePauses(session: ActiveSession, now: number): Pause[] {
+  const breaks = pomodoroBreaks(session, now).map(
+    (b): Pause => ({ start: b.start, end: b.end, kind: 'break' }),
+  );
+  return breaks.length === 0 ? session.pauses : [...session.pauses, ...breaks];
+}
+
 export function elapsedMs(session: ActiveSession, now: number): number {
-  return intervalsTotal(workIntervals(session.startedAt, session.pauses, now));
+  return intervalsTotal(workIntervals(session.startedAt, effectivePauses(session, now), now));
 }
 
 export function finishSession(session: ActiveSession, now: number): CompletedSession {
@@ -123,11 +163,20 @@ export function finishSession(session: ActiveSession, now: number): CompletedSes
   return {
     id: session.id,
     subjectId: session.subjectId,
+    topicId: session.topicId,
     startedAt: session.startedAt,
     endedAt,
-    pauses: closePauses(session.startedAt, session.pauses, endedAt),
+    pauses: closePauses(session.startedAt, effectivePauses(session, endedAt), endedAt).sort(
+      (a, b) => a.start - b.start,
+    ),
     durationMs: elapsedMs(session, endedAt),
+    source: 'timer',
   };
+}
+
+/** "Molayı geç" in pomodoro mode (no effect otherwise). */
+export function skipBreak(session: ActiveSession, now: number): ActiveSession {
+  return skipPomodoroBreak(session, now, isPaused(session));
 }
 
 /** The app moved to the background. Only a running timer is watched. */
@@ -143,6 +192,11 @@ export function onAppForeground(session: ActiveSession, now: number): ActiveSess
   const cleared: ActiveSession = { ...session, backgroundedAt: null, lastSeenAt: now };
   // A clock that went backwards is treated as "no time away".
   if (now - awayStart <= BACKGROUND_TOLERANCE_MS) return cleared;
+  // Pomodoro: being away only during a break loses no study time, so there is nothing to ask.
+  if (session.pomodoro !== null) {
+    const breaks = pomodoroBreaks(session, now).map((b): Pause => ({ ...b, kind: 'break' }));
+    if (intervalsTotal(workIntervals(awayStart, breaks, now)) === 0) return cleared;
+  }
   return {
     ...cleared,
     pauses: [...cleared.pauses, { start: awayStart, end: now, kind: 'away' }],
@@ -200,6 +254,15 @@ export function isActiveSession(value: unknown): value is ActiveSession {
     ) &&
     (v.backgroundedAt === null || typeof v.backgroundedAt === 'number') &&
     (v.pendingAway === null || typeof v.pendingAway === 'object') &&
-    (v.lastSeenAt === null || typeof v.lastSeenAt === 'number')
+    (v.lastSeenAt === null || typeof v.lastSeenAt === 'number') &&
+    // Added later: missing in sessions stored by older versions.
+    (v.topicId === undefined || v.topicId === null || typeof v.topicId === 'string') &&
+    (v.pomodoro === undefined || v.pomodoro === null || isPomodoroState(v.pomodoro))
   );
+}
+
+/** Reads a stored session, filling fields that older versions did not write. */
+export function toActiveSession(value: unknown): ActiveSession | null {
+  if (!isActiveSession(value)) return null;
+  return { ...value, topicId: value.topicId ?? null, pomodoro: value.pomodoro ?? null };
 }

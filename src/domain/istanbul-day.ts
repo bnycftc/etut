@@ -73,6 +73,12 @@ export function splitByIstanbulDay(interval: Interval): { day: DayKey; ms: numbe
   return parts;
 }
 
+/** Istanbul wall-clock hours and minutes of the instant `ms`. */
+export function istanbulTimeOfDay(ms: number): { hours: number; minutes: number } {
+  const d = new Date(ms + ISTANBUL_OFFSET_MS);
+  return { hours: d.getUTCHours(), minutes: d.getUTCMinutes() };
+}
+
 /** Day-of-week index in Istanbul (0 = Monday … 6 = Sunday). */
 export function istanbulWeekday(day: DayKey): number {
   const sundayBased = new Date(dayStartMs(day) + ISTANBUL_OFFSET_MS).getUTCDay();

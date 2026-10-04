@@ -57,10 +57,14 @@ app/                    Ekranlar (expo-router)
   (tabs)/index.tsx      Sayaç (ana ekran, ilk sekme)
   (tabs)/denemeler.tsx  Deneme listesi ve net grafiği
   (tabs)/gruplar.tsx    "Yakında" (yalnız 15+ profillerde görünür)
-  (tabs)/ayarlar.tsx    Tüm verileri sil, sürüm
-  gecmis.tsx            Günlük toplamlar, ders dağılımı, son 7 gün
+  (tabs)/ayarlar.tsx    Günlük hedef, pomodoro, sınav tarihi, tüm verileri sil, sürüm
+  gecmis.tsx            Günlük toplamlar, ders dağılımı, son 7 gün ("elle" kısmı)
+  haftalik.tsx          Haftalık özet (toplam, ders dağılımı, en uzun oturum, seri)
+  konular.tsx           Konu takibi: konu bazlı süre, "bitti / tekrar lazım", ilerleme
+  elle-ekle.tsx         Geçmişe dönük süre ekleme (source = 'manual', "elle" etiketi)
   deneme/yeni.tsx       Deneme girişi
-  deneme/[id].tsx       Deneme ayrıntısı / silme
+  deneme/[id].tsx       Deneme ayrıntısı / silme / işaretlenen konular
+  analiz/[id].tsx       Deneme analizi: yanlış/boş soruların konuları (2. aşama)
 src/domain/             Saf TypeScript iş kuralları + Jest testleri
 src/storage/            expo-sqlite veritabanı ve kv-store
 src/state/              Uygulama durumu (domain ile depolama arasındaki ince katman)
@@ -155,6 +159,9 @@ tanımlanması önerilir. Aynı gizli değerler CarPlay Medya deposundakilerle a
 
 ## Gizlilik
 
-v0'da veri yalnız cihazdadır: doğum yılı, sınav türü/alan, çalışma oturumları, denemeler.
-Ad, e-posta, tam doğum tarihi sorulmaz. Ayarlar → "Tüm verileri sil" veritabanını ve
-anahtar-değer deposunu temizler.
+v0'da veri yalnız cihazdadır: doğum yılı, sınav türü/alan, çalışma oturumları (konu ve
+"elle" bilgisiyle), konu ilerlemesi, denemeler ve analizleri, hedefler. Ad, e-posta, tam doğum
+tarihi sorulmaz. Ayarlar → "Tüm verileri sil" veritabanını ve anahtar-değer deposunu temizler.
+İstisna (hukuk/03 K-17): yalnız 15 yaş altı beyanında, beyan edilen doğum yılı 15 yaşına
+gelene kadar ayrı bir dosyada (`EtutAgeGuard`, `src/storage/age-guard.ts`) kalır; silme sonrası
+15+ beyanına geçişi engellemek için. Süresi dolunca açılışta, uygulama kaldırılınca da silinir.

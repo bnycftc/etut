@@ -1,13 +1,70 @@
 /** Per-day study totals, split at Istanbul midnight. */
 
 import { type DayKey, splitByIstanbulDay } from './istanbul-day';
-import { type Pause, workIntervals } from './timer';
+import {
+  type ActiveSession,
+  effectivePauses,
+  intervalsTotal,
+  type Pause,
+  type SessionSource,
+  workIntervals,
+} from './timer';
 
 export interface SessionSpan {
   subjectId: string;
   startedAt: number;
   endedAt: number;
   pauses: Pause[];
+  topicId?: string | null;
+  /** Missing = `timer`. */
+  source?: SessionSource;
+}
+
+/** The running session as a span ending at `now` (pomodoro breaks included as pauses). */
+export function activeSpan(session: ActiveSession, now: number): SessionSpan {
+  const endedAt = Math.max(now, session.startedAt);
+  return {
+    subjectId: session.subjectId,
+    topicId: session.topicId,
+    startedAt: session.startedAt,
+    endedAt,
+    pauses: effectivePauses(session, endedAt),
+    source: 'timer',
+  };
+}
+
+/** Study time of one span. */
+export function spanStudyMs(span: SessionSpan): number {
+  return intervalsTotal(workIntervals(span.startedAt, span.pauses, span.endedAt));
+}
+
+/**
+ * Study time per Istanbul day before `today`, only for days the spans touch (e.g. a running
+ * session that crossed one or more midnights).
+ */
+export function pastDayTotals(spans: SessionSpan[], today: DayKey): Map<DayKey, number> {
+  const out = new Map<DayKey, number>();
+  for (const s of spans) {
+    for (const interval of workIntervals(s.startedAt, s.pauses, s.endedAt)) {
+      for (const part of splitByIstanbulDay(interval)) {
+        if (part.day < today) out.set(part.day, (out.get(part.day) ?? 0) + part.ms);
+      }
+    }
+  }
+  return out;
+}
+
+/** Study time inside `[from, to)` across all spans. */
+export function studiedBetween(spans: SessionSpan[], from: number, to: number): number {
+  let total = 0;
+  for (const s of spans) {
+    for (const i of workIntervals(s.startedAt, s.pauses, s.endedAt)) {
+      const start = Math.max(i.start, from);
+      const end = Math.min(i.end, to);
+      if (end > start) total += end - start;
+    }
+  }
+  return total;
 }
 
 export interface DayTotal {

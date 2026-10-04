@@ -6,14 +6,29 @@
 import * as SQLite from 'expo-sqlite';
 import Storage from 'expo-sqlite/kv-store';
 
-import { type ActiveSession, isActiveSession } from '../domain/timer';
-import { isProfile, type Profile } from '../domain/profile';
+import type { DayKey } from '../domain/istanbul-day';
+import {
+  DEFAULT_POMODORO,
+  isPomodoroConfig,
+  normalizePomodoroConfig,
+  type PomodoroConfig,
+} from '../domain/pomodoro';
+import { type ExamType, isProfile, type Profile } from '../domain/profile';
+import { clampGoalMinutes } from '../domain/streak';
+import { type ActiveSession, toActiveSession } from '../domain/timer';
 
 const KEYS = {
   profile: 'etut.profile.v1',
   activeSession: 'etut.activeSession.v1',
   lastSubject: 'etut.lastSubject.v1',
+  dailyGoal: 'etut.dailyGoalMinutes.v1',
+  pomodoroConfig: 'etut.pomodoroConfig.v1',
+  timerMode: 'etut.timerMode.v1',
+  examDate: 'etut.examDate.v1',
+  netTargets: 'etut.netTargets.v1',
 } as const;
+
+export type TimerMode = 'stopwatch' | 'pomodoro';
 
 function readJson(key: string): unknown {
   const raw = Storage.getItemSync(key);
@@ -35,8 +50,7 @@ export function storeProfile(profile: Profile): void {
 }
 
 export function loadActiveSession(): ActiveSession | null {
-  const value = readJson(KEYS.activeSession);
-  return isActiveSession(value) ? value : null;
+  return toActiveSession(readJson(KEYS.activeSession));
 }
 
 export function storeActiveSession(session: ActiveSession | null): void {
@@ -50,6 +64,69 @@ export function loadLastSubject(): string | null {
 
 export function storeLastSubject(subjectId: string): void {
   Storage.setItemSync(KEYS.lastSubject, subjectId);
+}
+
+/** Daily study goal in minutes; `null` = no goal. */
+export function loadDailyGoal(): number | null {
+  const value = readJson(KEYS.dailyGoal);
+  return typeof value === 'number' && Number.isFinite(value) ? clampGoalMinutes(value) : null;
+}
+
+export function storeDailyGoal(minutes: number | null): void {
+  if (minutes === null) Storage.removeItemSync(KEYS.dailyGoal);
+  else Storage.setItemSync(KEYS.dailyGoal, JSON.stringify(clampGoalMinutes(minutes)));
+}
+
+export function loadPomodoroConfig(): PomodoroConfig {
+  const value = readJson(KEYS.pomodoroConfig);
+  return isPomodoroConfig(value) ? normalizePomodoroConfig(value) : DEFAULT_POMODORO;
+}
+
+export function storePomodoroConfig(config: PomodoroConfig): void {
+  Storage.setItemSync(KEYS.pomodoroConfig, JSON.stringify(normalizePomodoroConfig(config)));
+}
+
+export function loadTimerMode(): TimerMode {
+  return Storage.getItemSync(KEYS.timerMode) === 'pomodoro' ? 'pomodoro' : 'stopwatch';
+}
+
+export function storeTimerMode(mode: TimerMode): void {
+  Storage.setItemSync(KEYS.timerMode, mode);
+}
+
+/** Exam date set by the student, per exam type (overrides the built-in estimate). */
+export function loadCustomExamDate(examType: ExamType): DayKey | null {
+  const value = readJson(KEYS.examDate);
+  if (typeof value !== 'object' || value === null) return null;
+  const day = (value as Record<string, unknown>)[examType];
+  return typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
+}
+
+export function storeCustomExamDate(examType: ExamType, day: DayKey | null): void {
+  const current = readJson(KEYS.examDate);
+  const next: Record<string, unknown> =
+    typeof current === 'object' && current !== null ? { ...(current as Record<string, unknown>) } : {};
+  if (day === null) delete next[examType];
+  else next[examType] = day;
+  Storage.setItemSync(KEYS.examDate, JSON.stringify(next));
+}
+
+/** Target nets keyed by `targetKey(kind, sectionId)`. */
+export function loadNetTargets(): Record<string, number> {
+  const value = readJson(KEYS.netTargets);
+  if (typeof value !== 'object' || value === null) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+  }
+  return out;
+}
+
+export function storeNetTarget(key: string, target: number | null): void {
+  const next = loadNetTargets();
+  if (target === null) delete next[key];
+  else next[key] = target;
+  Storage.setItemSync(KEYS.netTargets, JSON.stringify(next));
 }
 
 /** expo-sqlite/kv-store keeps its rows in this database file (expo-sqlite src/Storage.ts). */

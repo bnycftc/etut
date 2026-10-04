@@ -1,40 +1,92 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AppState, StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { formatClock } from '@/domain/clock';
-import { dailyTotals, type SessionSpan } from '@/domain/daily-totals';
-import { DAY_MS, dayStartMs, istanbulDayKey } from '@/domain/istanbul-day';
+import { topicName } from '@/domain/curriculum';
+import { daysUntil, resolveExamDate } from '@/domain/exam-dates';
+import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
+import { goalRatio } from '@/domain/streak';
 import { defaultSubject, SUBJECTS_BY_EXAM } from '@/domain/subjects';
 import { elapsedMs, isPaused } from '@/domain/timer';
 import { useAppState, useNow, useStored } from '@/state/app-state';
-import { loadLastSubject } from '@/storage/kv';
-import { sessionsOverlapping } from '@/storage/sessions';
+import { useStudyStats } from '@/state/study-stats';
+import {
+  loadCustomExamDate,
+  loadLastSubject,
+  loadPomodoroConfig,
+  loadTimerMode,
+  storeTimerMode,
+  type TimerMode,
+} from '@/storage/kv';
 import { tr } from '@/strings';
-import { Button, Card, Chip, ChipRow, Label, Row, Screen } from '@/ui/components';
+import { Button, Card, Chip, ChipRow, Label, ProgressBar, Row, Screen, Tag } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
+import { TopicPicker } from '@/ui/topic-picker';
+
+/** A phase change seen within this time of the previous render tick happened on screen. */
+const PHASE_SIGNAL_MAX_GAP_MS = 3_000;
 
 export default function TimerScreen() {
   const app = useAppState();
-  const { active, profile, dataVersion } = app;
+  const { active, profile } = app;
   const c = usePalette();
   const running = active !== null && !isPaused(active);
   const now = useNow(running);
-  const today = istanbulDayKey(now);
 
   const examType = profile?.examType ?? 'DIGER';
-  const [subjectId, setSubjectId] = useState(() => defaultSubject(examType, loadLastSubject()));
+  const yksArea = profile?.yksArea ?? null;
+  const [subjectId, setSubjectIdState] = useState(() => defaultSubject(examType, loadLastSubject()));
+  const [topicId, setTopicId] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [mode, setModeState] = useState<TimerMode>(loadTimerMode);
+  const setSubjectId = (id: string) => {
+    if (id !== subjectId) setTopicId(null);
+    setSubjectIdState(id);
+  };
+  const setMode = (m: TimerMode) => {
+    storeTimerMode(m);
+    setModeState(m);
+  };
+  const pomodoroConfig = useStored(`pomodoro|${app.dataVersion}`, loadPomodoroConfig);
 
-  const completedToday = useStored(`${today}|${dataVersion}`, () => {
-    const from = dayStartMs(today);
-    return sessionsOverlapping(from, from + DAY_MS);
-  });
+  const { today, todayTotal, todayManual, comparison, goal, streak } = useStudyStats(now);
+  const customExamDay = useStored(`examDate|${examType}|${app.dataVersion}`, () =>
+    loadCustomExamDate(examType),
+  );
+  const examDate = resolveExamDate(examType, customExamDay);
+  const daysLeft = examDate === null ? null : daysUntil(examDate.day, today);
+  // The render clock ticks once a second; never show a moment before the last "Molayı geç".
+  const lastSkipAt = active?.pomodoro?.skips[active.pomodoro.skips.length - 1]?.at ?? 0;
+  const shownNow = Math.max(now, lastSkipAt);
+  const pomodoro = active === null ? null : pomodoroStatus(active, shownNow);
+  const onBreak = pomodoro !== null && pomodoro.phase !== 'work';
 
-  const spans: SessionSpan[] = [...completedToday];
-  if (active !== null) spans.push({ ...active, endedAt: now });
-  const todayTotal = dailyTotals(spans, [today])[0].totalMs;
+  // A short vibration when a pomodoro phase ends while the student is looking at the app
+  // (no notifications). Not after returning from the background (big time jump) and not for a
+  // change the student made ("Molayı geç").
+  const phaseKey = pomodoro === null ? null : `${pomodoro.block}|${pomodoro.phase}`;
+  const lastPhase = useRef({ key: phaseKey, at: shownNow });
+  const skipped = useRef(false);
+  useEffect(() => {
+    const prev = lastPhase.current;
+    const changed = phaseKey !== null && prev.key !== null && phaseKey !== prev.key;
+    if (
+      changed &&
+      !skipped.current &&
+      shownNow - prev.at <= PHASE_SIGNAL_MAX_GAP_MS &&
+      AppState.currentState !== 'background'
+    ) {
+      Vibration.vibrate();
+    }
+    if (changed) skipped.current = false;
+    lastPhase.current = { key: phaseKey, at: shownNow };
+  }, [phaseKey, shownNow]);
+  const skipBreak = () => {
+    skipped.current = true;
+    app.skipBreak();
+  };
 
   const finish = () => {
     const done = app.finish();
@@ -49,17 +101,49 @@ export default function TimerScreen() {
   return (
     <Screen testID="timer-screen">
       <Card>
+        {examDate !== null && daysLeft !== null && daysLeft >= 0 ? (
+          <Row>
+            <Label testID="countdown" style={{ fontWeight: '600', flex: 1 }}>
+              {daysLeft === 0 ? tr.countdown.today : tr.countdown.days(examType, daysLeft)}
+            </Label>
+            {examDate.estimated ? <Tag title={tr.countdown.estimated} /> : null}
+          </Row>
+        ) : null}
         <Row>
           <View style={{ flex: 1 }}>
             <Label variant="muted">{tr.timer.today}</Label>
             <Label variant="heading" testID="today-total">
               {formatDuration(todayTotal)}
             </Label>
+            {todayManual > 0 ? (
+              <Label variant="small">{tr.timer.manualPart(formatDuration(todayManual))}</Label>
+            ) : null}
           </View>
           <View>
             <Button kind="secondary" title={tr.timer.history} onPress={() => router.push('/gecmis')} />
           </View>
         </Row>
+        {goal !== null && streak !== null ? (
+          <>
+            <ProgressBar ratio={goalRatio(todayTotal, goal)} />
+            <Label testID="goal-progress" variant="small">
+              {streak.todayMet
+                ? tr.goal.met
+                : tr.goal.progress(formatDuration(goal * 60_000), Math.floor(goalRatio(todayTotal, goal) * 100))}
+            </Label>
+            <Label testID="streak">{tr.goal.streak(streak.current)}</Label>
+            <Label variant="small">{streak.restUsedThisWeek ? tr.goal.restUsed : tr.goal.restFree}</Label>
+          </>
+        ) : (
+          <Row>
+            <Button
+              testID="goal-set"
+              kind="secondary"
+              title={tr.goal.set}
+              onPress={() => router.push('/ayarlar')}
+            />
+          </Row>
+        )}
       </Card>
 
       {active?.pendingAway ? (
@@ -93,6 +177,38 @@ export default function TimerScreen() {
                 />
               ))}
             </ChipRow>
+            <TopicPicker
+              examType={examType}
+              yksArea={yksArea}
+              subjectId={subjectId}
+              topicId={topicId}
+              onChange={setTopicId}
+            />
+            <Label variant="heading">{tr.pomodoro.mode}</Label>
+            <ChipRow>
+              <Chip
+                testID="mode-stopwatch"
+                title={tr.pomodoro.stopwatch}
+                selected={mode === 'stopwatch'}
+                onPress={() => setMode('stopwatch')}
+              />
+              <Chip
+                testID="mode-pomodoro"
+                title={tr.pomodoro.pomodoro}
+                selected={mode === 'pomodoro'}
+                onPress={() => setMode('pomodoro')}
+              />
+            </ChipRow>
+            {mode === 'pomodoro' ? (
+              <Label variant="small">
+                {tr.pomodoro.summary(
+                  pomodoroConfig.workMin,
+                  pomodoroConfig.shortBreakMin,
+                  pomodoroConfig.longBreakMin,
+                  pomodoroConfig.longEvery,
+                )}
+              </Label>
+            ) : null}
           </Card>
           <Button
             large
@@ -100,7 +216,7 @@ export default function TimerScreen() {
             title={tr.timer.start}
             onPress={() => {
               setSavedMessage(null);
-              app.start(subjectId);
+              app.start(subjectId, { topicId, pomodoro: mode === 'pomodoro' ? pomodoroConfig : null });
             }}
           />
           {savedMessage ? (
@@ -108,23 +224,59 @@ export default function TimerScreen() {
               {savedMessage}
             </Label>
           ) : null}
+          <Row>
+            <Button
+              testID="open-manual"
+              kind="secondary"
+              title={tr.timer.addManual}
+              onPress={() => router.push('/elle-ekle')}
+            />
+            <Button
+              testID="open-topics"
+              kind="secondary"
+              title={tr.timer.topics}
+              onPress={() => router.push('/konular')}
+            />
+          </Row>
         </>
       ) : (
         <Card>
           <Label variant="muted" testID="timer-subject" style={{ textAlign: 'center' }}>
             {tr.subject(active.subjectId)}
+            {topicName(active.topicId) ? ` · ${topicName(active.topicId)}` : ''}
           </Label>
+          {pomodoro !== null ? (
+            <Label testID="pomodoro-phase" variant="heading" style={{ textAlign: 'center' }}>
+              {pomodoroPhaseLabel(pomodoro, active.pomodoro?.config.longEvery ?? 4)}
+            </Label>
+          ) : null}
           <Text
             testID="timer-clock"
             accessibilityRole="timer"
-            style={[styles.clock, { color: running ? c.text : c.textMuted }]}
+            style={[styles.clock, { color: running && !onBreak ? c.text : c.textMuted }]}
             numberOfLines={1}
             adjustsFontSizeToFit>
-            {formatClock(elapsedMs(active, now))}
+            {formatClock(pomodoro !== null ? pomodoro.remainingMs : elapsedMs(active, shownNow))}
           </Text>
           <Label variant="muted" testID="timer-status" style={{ textAlign: 'center' }}>
-            {running ? tr.timer.running : tr.timer.paused}
+            {pomodoro !== null
+              ? running
+                ? tr.pomodoro.studied(formatClock(elapsedMs(active, shownNow)))
+                : tr.pomodoro.paused
+              : running
+                ? tr.timer.running
+                : tr.timer.paused}
           </Label>
+          {pomodoro !== null && pomodoro.phase !== 'work' ? (
+            <>
+              <Label variant="small" style={{ textAlign: 'center' }}>
+                {tr.pomodoro.breakNote}
+              </Label>
+              {running ? (
+                <Button testID="pomodoro-skip" kind="secondary" title={tr.pomodoro.skip} onPress={skipBreak} />
+              ) : null}
+            </>
+          ) : null}
           <Row>
             {running ? (
               <Button
@@ -141,7 +293,45 @@ export default function TimerScreen() {
           </Row>
         </Card>
       )}
+
+      <Card>
+        <Label variant="heading">{tr.compare.title}</Label>
+        <CompareRow
+          testID="compare-yesterday"
+          label={tr.compare.yesterday}
+          value={comparison.yesterdaySameTime}
+        />
+        <CompareRow label={tr.compare.thisWeek} value={comparison.thisWeek} />
+        <CompareRow
+          testID="compare-last-week"
+          label={tr.compare.lastWeek}
+          value={comparison.lastWeekSameTime}
+        />
+        <Button
+          testID="open-weekly"
+          kind="secondary"
+          title={tr.compare.weekly}
+          onPress={() => router.push('/haftalik')}
+        />
+      </Card>
     </Screen>
+  );
+}
+
+function pomodoroPhaseLabel(status: PomodoroStatus, longEvery: number): string {
+  if (status.phase === 'short_break') return tr.pomodoro.shortBreak;
+  if (status.phase === 'long_break') return tr.pomodoro.longBreak;
+  return tr.pomodoro.work(status.blockInSet, longEvery);
+}
+
+function CompareRow({ label, value, testID }: { label: string; value: number; testID?: string }) {
+  return (
+    <Row>
+      <Label variant="muted" style={{ flex: 1 }}>
+        {label}
+      </Label>
+      <Label testID={testID}>{formatDuration(value)}</Label>
+    </Row>
   );
 }
 

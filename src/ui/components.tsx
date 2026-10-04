@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, type TextStyle, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, type TextStyle, View } from 'react-native';
 
 import { space, usePalette } from './theme';
 
@@ -126,6 +126,106 @@ export function Row({ children }: { children: ReactNode }) {
   return <View style={styles.row}>{children}</View>;
 }
 
+/** Small "elle" style tag next to a value. */
+export function Tag({ title }: { title: string }) {
+  const c = usePalette();
+  return (
+    <View style={[styles.tag, { borderColor: c.border, backgroundColor: c.background }]}>
+      <Text style={{ color: c.textMuted, fontSize: 12 }}>{title}</Text>
+    </View>
+  );
+}
+
+/** Horizontal progress bar, `ratio` 0…1. */
+export function ProgressBar({ ratio }: { ratio: number }) {
+  const c = usePalette();
+  const width = `${Math.round(Math.min(1, Math.max(0, ratio)) * 100)}%` as const;
+  return (
+    <View style={[styles.progress, { backgroundColor: c.barMuted }]}>
+      <View style={{ width, height: '100%', borderRadius: 4, backgroundColor: c.accent }} />
+    </View>
+  );
+}
+
+/** Labelled numeric text field. */
+export function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  maxLength = 3,
+  numeric = true,
+  testID,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  numeric?: boolean;
+  testID?: string;
+}) {
+  const c = usePalette();
+  return (
+    <View style={{ flex: 1, gap: 4 }}>
+      <Text style={[styles.small, { color: c.textMuted }]}>{label}</Text>
+      <TextInput
+        testID={testID}
+        accessibilityLabel={label}
+        value={value}
+        onChangeText={onChange}
+        keyboardType={numeric ? 'number-pad' : 'numbers-and-punctuation'}
+        inputMode={numeric ? 'numeric' : 'text'}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        placeholderTextColor={c.textMuted}
+        style={[styles.input, { color: c.text, borderColor: c.border, backgroundColor: c.background }]}
+      />
+    </View>
+  );
+}
+
+/** − value + control. */
+export function Stepper({
+  label,
+  value,
+  onMinus,
+  onPlus,
+  minusDisabled = false,
+  plusDisabled = false,
+  testID,
+}: {
+  label: string;
+  value: string;
+  onMinus: () => void;
+  onPlus: () => void;
+  minusDisabled?: boolean;
+  plusDisabled?: boolean;
+  testID?: string;
+}) {
+  const c = usePalette();
+  const button = (symbol: string, onPress: () => void, disabled: boolean, id: string) => (
+    <Pressable
+      testID={testID ? `${testID}-${id}` : undefined}
+      accessibilityRole="button"
+      accessibilityLabel={`${label} ${symbol}`}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.stepButton, { borderColor: c.border, opacity: disabled ? 0.4 : 1 }]}>
+      <Text style={{ color: c.text, fontSize: 18, fontWeight: '600' }}>{symbol}</Text>
+    </Pressable>
+  );
+  return (
+    <View style={styles.row}>
+      <Text style={[styles.muted, { color: c.textMuted, flex: 1 }]}>{label}</Text>
+      {button('−', onMinus, minusDisabled, 'minus')}
+      <Text style={[styles.body, { color: c.text, minWidth: 64, textAlign: 'center' }]}>{value}</Text>
+      {button('+', onPlus, plusDisabled, 'plus')}
+    </View>
+  );
+}
+
 export interface Bar {
   key: string;
   label: string;
@@ -196,6 +296,28 @@ const styles = StyleSheet.create({
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   row: { flexDirection: 'row', gap: space.md, alignItems: 'center' },
+  tag: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  progress: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 18,
+  },
+  stepButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: space.xs },
   barColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: space.xs },
   barValue: { fontSize: 11 },

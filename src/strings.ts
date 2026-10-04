@@ -4,6 +4,8 @@
  * no "sosyal ağ / sohbet / topluluk" positioning (K-13).
  */
 
+import type { MarkError } from './domain/exam-analysis';
+import type { ManualEntryError } from './domain/manual-entry';
 import type { ExamKind, ScoreError, YksArea } from './domain/net';
 import type { ExamType } from './domain/profile';
 
@@ -114,6 +116,7 @@ export const tr = {
     examTitle: 'Hazırlandığın sınav',
     areaTitle: 'Alanın',
     start: 'Başla',
+    ageBlocked: 'Bu doğum yılı bu cihazda kaydedilemiyor. Seçimini kontrol edip yeniden dene.',
   },
 
   timer: {
@@ -133,12 +136,154 @@ export const tr = {
     awayDismiss: 'Tamam, mola kalsın',
     lessThanMinute: '1 dakikadan az',
     saved: (duration: string) => `Kaydedildi: ${duration}`,
+    topics: 'Konular',
+    addManual: 'Elle ekle',
+    manualPart: (duration: string) => `${duration} elle eklendi`,
+  },
+
+  manual: {
+    title: 'Elle süre ekle',
+    intro:
+      'Sayacı açmayı unuttuysan çalıştığın süreyi sonradan ekle. Bu kayıtlar her yerde “elle” etiketiyle görünür.',
+    subject: 'Ders',
+    day: 'Gün',
+    start: 'Başlangıç',
+    duration: 'Süre',
+    hour: 'Saat',
+    minute: 'Dakika',
+    hours: 'Saat',
+    minutes: 'Dakika',
+    add: 'Ekle',
+    added: (duration: string) => `Eklendi: ${duration} (elle)`,
+    limits:
+      'Yalnız son 7 gün (bugün dahil) için; tek kayıt en fazla 10 saat; gelecekteki ya da başka kayıtla çakışan zaman eklenemez.',
+    placeholders: { startHour: '14', startMinute: '00', durationHours: '0', durationMinutes: '45' },
+    errors: {
+      invalid: 'Başlangıç saatini ve süreyi kontrol et.',
+      too_old: 'Yalnız son 7 gün için süre eklenebilir.',
+      too_short: 'Süre en az 1 dakika olmalı.',
+      too_long: 'Tek kayıt en fazla 10 saat olabilir.',
+      future: 'Henüz gelmemiş bir zaman eklenemez.',
+      overlap: 'Bu saatlerde başka bir çalışma kaydın var.',
+    } satisfies Record<ManualEntryError, string>,
+    recent: 'Son elle eklediklerin',
+    empty: 'Henüz elle eklenmiş süre yok.',
+    deleteConfirm: 'Bu kayıt silinsin mi?',
+    /** `4 Ekim 2026 · 14:30` */
+    when: (date: string, hours: number, minutes: number) =>
+      `${date} · ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`,
+  },
+
+  /** Label of sessions added afterwards (`source = 'manual'`). */
+  manualTag: 'elle',
+
+  goal: {
+    title: 'Günlük hedef',
+    progress: (goal: string, percent: number) => `Hedef ${goal} · %${percent}`,
+    met: 'Bugünkü hedefini tutturdun.',
+    set: 'Günlük hedef koy',
+    streak: (days: number) => `Seri: ${days} gün`,
+    restUsed: 'Bu haftaki dinlenme günün kullanıldı.',
+    restFree: 'Bu hafta 1 dinlenme günü hakkın var.',
+    off: 'Kapalı',
+    turnOff: 'Hedefi kapat',
+    turnOn: 'Hedef koy',
+    info: 'Hedefini tutturduğun ardışık günler seriyi oluşturur. Haftada 1 gün hedefin altında kalırsan seri bozulmaz; o gün dinlenme günü sayılır.',
+  },
+
+  countdown: {
+    /** "YKS'ye 258 gün" — every built-in exam name ends in "S", so the suffix is "'ye". */
+    days: (examType: ExamType, days: number) =>
+      examType === 'DIGER' ? `Sınavına ${days} gün` : `${examTypes[examType]}’ye ${days} gün`,
+    today: 'Sınav günü bugün. Başarılar!',
+    estimated: 'tahmini',
+    custom: 'senin girdiğin tarih',
+    settingsTitle: 'Sınav tarihi',
+    settingsInfo:
+      'ÖSYM ve MEB 2027 takvimini henüz açıklamadı; gösterilen tarih tahminidir. Kesin tarih açıklanınca buradan düzeltebilirsin.',
+    none: 'Tarih yok',
+    input: 'Tarih (GG.AA.YYYY)',
+    placeholder: 'GG.AA.YYYY',
+    save: 'Tarihi kaydet',
+    reset: 'Tahmini tarihe dön',
+    invalid: 'Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.',
+  },
+
+  compare: {
+    title: 'Kendinle kıyas',
+    yesterday: 'Dün bu saate kadar',
+    thisWeek: 'Bu hafta',
+    lastWeek: 'Geçen hafta bu zamana kadar',
+    weekly: 'Haftalık özet',
+  },
+
+  weekly: {
+    title: 'Haftalık özet',
+    range: (from: string, to: string) => `${from} – ${to}`,
+    prev: '‹ Önceki hafta',
+    next: 'Sonraki hafta ›',
+    total: 'Toplam',
+    previousWeek: (duration: string) => `Önceki hafta: ${duration}`,
+    subjects: 'Ders dağılımı',
+    longest: 'En uzun oturum',
+    streak: 'Seri',
+    goalDays: (n: number) => `Hedefi tutturduğun gün: ${n}/7`,
+    activeDays: (n: number) => `Çalıştığın gün: ${n}/7`,
+    manual: (duration: string) => `Elle eklenen: ${duration}`,
+    empty: 'Bu hafta kayıtlı çalışma yok.',
+    percent: (p: number) => `%${p}`,
+  },
+
+  pomodoro: {
+    mode: 'Sayaç türü',
+    stopwatch: 'Kronometre',
+    pomodoro: 'Pomodoro',
+    summary: (work: number, short: number, long: number, every: number) =>
+      `${work} dk çalışma · ${short} dk mola · her ${every} turda bir ${long} dk uzun mola`,
+    work: (block: number, of: number) => `Çalışma ${block}/${of}`,
+    shortBreak: 'Kısa mola',
+    longBreak: 'Uzun mola',
+    paused: 'Duraklatıldı',
+    studied: (clock: string) => `Toplam çalışma: ${clock}`,
+    skip: 'Molayı geç',
+    breakNote: 'Mola süresi çalışma süresine sayılmaz.',
+    settingsTitle: 'Pomodoro',
+    workLabel: 'Çalışma',
+    shortLabel: 'Kısa mola',
+    longLabel: 'Uzun mola',
+    everyLabel: 'Uzun mola sıklığı',
+    minutes: (n: number) => `${n} dk`,
+    every: (n: number) => `${n} turda bir`,
+    reset: 'Varsayılana dön',
+  },
+
+  topicPicker: {
+    title: 'Konu (isteğe bağlı)',
+    none: 'Konu seçilmedi',
+    pick: 'Konu seç',
+    change: 'Değiştir',
+    close: 'Kapat',
+    clear: 'Konusuz çalış',
+  },
+
+  topics: {
+    title: 'Konular',
+    pickSubject: 'Ders',
+    progress: (percent: number, done: number, total: number) => `%${percent} · ${done}/${total} konu bitti`,
+    percent: (p: number) => `%${p}`,
+    reviewCount: (n: number) => `${n} konu tekrar bekliyor`,
+    done: 'Bitti',
+    review: 'Tekrar lazım',
+    noTime: 'Henüz süre yok',
+    noTopics: 'Bu ders için konu listesi yok.',
+    unsupported: 'Konu listeleri YKS, LGS ve KPSS için var.',
   },
 
   history: {
     title: 'Geçmiş',
     last7: 'Son 7 gün',
     days: 'Günler',
+    manualLine: (duration: string) => `Elle eklenen: ${duration}`,
     empty: 'Henüz kayıtlı çalışma yok.',
     todayLabel: 'Bugün',
     /** Short label above a bar: `2:05` (hours) or `45 dk`. */
@@ -176,6 +321,54 @@ export const tr = {
     notFound: 'Deneme bulunamadı.',
   },
 
+  analysis: {
+    title: 'Deneme analizi',
+    pendingTitle: (n: number) => `Analizi bekleyen ${n} deneme var`,
+    pendingBody: 'Kitapçık gelince yanlış ve boş soruların konularını işaretle; neti zaten kaydettin.',
+    start: 'Analize başla',
+    complete: 'Analizi tamamla',
+    edit: 'Analizi düzenle',
+    pendingTag: 'analiz bekliyor',
+    sectionSummary: (wrong: number, blank: number) => `${wrong} yanlış · ${blank} boş`,
+    tagged: (wrongTagged: number, wrong: number, blankTagged: number, blank: number) =>
+      `İşaretlenen: ${wrongTagged}/${wrong} yanlış · ${blankTagged}/${blank} boş`,
+    addTopic: 'Konu ekle',
+    close: 'Kapat',
+    wrong: 'Yanlış',
+    blank: 'Boş',
+    nothing: 'Bu denemede yanlış ya da boş yok; analiz edecek bir şey kalmadı.',
+    partialNote: 'Hepsini işaretlemek zorunda değilsin; bildiklerini işaretlemen yeter.',
+    save: 'Analizi kaydet',
+    markErrors: {
+      not_integer: 'Tam sayı gir.',
+      negative: 'Negatif olamaz.',
+      too_many_wrong: 'İşaretlenen yanlışlar bu dersteki yanlış sayısını aşıyor.',
+      too_many_blank: 'İşaretlenen boşlar bu dersteki boş sayısını aşıyor.',
+    } satisfies Record<MarkError, string>,
+    marksTitle: 'Yanlış ve boş konular',
+    noMarks: 'Konu işaretlenmedi.',
+    markRow: (wrong: number, blank: number) =>
+      blank > 0 ? `${wrong} Y · ${blank} B` : `${wrong} Y`,
+    topMissedTitle: 'En çok yanlış yaptığın 5 konu',
+    topMissedEmpty: 'Deneme analizlerini tamamladıkça burada görünür.',
+  },
+
+  trend: {
+    title: (kind: string) => `${kind} ders bazlı net`,
+    empty: 'Bu ders için henüz net yok.',
+    target: 'Hedef net',
+    targetPlaceholder: 'ör. 30',
+    targetNone: 'Bu ders için hedef koymadın.',
+    targetCurrent: (target: string) => `Hedef: ${target} net`,
+    targetSave: 'Hedefi kaydet',
+    targetClear: 'Hedefi kaldır',
+    targetInvalid: (questions: number) =>
+      `0’dan büyük, en fazla ${questions} olan ve 0,25’in katı bir net gir (ör. 32,5).`,
+    gap: (gap: string, average: string) =>
+      `Hedefe ${gap} net kaldı (son denemelerin ortalaması: ${average}).`,
+    reached: (average: string) => `Hedefe ulaştın (son denemelerin ortalaması: ${average}).`,
+  },
+
   groups: {
     title: 'Gruplar',
     soon: 'Yakında',
@@ -186,12 +379,13 @@ export const tr = {
     title: 'Ayarlar',
     profile: 'Profil',
     exam: 'Sınav',
-    birthYear: 'Doğum yılı',
     dataTitle: 'Veriler',
     dataInfo: 'Tüm verilerin yalnız bu cihazda tutulur. Hiçbir sunucuya gönderilmez.',
     deleteAll: 'Tüm verileri sil',
     deleteAllConfirm:
-      'Çalışma kayıtların, denemelerin ve profilin bu cihazdan silinecek. Bu işlem geri alınamaz.',
+      'Çalışma kayıtların, denemelerin, hedeflerin ve profilin bu cihazdan silinecek. Bu işlem geri alınamaz.',
+    deleteAllAgeNote:
+      '15 yaş altı beyanı yapıldıysa, yaş kuralı gereği yalnız o doğum yılı 15 yaşına gelene kadar bu cihazda ayrıca kalır; uygulamayı kaldırınca o da silinir.',
     deleteAllYes: 'Evet, hepsini sil',
     about: 'Hakkında',
     version: 'Sürüm',

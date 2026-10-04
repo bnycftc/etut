@@ -21,6 +21,7 @@ export default function OnboardingScreen() {
   const [birthYear, setBirthYear] = useState<number | null>(null);
   const [examType, setExamType] = useState<ExamType | null>(null);
   const [yksArea, setYksArea] = useState<YksArea | null>(null);
+  const [blocked, setBlocked] = useState(false);
 
   const profile = buildProfile({ birthYear, examType, yksArea }, currentYear, Date.now());
 
@@ -42,7 +43,10 @@ export default function OnboardingScreen() {
                     testID={`birth-year-${y}`}
                     title={String(y)}
                     selected={y === birthYear}
-                    onPress={() => setBirthYear(y)}
+                    onPress={() => {
+                      setBirthYear(y);
+                      setBlocked(false);
+                    }}
                   />
                 ))}
               </ChipRow>
@@ -82,13 +86,18 @@ export default function OnboardingScreen() {
           </Card>
         ) : null}
 
+        {blocked ? (
+          <Label testID="onboarding-age-blocked" style={{ color: c.danger }}>
+            {tr.onboarding.ageBlocked}
+          </Label>
+        ) : null}
         <Button
           large
           testID="onboarding-start"
           title={tr.onboarding.start}
           disabled={profile === null}
           onPress={() => {
-            if (profile !== null) saveProfile(profile);
+            if (profile !== null) setBlocked(saveProfile(profile) === 'age_blocked');
           }}
         />
       </ScrollView>
