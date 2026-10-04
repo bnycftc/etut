@@ -112,7 +112,8 @@ const legalDocs = {
       {
         heading: '4. İzinler',
         paragraphs: [
-          'Uygulama konum, kamera, mikrofon, fotoğraflar, rehber, bildirim ya da takip (ATT) izni istemez. Yedeği geri yüklerken dosyayı sen seçersin; uygulama yalnız seçtiğin dosyayı okur.',
+          'Uygulama konum, kamera, mikrofon, fotoğraf okuma, rehber, bildirim ya da takip (ATT) izni istemez. Yedeği geri yüklerken dosyayı sen seçersin; uygulama yalnız seçtiğin dosyayı okur.',
+          'Çalışma kartını paylaşım ekranından “Görüntüyü Kaydet” ile Fotoğraflar’a eklemek istersen iOS yalnız ekleme izni sorar; Etüt fotoğraflarını göremez.',
         ],
       },
       {

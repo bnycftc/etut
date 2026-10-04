@@ -17,7 +17,8 @@
       },
       "infoPlist": {
         "CFBundleDevelopmentRegion": "tr",
-        "CFBundleLocalizations": ["tr"]
+        "CFBundleLocalizations": ["tr"],
+        "NSPhotoLibraryAddUsageDescription": "Paylaşım ekranında “Görüntüyü Kaydet”i seçersen çalışma kartın Fotoğraflar’a eklenir. Etüt fotoğraflarını göremez."
       }
     },
     "android": {

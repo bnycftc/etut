@@ -193,6 +193,7 @@ async function runScenario(page, baseUrl) {
   // First-use tips: shown once, three steps.
   log('step: first-use tips');
   await visible('tips-card');
+  await delay(500); // let the fade-in finish before the screenshot
   await screenshot('tips-1');
   await byId('tips-next').click();
   await byId('tips-next').click();

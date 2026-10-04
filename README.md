@@ -27,6 +27,8 @@ npm ci
 | `npm run web` | Web önizlemesi, sabit port 8081 (`http://localhost:8081`; `npx expo start --web` de çalışır) |
 | `npm run test:web` | Web duman testi: geliştirme sunucusunu kendisi açar/kapatır, Playwright ile uygulamayı dener |
 | `npm run test:all` | `tsc` + `jest --ci` + `test:web` |
+| `npm run gen:icons` | Simge, açılış ekranı işaretleri ve favicon'u SVG'den üretir (`assets/`; `-- --preview` 60/120/180 px önizlemeleri `test-results/icons/`'a yazar) |
+| `npm run gen:licenses` | Uygulama paketine giren açık kaynak paketlerin listesini üretir (`src/legal/licenses.ts`; bağımlılık değişince yeniden çalıştırın) |
 | `npx expo install <paket>` | SDK ile uyumlu sürümle paket ekler (npm install yerine bunu kullanın) |
 
 **Windows notu:** iOS projesi (`ios/`) Windows'ta üretilemez ve derlenemez
@@ -57,7 +59,7 @@ app/                    Ekranlar (expo-router)
   (tabs)/index.tsx      Sayaç (ana ekran, ilk sekme)
   (tabs)/denemeler.tsx  Deneme listesi ve net grafiği
   (tabs)/gruplar.tsx    "Yakında" (yalnız 15+ profillerde görünür)
-  (tabs)/ayarlar.tsx    Günlük hedef, pomodoro, sınav tarihi, tüm verileri sil, sürüm
+  (tabs)/ayarlar.tsx    Sınav/alan değiştirme, günlük hedef, pomodoro, sınav tarihi, yedek, tüm verileri sil, hakkında
   gecmis.tsx            Günlük toplamlar, ders dağılımı, son 7 gün ("elle" kısmı)
   haftalik.tsx          Haftalık özet (toplam, ders dağılımı, en uzun oturum, seri)
   konular.tsx           Konu takibi: konu bazlı süre, "bitti / tekrar lazım", ilerleme
@@ -65,13 +67,21 @@ app/                    Ekranlar (expo-router)
   deneme/yeni.tsx       Deneme girişi
   deneme/[id].tsx       Deneme ayrıntısı / silme / işaretlenen konular
   analiz/[id].tsx       Deneme analizi: yanlış/boş soruların konuları (2. aşama)
+  paylas.tsx            Paylaşılabilir 9:16 günlük/haftalık çalışma kartı (açık/koyu)
+  yedek.tsx             Yedekle / geri yükle (JSON), CSV dışa aktarma
+  hakkinda.tsx          Sürüm, yasal metinler, veri sorumlusu, lisanslar
+  yasal/[doc].tsx       Kısa aydınlatma, gizlilik politikası, kullanım şartları (onboarding'den de açılır)
+  lisanslar.tsx         Açık kaynak lisans listesi
 src/domain/             Saf TypeScript iş kuralları + Jest testleri
-src/storage/            expo-sqlite veritabanı ve kv-store
+src/storage/            expo-sqlite veritabanı ve kv-store; file-io(.web).ts paylaşım/dosya seçici
 src/state/              Uygulama durumu (domain ile depolama arasındaki ince katman)
-src/ui/                 Tema, ortak bileşenler, biçimlendirme
-src/strings.ts          Kullanıcıya görünen tüm metinler
+src/ui/                 Tema (WCAG AA testli), ortak bileşenler, kart, ipucu, azaltılmış hareket
+src/legal/licenses.ts   Üretilen lisans listesi (npm run gen:licenses)
+src/strings.ts          Kullanıcıya görünen tüm metinler (yasal metinler ve DATA_CONTROLLER dahil)
 index.ts / index.web.ts Giriş noktası (web: SQLite worker'ını ısıtıp expo-router'ı başlatır)
 scripts/test-web.mjs    Web duman testi (npm run test:web)
+scripts/gen-icons.mjs   Simge ve açılış ekranı (SVG -> PNG, simge alfa kanalsız)
+scripts/gen-licenses.mjs Lisans listesi üretici
 e2e/                    Maestro akışları (iOS simülatörü, e2e-ios.yml)
 ci/ExportOptions.plist  TestFlight ihracat ayarları
 .github/workflows/      ci.yml, testflight.yml, e2e-ios.yml
@@ -99,7 +109,11 @@ Akışlar (`e2e/`, yalnız `testID` seçicileri; ortak adımlar `e2e/subflows/`)
 `a-ilk-acilis` (15+ YKS Sayısal → sayaç), `b-sayac` (başla/mola/devam/bitir, bugünkü toplam > 0),
 `c-arka-plan` (15 sn ana ekran → "Çalışıyordum, süreye ekle"), `d-kapat-ac` (öldür-aç: sayaç sürer;
 20 sn kapalı: uzakta kuralı), `e-deneme` (TYT: 10D 4Y = 9 net, toplam 11,5), `f-kucuk-yas`
-(15 altı: Gruplar sekmesi yok), `g-tum-verileri-sil` (Ayarlar → sil → ilk açılış).
+(15 altı: Gruplar sekmesi yok), `g-tum-verileri-sil` (Ayarlar → sil → ilk açılış),
+`h-alan-degistir` (Sayısal → EA: ders ve deneme türleri değişir), `i-yedek` (yedek dosyası →
+paylaşım sayfası), `j-kart-paylas` (çalışma kartı, paylaşım sayfası), `k-hakkinda-bos-durum`
+(aydınlatma ilk açılıştan, boş durumlar, hakkında, gizlilik). İlk açılıştan sonraki tek seferlik
+ipucu `subflows/ipucu-gec.yaml` ile kapatılır.
 Yeni ekran öğesine test gerekiyorsa metni değil `testID`'yi hedefleyin; mevcut `testID`'leri
 değiştirmeyin (akışlar ve `scripts/test-web.mjs` bunlara bağlı).
 
@@ -165,3 +179,20 @@ tarihi sorulmaz. Ayarlar → "Tüm verileri sil" veritabanını ve anahtar-değe
 İstisna (hukuk/03 K-17): yalnız 15 yaş altı beyanında, beyan edilen doğum yılı 15 yaşına
 gelene kadar ayrı bir dosyada (`EtutAgeGuard`, `src/storage/age-guard.ts`) kalır; silme sonrası
 15+ beyanına geçişi engellemek için. Süresi dolunca açılışta, uygulama kaldırılınca da silinir.
+
+Veri cihazdan yalnız öğrenci dokunduğunda, sistemin paylaşım sayfasıyla çıkar; uygulama hiçbir
+ağ isteği atmaz (`test:web` bunu denetler):
+- **Yedek** (`Ayarlar → Yedekle ve geri yükle`): `etut-yedek-<gün>.json`, biçim `src/domain/backup.ts`
+  (`format: "etut-yedek"`, `schemaVersion: 1`; oturumlar, denemeler + analizler, konu işaretleri,
+  ayarlar, profil). İçe aktarma: tam şema doğrulaması (tek hatalı kayıt → hiçbir şey yazılmaz),
+  daha yeni sürüm reddedilir, "Birleştir" (bu cihaz kazanır, eksikler eklenir) ya da "Değiştir";
+  kimliklere göre idempotent. K-17: doğum yılı yedekten alınmaz; yedekteki yaş daha küçükse küçük
+  olan esas alınır, 15 altı bayrağı içe aktarmayla kapanmaz. Dosya şifrelenmez (metinde yazıyor).
+- **CSV** (KVKK taşınabilirlik): oturumlar ve denemeler; `;` ayraçlı, UTF-8 BOM, ondalık virgül,
+  formül enjeksiyonuna karşı korumalı (`src/domain/csv.ts`).
+- **Çalışma kartı**: 1080×1920 PNG; yalnız süre, ders dağılımı, seri ve hedef (ad, yaş, okul,
+  sınav türü yok).
+
+Yasal metinler (`src/strings.ts` → `legalDocs`) şu anki sunucusuz davranışa göre yazıldı. Veri
+sorumlusu adı ve iletişim bilgisi `DATA_CONTROLLER` sabitinde **`[DOLDURULACAK]`**; yayından önce
+doldurulmalı.

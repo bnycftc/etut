@@ -53,12 +53,21 @@ const POMODORO_FIELDS: {
 export default function SettingsScreen() {
   const { profile, resetAll, dataVersion, notifyDataChanged, updateExam } = useAppState();
   const [confirming, setConfirming] = useState(false);
-  const [draftExam, setDraftExam] = useState<ExamType>(profile?.examType ?? 'YKS');
-  const [draftArea, setDraftArea] = useState<YksArea | null>(profile?.yksArea ?? null);
+  // `null` = no unsaved choice: the chips show the profile (which a backup restore can change).
+  const [draft, setDraft] = useState<{ exam: ExamType; area: YksArea | null } | null>(null);
   const [examSaved, setExamSaved] = useState(false);
+  const draftExam = draft?.exam ?? profile?.examType ?? 'YKS';
+  const draftArea = draft === null ? (profile?.yksArea ?? null) : draft.area;
+  const setDraftExam = (exam: ExamType) => setDraft({ exam, area: draftArea });
+  const setDraftArea = (area: YksArea) => setDraft({ exam: draftExam, area });
   const examChanged =
     profile !== null &&
     (draftExam !== profile.examType || (draftExam === 'YKS' && draftArea !== profile.yksArea));
+  const saveExam = () => {
+    const saved = updateExam(draftExam, draftExam === 'YKS' ? draftArea : null);
+    if (saved) setDraft(null);
+    setExamSaved(saved);
+  };
   const goal = useStored(`goal|${dataVersion}`, loadDailyGoal);
   const setGoal = (minutes: number | null) => {
     storeDailyGoal(minutes);
@@ -143,7 +152,7 @@ export default function SettingsScreen() {
             kind="secondary"
             title={tr.settings.examChangeSave}
             disabled={!examChanged || (draftExam === 'YKS' && draftArea === null)}
-            onPress={() => setExamSaved(updateExam(draftExam, draftExam === 'YKS' ? draftArea : null))}
+            onPress={saveExam}
           />
           {examSaved ? (
             <Label testID="settings-exam-saved" variant="small">
@@ -245,7 +254,12 @@ export default function SettingsScreen() {
             plusDisabled={pomodoro[key] >= POMODORO_LIMITS[key].max}
           />
         ))}
-        <Button kind="secondary" title={tr.pomodoro.reset} onPress={() => setPomodoro(DEFAULT_POMODORO)} />
+        <Button
+          testID="settings-pomodoro-reset"
+          kind="secondary"
+          title={tr.pomodoro.reset}
+          onPress={() => setPomodoro(DEFAULT_POMODORO)}
+        />
       </Card>
 
       <Card>
