@@ -59,7 +59,7 @@ export function usePalette(): Palette {
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
 
 /**
- * Largest Dynamic Type / font scale multiplier for text that must stay on one line or inside a
- * fixed layout (the big timer digits, tab labels). Body text scales without a limit.
+ * Largest Dynamic Type / font scale multiplier for the big timer digits (they must stay on one
+ * line). Body text scales without a limit.
  */
-export const MAX_FONT_SCALE = { clock: 1.3, compact: 1.6 } as const;
+export const MAX_FONT_SCALE = { clock: 1.3 } as const;

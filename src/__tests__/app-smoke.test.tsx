@@ -995,6 +995,31 @@ describe('backup and restore', () => {
     expect(memory.youngestBirthYear).toBe(year - 12);
   });
 
+  it('replace takes the exam and area; settings then show them with nothing unsaved', async () => {
+    memory.profile = ADULT_SAYISAL;
+    memory.pickText = JSON.stringify({
+      format: 'etut-yedek',
+      schemaVersion: 1,
+      exportedAt: 1,
+      profile: { birthYear: 2000, examType: 'YKS', yksArea: 'sozel' },
+      sessions: [session('x')],
+      exams: [],
+      topicProgress: [],
+    });
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    fireEvent.press(screen.getByTestId('settings-open-backup'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-import'));
+    });
+    fireEvent.press(screen.getByTestId('backup-mode-replace'));
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    expect(memory.sessions.map((s) => s.id)).toEqual(['x']);
+    act(() => router.back());
+    expect(screen.getByTestId('settings-exam-current').props.children).toEqual(['YKS', ' · Sözel']);
+    const save = screen.getByTestId('settings-exam-save');
+    expect(save.props.accessibilityState?.disabled ?? save.props['aria-disabled']).toBeTruthy();
+  });
+
   it('a file that is not an Etüt backup is refused and nothing changes', async () => {
     memory.profile = ADULT_SAYISAL;
     memory.sessions = [session('a')];
