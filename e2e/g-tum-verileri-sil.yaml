@@ -32,11 +32,14 @@ tags:
 - takeScreenshot: g-sil-01-ayarlar
 - tapOn:
     id: settings-delete-all
+# The confirm button appears below the warning text; centre it so the tap cannot land on the tab bar.
 - scrollUntilVisible:
     element:
       id: settings-delete-all-confirm
     direction: DOWN
     timeout: 10000
+    visibilityPercentage: 100
+    centerElement: true
 - takeScreenshot: g-sil-02-onay
 - tapOn:
     id: settings-delete-all-confirm

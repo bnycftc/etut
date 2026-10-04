@@ -1,6 +1,7 @@
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { useState } from 'react';
+import { Modal, StyleSheet, View } from 'react-native';
 
 import {
   formatDayInput,
@@ -190,8 +191,27 @@ export default function SettingsScreen() {
       <Card>
         <Label variant="heading">{tr.settings.dataTitle}</Label>
         <Label variant="muted">{tr.settings.dataInfo}</Label>
-        {confirming ? (
-          <>
+        <Button
+          kind="danger"
+          testID="settings-delete-all"
+          title={tr.settings.deleteAll}
+          onPress={() => setConfirming(true)}
+        />
+      </Card>
+
+      {/* The button sits at the bottom of a long screen: confirm in a centred dialog so the
+          destructive choice is always on screen, never hidden behind the tab bar. */}
+      <Modal
+        visible={confirming}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirming(false)}>
+        <View style={styles.backdrop}>
+          <View
+            testID="settings-delete-all-dialog"
+            accessibilityViewIsModal
+            style={[styles.dialog, { backgroundColor: c.surface, borderColor: c.border }]}>
+            <Label variant="heading">{tr.settings.deleteAll}</Label>
             <Label>{tr.settings.deleteAllConfirm}</Label>
             <Label variant="small">{tr.settings.deleteAllAgeNote}</Label>
             <Button
@@ -203,17 +223,15 @@ export default function SettingsScreen() {
                 resetAll();
               }}
             />
-            <Button kind="secondary" title={tr.common.cancel} onPress={() => setConfirming(false)} />
-          </>
-        ) : (
-          <Button
-            kind="danger"
-            testID="settings-delete-all"
-            title={tr.settings.deleteAll}
-            onPress={() => setConfirming(true)}
-          />
-        )}
-      </Card>
+            <Button
+              kind="secondary"
+              testID="settings-delete-all-cancel"
+              title={tr.common.cancel}
+              onPress={() => setConfirming(false)}
+            />
+          </View>
+        </View>
+      </Modal>
 
       <Card>
         <Label variant="heading">{tr.settings.about}</Label>
@@ -233,3 +251,18 @@ export default function SettingsScreen() {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
+  dialog: {
+    gap: 12,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+});
