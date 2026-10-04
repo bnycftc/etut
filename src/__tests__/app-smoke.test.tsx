@@ -27,6 +27,12 @@ const memory: {
   marks: Record<string, TopicMark[]>;
   examDates: Record<string, string>;
   netTargets: Record<string, number>;
+  tipsSeen: boolean;
+  /** Files handed to the share sheet (backup, CSV) and captured card images. */
+  shared: { name: string; content: string }[];
+  sharedImages: string[];
+  /** Text the fake document picker returns; `null` = the student cancels. */
+  pickText: string | null;
 } = {
   profile: null,
   active: null,
@@ -40,6 +46,10 @@ const memory: {
   marks: {},
   examDates: {},
   netTargets: {},
+  tipsSeen: true,
+  shared: [],
+  sharedImages: [],
+  pickText: null,
 };
 
 jest.mock('../storage/kv', () => ({
@@ -75,13 +85,77 @@ jest.mock('../storage/kv', () => ({
     if (value === null) delete memory.netTargets[key];
     else memory.netTargets[key] = value;
   },
+  storeNetTargets: (targets: Record<string, number>) => {
+    memory.netTargets = { ...targets };
+  },
+  loadStoredPomodoroConfig: () => memory.pomodoroConfig,
+  loadStoredTimerMode: () => memory.timerMode,
+  restoreTimerSettings: () => {},
+  clearLastSubject: () => {},
+  loadTipsSeen: () => memory.tipsSeen,
+  storeTipsSeen: () => {
+    memory.tipsSeen = true;
+  },
   wipeKeyValueStore: () => {
     memory.profile = null;
     memory.active = null;
     memory.dailyGoal = null;
     memory.examDates = {};
     memory.netTargets = {};
+    memory.tipsSeen = false;
   },
+}));
+
+// The real SQL of storage/backup.ts runs in storage/__tests__/backup-storage.test.ts.
+jest.mock('../storage/backup', () => ({
+  readBackupData: () => ({
+    sessions: memory.sessions,
+    exams: memory.exams.map((e) => ({ ...e, marks: memory.marks[e.id] ?? [] })),
+    topicProgress: Object.entries(memory.topicStatuses).map(([topicId, status]) => ({
+      topicId,
+      status,
+      updatedAt: 1,
+    })),
+    settings: {
+      dailyGoalMinutes: memory.dailyGoal,
+      pomodoro: null,
+      timerMode: null,
+      examDates: memory.examDates,
+      netTargets: memory.netTargets,
+      lastSubject: null,
+    },
+  }),
+  writeBackupData: (data: {
+    sessions: CompletedSession[];
+    exams: (MockExamWithScores & { marks: TopicMark[] })[];
+    topicProgress: { topicId: string; status: 'done' | 'review' }[];
+    settings: { dailyGoalMinutes: number | null; netTargets: Record<string, number> };
+  }) => {
+    memory.sessions = [...data.sessions];
+    memory.exams = data.exams.map(({ marks, ...e }) => e);
+    memory.marks = Object.fromEntries(data.exams.map((e) => [e.id, e.marks]));
+    memory.topicStatuses = Object.fromEntries(data.topicProgress.map((t) => [t.topicId, t.status]));
+    memory.dailyGoal = data.settings.dailyGoalMinutes;
+    memory.netTargets = data.settings.netTargets;
+  },
+}));
+
+jest.mock('../storage/file-io', () => ({
+  shareTextFile: async (name: string, content: string) => {
+    memory.shared.push({ name, content });
+    return 'shared';
+  },
+  shareImage: async (uri: string) => {
+    memory.sharedImages.push(uri);
+    return 'shared';
+  },
+  pickTextFile: async () =>
+    memory.pickText === null ? { kind: 'canceled' } : { kind: 'picked', text: memory.pickText },
+}));
+
+jest.mock('react-native-view-shot', () => ({
+  captureRef: async () => '/tmp/etut-card.png',
+  releaseCapture: () => {},
 }));
 
 jest.mock('../storage/age-guard', () => ({
@@ -97,6 +171,7 @@ jest.mock('../storage/sessions', () => ({
   },
   sessionsOverlapping: (from: number, to: number) =>
     memory.sessions.filter((s) => s.endedAt > from && s.startedAt < to),
+  allSessions: () => memory.sessions,
   recentManualSessions: () => memory.sessions.filter((s) => s.source === 'manual').reverse(),
   deleteManualSession: (id: string) => {
     memory.sessions = memory.sessions.filter((s) => !(s.id === id && s.source === 'manual'));
@@ -170,6 +245,10 @@ beforeEach(() => {
   memory.marks = {};
   memory.examDates = {};
   memory.netTargets = {};
+  memory.tipsSeen = true;
+  memory.shared = [];
+  memory.sharedImages = [];
+  memory.pickText = null;
 });
 
 it('first launch shows onboarding with no birth year pre-selected', () => {
@@ -700,5 +779,263 @@ describe('other screens render', () => {
   fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
     expect(memory.profile).toBeNull();
     expect(screen.getByText('Doğum yılın')).toBeTruthy();
+  });
+});
+
+describe('subjects and papers follow the exam and YKS area', () => {
+  const ids = (prefix: string) =>
+    screen
+      .queryAllByTestId(new RegExp(`^${prefix}`))
+      .map((el) => String(el.props.testID).slice(prefix.length));
+
+  it('Sayısal: no literature or foreign language on the timer, only TYT and AYT Sayısal papers', () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    const subjects = ids('subject-');
+    expect(subjects).toEqual(expect.arrayContaining(['matematik', 'fizik', 'turkce', 'tarih']));
+    expect(subjects).not.toContain('edebiyat');
+    expect(subjects).not.toContain('yabanci_dil');
+    act(() => router.push('/deneme/yeni'));
+    expect(ids('exam-kind-')).toEqual(['TYT', 'AYT_SAY']);
+  });
+
+  it('settings change the area (not the birth year); the lists follow', () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    fireEvent.press(screen.getByTestId('settings-yks-area-esit_agirlik'));
+    fireEvent.press(screen.getByTestId('settings-exam-save'));
+    expect(memory.profile).toEqual({ ...ADULT_SAYISAL, yksArea: 'esit_agirlik' });
+    expect(screen.getByTestId('settings-exam-saved')).toBeTruthy();
+    act(() => router.push('/'));
+    // EA: the AYT subjects of the area first, TYT Fizik stays, no foreign language.
+    expect(ids('subject-').slice(0, 5)).toEqual(['matematik', 'geometri', 'edebiyat', 'tarih', 'cografya']);
+    expect(ids('subject-')).toContain('fizik');
+    expect(ids('subject-')).not.toContain('yabanci_dil');
+    act(() => router.push('/deneme/yeni'));
+    expect(ids('exam-kind-')).toEqual(['TYT', 'AYT_EA']);
+  });
+
+  it('switching to a non-YKS exam drops the area', () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    fireEvent.press(screen.getByTestId('settings-exam-type-KPSS'));
+    fireEvent.press(screen.getByTestId('settings-exam-save'));
+    expect(memory.profile).toMatchObject({ examType: 'KPSS', yksArea: null, birthYear: 2000, soloOnly: false });
+  });
+
+  it('charts keep a paper that already has exams after the area changed', () => {
+    memory.profile = { ...ADULT_SAYISAL, yksArea: 'sozel' };
+    memory.exams = [
+      {
+        id: 'old',
+        kind: 'AYT_SAY',
+        scope: 'genel',
+        bransSectionId: null,
+        takenOn: '2026-09-01',
+        totalNet: 40,
+        createdAt: 1,
+        analysisDoneAt: 1,
+        scores: [{ sectionId: 'matematik', questions: 40, correct: 40, wrong: 0 }],
+      },
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(ids('exams-chart-kind-')).toEqual(['TYT', 'AYT_SOZ', 'AYT_SAY']);
+  });
+});
+
+describe('first-use tips', () => {
+  it('shown once after onboarding, three steps, then remembered', () => {
+    memory.tipsSeen = false;
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.getByTestId('tips-card')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('tips-next'));
+    fireEvent.press(screen.getByTestId('tips-next'));
+    expect(screen.queryByTestId('tips-skip')).toBeNull();
+    fireEvent.press(screen.getByTestId('tips-done'));
+    expect(memory.tipsSeen).toBe(true);
+    expect(screen.queryByTestId('tips-card')).toBeNull();
+  });
+
+  it('not shown again', () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.queryByTestId('tips-card')).toBeNull();
+  });
+});
+
+describe('empty states', () => {
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+  });
+
+  it.each([
+    ['/gecmis', 'history-empty'],
+    ['/denemeler', 'exams-empty'],
+    ['/haftalik', 'weekly-empty'],
+    ['/konular', 'topics-empty'],
+  ])('%s explains what will appear', (url, id) => {
+    renderRouter(APP_DIR, { initialUrl: url });
+    expect(screen.getByTestId(id)).toBeTruthy();
+  });
+});
+
+describe('share card', () => {
+  it('daily and weekly card with study numbers only, shared as an image', async () => {
+    memory.profile = ADULT_SAYISAL;
+    const now = Date.now();
+    memory.sessions = [
+      {
+        id: 's1',
+        subjectId: 'fizik',
+        topicId: null,
+        startedAt: now - 2 * 3_600_000,
+        endedAt: now - 3_600_000,
+        pauses: [],
+        durationMs: 3_600_000,
+        source: 'timer',
+      },
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('open-share'));
+    expect(screen.getByText('Bugünkü çalışmam')).toBeTruthy();
+    // No birth year, exam type or area on the card.
+    expect(screen.queryByText(/2000|Sayısal|YKS/)).toBeNull();
+    fireEvent.press(screen.getByTestId('share-period-week'));
+    expect(screen.getByText('Bu haftaki çalışmam')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('share-theme-dark'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('share-card-share'));
+    });
+    expect(memory.sharedImages).toEqual(['/tmp/etut-card.png']);
+  });
+});
+
+describe('backup and restore', () => {
+  const session = (id: string): CompletedSession => ({
+    id,
+    subjectId: 'kimya',
+    topicId: null,
+    startedAt: Date.parse('2026-10-01T07:00:00Z'),
+    endedAt: Date.parse('2026-10-01T08:00:00Z'),
+    pauses: [],
+    durationMs: 3_600_000,
+    source: 'timer',
+  });
+
+  it('exports every record to a versioned JSON file', async () => {
+    memory.profile = ADULT_SAYISAL;
+    memory.sessions = [session('a')];
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-export'));
+    });
+    expect(memory.shared).toHaveLength(1);
+    expect(memory.shared[0].name).toMatch(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/);
+    const file = JSON.parse(memory.shared[0].content);
+    expect(file).toMatchObject({ format: 'etut-yedek', schemaVersion: 1, sessions: [{ id: 'a' }] });
+    expect(screen.getByTestId('backup-message')).toBeTruthy();
+  });
+
+  it('merge import twice adds the missing records once (idempotent)', async () => {
+    memory.profile = ADULT_SAYISAL;
+    memory.sessions = [session('a')];
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-export'));
+    });
+    const exported = JSON.parse(memory.shared[0].content);
+    memory.pickText = JSON.stringify({ ...exported, sessions: [...exported.sessions, session('b')] });
+    for (let i = 0; i < 2; i++) {
+      await act(async () => {
+        fireEvent.press(screen.getByTestId('backup-import'));
+      });
+      expect(screen.getByTestId('backup-preview-counts').props.children).toBe(
+        'Yedekte 2 çalışma kaydı, 0 deneme ve 0 konu işareti var.',
+      );
+      fireEvent.press(screen.getByTestId('backup-confirm'));
+    }
+    expect(memory.sessions.map((s) => s.id).sort()).toEqual(['a', 'b']);
+    expect(screen.getByTestId('backup-message').props.children).toBe(
+      'Yüklendi. Şu an 2 çalışma kaydı, 0 deneme ve 0 konu işareti var.',
+    );
+  });
+
+  it('K-17: an older age in the backup is ignored, a younger one wins and turns groups off', async () => {
+    const year = new Date().getUTCFullYear();
+    const file = (birthYear: number) =>
+      JSON.stringify({
+        format: 'etut-yedek',
+        schemaVersion: 1,
+        exportedAt: 1,
+        appVersion: '0.2.0',
+        profile: { birthYear, examType: 'YKS', yksArea: 'sozel' },
+        sessions: [],
+        exams: [],
+        topicProgress: [],
+        settings: {},
+      });
+    memory.profile = { ...ADULT_SAYISAL, birthYear: year - 20 };
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+
+    memory.pickText = file(year - 40);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-import'));
+    });
+    fireEvent.press(screen.getByTestId('backup-mode-replace'));
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    expect(memory.profile).toMatchObject({ birthYear: year - 20, soloOnly: false, yksArea: 'sozel' });
+
+    memory.pickText = file(year - 12);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-import'));
+    });
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    expect(memory.profile).toMatchObject({ birthYear: year - 12, soloOnly: true });
+    expect(memory.youngestBirthYear).toBe(year - 12);
+  });
+
+  it('a file that is not an Etüt backup is refused and nothing changes', async () => {
+    memory.profile = ADULT_SAYISAL;
+    memory.sessions = [session('a')];
+    memory.pickText = '{"hello": "world"}';
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-import'));
+    });
+    expect(screen.getByTestId('backup-error').props.children).toBe('Bu dosya bir Etüt yedeği değil.');
+    expect(screen.queryByTestId('backup-preview')).toBeNull();
+    expect(memory.sessions).toHaveLength(1);
+  });
+
+  it('CSV export of sessions', async () => {
+    memory.profile = ADULT_SAYISAL;
+    memory.sessions = [session('a')];
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('csv-sessions'));
+    });
+    expect(memory.shared[0].name).toMatch(/^etut-calisma-.*\.csv$/);
+    expect(memory.shared[0].content).toContain(
+      '2026-10-01;2026-10-01 10:00;2026-10-01 11:00;Kimya;;sayaç;60;3600',
+    );
+  });
+});
+
+describe('about and legal texts', () => {
+  it('settings → about shows the version, the placeholder controller and the legal texts', () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    fireEvent.press(screen.getByTestId('settings-open-about'));
+    expect(screen.getByTestId('about-controller').props.children).toBe('[DOLDURULACAK]');
+    fireEvent.press(screen.getByTestId('about-doc-gizlilik'));
+    expect(screen.getByTestId('legal-gizlilik')).toBeTruthy();
+  });
+
+  it('the short notice is reachable from onboarding before anything is saved', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('onboarding-privacy'));
+    expect(screen.getByTestId('legal-aydinlatma')).toBeTruthy();
+    expect(memory.profile).toBeNull();
   });
 });

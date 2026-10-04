@@ -1,5 +1,6 @@
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Modal, StyleSheet, View } from 'react-native';
 
@@ -10,12 +11,14 @@ import {
   resolveExamDate,
 } from '@/domain/exam-dates';
 import { istanbulDayKey } from '@/domain/istanbul-day';
+import type { YksArea } from '@/domain/net';
 import {
   DEFAULT_POMODORO,
   normalizePomodoroConfig,
   type PomodoroConfig,
   POMODORO_LIMITS,
 } from '@/domain/pomodoro';
+import { EXAM_TYPES, type ExamType, YKS_AREAS } from '@/domain/profile';
 import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '@/domain/streak';
 import { useAppState, useStored } from '@/state/app-state';
 import {
@@ -27,8 +30,9 @@ import {
   storePomodoroConfig,
 } from '@/storage/kv';
 import { tr } from '@/strings';
-import { Button, Card, Field, Label, Row, Screen, Stepper, Tag } from '@/ui/components';
+import { Button, Card, Chip, ChipRow, Field, Label, Row, Screen, Stepper, Tag } from '@/ui/components';
 import { formatDay, formatDuration } from '@/ui/format';
+import { useReducedMotion } from '@/ui/motion';
 import { usePalette } from '@/ui/theme';
 
 const DEFAULT_GOAL_MINUTES = 120;
@@ -47,8 +51,14 @@ const POMODORO_FIELDS: {
 ];
 
 export default function SettingsScreen() {
-  const { profile, resetAll, dataVersion, notifyDataChanged } = useAppState();
+  const { profile, resetAll, dataVersion, notifyDataChanged, updateExam } = useAppState();
   const [confirming, setConfirming] = useState(false);
+  const [draftExam, setDraftExam] = useState<ExamType>(profile?.examType ?? 'YKS');
+  const [draftArea, setDraftArea] = useState<YksArea | null>(profile?.yksArea ?? null);
+  const [examSaved, setExamSaved] = useState(false);
+  const examChanged =
+    profile !== null &&
+    (draftExam !== profile.examType || (draftExam === 'YKS' && draftArea !== profile.yksArea));
   const goal = useStored(`goal|${dataVersion}`, loadDailyGoal);
   const setGoal = (minutes: number | null) => {
     storeDailyGoal(minutes);
@@ -60,6 +70,7 @@ export default function SettingsScreen() {
     notifyDataChanged();
   };
   const c = usePalette();
+  const reduceMotion = useReducedMotion();
   const examType = profile?.examType ?? 'DIGER';
   const customDay = useStored(`examDate|${examType}|${dataVersion}`, () => loadCustomExamDate(examType));
   const examDate = resolveExamDate(examType, customDay);
@@ -86,12 +97,61 @@ export default function SettingsScreen() {
             <Label variant="muted" style={{ flex: 1 }}>
               {tr.settings.exam}
             </Label>
-            <Label>
+            <Label testID="settings-exam-current">
               {tr.examType(profile.examType)}
               {profile.yksArea ? ` · ${tr.yksArea(profile.yksArea)}` : ''}
             </Label>
           </Row>
           {/* K-20: neither the birth year nor an age group is shown anywhere. */}
+          <Label variant="heading">{tr.settings.examChangeTitle}</Label>
+          <Label variant="small">{tr.settings.examChangeInfo}</Label>
+          <ChipRow>
+            {EXAM_TYPES.map((t) => (
+              <Chip
+                key={t}
+                testID={`settings-exam-type-${t}`}
+                title={tr.examType(t)}
+                selected={t === draftExam}
+                onPress={() => {
+                  setDraftExam(t);
+                  setExamSaved(false);
+                }}
+              />
+            ))}
+          </ChipRow>
+          {draftExam === 'YKS' ? (
+            <>
+              <Label variant="muted">{tr.settings.examChangeArea}</Label>
+              <ChipRow>
+                {YKS_AREAS.map((a) => (
+                  <Chip
+                    key={a}
+                    testID={`settings-yks-area-${a}`}
+                    title={tr.yksArea(a)}
+                    selected={a === draftArea}
+                    onPress={() => {
+                      setDraftArea(a);
+                      setExamSaved(false);
+                    }}
+                  />
+                ))}
+              </ChipRow>
+            </>
+          ) : null}
+          <Button
+            testID="settings-exam-save"
+            kind="secondary"
+            title={tr.settings.examChangeSave}
+            disabled={!examChanged || (draftExam === 'YKS' && draftArea === null)}
+            onPress={() => setExamSaved(updateExam(draftExam, draftExam === 'YKS' ? draftArea : null))}
+          />
+          {examSaved ? (
+            <Label testID="settings-exam-saved" variant="small">
+              {tr.settings.examChangeSaved}
+            </Label>
+          ) : null}
+          {/* K-17: the declared age can not be edited; say so instead of offering a control. */}
+          <Label variant="small">{tr.settings.ageFixed}</Label>
         </Card>
       ) : null}
 
@@ -192,6 +252,12 @@ export default function SettingsScreen() {
         <Label variant="heading">{tr.settings.dataTitle}</Label>
         <Label variant="muted">{tr.settings.dataInfo}</Label>
         <Button
+          testID="settings-open-backup"
+          kind="secondary"
+          title={tr.backup.title}
+          onPress={() => router.push('/yedek')}
+        />
+        <Button
           kind="danger"
           testID="settings-delete-all"
           title={tr.settings.deleteAll}
@@ -204,7 +270,7 @@ export default function SettingsScreen() {
       <Modal
         visible={confirming}
         transparent
-        animationType="fade"
+        animationType={reduceMotion ? 'none' : 'fade'}
         onRequestClose={() => setConfirming(false)}>
         <View style={styles.backdrop}>
           <View
@@ -247,6 +313,12 @@ export default function SettingsScreen() {
           </Label>
           <Label>{build}</Label>
         </Row>
+        <Button
+          testID="settings-open-about"
+          kind="secondary"
+          title={tr.settings.openAbout}
+          onPress={() => router.push('/hakkinda')}
+        />
       </Card>
     </Screen>
   );

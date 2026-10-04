@@ -72,6 +72,16 @@ export function buildProfile(
 }
 
 /**
+ * Settings → change the exam or the YKS area. Only those two fields change: the birth year, the
+ * solo flag and the creation time are kept as declared (K-17: the age cannot be edited here).
+ * Returns `null` when YKS is chosen without an area.
+ */
+export function changeExam(profile: Profile, examType: ExamType, yksArea: YksArea | null): Profile | null {
+  if (examType === 'YKS' && yksArea === null) return null;
+  return { ...profile, examType, yksArea: examType === 'YKS' ? yksArea : null };
+}
+
+/**
  * Re-evaluates the flag as years pass. It only ever goes from solo → not solo when the
  * declared birth year makes the student certainly 15+; it is never switched back on here.
  */

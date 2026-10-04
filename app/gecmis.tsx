@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { View } from 'react-native';
 
 import { hoursMinutes } from '@/domain/clock';
@@ -6,7 +7,7 @@ import { DAY_MS, dayStartMs, istanbulDayKey, istanbulWeekday, lastDays } from '@
 import { useAppState, useNow, useStored } from '@/state/app-state';
 import { sessionsOverlapping } from '@/storage/sessions';
 import { tr } from '@/strings';
-import { BarChart, Card, Label, Row, Screen, Tag } from '@/ui/components';
+import { BarChart, Card, EmptyState, Label, Row, Screen, Tag } from '@/ui/components';
 import { formatDay, formatDuration } from '@/ui/format';
 
 const LIST_DAYS = 30;
@@ -52,7 +53,15 @@ export default function HistoryScreen() {
       </Card>
 
       <Label variant="heading">{tr.history.days}</Label>
-      {listed.length === 0 ? <Label variant="muted">{tr.history.empty}</Label> : null}
+      {listed.length === 0 ? (
+        <EmptyState
+          testID="history-empty"
+          title={tr.empty.historyTitle}
+          body={tr.empty.historyBody}
+          action={tr.empty.startTimer}
+          onAction={() => router.navigate('/')}
+        />
+      ) : null}
       {listed.map((t) => (
         <Card key={t.day}>
           <Row>

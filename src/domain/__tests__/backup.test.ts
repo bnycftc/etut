@@ -1,0 +1,252 @@
+import {
+  BACKUP_FORMAT,
+  BACKUP_MAX_BYTES,
+  BACKUP_SCHEMA_VERSION,
+  type BackupData,
+  type BackupExam,
+  backupFileName,
+  buildBackupFile,
+  EMPTY_SETTINGS,
+  importedProfile,
+  mergeBackup,
+  parseBackup,
+  serializeBackup,
+} from '../backup';
+import type { Profile } from '../profile';
+import type { CompletedSession } from '../timer';
+
+const T0 = Date.parse('2026-10-01T07:00:00Z');
+
+function session(id: string, overrides: Partial<CompletedSession> = {}): CompletedSession {
+  return {
+    id,
+    subjectId: 'fizik',
+    topicId: 'tyt.fizik.basinc',
+    startedAt: T0,
+    endedAt: T0 + 3_600_000,
+    pauses: [{ start: T0 + 600_000, end: T0 + 900_000, kind: 'manual' }],
+    durationMs: 3_300_000,
+    source: 'timer',
+    ...overrides,
+  };
+}
+
+function exam(id: string, overrides: Partial<BackupExam> = {}): BackupExam {
+  return {
+    id,
+    kind: 'AYT_EA',
+    scope: 'genel',
+    bransSectionId: null,
+    takenOn: '2026-10-02',
+    createdAt: T0,
+    analysisDoneAt: null,
+    scores: [
+      { sectionId: 'matematik', questions: 40, correct: 30, wrong: 6 },
+      { sectionId: 'edebiyat', questions: 24, correct: 20, wrong: 2 },
+      { sectionId: 'tarih1', questions: 10, correct: 8, wrong: 1 },
+      { sectionId: 'cografya1', questions: 6, correct: 6, wrong: 0 },
+    ],
+    marks: [{ sectionId: 'matematik', topicId: 'ayt.matematik.fonksiyonlar', wrong: 3, blank: 1 }],
+    ...overrides,
+  };
+}
+
+const DATA: BackupData = {
+  sessions: [session('s1'), session('s2', { source: 'manual', pauses: [], durationMs: 3_600_000, topicId: null })],
+  exams: [exam('e1')],
+  topicProgress: [{ topicId: 'tyt.fizik.basinc', status: 'done', updatedAt: 10 }],
+  settings: {
+    dailyGoalMinutes: 120,
+    pomodoro: { workMin: 30, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 },
+    timerMode: 'pomodoro',
+    examDates: { YKS: '2027-06-19' },
+    netTargets: { 'TYT:matematik': 30 },
+    lastSubject: 'fizik',
+  },
+};
+
+const PROFILE: Profile = { birthYear: 2008, examType: 'YKS', yksArea: 'esit_agirlik', soloOnly: false, createdAt: 1 };
+
+function fileText(overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify({ ...buildBackupFile(DATA, PROFILE, 123, '0.2.0'), ...overrides });
+}
+
+function parsed(text: string) {
+  const result = parseBackup(text);
+  if (!result.ok) throw new Error(`expected a valid backup, got ${result.error}`);
+  return result.file;
+}
+
+describe('backup file format', () => {
+  it('round-trips every record and setting', () => {
+    const file = buildBackupFile(DATA, PROFILE, 123, '0.2.0');
+    expect(file).toMatchObject({ format: BACKUP_FORMAT, schemaVersion: BACKUP_SCHEMA_VERSION, exportedAt: 123 });
+    expect(file.profile).toEqual({ birthYear: 2008, examType: 'YKS', yksArea: 'esit_agirlik' });
+    const back = parsed(serializeBackup(file));
+    expect(back).toEqual(file);
+  });
+
+  it('file name carries the day', () => {
+    expect(backupFileName('2026-10-04')).toBe('etut-yedek-2026-10-04.json');
+  });
+
+  it('accepts a UTF-8 BOM and missing optional parts', () => {
+    const minimal = JSON.stringify({
+      format: BACKUP_FORMAT,
+      schemaVersion: 1,
+      exportedAt: 0,
+      sessions: [],
+      exams: [],
+      topicProgress: [],
+    });
+    const file = parsed('﻿' + minimal);
+    expect(file.profile).toBeNull();
+    expect(file.settings).toEqual(EMPTY_SETTINGS);
+  });
+});
+
+describe('backup validation', () => {
+  const error = (text: string) => {
+    const result = parseBackup(text);
+    return result.ok ? null : result.error;
+  };
+
+  it('tells apart non-JSON, other JSON, newer versions and too large files', () => {
+    expect(error('not json')).toBe('not_json');
+    expect(error('{"a":1}')).toBe('not_backup');
+    expect(error('[]')).toBe('not_backup');
+    expect(error(fileText({ schemaVersion: BACKUP_SCHEMA_VERSION + 1 }))).toBe('too_new');
+    expect(error(fileText({ schemaVersion: 0 }))).toBe('invalid');
+    expect(error(fileText({ schemaVersion: '1' }))).toBe('invalid');
+    expect(error(' '.repeat(BACKUP_MAX_BYTES + 1))).toBe('too_large');
+  });
+
+  it.each([
+    ['duplicate session id', { sessions: [session('x'), session('x')] }],
+    ['session ending before it starts', { sessions: [session('x', { endedAt: T0 - 1 })] }],
+    ['duration longer than the session', { sessions: [session('x', { durationMs: 3_600_001 })] }],
+    ['unknown source', { sessions: [{ ...session('x'), source: 'server' }] }],
+    ['id with odd characters', { sessions: [session('x"; DROP TABLE')] }],
+    ['session longer than a week', { sessions: [session('x', { endedAt: T0 + 8 * 24 * 3_600_000 })] }],
+    ['unknown paper', { exams: [{ ...exam('e'), kind: 'AYT_XYZ' }] }],
+    ['wrong question count', { exams: [exam('e', { scores: [{ sectionId: 'matematik', questions: 41, correct: 1, wrong: 0 }] })] }],
+    ['missing section of a general exam', { exams: [exam('e', { scores: exam('e').scores.slice(1) })] }],
+    ['correct + wrong above the questions', { exams: [exam('e', { scores: [...exam('e').scores.slice(1), { sectionId: 'matematik', questions: 40, correct: 35, wrong: 6 }] })] }],
+    ['more tagged wrong answers than wrong answers', { exams: [exam('e', { marks: [{ sectionId: 'matematik', topicId: 't', wrong: 7, blank: 0 }] })] }],
+    ['mark on a section the exam does not have', { exams: [exam('e', { marks: [{ sectionId: 'fizik', topicId: 't', wrong: 1, blank: 0 }] })] }],
+    ['branch exam without its section', { exams: [exam('e', { scope: 'brans', bransSectionId: null })] }],
+    ['unknown topic status', { topicProgress: [{ topicId: 't', status: 'maybe', updatedAt: 1 }] }],
+    ['net target above the question count', { settings: { netTargets: { 'TYT:fizik': 8 } } }],
+    ['net target not a multiple of 0.25', { settings: { netTargets: { 'TYT:matematik': 10.1 } } }],
+    ['bad exam date', { settings: { examDates: { YKS: '19.06.2027' } } }],
+    ['bad birth year', { profile: { birthYear: 'iki bin', examType: 'YKS', yksArea: 'sayisal' } }],
+    ['YKS profile without an area', { profile: { birthYear: 2008, examType: 'YKS', yksArea: null } }],
+  ])('rejects the whole file: %s', (_name, overrides) => {
+    expect(error(fileText(overrides))).toBe('invalid');
+  });
+
+  it('a branch exam has exactly its section', () => {
+    const brans = exam('b', {
+      scope: 'brans',
+      bransSectionId: 'tarih1',
+      scores: [{ sectionId: 'tarih1', questions: 10, correct: 5, wrong: 2 }],
+      marks: [],
+    });
+    expect(parsed(fileText({ exams: [brans] })).exams[0].bransSectionId).toBe('tarih1');
+  });
+
+  it('pauses outside the session are clipped, old pauses without a kind become manual', () => {
+    const odd = { ...session('x'), pauses: [{ start: T0 - 5000, end: T0 + 1000 }] };
+    expect(parsed(fileText({ sessions: [odd] })).sessions[0].pauses).toEqual([
+      { start: T0, end: T0 + 1000, kind: 'manual' },
+    ]);
+  });
+
+  it('settings are normalised (goal and pomodoro clamped into range)', () => {
+    const file = parsed(
+      fileText({
+        settings: { dailyGoalMinutes: 5, pomodoro: { workMin: 500, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 } },
+      }),
+    );
+    expect(file.settings.dailyGoalMinutes).toBe(15);
+    expect(file.settings.pomodoro?.workMin).toBe(120);
+  });
+});
+
+describe('merging a backup', () => {
+  const device: BackupData = {
+    sessions: [session('s1', { subjectId: 'kimya' }), session('d1')],
+    exams: [exam('e1', { takenOn: '2026-09-30' })],
+    topicProgress: [
+      { topicId: 'tyt.fizik.basinc', status: 'review', updatedAt: 20 },
+      { topicId: 'only.here', status: 'done', updatedAt: 1 },
+    ],
+    settings: { ...EMPTY_SETTINGS, dailyGoalMinutes: 60, examDates: { LGS: '2027-06-13' } },
+  };
+
+  it('merge: this device wins on the same id, missing records are added', () => {
+    const merged = mergeBackup(device, DATA, 'merge');
+    expect(merged.sessions.map((s) => s.id)).toEqual(['s1', 'd1', 's2']);
+    expect(merged.sessions[0].subjectId).toBe('kimya');
+    expect(merged.exams).toHaveLength(1);
+    expect(merged.exams[0].takenOn).toBe('2026-09-30');
+  });
+
+  it('merge: the newer topic mark wins', () => {
+    const merged = mergeBackup(device, DATA, 'merge');
+    expect(merged.topicProgress).toEqual(
+      expect.arrayContaining([
+        { topicId: 'tyt.fizik.basinc', status: 'review', updatedAt: 20 },
+        { topicId: 'only.here', status: 'done', updatedAt: 1 },
+      ]),
+    );
+    const newer = mergeBackup(device, { ...DATA, topicProgress: [{ topicId: 'tyt.fizik.basinc', status: 'done', updatedAt: 30 }] }, 'merge');
+    expect(newer.topicProgress.find((t) => t.topicId === 'tyt.fizik.basinc')?.status).toBe('done');
+  });
+
+  it('merge: settings set here stay, missing ones come from the file', () => {
+    const { settings } = mergeBackup(device, DATA, 'merge');
+    expect(settings.dailyGoalMinutes).toBe(60);
+    expect(settings.pomodoro).toEqual(DATA.settings.pomodoro);
+    expect(settings.examDates).toEqual({ YKS: '2027-06-19', LGS: '2027-06-13' });
+    expect(settings.netTargets).toEqual({ 'TYT:matematik': 30 });
+  });
+
+  it('is idempotent: importing the same file again changes nothing', () => {
+    for (const mode of ['merge', 'replace'] as const) {
+      const once = mergeBackup(device, DATA, mode);
+      expect(mergeBackup(once, DATA, mode)).toEqual(once);
+    }
+  });
+
+  it('replace: exactly the file data', () => {
+    expect(mergeBackup(device, DATA, 'replace')).toEqual(DATA);
+  });
+});
+
+describe('K-17: the age on import', () => {
+  const year = 2026;
+  const adult: Profile = { birthYear: 2000, examType: 'YKS', yksArea: 'sayisal', soloOnly: false, createdAt: 7 };
+
+  it('an older age in the file is ignored', () => {
+    expect(importedProfile(adult, { birthYear: 1980, examType: 'KPSS', yksArea: null }, 'merge', year)).toEqual(adult);
+  });
+
+  it('a younger age in the file wins (the lower age), and can only turn groups off', () => {
+    const next = importedProfile(adult, { birthYear: 2014, examType: 'YKS', yksArea: 'sayisal' }, 'merge', year);
+    expect(next).toMatchObject({ birthYear: 2014, soloOnly: true, createdAt: 7 });
+  });
+
+  it('an under-15 device stays under 15 whatever the file says', () => {
+    const child: Profile = { birthYear: 2013, examType: 'LGS', yksArea: null, soloOnly: true, createdAt: 1 };
+    const next = importedProfile(child, { birthYear: 1990, examType: 'YKS', yksArea: 'sozel' }, 'replace', year);
+    expect(next).toMatchObject({ birthYear: 2013, soloOnly: true });
+    // Replace takes the exam and area (settings, not age data).
+    expect(next).toMatchObject({ examType: 'YKS', yksArea: 'sozel' });
+  });
+
+  it('merge keeps the exam of this device; a file without a profile changes nothing', () => {
+    expect(importedProfile(adult, { birthYear: 2000, examType: 'KPSS', yksArea: null }, 'merge', year).examType).toBe('YKS');
+    expect(importedProfile(adult, null, 'replace', year)).toEqual(adult);
+  });
+});

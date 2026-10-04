@@ -4,7 +4,7 @@ import { Pressable, View } from 'react-native';
 
 import { topicName } from '@/domain/curriculum';
 import { parseTargetNet, targetKey, targetProgress, topMissedTopics } from '@/domain/exam-analysis';
-import { EXAM_SECTIONS, type ExamKind, examKindsInOrder, formatNet } from '@/domain/net';
+import { EXAM_SECTIONS, type ExamKind, examKindsToShow, formatNet } from '@/domain/net';
 import { useAppState, useStored } from '@/state/app-state';
 import { loadNetTargets, storeNetTarget } from '@/storage/kv';
 import {
@@ -14,7 +14,19 @@ import {
   sectionNetHistory,
 } from '@/storage/mock-exams';
 import { tr } from '@/strings';
-import { BarChart, Button, Card, Chip, ChipRow, Field, Label, Row, Screen, Tag } from '@/ui/components';
+import {
+  BarChart,
+  Button,
+  Card,
+  Chip,
+  ChipRow,
+  EmptyState,
+  Field,
+  Label,
+  Row,
+  Screen,
+  Tag,
+} from '@/ui/components';
 import { formatDay } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
 
@@ -27,7 +39,7 @@ function shortDay(day: string): string {
 export default function ExamsScreen() {
   const { profile, dataVersion, notifyDataChanged } = useAppState();
   const c = usePalette();
-  const [chartKind, setChartKindState] = useState<ExamKind>('TYT');
+  const [pickedKind, setChartKindState] = useState<ExamKind>('TYT');
   const [sectionId, setSectionId] = useState<string>(EXAM_SECTIONS.TYT[0].id);
   const [targetText, setTargetText] = useState('');
   const [targetError, setTargetError] = useState(false);
@@ -37,10 +49,16 @@ export default function ExamsScreen() {
     missed: topMissedTopics(listAllMarks()),
     targets: loadNetTargets(),
   }));
+  const { exams, pending } = data;
+  // TYT + the paper of the student's area, plus papers that already have exams.
+  const kinds = examKindsToShow(
+    profile?.yksArea ?? null,
+    exams.map((e) => e.kind),
+  );
+  const chartKind = kinds.includes(pickedKind) ? pickedKind : 'TYT';
   const history = useStored(`${chartKind}|${sectionId}|${dataVersion}`, () =>
     sectionNetHistory(chartKind, sectionId),
   );
-  const { exams, pending } = data;
   const pendingIds = new Set(pending.map((e) => e.id));
 
   const setChartKind = (k: ExamKind) => {
@@ -54,7 +72,6 @@ export default function ExamsScreen() {
     .filter((e) => e.kind === chartKind && e.scope === 'genel')
     .slice(0, CHART_LIMIT)
     .reverse();
-  const kinds = examKindsInOrder(profile?.yksArea ?? null);
 
   const section = EXAM_SECTIONS[chartKind].find((s) => s.id === sectionId) ?? EXAM_SECTIONS[chartKind][0];
   const key = targetKey(chartKind, section.id);
@@ -98,7 +115,13 @@ export default function ExamsScreen() {
         <Label variant="heading">{tr.exams.chartTitle(tr.examKind(chartKind))}</Label>
         <ChipRow>
           {kinds.map((k) => (
-            <Chip key={k} title={tr.examKind(k)} selected={k === chartKind} onPress={() => setChartKind(k)} />
+            <Chip
+              key={k}
+              testID={`exams-chart-kind-${k}`}
+              title={tr.examKind(k)}
+              selected={k === chartKind}
+              onPress={() => setChartKind(k)}
+            />
           ))}
         </ChipRow>
         {chartExams.length === 0 ? (
@@ -176,6 +199,7 @@ export default function ExamsScreen() {
           <Button testID="trend-target-save" kind="secondary" title={tr.trend.targetSave} onPress={saveTarget} />
           {target !== null ? (
             <Button
+              testID="trend-target-clear"
               kind="secondary"
               title={tr.trend.targetClear}
               onPress={() => {
@@ -201,7 +225,9 @@ export default function ExamsScreen() {
       </Card>
 
       <Label variant="heading">{tr.exams.listTitle}</Label>
-      {exams.length === 0 ? <Label variant="muted">{tr.exams.empty}</Label> : null}
+      {exams.length === 0 ? (
+        <EmptyState testID="exams-empty" title={tr.empty.examsTitle} body={tr.empty.examsBody} />
+      ) : null}
       {exams.map((e, index) => (
         <Pressable
           key={e.id}
