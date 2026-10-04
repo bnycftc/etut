@@ -19,6 +19,15 @@ expo-router. Kurulum, komutlar ve yayın hattı: `README.md`.
 - `src/storage/` — `db.ts` (expo-sqlite, `PRAGMA user_version` göçleri; yeni göçü listenin
   sonuna ekle, eskisini değiştirme), `kv.ts` (expo-sqlite/kv-store, senkron: profil ve aktif oturum).
 - `src/state/app-state.tsx` — domain ile depolama arasında ince yapıştırıcı; iş kuralı yazma.
+  `src/state/system-sync.tsx` canlı sayacı (iOS Live Activity), widget'ı ve yerel hatırlatıcıları
+  eşitler; neyin gösterileceği `domain/live-timer.ts`, `widget-summary.ts`, `reminders.ts`'te.
+- `src/system/` — platform bağdaştırıcıları: varsayılan dosya boş (web/Android), `.ios.ts` /
+  `.native.ts` cihaz sürümü. `src/system/ios/*.tsx` içindeki `'widget'` yönergeli işlevler uzantının
+  kendi JS ortamında koşar: dosyadaki sabitlere, `strings.ts`'e, yardımcılara erişemez; metinler
+  props'la gelir (`surface-props.ts`); nesne/dizi yayma, `for…of`, sınıf kullanma (Babel yardımcısı üretir).
+- Push yok: `plugins/with-etut-ios.js` `aps-environment`'ı kaldırır ve app.json `plugins` listesinde
+  **ilk sırada** kalmalı (Expo ilk eklentinin mod'larını en son çalıştırır). Uzantı kimliği
+  `com.bnycftc.etut.ExpoWidgetsTarget`, App Group `group.com.bnycftc.etut`.
 - `app/` — ekranlar. Profil yoksa yalnız `onboarding` erişilebilir (`Stack.Protected`).
 - `src/strings.ts` — kullanıcıya görünen **tüm** metinler burada; ekranlara metin gömme.
 

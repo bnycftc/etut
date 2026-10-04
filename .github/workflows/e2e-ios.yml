@@ -17,6 +17,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "app.json"
+      - "plugins/**"
       - "e2e/**"
 
 concurrency:
@@ -94,6 +95,19 @@ jobs:
             echo "SCHEME=$scheme"
           } >> "$GITHUB_ENV"
           echo "Scheme: $scheme"
+          # Same configuration checks as testflight.yml: widget extension generated, App Group on
+          # both targets, no push entitlement.
+          ext_dir="ios/ExpoWidgetsTarget"
+          [ -f "$ext_dir/Info.plist" ] || { echo "::error::Widget extension Info.plist missing ($ext_dir)"; exit 1; }
+          for ent in "ios/$scheme/$scheme.entitlements" "$ext_dir/ExpoWidgetsTarget.entitlements"; do
+            [ -f "$ent" ] || { echo "::error::Entitlements file missing: $ent"; exit 1; }
+            echo "$ent:"; plutil -p "$ent"
+            /usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups' "$ent" | grep -qx '[[:space:]]*group.com.bnycftc.etut' \
+              || { echo "::error::$ent lacks the App Group group.com.bnycftc.etut"; exit 1; }
+            if /usr/libexec/PlistBuddy -c 'Print :aps-environment' "$ent" > /dev/null 2>&1; then
+              echo "::error::$ent contains aps-environment; Etüt uses no push (see plugins/with-etut-ios.js)"; exit 1
+            fi
+          done
 
       - name: Install CocoaPods dependencies
         working-directory: ios
@@ -125,6 +139,17 @@ jobs:
           bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
           [ "$bundle_id" = "com.bnycftc.etut" ] || { echo "::error::Unexpected bundle id $bundle_id"; exit 1; }
           ls -la "$app/main.jsbundle"
+          # The widget / Live Activity extension is embedded and lives under the app's bundle id.
+          appex="$app/PlugIns/ExpoWidgetsTarget.appex"
+          [ -d "$appex" ] || { echo "::error::$appex was not embedded"; ls -la "$app/PlugIns" || true; exit 1; }
+          ext_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$appex/Info.plist")"
+          echo "Extension: $ext_id"
+          case "$ext_id" in
+            com.bnycftc.etut.*) ;;
+            *) echo "::error::Extension bundle id $ext_id is not under com.bnycftc.etut"; exit 1 ;;
+          esac
+          /usr/libexec/PlistBuddy -c 'Print :NSSupportsLiveActivities' "$app/Info.plist" | grep -qx true \
+            || { echo "::error::NSSupportsLiveActivities is not set"; exit 1; }
           echo "APP_PATH=$app" >> "$GITHUB_ENV"
 
       # The simulator takes its clock and time zone from the host.

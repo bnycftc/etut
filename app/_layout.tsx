@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 
 import { AppStateProvider, useAppState } from '@/state/app-state';
+import { SystemSync } from '@/state/system-sync';
 import { tr } from '@/strings';
 import { usePalette } from '@/ui/theme';
 
@@ -29,6 +30,11 @@ function RootStack() {
         <Stack.Screen name="elle-ekle" options={{ title: tr.manual.title }} />
         <Stack.Screen name="analiz/[id]" options={{ title: tr.analysis.title }} />
         <Stack.Screen name="haftalik" options={{ title: tr.weekly.title }} />
+        <Stack.Screen name="hatirlaticilar" options={{ title: tr.reminders.title }} />
+        <Stack.Screen
+          name="bildirim-izni"
+          options={{ title: tr.notificationPermission.title, presentation: 'modal' }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={profile === null}>
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
@@ -43,6 +49,7 @@ export default function RootLayout() {
     <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AppStateProvider>
         <RootStack />
+        <SystemSync />
         <StatusBar style="auto" />
       </AppStateProvider>
     </ThemeProvider>

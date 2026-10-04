@@ -63,9 +63,9 @@ export default function TimerScreen() {
   const pomodoro = active === null ? null : pomodoroStatus(active, shownNow);
   const onBreak = pomodoro !== null && pomodoro.phase !== 'work';
 
-  // A short vibration when a pomodoro phase ends while the student is looking at the app
-  // (no notifications). Not after returning from the background (big time jump) and not for a
-  // change the student made ("Molayı geç").
+  // A short vibration when a pomodoro phase ends while the student is looking at the app (the
+  // scheduled phase notification is not shown in the foreground). Not after returning from the
+  // background (big time jump) and not for a change the student made ("Molayı geç").
   const phaseKey = pomodoro === null ? null : `${pomodoro.block}|${pomodoro.phase}`;
   const lastPhase = useRef({ key: phaseKey, at: shownNow });
   const skipped = useRef(false);

@@ -1,0 +1,189 @@
+/**
+ * Keeps the system surfaces in step with the app: the iOS Live Activity (Lock Screen / Dynamic
+ * Island timer), the Home Screen widget and the local reminders. Glue only: what to show comes
+ * from the domain (`live-timer.ts`, `widget-summary.ts`, `reminders.ts`), how to show it from
+ * `src/system/`. Runs after every change of the running session or the stored data and whenever
+ * the app comes to the foreground; never ticks, never while in the background.
+ */
+
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
+
+import { addDays, type DayKey, dayStartMs, istanbulDayKey, lastDays } from '../domain/istanbul-day';
+import { liveActivityAction, liveTimerView } from '../domain/live-timer';
+import { type PendingExam, planNotifications, type ReminderPrefs } from '../domain/reminders';
+import { STREAK_LOOKBACK_DAYS } from '../domain/streak';
+import type { ActiveSession } from '../domain/timer';
+import { savedTotalsLookup, widgetTimeline } from '../domain/widget-summary';
+import {
+  loadDailyGoal,
+  loadLiveActivityRecord,
+  loadReminderPrefs,
+  storeLiveActivityRecord,
+} from '../storage/kv';
+import { listExamsNeedingAnalysis } from '../storage/mock-exams';
+import { sessionsOverlapping } from '../storage/sessions';
+import { homeWidget } from '../system/home-widget';
+import { liveActivity } from '../system/live-activity';
+import { notifications } from '../system/notifications';
+import {
+  emptyWidgetProps,
+  notificationText,
+  timerActivityProps,
+  todayWidgetProps,
+} from '../system/surface-props';
+import { useAppState, useNow, useStored } from './app-state';
+
+interface SurfaceData {
+  savedTotal: (day: DayKey) => number;
+  goalMinutes: number | null;
+  prefs: ReminderPrefs;
+  pendingExams: PendingExam[];
+}
+
+function loadSurfaceData(today: DayKey): SurfaceData {
+  const days = [...lastDays(dayStartMs(today), STREAK_LOOKBACK_DAYS + 1), addDays(today, 1), addDays(today, 2)];
+  const sessions = sessionsOverlapping(dayStartMs(days[0]), dayStartMs(addDays(today, 3)));
+  return {
+    savedTotal: savedTotalsLookup(sessions, days),
+    goalMinutes: loadDailyGoal(),
+    prefs: loadReminderPrefs(),
+    pendingExams: listExamsNeedingAnalysis().map((e) => ({ id: e.id, createdAt: e.createdAt })),
+  };
+}
+
+/** Runs async jobs one at a time; a job queued while another runs replaces the older queued one. */
+function serial() {
+  let queued: (() => Promise<void>) | null = null;
+  let running = false;
+  return (job: () => Promise<void>) => {
+    queued = job;
+    if (running) return;
+    running = true;
+    void (async () => {
+      while (queued !== null) {
+        const next = queued;
+        queued = null;
+        try {
+          await next();
+        } catch {
+          // Best effort; the next change syncs again.
+        }
+      }
+      running = false;
+    })();
+  };
+}
+
+const inBackground = () => AppState.currentState === 'background';
+
+const runLiveActivity = serial();
+let lastLiveKey: string | null = null;
+
+/** Starts, updates, refreshes or ends the Live Activity (only possible in the foreground). */
+async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
+  if (!liveActivity.supported || inBackground()) return;
+  const now = Date.now();
+  const action = liveActivityAction({
+    sessionId: active?.id ?? null,
+    instances: liveActivity.count(),
+    record: loadLiveActivityRecord(),
+    now,
+  });
+  if (action === 'end' || action === 'restart') {
+    await liveActivity.endAll();
+    lastLiveKey = null;
+    if (action === 'end') storeLiveActivityRecord(null);
+  }
+  if (active === null || action === 'none' || action === 'end') return;
+  const view = liveTimerView(active, now);
+  const props = timerActivityProps(active, view);
+  const key = JSON.stringify([active.id, props, view.staleAt]);
+  if (action === 'update') {
+    if (key === lastLiveKey) return;
+    await liveActivity.update(props, view.staleAt);
+    lastLiveKey = key;
+    return;
+  }
+  if (liveActivity.start(props, view.staleAt)) {
+    storeLiveActivityRecord({ sessionId: active.id, startedAt: now });
+    lastLiveKey = key;
+  }
+}
+
+let lastWidgetKey: string | null = null;
+
+function syncWidget(active: ActiveSession | null, data: SurfaceData | null): void {
+  if (!homeWidget.supported || inBackground()) return;
+  const now = Date.now();
+  const entries =
+    data === null
+      ? [{ at: now, props: emptyWidgetProps() }]
+      : widgetTimeline({ now, savedTotal: data.savedTotal, active, goalMinutes: data.goalMinutes }).map((e) => ({
+          at: e.at,
+          props: todayWidgetProps(e),
+        }));
+  // The first entry always starts "now"; only a different picture needs a reload.
+  const key = JSON.stringify(entries.map((e, i) => [i === 0 ? 0 : e.at, e.props]));
+  if (key === lastWidgetKey) return;
+  homeWidget.setTimeline(entries);
+  lastWidgetKey = key;
+}
+
+/** `notifications.sync` queues by itself (latest plan wins). */
+function syncReminders(active: ActiveSession | null, data: SurfaceData | null): Promise<void> {
+  if (data === null) return notifications.cancelAll();
+  const now = Date.now();
+  const planned = planNotifications({
+    now,
+    prefs: data.prefs,
+    active,
+    studiedToday: active !== null || data.savedTotal(istanbulDayKey(now)) > 0,
+    pendingExams: data.pendingExams,
+  });
+  return notifications.sync(planned, notificationText);
+}
+
+export function SystemSync(): null {
+  const { active, profile, dataVersion } = useAppState();
+  // Minute ticks only matter for the day key (a new day reloads the data).
+  const today = istanbulDayKey(useNow(false));
+  const [foreground, setForeground] = useState(0);
+  const data = useStored(`${today}|${dataVersion}|${profile === null ? 'none' : 'profile'}`, () =>
+    profile === null ? null : loadSurfaceData(today),
+  );
+  const session = profile === null ? null : active;
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (status) => {
+      if (status === 'active') setForeground((n) => n + 1);
+    });
+    const unsubscribe = notifications.onOpen((url) => {
+      try {
+        router.navigate(url);
+      } catch {
+        // Not ready to navigate (e.g. onboarding): stay where the app opens.
+      }
+    });
+    return () => {
+      subscription.remove();
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    runLiveActivity(() => syncLiveActivity(session));
+  }, [session, foreground]);
+
+  useEffect(() => {
+    syncWidget(session, data);
+  }, [session, data, foreground]);
+
+  useEffect(() => {
+    if (!notifications.supported || inBackground()) return;
+    void syncReminders(session, data);
+  }, [session, data, foreground]);
+
+  return null;
+}

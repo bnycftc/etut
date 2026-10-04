@@ -1,5 +1,6 @@
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { useState } from 'react';
 
 import {
@@ -17,10 +18,12 @@ import {
 } from '@/domain/pomodoro';
 import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '@/domain/streak';
 import { useAppState, useStored } from '@/state/app-state';
+import { useNotificationPermission } from '@/state/notification-permission';
 import {
   loadCustomExamDate,
   loadDailyGoal,
   loadPomodoroConfig,
+  loadReminderPrefs,
   storeCustomExamDate,
   storeDailyGoal,
   storePomodoroConfig,
@@ -73,6 +76,9 @@ export default function SettingsScreen() {
     setDateText('');
     notifyDataChanged();
   };
+  const permission = useNotificationPermission();
+  const reminderPrefs = useStored(`reminders|${dataVersion}`, loadReminderPrefs);
+  const enabledReminders = Object.values(reminderPrefs).filter((r) => r.enabled).length;
   const version = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '–';
   const build = Application.nativeBuildVersion ?? '–';
 
@@ -185,6 +191,23 @@ export default function SettingsScreen() {
           />
         ))}
         <Button kind="secondary" title={tr.pomodoro.reset} onPress={() => setPomodoro(DEFAULT_POMODORO)} />
+      </Card>
+
+      <Card>
+        <Label variant="heading">{tr.reminders.title}</Label>
+        <Label testID="settings-reminders-summary" variant="small">
+          {permission === 'granted'
+            ? tr.reminders.summaryOn(enabledReminders)
+            : permission === 'unsupported'
+              ? tr.reminders.unsupported
+              : tr.reminders.summaryOff}
+        </Label>
+        <Button
+          testID="settings-reminders"
+          kind="secondary"
+          title={tr.reminders.open}
+          onPress={() => router.push('/hatirlaticilar')}
+        />
       </Card>
 
       <Card>

@@ -1,0 +1,71 @@
+# h. Hatırlatıcılar (açıklama ekranı; sistem izin penceresi açılmaz)
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+# notifications: unset = the student has not answered yet, so the explanation screen comes first.
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: unset
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+- tapOn:
+    id: tab-settings
+- scrollUntilVisible:
+    element:
+      id: settings-reminders
+    direction: DOWN
+    centerElement: true
+- assertVisible:
+    id: settings-reminders-summary
+    text: "Bildirim izni verilmedi; hatırlatıcılar gelmez\\."
+- takeScreenshot: h-hatirlaticilar-01-ayarlar
+- tapOn:
+    id: settings-reminders
+- extendedWaitUntil:
+    visible:
+      id: reminder-daily-toggle
+    timeout: 10000
+# Defaults: the daily reminder is off, the others are on; no permission yet.
+- assertVisible:
+    id: reminders-permission-missing
+- assertVisible:
+    id: reminder-daily-toggle
+    text: "Kapalı"
+- assertVisible:
+    id: reminder-long-toggle
+    text: "Açık"
+- takeScreenshot: h-hatirlaticilar-02-liste
+# Turning a reminder on opens the explanation, never the system prompt directly.
+- tapOn:
+    id: reminder-daily-toggle
+- extendedWaitUntil:
+    visible:
+      id: notification-permission-allow
+    timeout: 10000
+- assertVisible:
+    id: notification-permission-item-daily
+- assertVisible:
+    id: notification-permission-later
+- takeScreenshot: h-hatirlaticilar-03-aciklama
+# "Şimdi değil": no prompt, the reminder stays off, the app keeps working.
+- tapOn:
+    id: notification-permission-later
+- extendedWaitUntil:
+    visible:
+      id: reminder-daily-toggle
+    timeout: 10000
+- assertVisible:
+    id: reminder-daily-toggle
+    text: "Kapalı"
+- assertVisible:
+    id: reminders-permission-missing
+# Other settings work without the permission (long session threshold 3 → 4 hours).
+- tapOn:
+    id: reminder-long-hours-plus
+- assertVisible:
+    text: ".*4 saat.*"
+- takeScreenshot: h-hatirlaticilar-04-izinsiz

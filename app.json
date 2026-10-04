@@ -28,6 +28,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/with-etut-ios.js",
       "expo-router",
       "expo-sqlite",
       [
@@ -36,6 +37,25 @@
           "backgroundColor": "#1F6FEB",
           "image": "./assets/splash-icon.png",
           "imageWidth": 160
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          "bundleIdentifier": "com.bnycftc.etut.ExpoWidgetsTarget",
+          "groupIdentifier": "group.com.bnycftc.etut",
+          "enablePushNotifications": false,
+          "frequentUpdates": false,
+          "widgets": [
+            {
+              "name": "EtutToday",
+              "displayName": "Etüt: Bugün",
+              "description": "Bugünkü çalışma süren, serin ve günlük hedefin.",
+              "ios": {
+                "supportedFamilies": ["systemSmall", "systemMedium", "accessoryRectangular"]
+              }
+            }
+          ]
         }
       ]
     ],

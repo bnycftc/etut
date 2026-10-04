@@ -1,0 +1,127 @@
+# i. Canlı sayaç (Live Activity: Dynamic Island ve Bildirim Merkezi) + pomodoro geri sayımı
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+- tapOn:
+    id: subject-fizik
+- tapOn:
+    id: timer-start
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: "0:0[2-9]"
+    timeout: 15000
+# Home screen: the system draws the running clock in the Dynamic Island (no app code runs).
+- pressKey: Home
+# Maestro has no sleep command: wait for an id that never exists and carry on (optional).
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 3000
+    optional: true
+- takeScreenshot: i-canli-sayac-01-dynamic-island
+# Notification Center (pulled down from the top-left edge) shows the Lock Screen presentation.
+- swipe:
+    start: 15%, 0%
+    end: 15%, 70%
+    duration: 600
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 2000
+    optional: true
+- takeScreenshot: i-canli-sayac-02-kilit-ekrani
+- swipe:
+    start: 50%, 99%
+    end: 50%, 20%
+    duration: 400
+# Back to the same process; being away > 10 s may have turned into an automatic break.
+- launchApp:
+    stopApp: false
+    permissions: {}
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: away-credit
+    commands:
+      - tapOn:
+          id: away-credit
+# Paused: the Live Activity freezes at the paused value.
+- tapOn:
+    id: timer-pause
+- pressKey: Home
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 3000
+    optional: true
+- takeScreenshot: i-canli-sayac-03-mola
+- launchApp:
+    stopApp: false
+    permissions: {}
+- extendedWaitUntil:
+    visible:
+      id: timer-finish
+    timeout: 15000
+- tapOn:
+    id: timer-finish
+- assertVisible:
+    id: timer-saved
+# Pomodoro: the Live Activity counts the work block down.
+- tapOn:
+    id: mode-pomodoro
+- tapOn:
+    id: timer-start
+- extendedWaitUntil:
+    visible:
+      id: pomodoro-phase
+    timeout: 10000
+- pressKey: Home
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 3000
+    optional: true
+- takeScreenshot: i-canli-sayac-04-pomodoro
+- launchApp:
+    stopApp: false
+    permissions: {}
+- extendedWaitUntil:
+    visible:
+      id: timer-finish
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: away-dismiss
+    commands:
+      - tapOn:
+          id: away-dismiss
+- tapOn:
+    id: timer-finish
+# Finished: the Live Activity is gone from the Dynamic Island.
+- pressKey: Home
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 3000
+    optional: true
+- takeScreenshot: i-canli-sayac-05-bitti
+- launchApp:
+    stopApp: false
+    permissions: {}
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 15000

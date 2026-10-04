@@ -8,7 +8,7 @@
  *
  * Checks: page is cross-origin isolated, no console errors / uncaught exceptions, onboarding →
  * timer (start, pause, resume, finish) → reload keeps the profile → mock exam with the right net →
- * reload keeps the exam → "delete all data" returns to onboarding.
+ * reload keeps the exam → reminders screen renders → "delete all data" returns to onboarding.
  *
  * Environment:
  *   WEB_TEST_PORT     first port to try (default 8090; the next free port is used if busy)
@@ -229,7 +229,21 @@ async function runScenario(page, baseUrl) {
   await visible('exam-item-0-net', FIRST_SCREEN_TIMEOUT_MS);
   check((await text('exam-item-0-net')) === '27 net', 'exam lost after reload');
 
-  // 6. Settings → delete all data → onboarding.
+  // 6. Reminders screen renders (web has no local notifications: "unsupported", no prompt).
+  log('step: reminders');
+  await byId('tab-settings').click();
+  await visible('settings-reminders');
+  await byId('settings-reminders').click();
+  await visible('reminder-daily-toggle');
+  check((await text('reminder-daily-toggle')) === 'Kapalı', 'daily reminder must be off by default');
+  check(
+    await byId('reminders-screen').getByText('Bu cihazda hatırlatıcı yok.').isVisible(),
+    'web must say reminders are unsupported',
+  );
+  await screenshot('reminders');
+  await page.goBack();
+
+  // 7. Settings → delete all data → onboarding.
   log('step: delete all data');
   await byId('tab-settings').click();
   await visible('settings-delete-all');

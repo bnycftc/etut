@@ -11,7 +11,9 @@ import { Vibration } from 'react-native';
 import type { TopicMark } from '../domain/exam-analysis';
 import type { Profile } from '../domain/profile';
 import type { ActiveSession, CompletedSession } from '../domain/timer';
+import type { PlannedNotification } from '../domain/reminders';
 import type { MockExamWithScores } from '../storage/mock-exams';
+import type { TimerActivityProps, TodayWidgetProps } from '../system/surface-props';
 
 const memory: {
   profile: Profile | null;
@@ -27,6 +29,17 @@ const memory: {
   marks: Record<string, TopicMark[]>;
   examDates: Record<string, string>;
   netTargets: Record<string, number>;
+  reminderPrefs: unknown;
+  liveActivityRecord: { sessionId: string; startedAt: number } | null;
+  /** System surfaces (src/system adapters, replaced below). */
+  permission: 'granted' | 'denied' | 'undetermined';
+  grantOnRequest: boolean;
+  permissionRequests: number;
+  /** Older tests never await the permission check (no act() warnings): it stays pending. */
+  answerPermission: boolean;
+  planned: PlannedNotification[];
+  liveActivities: TimerActivityProps[];
+  widget: { at: number; props: TodayWidgetProps }[];
 } = {
   profile: null,
   active: null,
@@ -40,9 +53,71 @@ const memory: {
   marks: {},
   examDates: {},
   netTargets: {},
+  reminderPrefs: null,
+  liveActivityRecord: null,
+  permission: 'undetermined',
+  grantOnRequest: true,
+  permissionRequests: 0,
+  answerPermission: false,
+  planned: [],
+  liveActivities: [],
+  widget: [],
 };
 
+jest.mock('../system/notifications', () => ({
+  notifications: {
+    supported: true,
+    getPermission: () => (memory.answerPermission ? Promise.resolve(memory.permission) : new Promise(() => {})),
+    requestPermission: async () => {
+      memory.permissionRequests += 1;
+      if (memory.permission === 'undetermined') memory.permission = memory.grantOnRequest ? 'granted' : 'denied';
+      return memory.permission;
+    },
+    sync: async (planned: PlannedNotification[]) => {
+      memory.planned = memory.permission === 'granted' ? planned : [];
+    },
+    cancelAll: async () => {
+      memory.planned = [];
+    },
+    onOpen: () => () => {},
+  },
+}));
+
+jest.mock('../system/live-activity', () => ({
+  liveActivity: {
+    supported: true,
+    count: () => memory.liveActivities.length,
+    start: (props: TimerActivityProps) => {
+      memory.liveActivities = [...memory.liveActivities, props];
+      return true;
+    },
+    update: async (props: TimerActivityProps) => {
+      memory.liveActivities = memory.liveActivities.map(() => props);
+    },
+    endAll: async () => {
+      memory.liveActivities = [];
+    },
+  },
+}));
+
+jest.mock('../system/home-widget', () => ({
+  homeWidget: {
+    supported: true,
+    setTimeline: (entries: { at: number; props: TodayWidgetProps }[]) => {
+      memory.widget = entries;
+    },
+  },
+}));
+
 jest.mock('../storage/kv', () => ({
+  loadReminderPrefs: () => jest.requireActual('../domain/reminders').normalizeReminderPrefs(memory.reminderPrefs),
+  storeReminderPrefs: (p: unknown) => {
+    memory.reminderPrefs = p;
+  },
+  loadLiveActivityRecord: () => memory.liveActivityRecord,
+  storeLiveActivityRecord: (r: { sessionId: string; startedAt: number } | null) => {
+    memory.liveActivityRecord = r;
+  },
   loadProfile: () => memory.profile,
   storeProfile: (p: Profile) => {
     memory.profile = p;
@@ -81,6 +156,8 @@ jest.mock('../storage/kv', () => ({
     memory.dailyGoal = null;
     memory.examDates = {};
     memory.netTargets = {};
+    memory.reminderPrefs = null;
+    memory.liveActivityRecord = null;
   },
 }));
 
@@ -170,6 +247,15 @@ beforeEach(() => {
   memory.marks = {};
   memory.examDates = {};
   memory.netTargets = {};
+  memory.reminderPrefs = null;
+  memory.liveActivityRecord = null;
+  memory.permission = 'undetermined';
+  memory.grantOnRequest = true;
+  memory.permissionRequests = 0;
+  memory.answerPermission = false;
+  memory.planned = [];
+  memory.liveActivities = [];
+  memory.widget = [];
 });
 
 it('first launch shows onboarding with no birth year pre-selected', () => {
@@ -700,5 +786,153 @@ describe('other screens render', () => {
   fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
     expect(memory.profile).toBeNull();
     expect(screen.getByText('Doğum yılın')).toBeTruthy();
+  });
+});
+
+describe('system surfaces: Live Activity, widget, reminders', () => {
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+    memory.answerPermission = true;
+  });
+
+  /** Lets the async sync jobs (promise chains) finish. */
+  async function settle() {
+    await act(async () => {
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+  }
+
+  it('the Live Activity starts with the timer, follows pause/resume and ends with "Bitir"', async () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    await settle();
+    expect(memory.liveActivities).toHaveLength(1);
+    expect(memory.liveActivities[0]).toMatchObject({
+      title: 'Fizik',
+      status: 'Çalışıyorsun',
+      countsDown: false,
+      pausedAt: null,
+      from: memory.active?.startedAt,
+    });
+    expect(memory.liveActivityRecord?.sessionId).toBe(memory.active?.id);
+
+    fireEvent.press(screen.getByRole('button', { name: 'Mola' }));
+    await settle();
+    expect(memory.liveActivities).toHaveLength(1);
+    expect(memory.liveActivities[0]).toMatchObject({ status: 'Moladasın', icon: 'pause.fill' });
+    expect(memory.liveActivities[0].pausedAt).not.toBeNull();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Devam' }));
+    await settle();
+    expect(memory.liveActivities[0]).toMatchObject({ status: 'Çalışıyorsun', pausedAt: null });
+
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    await settle();
+    expect(memory.liveActivities).toHaveLength(0);
+    expect(memory.liveActivityRecord).toBeNull();
+  });
+
+  it('pomodoro: the Live Activity counts down and knows the next phase', async () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('mode-pomodoro'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    await settle();
+    const props = memory.liveActivities[0];
+    expect(props).toMatchObject({ status: 'Çalışma 1/4', countsDown: true, showProgress: true, nextStatus: 'Kısa mola' });
+    expect(props.to - props.from).toBe(25 * 60_000);
+    expect(props.nextFrom).toBe(props.to);
+  });
+
+  it('the widget shows today, the goal and the streak; "delete all" leaves nothing personal', async () => {
+    memory.dailyGoal = 60;
+    const now = Date.now();
+    memory.sessions = [
+      {
+        id: 'w',
+        subjectId: 'fizik',
+        topicId: null,
+        startedAt: now - 2 * 3_600_000,
+        endedAt: now - 2 * 3_600_000 + 30 * 60_000,
+        pauses: [],
+        durationMs: 30 * 60_000,
+        source: 'timer',
+      },
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await settle();
+    expect(memory.widget[0].props).toMatchObject({ title: 'Bugün', countingFrom: null, goalLine: 'Hedef 1 sa 0 dk' });
+    expect(memory.widget[0].props.streakLine).toMatch(/^Seri: \d+ gün$/);
+    fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    await settle();
+    expect(memory.widget).toHaveLength(1);
+    expect(memory.widget[0].props).toMatchObject({ total: '0 dk', goalLine: null, streakLine: null });
+  });
+
+  it('turning a reminder on asks through the explanation screen; "Şimdi değil" keeps it off', async () => {
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await settle();
+    expect(screen.getByTestId('settings-reminders-summary').props.children).toBe(
+      'Bildirim izni verilmedi; hatırlatıcılar gelmez.',
+    );
+    fireEvent.press(screen.getByTestId('settings-reminders'));
+    await settle();
+    expect(screen.getByTestId('reminders-permission-missing')).toBeTruthy();
+    expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.selected).toBe(false);
+    fireEvent.press(screen.getByTestId('reminder-daily-toggle'));
+    await settle();
+    // The explanation lists what will be on, the requested daily reminder included.
+    expect(screen.getByTestId('notification-permission-item-daily')).toBeTruthy();
+    expect(screen.getByTestId('notification-permission-item-longSession').props.children).toBe(
+      '• Uzun oturum uyarısı (3 saat)',
+    );
+    fireEvent.press(screen.getByTestId('notification-permission-later'));
+    await settle();
+    expect(memory.permissionRequests).toBe(0);
+    expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.selected).toBe(false);
+
+    // Second time: "Devam et" shows the system prompt (granted here) and turns it on.
+    fireEvent.press(screen.getByTestId('reminder-daily-toggle'));
+    await settle();
+    fireEvent.press(screen.getByTestId('notification-permission-allow'));
+    await settle();
+    expect(memory.permissionRequests).toBe(1);
+    expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByTestId('reminder-daily-time').props.children).toBe('20:00');
+    fireEvent.press(screen.getByTestId('reminder-daily-hour-plus'));
+    fireEvent.press(screen.getByTestId('reminder-daily-minute-minus'));
+    expect(screen.getByTestId('reminder-daily-time').props.children).toBe('20:45');
+    await settle();
+    expect(memory.planned.some((n) => n.kind === 'daily')).toBe(true);
+  });
+
+  it('a refused permission keeps the app working and the reminders silent', async () => {
+    memory.grantOnRequest = false;
+    renderRouter(APP_DIR, { initialUrl: '/hatirlaticilar' });
+    await settle();
+    fireEvent.press(screen.getByTestId('reminders-permission'));
+    await settle();
+    fireEvent.press(screen.getByTestId('notification-permission-allow'));
+    await settle();
+    expect(screen.getByTestId('notification-permission-denied')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('notification-permission-close'));
+    await settle();
+    expect(screen.getByTestId('reminders-permission-denied')).toBeTruthy();
+    expect(memory.planned).toEqual([]);
+  });
+
+  it('with permission: a running pomodoro schedules its phase ends, a pause cancels them', async () => {
+    memory.permission = 'granted';
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('mode-pomodoro'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    await settle();
+    const kinds = memory.planned.map((n) => n.kind);
+    expect(kinds).toContain('pomodoro');
+    expect(kinds).toContain('long_session');
+    fireEvent.press(screen.getByRole('button', { name: 'Mola' }));
+    await settle();
+    expect(memory.planned.filter((n) => n.kind === 'pomodoro' || n.kind === 'long_session')).toEqual([]);
   });
 });

@@ -235,6 +235,49 @@ export function pomodoroStatus(view: PomodoroSessionView, now: number): Pomodoro
   };
 }
 
+/** A future switch from one pomodoro phase to the next, in wall time. */
+export interface PhaseChange {
+  at: number;
+  /** The phase that ends at `at`. */
+  ended: PomodoroPhase;
+  /** The phase that starts at `at`. */
+  next: PomodoroPhase;
+  /** When `next` ends, if nothing changes in between. */
+  nextEndsAt: number;
+  /** Position of `next` (work) or of the block before it (break) inside its set, 1-based. */
+  nextBlockInSet: number;
+}
+
+/**
+ * The next `count` phase changes after `now`, assuming the student neither pauses nor skips a
+ * break from now on (the pomodoro clock then runs at wall speed). Empty when pomodoro mode is off
+ * or a manual pause is open (a manual pause freezes the pomodoro).
+ */
+export function upcomingPhaseChanges(view: PomodoroSessionView, now: number, count: number): PhaseChange[] {
+  const state = view.pomodoro;
+  if (state === null || count <= 0) return [];
+  if (view.pauses.some((p) => p.kind === 'manual' && p.end === null)) return [];
+  const config = normalizePomodoroConfig(state.config);
+  const from = Math.max(now, view.startedAt);
+  const clock = pomodoroClock(view, from);
+  // While nothing is paused, wall time = clock + offset.
+  const offset = from - clock;
+  const out: PhaseChange[] = [];
+  let phase = phaseAt(config, clock);
+  for (let i = 0; i < count; i++) {
+    const next = phaseAt(config, phase.end);
+    out.push({
+      at: phase.end + offset,
+      ended: phase.phase,
+      next: next.phase,
+      nextEndsAt: next.end + offset,
+      nextBlockInSet: (next.blockIndex % config.longEvery) + 1,
+    });
+    phase = next;
+  }
+  return out;
+}
+
 /**
  * "Molayı geç": ends the current break now and starts the next work block. Does nothing during
  * a work block or while the student has paused manually.
