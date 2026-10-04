@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { formatClock } from '@/domain/clock';
+import { topicName } from '@/domain/curriculum';
 import { dailyTotals, type SessionSpan } from '@/domain/daily-totals';
 import { DAY_MS, dayStartMs, istanbulDayKey } from '@/domain/istanbul-day';
 import { defaultSubject, SUBJECTS_BY_EXAM } from '@/domain/subjects';
@@ -14,6 +15,7 @@ import { tr } from '@/strings';
 import { Button, Card, Chip, ChipRow, Label, Row, Screen } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
+import { TopicPicker } from '@/ui/topic-picker';
 
 export default function TimerScreen() {
   const app = useAppState();
@@ -24,8 +26,14 @@ export default function TimerScreen() {
   const today = istanbulDayKey(now);
 
   const examType = profile?.examType ?? 'DIGER';
-  const [subjectId, setSubjectId] = useState(() => defaultSubject(examType, loadLastSubject()));
+  const yksArea = profile?.yksArea ?? null;
+  const [subjectId, setSubjectIdState] = useState(() => defaultSubject(examType, loadLastSubject()));
+  const [topicId, setTopicId] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const setSubjectId = (id: string) => {
+    if (id !== subjectId) setTopicId(null);
+    setSubjectIdState(id);
+  };
 
   const completedToday = useStored(`${today}|${dataVersion}`, () => {
     const from = dayStartMs(today);
@@ -79,27 +87,44 @@ export default function TimerScreen() {
               {SUBJECTS_BY_EXAM[examType].map((id) => (
                 <Chip
                   key={id}
+                  testID={`subject-${id}`}
                   title={tr.subject(id)}
                   selected={id === subjectId}
                   onPress={() => setSubjectId(id)}
                 />
               ))}
             </ChipRow>
+            <TopicPicker
+              examType={examType}
+              yksArea={yksArea}
+              subjectId={subjectId}
+              topicId={topicId}
+              onChange={setTopicId}
+            />
           </Card>
           <Button
             large
             title={tr.timer.start}
             onPress={() => {
               setSavedMessage(null);
-              app.start(subjectId);
+              app.start(subjectId, { topicId });
             }}
           />
           {savedMessage ? <Label variant="muted">{savedMessage}</Label> : null}
+          <Row>
+            <Button
+              testID="open-topics"
+              kind="secondary"
+              title={tr.timer.topics}
+              onPress={() => router.push('/konular')}
+            />
+          </Row>
         </>
       ) : (
         <Card>
           <Label variant="muted" style={{ textAlign: 'center' }}>
             {tr.subject(active.subjectId)}
+            {topicName(active.topicId) ? ` · ${topicName(active.topicId)}` : ''}
           </Label>
           <Text
             accessibilityRole="timer"

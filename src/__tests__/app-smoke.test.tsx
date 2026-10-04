@@ -208,6 +208,70 @@ it('a 15+ profile sees the groups tab; start, pause, finish saves a session', ()
   expect(screen.getByText('Ders seç')).toBeTruthy();
 });
 
+const ADULT_SAYISAL: Profile = {
+  birthYear: 2000,
+  examType: 'YKS',
+  yksArea: 'sayisal',
+  soloOnly: false,
+  createdAt: 0,
+};
+
+describe('topic tracking', () => {
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+  });
+
+  it('the optional topic picked on the timer is saved with the session', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByTestId('topic-picker-toggle'));
+    fireEvent.press(screen.getByTestId('topic-tyt.fizik.basinc'));
+    expect(screen.getByText('Basınç')).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(memory.active?.topicId).toBe('tyt.fizik.basinc');
+    act(() => jest.advanceTimersByTime(61_000));
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(memory.sessions[0]).toMatchObject({ topicId: 'tyt.fizik.basinc', source: 'timer' });
+  });
+
+  it('changing the subject clears the topic', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByTestId('topic-picker-toggle'));
+    fireEvent.press(screen.getByTestId('topic-tyt.fizik.basinc'));
+    fireEvent.press(screen.getByText('Kimya'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(memory.active).toMatchObject({ subjectId: 'kimya', topicId: null });
+  });
+
+  it('topics screen: "bitti" raises the progress, tapping again clears it', () => {
+    memory.sessions = [
+      {
+        id: 's',
+        subjectId: 'fizik',
+        topicId: 'tyt.fizik.basinc',
+        startedAt: 0,
+        endedAt: 45 * 60_000,
+        pauses: [],
+        durationMs: 45 * 60_000,
+        source: 'timer',
+      },
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/konular' });
+    fireEvent.press(screen.getByTestId('topics-subject-fizik'));
+    expect(screen.getByText('45 dk')).toBeTruthy();
+    const before = screen.getByTestId('topics-progress').props.children as string;
+    expect(before.startsWith('%0 · 0/')).toBe(true);
+    fireEvent.press(screen.getByTestId('topic-done-tyt.fizik.basinc'));
+    expect(memory.topicStatuses['tyt.fizik.basinc']).toBe('done');
+    expect(screen.getByTestId('topics-progress').props.children).toMatch(/^%\d+ · 1\//);
+    fireEvent.press(screen.getByTestId('topic-done-tyt.fizik.basinc'));
+    expect(memory.topicStatuses['tyt.fizik.basinc']).toBeUndefined();
+    fireEvent.press(screen.getByTestId('topic-review-tyt.fizik.basinc'));
+    expect(screen.getByText('1 konu tekrar bekliyor')).toBeTruthy();
+  });
+});
+
 describe('other screens render', () => {
   beforeEach(() => {
     memory.profile = {

@@ -133,6 +133,28 @@ export const tr = {
     awayDismiss: 'Tamam, mola kalsın',
     lessThanMinute: '1 dakikadan az',
     saved: (duration: string) => `Kaydedildi: ${duration}`,
+    topics: 'Konular',
+  },
+
+  topicPicker: {
+    title: 'Konu (isteğe bağlı)',
+    none: 'Konu seçilmedi',
+    pick: 'Konu seç',
+    change: 'Değiştir',
+    close: 'Kapat',
+    clear: 'Konusuz çalış',
+  },
+
+  topics: {
+    title: 'Konular',
+    pickSubject: 'Ders',
+    progress: (percent: number, done: number, total: number) => `%${percent} · ${done}/${total} konu bitti`,
+    reviewCount: (n: number) => `${n} konu tekrar bekliyor`,
+    done: 'Bitti',
+    review: 'Tekrar lazım',
+    noTime: 'Henüz süre yok',
+    noTopics: 'Bu ders için konu listesi yok.',
+    unsupported: 'Konu listeleri YKS, LGS ve KPSS için var.',
   },
 
   history: {

@@ -25,6 +25,7 @@ function RootStack() {
           options={{ title: tr.exams.newTitle, presentation: 'modal' }}
         />
         <Stack.Screen name="deneme/[id]" options={{ title: tr.exams.detailTitle }} />
+        <Stack.Screen name="konular" options={{ title: tr.topics.title }} />
       </Stack.Protected>
       <Stack.Protected guard={profile === null}>
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
