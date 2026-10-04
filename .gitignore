@@ -50,3 +50,6 @@ example
 
 # Serai
 .serai/cache/
+
+# Claude ajan worktreeleri
+/.claude/worktrees/
