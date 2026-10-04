@@ -4,6 +4,7 @@
  * no "sosyal ağ / sohbet / topluluk" positioning (K-13).
  */
 
+import type { MarkError } from './domain/exam-analysis';
 import type { ManualEntryError } from './domain/manual-entry';
 import type { ExamKind, ScoreError, YksArea } from './domain/net';
 import type { ExamType } from './domain/profile';
@@ -233,6 +234,53 @@ export const tr = {
     fixErrors: 'Hatalı alanları düzelt.',
     deleteConfirm: 'Bu deneme silinsin mi?',
     notFound: 'Deneme bulunamadı.',
+  },
+
+  analysis: {
+    title: 'Deneme analizi',
+    pendingTitle: (n: number) => `Analizi bekleyen ${n} deneme var`,
+    pendingBody: 'Kitapçık gelince yanlış ve boş soruların konularını işaretle; neti zaten kaydettin.',
+    start: 'Analize başla',
+    complete: 'Analizi tamamla',
+    edit: 'Analizi düzenle',
+    pendingTag: 'analiz bekliyor',
+    sectionSummary: (wrong: number, blank: number) => `${wrong} yanlış · ${blank} boş`,
+    tagged: (wrongTagged: number, wrong: number, blankTagged: number, blank: number) =>
+      `İşaretlenen: ${wrongTagged}/${wrong} yanlış · ${blankTagged}/${blank} boş`,
+    addTopic: 'Konu ekle',
+    close: 'Kapat',
+    wrong: 'Yanlış',
+    blank: 'Boş',
+    nothing: 'Bu denemede yanlış ya da boş yok; analiz edecek bir şey kalmadı.',
+    partialNote: 'Hepsini işaretlemek zorunda değilsin; bildiklerini işaretlemen yeter.',
+    save: 'Analizi kaydet',
+    markErrors: {
+      not_integer: 'Tam sayı gir.',
+      negative: 'Negatif olamaz.',
+      too_many_wrong: 'İşaretlenen yanlışlar bu dersteki yanlış sayısını aşıyor.',
+      too_many_blank: 'İşaretlenen boşlar bu dersteki boş sayısını aşıyor.',
+    } satisfies Record<MarkError, string>,
+    marksTitle: 'Yanlış ve boş konular',
+    noMarks: 'Konu işaretlenmedi.',
+    markRow: (wrong: number, blank: number) =>
+      blank > 0 ? `${wrong} Y · ${blank} B` : `${wrong} Y`,
+    topMissedTitle: 'En çok yanlış yaptığın 5 konu',
+    topMissedEmpty: 'Deneme analizlerini tamamladıkça burada görünür.',
+  },
+
+  trend: {
+    title: (kind: string) => `${kind} ders bazlı net`,
+    empty: 'Bu ders için henüz net yok.',
+    target: 'Hedef net',
+    targetPlaceholder: 'ör. 30',
+    targetNone: 'Bu ders için hedef koymadın.',
+    targetCurrent: (target: string) => `Hedef: ${target} net`,
+    targetSave: 'Hedefi kaydet',
+    targetClear: 'Hedefi kaldır',
+    targetInvalid: (questions: number) => `0 ile ${questions} arasında, 0,25’in katı bir net gir.`,
+    gap: (gap: string, average: string) =>
+      `Hedefe ${gap} net kaldı (son denemelerin ortalaması: ${average}).`,
+    reached: (average: string) => `Hedefe ulaştın (son denemelerin ortalaması: ${average}).`,
   },
 
   groups: {

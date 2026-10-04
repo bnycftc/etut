@@ -337,6 +337,86 @@ describe('manual entry ("elle")', () => {
   });
 });
 
+describe('mock exam analysis', () => {
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+    memory.exams = [
+      {
+        id: 'e1',
+        kind: 'TYT',
+        scope: 'genel',
+        bransSectionId: null,
+        takenOn: '2026-10-01',
+        totalNet: 68.5,
+        createdAt: 1,
+        analysisDoneAt: null,
+        scores: [
+          { sectionId: 'turkce', questions: 40, correct: 40, wrong: 0 },
+          { sectionId: 'matematik', questions: 40, correct: 30, wrong: 6 },
+        ],
+      },
+    ];
+  });
+
+  it('reminds about the pending analysis, tags topics and then drops the reminder', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('analysis-reminder').props.children).toBe('Analizi bekleyen 1 deneme var');
+    expect(screen.getByText('analiz bekliyor')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('analysis-reminder-start'));
+
+    // Only the section with wrong/blank answers is offered.
+    expect(screen.queryByTestId('analysis-tagged-turkce')).toBeNull();
+    expect(screen.getByTestId('analysis-tagged-matematik').props.children).toBe(
+      'İşaretlenen: 0/6 yanlış · 0/4 boş',
+    );
+    fireEvent.press(screen.getByTestId('analysis-add-topic-matematik'));
+    fireEvent.press(screen.getByTestId('analysis-add-tyt.matematik.mutlak-deger'));
+    fireEvent.press(screen.getByTestId('analysis-wrong-tyt.matematik.mutlak-deger-plus'));
+    fireEvent.press(screen.getByTestId('analysis-wrong-tyt.matematik.mutlak-deger-plus'));
+    fireEvent.press(screen.getByTestId('analysis-blank-tyt.matematik.mutlak-deger-plus'));
+    expect(screen.getByTestId('analysis-tagged-matematik').props.children).toBe(
+      'İşaretlenen: 3/6 yanlış · 1/4 boş',
+    );
+    fireEvent.press(screen.getByTestId('analysis-save'));
+
+    expect(memory.marks.e1).toEqual([
+      { sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 3, blank: 1 },
+    ]);
+    expect(memory.exams[0].analysisDoneAt).not.toBeNull();
+    expect(screen.queryByTestId('analysis-reminder')).toBeNull();
+    expect(screen.getByText('1. Mutlak Değer')).toBeTruthy();
+    expect(screen.getByText('3 Y · 1 B')).toBeTruthy();
+  });
+
+  it('the plus button stops at the section wrong count', () => {
+    renderRouter(APP_DIR, { initialUrl: '/analiz/e1' });
+    fireEvent.press(screen.getByTestId('analysis-add-topic-matematik'));
+    fireEvent.press(screen.getByTestId('analysis-add-tyt.matematik.mutlak-deger'));
+    for (let i = 0; i < 10; i++) {
+      fireEvent.press(screen.getByTestId('analysis-wrong-tyt.matematik.mutlak-deger-plus'));
+    }
+    expect(screen.getByTestId('analysis-tagged-matematik').props.children).toBe(
+      'İşaretlenen: 6/6 yanlış · 0/4 boş',
+    );
+  });
+
+  it('per-section net trend with a target and the distance to it', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('trend-section-matematik'));
+    expect(screen.getByTestId('trend-target').props.children).toBe('Bu ders için hedef koymadın.');
+    fireEvent.changeText(screen.getByTestId('trend-target-input'), '45');
+    fireEvent.press(screen.getByTestId('trend-target-save'));
+    expect(screen.getByText('0 ile 40 arasında, 0,25’in katı bir net gir.')).toBeTruthy();
+    fireEvent.changeText(screen.getByTestId('trend-target-input'), '30');
+    fireEvent.press(screen.getByTestId('trend-target-save'));
+    expect(memory.netTargets['TYT:matematik']).toBe(30);
+    expect(screen.getByTestId('trend-target').props.children).toBe('Hedef: 30 net');
+    expect(screen.getByTestId('trend-gap').props.children).toBe(
+      'Hedefe 1,5 net kaldı (son denemelerin ortalaması: 28,5).',
+    );
+  });
+});
+
 describe('other screens render', () => {
   beforeEach(() => {
     memory.profile = {
