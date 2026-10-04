@@ -1,15 +1,22 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { formatClock } from '@/domain/clock';
 import { topicName } from '@/domain/curriculum';
+import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { goalRatio } from '@/domain/streak';
 import { defaultSubject, SUBJECTS_BY_EXAM } from '@/domain/subjects';
 import { elapsedMs, isPaused } from '@/domain/timer';
-import { useAppState, useNow } from '@/state/app-state';
+import { useAppState, useNow, useStored } from '@/state/app-state';
 import { useStudyStats } from '@/state/study-stats';
-import { loadLastSubject } from '@/storage/kv';
+import {
+  loadLastSubject,
+  loadPomodoroConfig,
+  loadTimerMode,
+  storeTimerMode,
+  type TimerMode,
+} from '@/storage/kv';
 import { tr } from '@/strings';
 import { Button, Card, Chip, ChipRow, Label, ProgressBar, Row, Screen } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
@@ -28,12 +35,30 @@ export default function TimerScreen() {
   const [subjectId, setSubjectIdState] = useState(() => defaultSubject(examType, loadLastSubject()));
   const [topicId, setTopicId] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [mode, setModeState] = useState<TimerMode>(loadTimerMode);
   const setSubjectId = (id: string) => {
     if (id !== subjectId) setTopicId(null);
     setSubjectIdState(id);
   };
+  const setMode = (m: TimerMode) => {
+    storeTimerMode(m);
+    setModeState(m);
+  };
+  const pomodoroConfig = useStored(`pomodoro|${app.dataVersion}`, loadPomodoroConfig);
 
   const { todayTotal, todayManual, comparison, goal, streak } = useStudyStats(now);
+  const pomodoro = active === null ? null : pomodoroStatus(active, now);
+  const onBreak = pomodoro !== null && pomodoro.phase !== 'work';
+
+  // A short vibration when a pomodoro phase changes while the app is open (no notifications).
+  const phaseKey = pomodoro === null ? null : `${pomodoro.block}|${pomodoro.phase}`;
+  const lastPhase = useRef(phaseKey);
+  useEffect(() => {
+    if (phaseKey !== null && lastPhase.current !== null && phaseKey !== lastPhase.current) {
+      Vibration.vibrate();
+    }
+    lastPhase.current = phaseKey;
+  }, [phaseKey]);
 
   const finish = () => {
     const done = app.finish();
@@ -116,13 +141,38 @@ export default function TimerScreen() {
               topicId={topicId}
               onChange={setTopicId}
             />
+            <Label variant="heading">{tr.pomodoro.mode}</Label>
+            <ChipRow>
+              <Chip
+                testID="mode-stopwatch"
+                title={tr.pomodoro.stopwatch}
+                selected={mode === 'stopwatch'}
+                onPress={() => setMode('stopwatch')}
+              />
+              <Chip
+                testID="mode-pomodoro"
+                title={tr.pomodoro.pomodoro}
+                selected={mode === 'pomodoro'}
+                onPress={() => setMode('pomodoro')}
+              />
+            </ChipRow>
+            {mode === 'pomodoro' ? (
+              <Label variant="small">
+                {tr.pomodoro.summary(
+                  pomodoroConfig.workMin,
+                  pomodoroConfig.shortBreakMin,
+                  pomodoroConfig.longBreakMin,
+                  pomodoroConfig.longEvery,
+                )}
+              </Label>
+            ) : null}
           </Card>
           <Button
             large
             title={tr.timer.start}
             onPress={() => {
               setSavedMessage(null);
-              app.start(subjectId, { topicId });
+              app.start(subjectId, { topicId, pomodoro: mode === 'pomodoro' ? pomodoroConfig : null });
             }}
           />
           {savedMessage ? <Label variant="muted">{savedMessage}</Label> : null}
@@ -147,16 +197,38 @@ export default function TimerScreen() {
             {tr.subject(active.subjectId)}
             {topicName(active.topicId) ? ` · ${topicName(active.topicId)}` : ''}
           </Label>
+          {pomodoro !== null ? (
+            <Label testID="pomodoro-phase" variant="heading" style={{ textAlign: 'center' }}>
+              {pomodoroPhaseLabel(pomodoro, active.pomodoro?.config.longEvery ?? 4)}
+            </Label>
+          ) : null}
           <Text
+            testID="timer-clock"
             accessibilityRole="timer"
-            style={[styles.clock, { color: running ? c.text : c.textMuted }]}
+            style={[styles.clock, { color: running && !onBreak ? c.text : c.textMuted }]}
             numberOfLines={1}
             adjustsFontSizeToFit>
-            {formatClock(elapsedMs(active, now))}
+            {formatClock(pomodoro !== null ? pomodoro.remainingMs : elapsedMs(active, now))}
           </Text>
           <Label variant="muted" style={{ textAlign: 'center' }}>
-            {running ? tr.timer.running : tr.timer.paused}
+            {pomodoro !== null
+              ? running
+                ? tr.pomodoro.studied(formatClock(elapsedMs(active, now)))
+                : tr.pomodoro.paused
+              : running
+                ? tr.timer.running
+                : tr.timer.paused}
           </Label>
+          {pomodoro !== null && pomodoro.phase !== 'work' ? (
+            <>
+              <Label variant="small" style={{ textAlign: 'center' }}>
+                {tr.pomodoro.breakNote}
+              </Label>
+              {running ? (
+                <Button testID="pomodoro-skip" kind="secondary" title={tr.pomodoro.skip} onPress={app.skipBreak} />
+              ) : null}
+            </>
+          ) : null}
           <Row>
             {running ? (
               <Button large kind="secondary" title={tr.timer.pause} onPress={app.pause} />
@@ -190,6 +262,12 @@ export default function TimerScreen() {
       </Card>
     </Screen>
   );
+}
+
+function pomodoroPhaseLabel(status: PomodoroStatus, longEvery: number): string {
+  if (status.phase === 'short_break') return tr.pomodoro.shortBreak;
+  if (status.phase === 'long_break') return tr.pomodoro.longBreak;
+  return tr.pomodoro.work(status.blockInSet, longEvery);
 }
 
 function CompareRow({ label, value, testID }: { label: string; value: number; testID?: string }) {

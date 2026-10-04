@@ -212,6 +212,29 @@ export const tr = {
     percent: (p: number) => `%${p}`,
   },
 
+  pomodoro: {
+    mode: 'Sayaç türü',
+    stopwatch: 'Kronometre',
+    pomodoro: 'Pomodoro',
+    summary: (work: number, short: number, long: number, every: number) =>
+      `${work} dk çalışma · ${short} dk mola · her ${every} turda bir ${long} dk uzun mola`,
+    work: (block: number, of: number) => `Çalışma ${block}/${of}`,
+    shortBreak: 'Kısa mola',
+    longBreak: 'Uzun mola',
+    paused: 'Duraklatıldı',
+    studied: (clock: string) => `Toplam çalışma: ${clock}`,
+    skip: 'Molayı geç',
+    breakNote: 'Mola süresi çalışma süresine sayılmaz.',
+    settingsTitle: 'Pomodoro',
+    workLabel: 'Çalışma',
+    shortLabel: 'Kısa mola',
+    longLabel: 'Uzun mola',
+    everyLabel: 'Uzun mola sıklığı',
+    minutes: (n: number) => `${n} dk`,
+    every: (n: number) => `${n} turda bir`,
+    reset: 'Varsayılana dön',
+  },
+
   topicPicker: {
     title: 'Konu (isteğe bağlı)',
     none: 'Konu seçilmedi',

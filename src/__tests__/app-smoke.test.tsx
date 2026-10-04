@@ -19,6 +19,7 @@ const memory: {
   youngestBirthYear: number | null;
   dailyGoal: number | null;
   timerMode: 'stopwatch' | 'pomodoro';
+  pomodoroConfig: { workMin: number; shortBreakMin: number; longBreakMin: number; longEvery: number };
   topicStatuses: Record<string, 'done' | 'review'>;
   exams: MockExamWithScores[];
   marks: Record<string, TopicMark[]>;
@@ -31,6 +32,7 @@ const memory: {
   youngestBirthYear: null,
   dailyGoal: null,
   timerMode: 'stopwatch',
+  pomodoroConfig: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 },
   topicStatuses: {},
   exams: [],
   marks: {},
@@ -53,8 +55,10 @@ jest.mock('../storage/kv', () => ({
   storeDailyGoal: (m: number | null) => {
     memory.dailyGoal = m;
   },
-  loadPomodoroConfig: () => ({ workMin: 25, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 }),
-  storePomodoroConfig: () => {},
+  loadPomodoroConfig: () => memory.pomodoroConfig,
+  storePomodoroConfig: (c: typeof memory.pomodoroConfig) => {
+    memory.pomodoroConfig = c;
+  },
   loadTimerMode: () => memory.timerMode,
   storeTimerMode: (m: 'stopwatch' | 'pomodoro') => {
     memory.timerMode = m;
@@ -158,6 +162,7 @@ beforeEach(() => {
   memory.youngestBirthYear = null;
   memory.dailyGoal = null;
   memory.timerMode = 'stopwatch';
+  memory.pomodoroConfig = { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 };
   memory.topicStatuses = {};
   memory.exams = [];
   memory.marks = {};
@@ -473,6 +478,52 @@ describe('goal, streak and "dünkü sen"', () => {
     expect(screen.getByText('Elle eklenen: 1 sa 0 dk')).toBeTruthy();
     fireEvent.press(screen.getByTestId('weekly-prev'));
     expect(screen.getByTestId('weekly-total').props.children).toBe('30 dk');
+  });
+});
+
+describe('pomodoro mode', () => {
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+  });
+
+  /** Jumps the clock and lets the 1 s render interval fire once. */
+  function jump(ms: number) {
+    act(() => {
+      jest.setSystemTime(Date.now() + ms);
+      jest.advanceTimersByTime(1000);
+    });
+  }
+
+  it('counts down the work block, switches to a break, and the break is not study time', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('mode-pomodoro'));
+    expect(memory.timerMode).toBe('pomodoro');
+    expect(screen.getByText(/25 dk çalışma · 5 dk mola/)).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(memory.active?.pomodoro?.config.workMin).toBe(25);
+    expect(screen.getByTestId('pomodoro-phase').props.children).toBe('Çalışma 1/4');
+
+    jump(25 * 60_000);
+    expect(screen.getByTestId('pomodoro-phase').props.children).toBe('Kısa mola');
+    jump(2 * 60_000);
+    fireEvent.press(screen.getByTestId('pomodoro-skip'));
+    expect(screen.getByTestId('pomodoro-phase').props.children).toBe('Çalışma 2/4');
+    jump(60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+
+    const saved = memory.sessions[0];
+    // ~25 + ~1 min of work; the ~2 min break is a stored pause of kind "break".
+    expect(saved.durationMs).toBeGreaterThanOrEqual(26 * 60_000);
+    expect(saved.durationMs).toBeLessThan(27 * 60_000);
+    expect(saved.pauses.some((p) => p.kind === 'break')).toBe(true);
+  });
+
+  it('settings change the pomodoro lengths within limits', () => {
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    fireEvent.press(screen.getByTestId('settings-pomodoro-workMin-plus'));
+    expect(memory.pomodoroConfig.workMin).toBe(30);
+    fireEvent.press(screen.getByTestId('settings-pomodoro-longEvery-minus'));
+    expect(memory.pomodoroConfig.longEvery).toBe(3);
   });
 });
 

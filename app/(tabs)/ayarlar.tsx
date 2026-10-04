@@ -2,9 +2,15 @@ import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { useState } from 'react';
 
+import {
+  DEFAULT_POMODORO,
+  normalizePomodoroConfig,
+  type PomodoroConfig,
+  POMODORO_LIMITS,
+} from '@/domain/pomodoro';
 import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '@/domain/streak';
 import { useAppState, useStored } from '@/state/app-state';
-import { loadDailyGoal, storeDailyGoal } from '@/storage/kv';
+import { loadDailyGoal, loadPomodoroConfig, storeDailyGoal, storePomodoroConfig } from '@/storage/kv';
 import { tr } from '@/strings';
 import { Button, Card, Label, Row, Screen, Stepper } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
@@ -12,12 +18,29 @@ import { formatDuration } from '@/ui/format';
 const DEFAULT_GOAL_MINUTES = 120;
 const GOAL_STEP_MINUTES = 15;
 
+const POMODORO_FIELDS: {
+  key: keyof PomodoroConfig;
+  label: string;
+  step: number;
+  format: (n: number) => string;
+}[] = [
+  { key: 'workMin', label: tr.pomodoro.workLabel, step: 5, format: tr.pomodoro.minutes },
+  { key: 'shortBreakMin', label: tr.pomodoro.shortLabel, step: 1, format: tr.pomodoro.minutes },
+  { key: 'longBreakMin', label: tr.pomodoro.longLabel, step: 5, format: tr.pomodoro.minutes },
+  { key: 'longEvery', label: tr.pomodoro.everyLabel, step: 1, format: tr.pomodoro.every },
+];
+
 export default function SettingsScreen() {
   const { profile, resetAll, dataVersion, notifyDataChanged } = useAppState();
   const [confirming, setConfirming] = useState(false);
   const goal = useStored(`goal|${dataVersion}`, loadDailyGoal);
   const setGoal = (minutes: number | null) => {
     storeDailyGoal(minutes);
+    notifyDataChanged();
+  };
+  const pomodoro = useStored(`pomodoro|${dataVersion}`, loadPomodoroConfig);
+  const setPomodoro = (config: PomodoroConfig) => {
+    storePomodoroConfig(normalizePomodoroConfig(config));
     notifyDataChanged();
   };
   const version = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '–';
@@ -75,6 +98,24 @@ export default function SettingsScreen() {
             />
           </>
         )}
+      </Card>
+
+      <Card>
+        <Label variant="heading">{tr.pomodoro.settingsTitle}</Label>
+        <Label variant="small">{tr.pomodoro.breakNote}</Label>
+        {POMODORO_FIELDS.map(({ key, label, step, format }) => (
+          <Stepper
+            key={key}
+            testID={`settings-pomodoro-${key}`}
+            label={label}
+            value={format(pomodoro[key])}
+            onMinus={() => setPomodoro({ ...pomodoro, [key]: pomodoro[key] - step })}
+            onPlus={() => setPomodoro({ ...pomodoro, [key]: pomodoro[key] + step })}
+            minusDisabled={pomodoro[key] <= POMODORO_LIMITS[key].min}
+            plusDisabled={pomodoro[key] >= POMODORO_LIMITS[key].max}
+          />
+        ))}
+        <Button kind="secondary" title={tr.pomodoro.reset} onPress={() => setPomodoro(DEFAULT_POMODORO)} />
       </Card>
 
       <Card>
