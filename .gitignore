@@ -45,5 +45,8 @@ example
 # CI build output (testflight.yml)
 /build
 
+# Test output (npm run test:web, e2e-ios.yml)
+/test-results
+
 # Serai
 .serai/cache/

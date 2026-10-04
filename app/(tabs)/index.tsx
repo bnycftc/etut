@@ -47,12 +47,14 @@ export default function TimerScreen() {
   };
 
   return (
-    <Screen>
+    <Screen testID="timer-screen">
       <Card>
         <Row>
           <View style={{ flex: 1 }}>
             <Label variant="muted">{tr.timer.today}</Label>
-            <Label variant="heading">{formatDuration(todayTotal)}</Label>
+            <Label variant="heading" testID="today-total">
+              {formatDuration(todayTotal)}
+            </Label>
           </View>
           <View>
             <Button kind="secondary" title={tr.timer.history} onPress={() => router.push('/gecmis')} />
@@ -62,12 +64,17 @@ export default function TimerScreen() {
 
       {active?.pendingAway ? (
         <Card>
-          <Label style={{ color: c.warning, fontWeight: '600' }}>
+          <Label testID="away-title" style={{ color: c.warning, fontWeight: '600' }}>
             {tr.timer.awayTitle(formatAway(active.pendingAway.end - active.pendingAway.start))}
           </Label>
           <Label variant="muted">{tr.timer.awayBody}</Label>
-          <Button title={tr.timer.awayCredit} onPress={app.creditAway} />
-          <Button kind="secondary" title={tr.timer.awayDismiss} onPress={app.dismissAway} />
+          <Button testID="away-credit" title={tr.timer.awayCredit} onPress={app.creditAway} />
+          <Button
+            testID="away-dismiss"
+            kind="secondary"
+            title={tr.timer.awayDismiss}
+            onPress={app.dismissAway}
+          />
         </Card>
       ) : null}
 
@@ -79,6 +86,7 @@ export default function TimerScreen() {
               {SUBJECTS_BY_EXAM[examType].map((id) => (
                 <Chip
                   key={id}
+                  testID={`subject-${id}`}
                   title={tr.subject(id)}
                   selected={id === subjectId}
                   onPress={() => setSubjectId(id)}
@@ -88,36 +96,48 @@ export default function TimerScreen() {
           </Card>
           <Button
             large
+            testID="timer-start"
             title={tr.timer.start}
             onPress={() => {
               setSavedMessage(null);
               app.start(subjectId);
             }}
           />
-          {savedMessage ? <Label variant="muted">{savedMessage}</Label> : null}
+          {savedMessage ? (
+            <Label variant="muted" testID="timer-saved">
+              {savedMessage}
+            </Label>
+          ) : null}
         </>
       ) : (
         <Card>
-          <Label variant="muted" style={{ textAlign: 'center' }}>
+          <Label variant="muted" testID="timer-subject" style={{ textAlign: 'center' }}>
             {tr.subject(active.subjectId)}
           </Label>
           <Text
+            testID="timer-clock"
             accessibilityRole="timer"
             style={[styles.clock, { color: running ? c.text : c.textMuted }]}
             numberOfLines={1}
             adjustsFontSizeToFit>
             {formatClock(elapsedMs(active, now))}
           </Text>
-          <Label variant="muted" style={{ textAlign: 'center' }}>
+          <Label variant="muted" testID="timer-status" style={{ textAlign: 'center' }}>
             {running ? tr.timer.running : tr.timer.paused}
           </Label>
           <Row>
             {running ? (
-              <Button large kind="secondary" title={tr.timer.pause} onPress={app.pause} />
+              <Button
+                large
+                testID="timer-pause"
+                kind="secondary"
+                title={tr.timer.pause}
+                onPress={app.pause}
+              />
             ) : (
-              <Button large title={tr.timer.resume} onPress={app.resume} />
+              <Button large testID="timer-resume" title={tr.timer.resume} onPress={app.resume} />
             )}
-            <Button large kind="danger" title={tr.timer.finish} onPress={finish} />
+            <Button large testID="timer-finish" kind="danger" title={tr.timer.finish} onPress={finish} />
           </Row>
         </Card>
       )}

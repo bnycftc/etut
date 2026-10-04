@@ -1,0 +1,81 @@
+# e. TYT denemesi (net = doğru − yanlış/4)
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+- tapOn:
+    id: tab-exams
+- tapOn:
+    id: exams-add
+- extendedWaitUntil:
+    visible:
+      id: exam-kind-TYT
+    timeout: 10000
+- tapOn:
+    id: exam-kind-TYT
+# Türkçe: 10 doğru, 4 yanlış -> 10 - 4/4 = 9 net.
+# The Türkçe row sits right at the top edge of the number pad, so the pad is closed after each
+# field by tapping the plain "Sınav" heading at the top (Screen uses
+# keyboardShouldPersistTaps="handled": a tap on plain text dismisses the keyboard).
+- tapOn:
+    id: exam-correct-turkce
+- inputText: "10"
+- tapOn:
+    id: exam-form-kind-title
+- tapOn:
+    id: exam-wrong-turkce
+- inputText: "4"
+- tapOn:
+    id: exam-form-kind-title
+- assertVisible:
+    id: exam-net-turkce
+    text: "9"
+# Tarih: 3 doğru, 2 yanlış -> 3 - 2/4 = 2,5 net.
+- scrollUntilVisible:
+    element:
+      id: exam-correct-tarih
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: exam-correct-tarih
+- inputText: "3"
+- tapOn:
+    id: exam-wrong-tarih
+- inputText: "2"
+- tapOn:
+    id: exam-net-tarih
+- assertVisible:
+    id: exam-net-tarih
+    text: "2,5"
+- scrollUntilVisible:
+    element:
+      id: exam-total-net
+    direction: DOWN
+- assertVisible:
+    id: exam-total-net
+    text: "11,5"
+- takeScreenshot: e-deneme-01-form
+- scrollUntilVisible:
+    element:
+      id: exam-save
+    direction: DOWN
+- tapOn:
+    id: exam-save
+# Back on the list: the new exam is the first row (TYT, 11,5 net).
+- extendedWaitUntil:
+    visible:
+      id: exam-item-0
+    timeout: 10000
+- assertVisible:
+    id: exam-item-0
+    text: ".*TYT.*"
+- assertVisible:
+    id: exam-item-0
+    text: ".*11,5 net.*"
+- takeScreenshot: e-deneme-02-liste

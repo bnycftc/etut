@@ -1,0 +1,58 @@
+# c. Arka plan (10 sn'den uzun dışarıda kalma)
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+- tapOn:
+    id: subject-matematik
+- tapOn:
+    id: timer-start
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: "0:0[2-9]"
+    timeout: 15000
+- takeScreenshot: c-arka-plan-01-calisiyor
+# Leave the app (home screen) for longer than the 10 s tolerance.
+- pressKey: Home
+- takeScreenshot: c-arka-plan-02-ana-ekran
+# Maestro has no sleep command: wait for an id that never exists and carry on (optional).
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 15000
+    optional: true
+# Bring the same process back to the foreground (no restart, no state reset). `permissions: {}`
+# skips launchApp's default permission grant, which can terminate a running app.
+- launchApp:
+    stopApp: false
+    permissions: {}
+- extendedWaitUntil:
+    visible:
+      id: away-credit
+    timeout: 15000
+- assertVisible:
+    id: away-credit
+    text: "Çalışıyordum, süreye ekle"
+- assertVisible:
+    id: away-dismiss
+# The timer keeps running after the student returns.
+- assertVisible:
+    id: timer-status
+    text: "Çalışıyorsun"
+- takeScreenshot: c-arka-plan-03-calisiyordum-secenegi
+- tapOn:
+    id: away-credit
+- assertNotVisible:
+    id: away-credit
+# Credited back: the away interval counts as study time again (>= 15 s on the clock).
+- assertVisible:
+    id: timer-clock
+    text: "0:(1[7-9]|[2-5][0-9])|[1-9]:[0-5][0-9]"
+- takeScreenshot: c-arka-plan-04-sureye-eklendi

@@ -1,0 +1,80 @@
+# d. Kapat-aç (sayaç kalıcı, uzakta kuralı)
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+- tapOn:
+    id: subject-kimya
+- tapOn:
+    id: timer-start
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: "0:0[6-9]"
+    timeout: 20000
+- copyTextFrom:
+    id: timer-clock
+- evalScript: ${output.beforeKill = maestro.copiedText}
+- takeScreenshot: d-kapat-ac-01-oncesi
+
+# 1) Kill and relaunch at once: the running session comes back from storage and continues.
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+    timeout: 30000
+- assertVisible:
+    id: timer-subject
+    text: "Kimya"
+# If the relaunch took longer than the 10 s tolerance after the last heartbeat (5 s), the gap is
+# an away break; credit it so the clock comparison below is exact either way.
+- runFlow:
+    when:
+      visible:
+        id: away-credit
+    commands:
+      - tapOn:
+          id: away-credit
+- copyTextFrom:
+    id: timer-clock
+- evalScript: ${output.afterRelaunch = maestro.copiedText}
+- assertTrue:
+    condition: ${(parseInt(output.afterRelaunch.split(':')[0], 10) * 60 + parseInt(output.afterRelaunch.split(':')[1], 10)) >= (parseInt(output.beforeKill.split(':')[0], 10) * 60 + parseInt(output.beforeKill.split(':')[1], 10))}
+    label: Saat kapatmadan önceki değerden devam ediyor
+- takeScreenshot: d-kapat-ac-02-hemen-acildi
+
+# 2) Kill and stay closed for 20 s: on the next launch the gap after the last heartbeat
+#    becomes an automatic break and "Çalışıyordum" is offered.
+- stopApp
+# Maestro has no sleep command: wait for an id that never exists and carry on (optional).
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 20000
+    optional: true
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: away-credit
+    timeout: 30000
+- assertVisible:
+    id: away-title
+    text: ".*uygulamanın dışındaydın\\."
+- assertVisible:
+    id: timer-status
+    text: "Çalışıyorsun"
+- takeScreenshot: d-kapat-ac-03-uzakta-kurali
+- tapOn:
+    id: away-dismiss
+- assertNotVisible:
+    id: away-credit
+- takeScreenshot: d-kapat-ac-04-mola-kaldi

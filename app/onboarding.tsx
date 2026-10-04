@@ -26,7 +26,7 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView testID="onboarding-screen" contentContainerStyle={styles.content}>
         <Label variant="title">{tr.onboarding.title}</Label>
         <Label variant="muted">{tr.onboarding.intro}</Label>
 
@@ -39,6 +39,7 @@ export default function OnboardingScreen() {
                 {birthYearOptions(currentYear).map((y) => (
                   <Chip
                     key={y}
+                    testID={`birth-year-${y}`}
                     title={String(y)}
                     selected={y === birthYear}
                     onPress={() => setBirthYear(y)}
@@ -55,6 +56,7 @@ export default function OnboardingScreen() {
             {EXAM_TYPES.map((t) => (
               <Chip
                 key={t}
+                testID={`exam-type-${t}`}
                 title={tr.examType(t)}
                 selected={t === examType}
                 onPress={() => setExamType(t)}
@@ -70,6 +72,7 @@ export default function OnboardingScreen() {
               {YKS_AREAS.map((a) => (
                 <Chip
                   key={a}
+                  testID={`yks-area-${a}`}
                   title={tr.yksArea(a)}
                   selected={a === yksArea}
                   onPress={() => setYksArea(a)}
@@ -81,6 +84,7 @@ export default function OnboardingScreen() {
 
         <Button
           large
+          testID="onboarding-start"
           title={tr.onboarding.start}
           disabled={profile === null}
           onPress={() => {
