@@ -1,0 +1,75 @@
+# /etc/caddy/Caddyfile — TLS with Let's Encrypt directly on the server (no Cloudflare proxy:
+# docs/arastirma/5-1 "TLS ve CDN"). Values come from /etc/caddy/etut.env (05-caddy.sh).
+{
+	email {$ACME_EMAIL}
+	# Caddy is the edge: it does not trust X-Forwarded-For from clients and sets it to the real
+	# client IP, which the database audit log (app.log) reads as the first entry.
+	servers {
+		protocols h1 h2
+	}
+}
+
+(etut_log) {
+	# 5651 m.5/3 traffic information (hukuk/03 K-41): client IP and port, time, duration, bytes,
+	# host/URI. Kept 400 days (≥ 1 year, < 2 years), JSON, hashed daily (etut-loghash.timer).
+	# Request and response headers are dropped (no tokens, no User-Agent fingerprinting).
+	log {
+		output file /var/log/caddy/{args[0]}-access.log {
+			roll_size 100MiB
+			roll_keep 5000
+			roll_keep_for 9600h
+		}
+		format filter {
+			wrap json
+			fields {
+				request>headers delete
+				resp_headers delete
+				request>tls delete
+			}
+		}
+	}
+}
+
+(etut_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+		-Via
+	}
+}
+
+{$ETUT_API_HOST} {
+	import etut_log api
+	import etut_headers
+	encode zstd gzip
+	request_body {
+		max_size 1MB
+	}
+
+	# Only what the app uses: Auth and the RPC API. Studio, storage, realtime, functions and
+	# everything else on the gateway stay unreachable from the internet.
+	@app path /auth/v1/* /rest/v1/*
+	handle @app {
+		reverse_proxy 127.0.0.1:8000 {
+			header_up -X-Real-IP
+		}
+	}
+
+	# Liveness for an external monitor; carries no data.
+	handle /saglik {
+		respond "ok" 200
+	}
+
+	handle {
+		respond 404
+	}
+}
+
+{$ETUT_GLITCHTIP_HOST} {
+	import etut_log glitchtip
+	import etut_headers
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8001
+}

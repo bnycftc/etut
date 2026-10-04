@@ -198,6 +198,16 @@ async function runScenario(page, baseUrl) {
   check((await text('timer-saved')).startsWith('Kaydedildi'), 'finished session was not saved');
   await screenshot('timer-finished');
 
+  // 2b. The group module is off (src/config/features.ts): the tab stays "Yakında" and no request
+  //     ever leaves the dev server (checked for the whole run in main()).
+  log('step: groups tab (module off)');
+  await byId('tab-groups').click();
+  await page.getByText('Yakında').waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS });
+  check(!(await byId('groups-intro').isVisible()), 'the group module must stay off');
+  await screenshot('groups-off');
+  await byId('tab-timer').click();
+  await visible('timer-start');
+
   // 3. Reload: the profile comes back from the kv-store (no onboarding).
   log('step: reload keeps profile');
   await page.reload();
@@ -266,8 +276,16 @@ async function main() {
       if (message.type() === 'error') problems.push(`console.error: ${message.text()}`);
     });
     page.on('pageerror', (error) => problems.push(`uncaught: ${error.stack ?? error}`));
+    // No network access besides the dev server itself (v0: data stays on the device).
+    const devHost = new URL(baseUrl).host;
+    const external = new Set();
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol) && url.host !== devHost) external.add(url.origin);
+    });
 
     await runScenario(page, baseUrl);
+    if (external.size > 0) problems.push(`requests outside the dev server: ${[...external].join(', ')}`);
     await context.close();
   } catch (error) {
     problems.unshift(`scenario failed: ${error instanceof Error ? error.message : error}`);

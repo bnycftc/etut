@@ -5,8 +5,12 @@ expo-router. Kurulum, komutlar ve yayın hattı: `README.md`.
 
 ## Mimari özet
 
-- **Arka uç yok (v0).** Ağ çağrısı, analitik, hata raporlama, push, reklam SDK'sı, EAS
-  (Build/Update) ve Expo hesabı gerektiren hiçbir şey ekleme. Veri yalnız cihazda.
+- **Arka uç bayrak arkasında kapalı.** `src/config/features.ts` `GROUPS_ENABLED=false` iken veri
+  yalnız cihazdadır ve uygulama hiçbir ağ isteği yapmaz; ağ kodu yalnız `src/sync/` içinde ve
+  bayrağı denetler. Arka uç `supabase/` (SQL göçleri, RLS, RPC, pgTAP), üretim `infra/`.
+  Analitik, push, reklam SDK'sı, EAS (Build/Update) ve Expo hesabı gerektiren hiçbir şey ekleme.
+  Sunucu tablolarına istemciden yazılmaz; yeni sunucu kuralı = yeni RPC + pgTAP testi
+  (`npm run test:db`, Docker yoksa `npm run test:db:pglite`).
 - `src/domain/` — saf TypeScript, React/Expo importu yok. Tüm iş kuralları burada ve testli:
   - `timer.ts`: süre = zaman damgası − duraklatmalar (asla sayaç tıklamasıyla toplanmaz);
     arka plan kuralı: ≤10 sn tolerans, daha uzunu otomatik "away" molası + "Çalışıyordum" ile geri ekleme.
@@ -16,6 +20,8 @@ expo-router. Kurulum, komutlar ve yayın hattı: `README.md`.
   - `daily-totals.ts`: günlük/ders toplamları, gece yarısını aşan oturumu böler.
   - `net.ts`: net = doğru − yanlış/4; TYT/AYT/YDT bölüm ve soru sayıları.
   - `profile.ts`: yaş kuralı (yalnız doğum yılı; belirsizlikte düşük yaş → 15 altı "solo").
+- `src/domain/groups.ts`, `outbox.ts`: yaş bandı (sunucuya doğum yılı gitmez), ad ön denetimi,
+  çıkış kuyruğu kuralları (sabit uuid, geri çekilme).
 - `src/storage/` — `db.ts` (expo-sqlite, `PRAGMA user_version` göçleri; yeni göçü listenin
   sonuna ekle, eskisini değiştirme), `kv.ts` (expo-sqlite/kv-store, senkron: profil ve aktif oturum).
 - `src/state/app-state.tsx` — domain ile depolama arasında ince yapıştırıcı; iş kuralı yazma.

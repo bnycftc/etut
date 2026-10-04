@@ -27,6 +27,9 @@ npm ci
 | `npm run web` | Web önizlemesi, sabit port 8081 (`http://localhost:8081`; `npx expo start --web` de çalışır) |
 | `npm run test:web` | Web duman testi: geliştirme sunucusunu kendisi açar/kapatır, Playwright ile uygulamayı dener |
 | `npm run test:all` | `tsc` + `jest --ci` + `test:web` |
+| `npm run test:db` | Arka uç SQL testleri (pgTAP, `npx supabase test db`; Docker + `npx supabase start` gerekir) |
+| `npm run test:db:pglite` | Aynı pgTAP testleri Docker olmadan, PGlite (WebAssembly Postgres) üzerinde |
+| `npm run test:backend` | supabase-js ile yerel yığına karşı uçtan uca test; Docker/yığın yoksa **ATLANDI** yazar |
 | `npx expo install <paket>` | SDK ile uyumlu sürümle paket ekler (npm install yerine bunu kullanın) |
 
 **Windows notu:** iOS projesi (`ios/`) Windows'ta üretilemez ve derlenemez
@@ -56,7 +59,9 @@ app/                    Ekranlar (expo-router)
   onboarding.tsx        İlk açılış: doğum yılı, sınav türü, YKS alanı
   (tabs)/index.tsx      Sayaç (ana ekran, ilk sekme)
   (tabs)/denemeler.tsx  Deneme listesi ve net grafiği
-  (tabs)/gruplar.tsx    "Yakında" (yalnız 15+ profillerde görünür)
+  (tabs)/gruplar.tsx    Bayrak kapalı: "Yakında"; açık: grup ana ekranı (yalnız 15+ profillerde görünür)
+  grup/[id].tsx         Grup: şu an çalışanlar, sıralama, hazır tepkiler, bildir/engelle, kurucu araçları
+  veli.tsx              Veli modu (velinin kendi cihazında, yetişkin profille)
   (tabs)/ayarlar.tsx    Günlük hedef, pomodoro, sınav tarihi, tüm verileri sil, sürüm
   gecmis.tsx            Günlük toplamlar, ders dağılımı, son 7 gün ("elle" kısmı)
   haftalik.tsx          Haftalık özet (toplam, ders dağılımı, en uzun oturum, seri)
@@ -70,6 +75,10 @@ src/storage/            expo-sqlite veritabanı ve kv-store
 src/state/              Uygulama durumu (domain ile depolama arasındaki ince katman)
 src/ui/                 Tema, ortak bileşenler, biçimlendirme
 src/strings.ts          Kullanıcıya görünen tüm metinler
+src/config/features.ts  Özellik bayrakları (GROUPS_ENABLED=false)
+src/sync/               Grup sunucusu: tipli RPC API'si, çıkış kuyruğu, nabız (bayrak kapalıyken hiç çalışmaz)
+supabase/               Arka uç: migrations/ (SQL, RLS, RPC), tests/ (pgTAP), tests-ts/ (supabase-js), config.toml
+infra/                  Üretim sunucusu runbook'u ve betikleri (İlkbyte VPS, yalnız dosya)
 index.ts / index.web.ts Giriş noktası (web: SQLite worker'ını ısıtıp expo-router'ı başlatır)
 scripts/test-web.mjs    Web duman testi (npm run test:web)
 e2e/                    Maestro akışları (iOS simülatörü, e2e-ios.yml)
@@ -156,6 +165,31 @@ tanımlanması önerilir. Aynı gizli değerler CarPlay Medya deposundakilerle a
 5. **Şifreleme:** `ITSAppUsesNonExemptEncryption = false` Info.plist'te; TestFlight ihracat sorusu çıkmamalı.
 6. **TestFlight:** İlk derleme işlendikten sonra iç test grubuna kendinizi ekleyin.
    Dış test için Beta App Review gerekir.
+
+## Gruplar (arka uç, bayrak arkasında kapalı)
+
+Kişisel veri KVKK gereği Türkiye'deki kendi barındırdığımız Supabase'te tutulacak
+(`docs/hukuk/kvkk/00-aktarim-cozumu.md`); sunucu henüz yok. Bu yüzden `src/config/features.ts`
+içinde `GROUPS_ENABLED = false`: uygulama hiçbir ağ isteği yapmaz, supabase-js yüklenmez, Gruplar
+sekmesi "Yakında" kalır. Bayrak açılınca:
+
+- Gruplar sekmesinde takma adla anonim hesap açılır (sunucuya yalnız yaş **bandı** gider: 15–17 /
+  18+; doğum yılı gitmez; 15 altı hiç hesap açamaz, sunucu da reddeder). Sonradan Apple/Google
+  bağlama API'si hazır (`linkIdToken`), giriş düğmeleri yerel modül gerektirdiği için eklenmedi.
+- Bitirilen oturumlar (sayaç ve "elle") `sync_outbox` kuyruğuna (göç 5) girer ve sabit bir uuid ile
+  gönderilir; çevrimdışıyken kuyrukta bekler, tekrar gönderim çift kayıt üretmez. Sunucuya gitmiş
+  "elle" kayıt cihazdan silinirse sunucuda kalır (sunucu kayıtları yalnız eklenir).
+- Oturum açıkken 5 dakikada bir nabız gider (tek satır güncellenir); "şu an çalışıyor" bundan
+  türetilir, "görünmez çalış" bunu grubundan gizler.
+- Kurallar sunucuda: tüm tablolarda RLS, yazma yalnız `SECURITY DEFINER` RPC'lerle; 30 üye
+  veritabanı kısıtı, 72 saatlik davet kodu + kurucu onayı, kişi başına günde 3 tepki, raporla/engelle,
+  veli bağlantısı ve kilitleri, hesap silme. Ayrıntı: `supabase/migrations/`, testler `supabase/tests/`.
+
+Yerel geliştirme: Docker Desktop + `npx supabase start` (yığını `npx supabase stop` ile kapatın).
+`npx supabase status` çıktısındaki API adresi ve publishable/anon anahtar `.env.local` dosyasına
+(git dışı) `EXPO_PUBLIC_SUPABASE_URL=...` ve `EXPO_PUBLIC_SUPABASE_KEY=...` olarak yazılır. Bu
+anahtar herkese açıktır; servis anahtarı ya da başka bir sır asla `EXPO_PUBLIC_*` olmaz.
+Üretim kurulumu: `infra/README.md`.
 
 ## Gizlilik
 

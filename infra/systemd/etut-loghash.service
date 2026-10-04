@@ -1,0 +1,6 @@
+[Unit]
+Description=Etüt access log hash ledger (5651 integrity)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/etut/bin/log-hash.sh
