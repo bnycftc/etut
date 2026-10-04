@@ -92,9 +92,12 @@ export default function SettingsScreen() {
           </Row>
           <Row>
             <Label variant="muted" style={{ flex: 1 }}>
-              {tr.settings.birthYear}
+              {tr.settings.ageGroup}
             </Label>
-            <Label>{String(profile.birthYear)}</Label>
+            {/* K-17/K-20: the birth year itself is not shown, only the 15 threshold. */}
+            <Label testID="settings-age-group">
+              {profile.soloOnly ? tr.settings.ageUnder15 : tr.settings.ageOver15}
+            </Label>
           </Row>
         </Card>
       ) : null}
@@ -198,6 +201,7 @@ export default function SettingsScreen() {
         {confirming ? (
           <>
             <Label>{tr.settings.deleteAllConfirm}</Label>
+            <Label variant="small">{tr.settings.deleteAllAgeNote}</Label>
             <Button
               kind="danger"
               title={tr.settings.deleteAllYes}

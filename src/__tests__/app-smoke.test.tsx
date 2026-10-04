@@ -4,6 +4,7 @@
  */
 
 import { act, fireEvent, screen } from '@testing-library/react-native';
+import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 
 import type { TopicMark } from '../domain/exam-analysis';
@@ -559,6 +560,43 @@ describe('exam countdown', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     expect(screen.getByTestId('countdown').props.children).toBe('YKS’ye 265 gün');
     expect(screen.queryByText('tahmini')).toBeNull();
+  });
+});
+
+describe('K-17: age declaration after deleting all data', () => {
+  it('the under-15 record survives "delete all" and blocks a 15+ declaration', () => {
+    const year = new Date().getUTCFullYear();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText(String(year - 12)));
+    fireEvent.press(screen.getByText('LGS'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(memory.youngestBirthYear).toBe(year - 12);
+    act(() => router.push('/ayarlar'));
+    fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    expect(memory.profile).toBeNull();
+    expect(memory.youngestBirthYear).toBe(year - 12);
+
+    fireEvent.press(screen.getByText(String(year - 20)));
+    fireEvent.press(screen.getByText('LGS'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(memory.profile).toBeNull();
+    expect(screen.getByTestId('onboarding-age-blocked')).toBeTruthy();
+
+    // Same side of the threshold (still under 15) is accepted.
+    fireEvent.press(screen.getByText(String(year - 13)));
+    expect(screen.queryByTestId('onboarding-age-blocked')).toBeNull();
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(memory.profile?.soloOnly).toBe(true);
+  });
+
+  it('an existing profile is recorded on start; settings show only the age group', () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    expect(memory.youngestBirthYear).toBe(2000);
+    expect(screen.getByTestId('settings-age-group').props.children).toBe('15 ve üstü');
+    expect(screen.queryByText('2000')).toBeNull();
+    expect(screen.queryByText('Doğum yılı')).toBeNull();
   });
 });
 

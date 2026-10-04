@@ -116,6 +116,8 @@ export const tr = {
     examTitle: 'Hazırlandığın sınav',
     areaTitle: 'Alanın',
     start: 'Başla',
+    ageBlocked:
+      'Bu seçim, bu cihazda daha önce yapılan yaş beyanıyla uyuşmuyor. Doğum yılını kontrol edip yeniden seç.',
   },
 
   timer: {
@@ -372,12 +374,16 @@ export const tr = {
     title: 'Ayarlar',
     profile: 'Profil',
     exam: 'Sınav',
-    birthYear: 'Doğum yılı',
+    ageGroup: 'Yaş grubu',
+    ageOver15: '15 ve üstü',
+    ageUnder15: '15 altı',
     dataTitle: 'Veriler',
     dataInfo: 'Tüm verilerin yalnız bu cihazda tutulur. Hiçbir sunucuya gönderilmez.',
     deleteAll: 'Tüm verileri sil',
     deleteAllConfirm:
-      'Çalışma kayıtların, denemelerin ve profilin bu cihazdan silinecek. Bu işlem geri alınamaz.',
+      'Çalışma kayıtların, denemelerin, hedeflerin ve profilin bu cihazdan silinecek. Bu işlem geri alınamaz.',
+    deleteAllAgeNote:
+      'Yaş kuralı gereği yalnız beyan ettiğin doğum yılı bu cihazda ayrıca kalır; uygulamayı kaldırınca o da silinir.',
     deleteAllYes: 'Evet, hepsini sil',
     about: 'Hakkında',
     version: 'Sürüm',
