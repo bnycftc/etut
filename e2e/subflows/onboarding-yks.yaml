@@ -1,0 +1,25 @@
+# Completes the first-launch screen: birth year (current year - AGE), exam YKS, area Sayısal.
+# Called with runFlow + env AGE. Ends on the timer tab.
+appId: com.bnycftc.etut
+---
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+    timeout: 60000
+- tapOn:
+    id: "birth-year-${new Date().getFullYear() - Number(AGE)}"
+- tapOn:
+    id: exam-type-YKS
+# Scroll the outer screen (starting below the year list, which scrolls on its own) so the area
+# chips and the start button are on screen.
+- swipe:
+    start: 50%, 85%
+    end: 50%, 40%
+- tapOn:
+    id: yks-area-sayisal
+- tapOn:
+    id: onboarding-start
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 15000

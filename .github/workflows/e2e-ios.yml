@@ -1,0 +1,266 @@
+name: E2E iOS (simulator)
+
+# End-to-end test of the real iOS app on an iPhone simulator, without a human tester.
+# ios/ is generated with expo prebuild (never committed), built in Release for the simulator with
+# the JS bundle embedded (no Metro, no signing), installed on a fresh simulator that boots in
+# Turkish (tr_TR) with the Europe/Istanbul time zone, and driven by the Maestro flows in e2e/.
+# Screenshots, the Maestro report and logs are uploaded as an artifact on every run.
+# Needs no secrets. Adapted from testflight.yml (same runner, Xcode check and project discovery).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "app.json"
+      - "e2e/**"
+
+concurrency:
+  group: e2e-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+  # Expo SDK 57 needs Xcode 26.4 or newer.
+  MIN_XCODE: "26.4"
+  # Maestro CLI version for the official install script (tag cli-2.11.0, 2026-09-29); the flows
+  # in e2e/ are written for it. Bump deliberately and re-run this workflow.
+  MAESTRO_VERSION: "2.11.0"
+  # Maestro's XCTest driver can be slow to start on a cold CI simulator (milliseconds).
+  MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"
+  MAESTRO_CLI_NO_ANALYTICS: "true"
+  MAESTRO_DISABLE_UPDATE_CHECK: "true"
+  MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: "true"
+  SIM_LANGUAGE: tr
+  SIM_LOCALE: tr_TR
+  SIM_TIMEZONE: Europe/Istanbul
+  RESULTS: test-results/maestro
+
+jobs:
+  e2e:
+    name: Build for simulator and run Maestro flows
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          current="$(xcodebuild -version | awk 'NR==1 {print $2}')"
+          lowest="$(printf '%s\n%s\n' "$MIN_XCODE" "$current" | sort -V | head -1)"
+          if [ "$lowest" != "$MIN_XCODE" ]; then
+            echo "::warning::Xcode $current is older than $MIN_XCODE required by Expo SDK 57. Available:"
+            ls -d /Applications/Xcode*.app || true
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Maestro CLI runs on the JVM.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Install xcbeautify
+        run: brew list xcbeautify > /dev/null 2>&1 || brew install xcbeautify
+
+      - name: Generate iOS project (expo prebuild)
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      # Expo derives the Xcode project name from app.json "name" with non-ASCII letters removed
+      # ("Etüt" -> "Ett"), so the name is discovered instead of hard-coded.
+      - name: Locate project
+        run: |
+          project="$(ls -d ios/*.xcodeproj | head -1)"
+          [ -n "$project" ] || { echo "::error::expo prebuild produced no .xcodeproj"; exit 1; }
+          scheme="$(basename "$project" .xcodeproj)"
+          {
+            echo "WORKSPACE=ios/$scheme.xcworkspace"
+            echo "SCHEME=$scheme"
+          } >> "$GITHUB_ENV"
+          echo "Scheme: $scheme"
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: |
+          pod install
+          [ -d "../$WORKSPACE" ] || { echo "::error::pod install did not create $WORKSPACE"; exit 1; }
+
+      # Release: the JS bundle is compiled to Hermes bytecode and embedded in the .app, so no Metro
+      # server is needed. Simulator builds need no signing at all.
+      - name: Build app for the simulator (Release, unsigned)
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild build \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            ARCHS="$(uname -m)" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tee build/xcodebuild-simulator.log | xcbeautify
+          app="$(ls -d build/DerivedData/Build/Products/Release-iphonesimulator/*.app | head -1)"
+          [ -n "$app" ] || { echo "::error::No .app was built"; exit 1; }
+          [ -f "$app/main.jsbundle" ] || { echo "::error::$app has no embedded main.jsbundle"; exit 1; }
+          bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
+          [ "$bundle_id" = "com.bnycftc.etut" ] || { echo "::error::Unexpected bundle id $bundle_id"; exit 1; }
+          ls -la "$app/main.jsbundle"
+          echo "APP_PATH=$app" >> "$GITHUB_ENV"
+
+      # The simulator takes its clock and time zone from the host.
+      - name: Set host time zone
+        run: |
+          sudo systemsetup -settimezone "$SIM_TIMEZONE" > /dev/null 2>&1 \
+            || sudo ln -sf "/usr/share/zoneinfo/$SIM_TIMEZONE" /etc/localtime
+          date
+
+      - name: Create iPhone simulator (newest iOS runtime)
+        run: |
+          xcrun simctl list runtimes available
+          python3 - <<'PY'
+          import json, os, re, subprocess
+
+          def simctl_json(*args):
+              return json.loads(subprocess.check_output(["xcrun", "simctl", "list", *args, "--json"]))
+
+          def version_key(version):
+              return tuple(int(part) for part in re.findall(r"\d+", version))
+
+          runtimes = [
+              r for r in simctl_json("runtimes", "available")["runtimes"]
+              if r.get("platform") == "iOS" or ".SimRuntime.iOS-" in r.get("identifier", "")
+          ]
+          if not runtimes:
+              raise SystemExit("::error::No available iOS simulator runtime")
+          runtime = max(runtimes, key=lambda r: version_key(r["version"]))
+
+          device_types = [t for t in runtime.get("supportedDeviceTypes", []) if t.get("productFamily") == "iPhone"]
+          if not device_types:
+              device_types = [t for t in simctl_json("devicetypes")["devicetypes"] if t.get("productFamily") == "iPhone"]
+          if not device_types:
+              raise SystemExit("::error::No iPhone device type for " + runtime["name"])
+
+          # Prefer the newest regular-size "iPhone N", then "iPhone N Pro", else the last listed one.
+          def pick(pattern):
+              matches = [t for t in device_types if re.fullmatch(pattern, t["name"])]
+              return max(matches, key=lambda t: version_key(t["name"])) if matches else None
+          device_type = pick(r"iPhone \d+") or pick(r"iPhone \d+ Pro") or device_types[-1]
+
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"SIM_RUNTIME={runtime['identifier']}\n")
+              env.write(f"SIM_DEVICE_TYPE={device_type['identifier']}\n")
+          print(f"Runtime: {runtime['name']} ({runtime['identifier']})")
+          print(f"Device:  {device_type['name']} ({device_type['identifier']})")
+          PY
+
+      - name: Boot simulator in Turkish
+        run: |
+          udid="$(xcrun simctl create "Etut E2E" "$SIM_DEVICE_TYPE" "$SIM_RUNTIME")"
+          echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          # Language and region are read at boot: write them, then reboot once.
+          xcrun simctl spawn "$udid" defaults write "Apple Global Domain" AppleLanguages -array "$SIM_LANGUAGE"
+          xcrun simctl spawn "$udid" defaults write "Apple Global Domain" AppleLocale -string "$SIM_LOCALE"
+          xcrun simctl shutdown "$udid"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl spawn "$udid" defaults read "Apple Global Domain" AppleLanguages || true
+          xcrun simctl spawn "$udid" defaults read "Apple Global Domain" AppleLocale || true
+          xcrun simctl spawn "$udid" date || true
+          xcrun simctl list devices booted
+
+      - name: Install app on the simulator
+        run: |
+          xcrun simctl install "$SIM_UDID" "$APP_PATH"
+          xcrun simctl get_app_container "$SIM_UDID" com.bnycftc.etut app
+
+      # The install script reads MAESTRO_VERSION (without the "cli-" prefix) from the environment.
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          installed="$("$HOME/.maestro/bin/maestro" --version 2>/dev/null | tail -1)"
+          echo "Maestro $installed"
+          case "$installed" in
+            *"$MAESTRO_VERSION"*) ;;
+            *) echo "::warning::Expected Maestro $MAESTRO_VERSION, --version printed: $installed" ;;
+          esac
+
+      - name: Run Maestro flows
+        env:
+          # Passed by simctl to the app Maestro launches (in addition to the host time zone above).
+          SIMCTL_CHILD_TZ: ${{ env.SIM_TIMEZONE }}
+        run: |
+          mkdir -p "$RESULTS"
+          maestro --device "$SIM_UDID" test e2e/ \
+            --format junit \
+            --output "$RESULTS/report.xml" \
+            --test-output-dir "$RESULTS/output" \
+            --debug-output "$RESULTS/debug"
+
+      - name: Summary
+        if: always()
+        run: |
+          [ -f "$RESULTS/report.xml" ] || { echo "No Maestro report was written." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import os, xml.etree.ElementTree as ET
+          root = ET.parse(os.path.join(os.environ["RESULTS"], "report.xml")).getroot()
+          print("| Akış | Sonuç | Süre (sn) |")
+          print("|---|---|---|")
+          for case in root.iter("testcase"):
+              failed = case.find("failure") is not None or case.find("error") is not None
+              print(f"| {case.get('name')} | {'HATA' if failed else 'geçti'} | {case.get('time', '')} |")
+          PY
+
+      # Maestro 2.7+ writes takeScreenshot images to
+      # <test-output-dir>/<timestamp>/<flow name>/takeScreenshot/<name>.png (inside $RESULTS/output).
+      - name: Collect simulator logs
+        if: always()
+        run: |
+          mkdir -p "$RESULTS/logs"
+          echo "Screenshots:"; find "$RESULTS" -name '*.png' | sort || true
+          cp -R "$HOME/.maestro/tests" "$RESULTS/logs/maestro-tests" 2>/dev/null || true
+          cp build/xcodebuild-simulator.log "$RESULTS/logs/" 2>/dev/null || true
+          if [ -n "${SIM_UDID:-}" ]; then
+            xcrun simctl spawn "$SIM_UDID" log show --last 30m --style compact \
+              --predicate 'process == "'"$SCHEME"'"' > "$RESULTS/logs/app.log" 2>&1 || true
+          fi
+          find "$HOME/Library/Logs/DiagnosticReports" -name "${SCHEME:-Ett}*" -exec cp {} "$RESULTS/logs/" \; 2>/dev/null || true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-ios-${{ github.run_number }}-${{ github.run_attempt }}
+          path: ${{ env.RESULTS }}
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Shut down simulator
+        if: always()
+        run: |
+          if [ -n "${SIM_UDID:-}" ]; then
+            xcrun simctl shutdown "$SIM_UDID" || true
+            xcrun simctl delete "$SIM_UDID" || true
+          fi

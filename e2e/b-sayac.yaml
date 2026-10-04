@@ -1,0 +1,74 @@
+appId: com.bnycftc.etut
+name: b. Sayaç (başla, mola, devam, bitir)
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+- assertVisible:
+    id: today-total
+    text: "0 dk"
+- tapOn:
+    id: subject-fizik
+- takeScreenshot: b-sayac-01-ders-secildi
+- tapOn:
+    id: timer-start
+- assertVisible:
+    id: timer-subject
+    text: "Fizik"
+- assertVisible:
+    id: timer-status
+    text: "Çalışıyorsun"
+# The clock is derived from timestamps; it must move on its own.
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: "0:0[3-9]"
+    timeout: 15000
+- takeScreenshot: b-sayac-02-calisiyor
+- tapOn:
+    id: timer-pause
+- assertVisible:
+    id: timer-status
+    text: "Moladasın"
+- copyTextFrom:
+    id: timer-clock
+- evalScript: ${output.pausedAt = maestro.copiedText}
+# Maestro has no sleep command: wait for an id that never exists and carry on (optional).
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 3000
+    optional: true
+# A paused clock does not move.
+- assertVisible:
+    id: timer-clock
+    text: ${output.pausedAt}
+- takeScreenshot: b-sayac-03-mola
+- tapOn:
+    id: timer-resume
+- assertVisible:
+    id: timer-status
+    text: "Çalışıyorsun"
+- takeScreenshot: b-sayac-04-devam
+# Today's total is shown in whole minutes, so keep studying past one minute.
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: "1:0[0-9]"
+    timeout: 90000
+- tapOn:
+    id: timer-finish
+- assertVisible:
+    id: timer-saved
+    text: "Kaydedildi: 1 dk"
+- assertVisible:
+    id: today-total
+    text: "[1-9][0-9]* dk"
+- assertVisible:
+    id: timer-start
+- takeScreenshot: b-sayac-05-bitti

@@ -1,0 +1,54 @@
+appId: com.bnycftc.etut
+name: g. Tüm verileri sil (ilk açılışa dönüş)
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+# Leave some data behind: one short study session.
+- tapOn:
+    id: timer-start
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: "0:0[2-9]"
+    timeout: 15000
+- tapOn:
+    id: timer-finish
+- assertVisible:
+    id: timer-saved
+- tapOn:
+    id: tab-settings
+- extendedWaitUntil:
+    visible:
+      id: settings-delete-all
+    timeout: 10000
+- takeScreenshot: g-sil-01-ayarlar
+- tapOn:
+    id: settings-delete-all
+- assertVisible:
+    id: settings-delete-all-confirm
+- takeScreenshot: g-sil-02-onay
+- tapOn:
+    id: settings-delete-all-confirm
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+    timeout: 10000
+- assertVisible:
+    id: onboarding-start
+    enabled: false
+- takeScreenshot: g-sil-03-ilk-acilis
+# The deletion is persistent: a cold start opens onboarding again.
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+    timeout: 30000
+- takeScreenshot: g-sil-04-yeniden-acilis

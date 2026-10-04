@@ -1,0 +1,39 @@
+appId: com.bnycftc.etut
+name: a. İlk açılış (15+, YKS Sayısal)
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+    timeout: 60000
+# K-15: nothing is pre-selected, so the start button is disabled.
+- assertVisible:
+    id: onboarding-start
+    enabled: false
+- takeScreenshot: a-ilk-acilis-01-bos
+# Born 20 years ago: certainly 15 or older.
+- tapOn:
+    id: "birth-year-${new Date().getFullYear() - 20}"
+- tapOn:
+    id: exam-type-YKS
+# Scroll the outer screen (starting below the year list, which scrolls on its own).
+- swipe:
+    start: 50%, 85%
+    end: 50%, 40%
+- tapOn:
+    id: yks-area-sayisal
+- takeScreenshot: a-ilk-acilis-02-secimler
+- tapOn:
+    id: onboarding-start
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 15000
+- assertVisible:
+    id: today-total
+- assertVisible:
+    id: tab-groups
+- takeScreenshot: a-ilk-acilis-03-sayac

@@ -1,0 +1,49 @@
+appId: com.bnycftc.etut
+name: f. 15 yaş altı (Gruplar sekmesi yok, K-16)
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+    timeout: 60000
+# Born 12 years ago: under 15 -> solo-only profile.
+- tapOn:
+    id: "birth-year-${new Date().getFullYear() - 12}"
+- tapOn:
+    id: exam-type-LGS
+- swipe:
+    start: 50%, 85%
+    end: 50%, 40%
+- tapOn:
+    id: onboarding-start
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 15000
+- assertVisible:
+    id: tab-timer
+- assertVisible:
+    id: tab-exams
+- assertVisible:
+    id: tab-settings
+- assertNotVisible:
+    id: tab-groups
+- assertNotVisible:
+    text: "Gruplar"
+- takeScreenshot: f-kucuk-yas-01-sekmeler
+# Still absent after a cold start.
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 30000
+- assertNotVisible:
+    id: tab-groups
+- assertNotVisible:
+    text: "Gruplar"
+- takeScreenshot: f-kucuk-yas-02-yeniden-acilis
