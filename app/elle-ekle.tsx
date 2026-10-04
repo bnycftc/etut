@@ -23,6 +23,7 @@ import {
   sessionsOverlapping,
 } from '@/storage/sessions';
 import { tr } from '@/strings';
+import { syncFinishedSession, syncManualDeleted } from '@/sync/session-sync';
 import { Button, Card, Chip, ChipRow, Field, Label, Row, Screen, Tag } from '@/ui/components';
 import { formatDay, formatDuration } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
@@ -66,7 +67,9 @@ export default function ManualEntryScreen() {
     const problem = validateManualEntry(input, existing, now);
     setError(problem);
     if (problem !== null) return;
-    saveSession(buildManualSession(newId(), input), now);
+    const session = buildManualSession(newId(), input);
+    saveSession(session, now);
+    syncFinishedSession(session, now);
     notifyDataChanged();
     setMessage(tr.manual.added(formatDuration(durationMs)));
     setStartH('');
@@ -204,6 +207,7 @@ export default function ManualEntryScreen() {
                     title={tr.common.delete}
                     onPress={() => {
                       deleteManualSession(s.id);
+                      syncManualDeleted(s.id);
                       setConfirmingId(null);
                       notifyDataChanged();
                     }}

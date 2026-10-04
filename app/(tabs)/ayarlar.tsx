@@ -1,6 +1,9 @@
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { useState } from 'react';
+
+import { GROUPS_ENABLED } from '@/config/features';
 
 import {
   formatDayInput,
@@ -8,7 +11,8 @@ import {
   parseDayInput,
   resolveExamDate,
 } from '@/domain/exam-dates';
-import { istanbulDayKey } from '@/domain/istanbul-day';
+import { canUseParentMode } from '@/domain/groups';
+import { istanbulDayKey, istanbulYear } from '@/domain/istanbul-day';
 import {
   DEFAULT_POMODORO,
   normalizePomodoroConfig,
@@ -25,7 +29,9 @@ import {
   storeDailyGoal,
   storePomodoroConfig,
 } from '@/storage/kv';
+import { loadGroupsAccount, loadParentAccount } from '@/storage/groups-kv';
 import { tr } from '@/strings';
+import { groupApi } from '@/sync/api';
 import { Button, Card, Field, Label, Row, Screen, Stepper, Tag } from '@/ui/components';
 import { formatDay, formatDuration } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
@@ -48,6 +54,8 @@ const POMODORO_FIELDS: {
 export default function SettingsScreen() {
   const { profile, resetAll, dataVersion, notifyDataChanged } = useAppState();
   const [confirming, setConfirming] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const goal = useStored(`goal|${dataVersion}`, loadDailyGoal);
   const setGoal = (minutes: number | null) => {
     storeDailyGoal(minutes);
@@ -75,6 +83,26 @@ export default function SettingsScreen() {
   };
   const version = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '–';
   const build = Application.nativeBuildVersion ?? '–';
+  const parentMode = GROUPS_ENABLED && profile !== null && canUseParentMode(profile.birthYear, istanbulYear(Date.now()));
+
+  // With the group module, "delete all" removes the server account first; if that fails nothing is
+  // deleted, so the student can retry instead of losing the way to delete the server data.
+  const deleteAll = async () => {
+    setDeleteError(false);
+    if (GROUPS_ENABLED && (loadGroupsAccount() || loadParentAccount())) {
+      setDeleting(true);
+      try {
+        await groupApi().deleteMyAccount();
+      } catch {
+        setDeleteError(true);
+        return;
+      } finally {
+        setDeleting(false);
+      }
+    }
+    setConfirming(false);
+    resetAll();
+  };
 
   return (
     <Screen testID="settings-screen">
@@ -189,7 +217,7 @@ export default function SettingsScreen() {
 
       <Card>
         <Label variant="heading">{tr.settings.dataTitle}</Label>
-        <Label variant="muted">{tr.settings.dataInfo}</Label>
+        <Label variant="muted">{GROUPS_ENABLED ? tr.settings.dataInfoGroups : tr.settings.dataInfo}</Label>
         {confirming ? (
           <>
             <Label>{tr.settings.deleteAllConfirm}</Label>
@@ -198,11 +226,14 @@ export default function SettingsScreen() {
               kind="danger"
               testID="settings-delete-all-confirm"
               title={tr.settings.deleteAllYes}
-              onPress={() => {
-                setConfirming(false);
-                resetAll();
-              }}
+              disabled={deleting}
+              onPress={() => void deleteAll()}
             />
+            {deleteError ? (
+              <Label variant="small" style={{ color: c.danger }}>
+                {tr.settings.deleteAllServerFailed}
+              </Label>
+            ) : null}
             <Button kind="secondary" title={tr.common.cancel} onPress={() => setConfirming(false)} />
           </>
         ) : (
@@ -214,6 +245,14 @@ export default function SettingsScreen() {
           />
         )}
       </Card>
+
+      {parentMode ? (
+        <Card>
+          <Label variant="heading">{tr.parent.entry}</Label>
+          <Label variant="small">{tr.parent.entryInfo}</Label>
+          <Button testID="settings-parent-mode" kind="secondary" title={tr.parent.entry} onPress={() => router.push('/veli')} />
+        </Card>
+      ) : null}
 
       <Card>
         <Label variant="heading">{tr.settings.about}</Label>

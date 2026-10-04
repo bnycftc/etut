@@ -41,7 +41,7 @@ export function wipeDatabase(): void {
   database.withTransactionSync(() => {
     database.execSync(
       'DELETE FROM mock_exam_marks; DELETE FROM mock_exam_scores; DELETE FROM mock_exams; ' +
-        'DELETE FROM sessions; DELETE FROM topic_progress;',
+        'DELETE FROM sessions; DELETE FROM topic_progress; DELETE FROM sync_outbox;',
     );
   });
   // Compaction is best effort: the rows are already deleted at this point.

@@ -41,6 +41,7 @@ import {
 } from '../storage/kv';
 import { saveSession } from '../storage/sessions';
 import { wipeAllData } from '../storage/wipe';
+import { flushPending, syncFinishedSession, syncPresence } from '../sync/session-sync';
 
 export type SaveProfileResult = 'ok' | 'age_blocked';
 
@@ -126,8 +127,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     const subscription = AppState.addEventListener('change', (status) => {
       // 'inactive' (Control Center, notification shade, app switcher peek) is not "leaving".
       if (status === 'background') update((s) => onAppBackground(s, Date.now()));
-      else if (status === 'active') update((s) => onAppForeground(s, Date.now()));
+      else if (status === 'active') {
+        update((s) => onAppForeground(s, Date.now()));
+        flushPending();
+      }
     });
+    // Group module only (no-op otherwise): send sessions that were finished offline.
+    flushPending();
     return () => subscription.remove();
   }, []);
 
@@ -146,6 +152,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }, HEARTBEAT_MS);
     return () => clearInterval(id);
   }, [running]);
+
+  // Live status for the group module (no-op unless it is on and an account exists).
+  const activeId = active?.id ?? null;
+  useEffect(() => {
+    syncPresence(activeRef.current);
+  }, [activeId, running]);
 
   const value: AppStateValue = {
     profile,
@@ -173,7 +185,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (current === null) return null;
       const now = Date.now();
       const completed = finishSession(current, now);
-      if (completed.durationMs > 0) saveSession(completed, now);
+      if (completed.durationMs > 0) {
+        saveSession(completed, now);
+        syncFinishedSession(completed, now);
+      }
       setActive(null);
       notifyDataChanged();
       return completed;

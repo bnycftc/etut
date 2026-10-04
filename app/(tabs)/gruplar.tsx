@@ -1,13 +1,382 @@
-import { tr } from '@/strings';
-import { Card, Label, Screen } from '@/ui/components';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
+import { Pressable, View } from 'react-native';
 
-/** Placeholder only. Shown solely to 15+ profiles (see (tabs)/_layout.tsx). */
+import { GROUPS_ENABLED } from '@/config/features';
+import {
+  ageBandFor,
+  checkNameLocally,
+  cleanName,
+  formatCode,
+  nameMaxLength,
+  normalizeCode,
+  usageLimitReached,
+} from '@/domain/groups';
+import { istanbulDayKey, istanbulYear } from '@/domain/istanbul-day';
+import { useAppState } from '@/state/app-state';
+import { loadGroupsAccount, loadGroupsUsage, storeGroupsAccount, storeGroupsUsage } from '@/storage/groups-kv';
+import { tr } from '@/strings';
+import { type GroupSummary, groupApi, type IncomingReaction, type Me } from '@/sync/api';
+import { Button, Card, Chip, ChipRow, Label, Row, Screen, Tag, TextField } from '@/ui/components';
+import { errorText, Message, minutesLeft, ToggleRow } from '@/ui/group-ui';
+import { usePalette } from '@/ui/theme';
+
+/** Shown solely to 15+ profiles (see (tabs)/_layout.tsx). */
 export default function GroupsScreen() {
+  if (!GROUPS_ENABLED) {
+    // The module is off: no network request is ever made (src/config/features.ts).
+    return (
+      <Screen>
+        <Card>
+          <Label variant="title">{tr.groups.soon}</Label>
+          <Label variant="muted">{tr.groups.body}</Label>
+        </Card>
+      </Screen>
+    );
+  }
+  return <GroupsHome />;
+}
+
+const USAGE_TICK_MS = 30_000;
+
+function GroupsHome() {
+  const { profile } = useAppState();
+  const api = groupApi();
+  const c = usePalette();
+  const band = profile === null ? null : ageBandFor(profile.birthYear, istanbulYear(Date.now()));
+
+  const [hasAccount, setHasAccount] = useState(loadGroupsAccount);
+  const [me, setMe] = useState<Me | null>(null);
+  const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [incoming, setIncoming] = useState<IncomingReaction[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [nickname, setNickname] = useState('');
+  const [groupName, setGroupName] = useState('');
+  const [code, setCode] = useState('');
+  const [parentCode, setParentCode] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [usedMs, setUsedMs] = useState(() => loadGroupsUsage(istanbulDayKey(Date.now())));
+  const focusStart = useRef<number | null>(null);
+
+  const refresh = useCallback(async () => {
+    setError(null);
+    try {
+      const current = await api.getMe();
+      if (current === null) {
+        // The server account no longer exists (deleted or purged after long inactivity).
+        storeGroupsAccount(false);
+        setHasAccount(false);
+        setMe(null);
+        return;
+      }
+      setMe(current);
+      if (!current.groupsDisabled) {
+        const [mine, reactions] = await Promise.all([api.myGroups(), api.takeReactions()]);
+        setGroups(mine);
+        if (reactions.length > 0) setIncoming(reactions);
+      }
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setLoaded(true);
+    }
+  }, [api]);
+
+  // Load on focus; count time spent here for the parent's daily limit (K-22 c).
+  useFocusEffect(
+    useCallback(() => {
+      if (hasAccount) void refresh();
+      const day = istanbulDayKey(Date.now());
+      focusStart.current = Date.now();
+      const flush = () => {
+        if (focusStart.current === null) return;
+        const now = Date.now();
+        const total = loadGroupsUsage(day) + (now - focusStart.current);
+        focusStart.current = now;
+        storeGroupsUsage(day, total);
+        setUsedMs(total);
+      };
+      const id = setInterval(flush, USAGE_TICK_MS);
+      return () => {
+        clearInterval(id);
+        flush();
+        focusStart.current = null;
+      };
+    }, [hasAccount, refresh]),
+  );
+
+  const run = async (task: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await task();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (profile === null || band === null) {
+    return (
+      <Screen>
+        <Card>
+          <Label variant="muted">{tr.groups.unavailable}</Label>
+        </Card>
+      </Screen>
+    );
+  }
+
+  if (!hasAccount) {
+    const enable = () =>
+      run(async () => {
+        const problem = checkNameLocally(nickname, 'nickname');
+        if (problem !== null) {
+          setError(tr.groupErrors[problem]);
+          return;
+        }
+        await api.ensureSignedIn();
+        await api.saveProfile({
+          nickname: cleanName(nickname),
+          examType: profile.examType,
+          yksArea: profile.yksArea,
+          ageBand: band,
+        });
+        storeGroupsAccount(true);
+        setHasAccount(true);
+        await refresh();
+      });
+    return (
+      <Screen testID="groups-intro">
+        <Card>
+          <Label variant="title">{tr.groups.introTitle}</Label>
+          <Label variant="muted">{tr.groups.introBody}</Label>
+          <Label variant="small">{tr.groups.introData}</Label>
+        </Card>
+        <Card>
+          <Row>
+            <TextField
+              testID="groups-nickname"
+              label={tr.groups.nickname}
+              value={nickname}
+              onChange={setNickname}
+              placeholder={tr.groups.nicknamePlaceholder}
+              maxLength={nameMaxLength('nickname')}
+            />
+          </Row>
+          <Label variant="small">{tr.groups.nicknameHint}</Label>
+          <Message text={error} error testID="groups-error" />
+          <Message text={notice} testID="groups-notice" />
+          <Button testID="groups-enable" title={tr.groups.enable} onPress={enable} disabled={busy} />
+        </Card>
+      </Screen>
+    );
+  }
+
+  if (!loaded || me === null) {
+    return (
+      <Screen>
+        <Card>
+          <Label variant="muted">{error ?? tr.groups.loading}</Label>
+          {error !== null ? <Button kind="secondary" title={tr.groups.retry} onPress={() => void refresh()} /> : null}
+        </Card>
+      </Screen>
+    );
+  }
+
+  if (me.groupsDisabled) {
+    return (
+      <Screen testID="groups-locked">
+        <Card>
+          <Label variant="muted">{tr.groups.parentDisabled}</Label>
+        </Card>
+      </Screen>
+    );
+  }
+
+  if (usageLimitReached(usedMs, me.dailyLimitMinutes)) {
+    return (
+      <Screen testID="groups-limit">
+        <Card>
+          <Label variant="muted">{tr.groups.limitReached}</Label>
+        </Card>
+      </Screen>
+    );
+  }
+
+  const createGroup = () =>
+    run(async () => {
+      const problem = checkNameLocally(groupName, 'group');
+      if (problem !== null) {
+        setError(tr.groupErrors[problem]);
+        return;
+      }
+      const created = await api.createGroup(cleanName(groupName));
+      setGroupName('');
+      await refresh();
+      router.push({ pathname: '/grup/[id]', params: { id: created.groupId } });
+    });
+
+  const join = () =>
+    run(async () => {
+      const status = await api.requestJoin(normalizeCode(code));
+      setNotice(tr.groups.joinStatus[status]);
+      if (status === 'requested') {
+        setCode('');
+        await refresh();
+      }
+    });
+
+  const setPrefs = (prefs: { invisible?: boolean; reactionsEnabled?: boolean }) =>
+    run(async () => {
+      await api.setPreferences(prefs);
+      await refresh();
+    });
+
   return (
-    <Screen>
+    <Screen testID="groups-home">
+      {incoming.length > 0 ? (
+        <Card>
+          <Label variant="heading">{tr.groups.reactionsTitle}</Label>
+          {incoming.map((r) => (
+            <Label key={r.id}>{tr.groups.reactionLine(r.fromNickname, tr.reactionKinds[r.kind], r.groupName)}</Label>
+          ))}
+          <Button testID="groups-reactions-close" kind="secondary" title={tr.group.close} onPress={() => setIncoming([])} />
+        </Card>
+      ) : null}
+
       <Card>
-        <Label variant="title">{tr.groups.soon}</Label>
-        <Label variant="muted">{tr.groups.body}</Label>
+        <Label variant="heading">{tr.groups.myGroups}</Label>
+        {groups.length === 0 ? <Label variant="muted">{tr.groups.noGroups}</Label> : null}
+        {groups.map((g, index) => (
+          <Pressable
+            key={g.groupId}
+            testID={`groups-row-${index}`}
+            accessibilityRole="button"
+            disabled={g.role === 'pending'}
+            onPress={() => router.push({ pathname: '/grup/[id]', params: { id: g.groupId } })}
+            style={{ paddingVertical: 8, borderBottomWidth: 1, borderColor: c.border }}>
+            <Row>
+              <Label style={{ flex: 1 }}>{g.name}</Label>
+              {g.role === 'owner' ? <Tag title={tr.groups.owner} /> : null}
+              {g.role === 'pending' ? <Tag title={tr.groups.pending} /> : <Label variant="small">{tr.groups.members(g.memberCount)}</Label>}
+            </Row>
+          </Pressable>
+        ))}
+      </Card>
+
+      <Card>
+        <Label variant="heading">{tr.groups.createTitle}</Label>
+        <Row>
+          <TextField
+            testID="groups-create-name"
+            label={tr.groups.groupName}
+            value={groupName}
+            onChange={setGroupName}
+            placeholder={tr.groups.groupNamePlaceholder}
+            maxLength={nameMaxLength('group')}
+          />
+        </Row>
+        <ChipRow>
+          {tr.groups.suggestions.map((s) => (
+            <Chip key={s} title={s} selected={groupName === s} onPress={() => setGroupName(s)} />
+          ))}
+        </ChipRow>
+        <Button testID="groups-create" title={tr.groups.create} onPress={createGroup} disabled={busy} />
+      </Card>
+
+      <Card>
+        <Label variant="heading">{tr.groups.joinTitle}</Label>
+        <Label variant="small">{tr.groups.joinHint}</Label>
+        <Row>
+          <TextField
+            testID="groups-join-code"
+            label={tr.groups.code}
+            value={code}
+            onChange={setCode}
+            placeholder={tr.groups.codePlaceholder}
+            maxLength={9}
+            code
+          />
+        </Row>
+        <Button testID="groups-join" kind="secondary" title={tr.groups.join} onPress={join} disabled={busy} />
+      </Card>
+
+      <Message text={error} error testID="groups-error" />
+      <Message text={notice} testID="groups-notice" />
+
+      <Card>
+        <Label variant="heading">{tr.groups.settingsTitle}</Label>
+        <ToggleRow
+          testID="groups-invisible"
+          label={tr.groups.invisible}
+          on={me.invisible}
+          disabled={busy || me.forceInvisible}
+          onToggle={() => setPrefs({ invisible: !me.invisible })}
+        />
+        <Label variant="small">{me.forceInvisible ? tr.groups.lockedByParent : tr.groups.invisibleInfo}</Label>
+        <ToggleRow
+          testID="groups-reactions"
+          label={tr.groups.reactions}
+          on={me.reactionsEnabled}
+          disabled={busy}
+          onToggle={() => setPrefs({ reactionsEnabled: !me.reactionsEnabled })}
+        />
+        <Label variant="small">{tr.groups.reactionsInfo}</Label>
+        {me.dailyLimitMinutes !== null ? <Label variant="small">{tr.groups.limitInfo(me.dailyLimitMinutes)}</Label> : null}
+      </Card>
+
+      {me.ageBand === '15_17' ? (
+        <Card>
+          <Label variant="heading">{tr.groups.parentTitle}</Label>
+          <Label variant="small">{tr.groups.parentInfo}</Label>
+          {me.parentCount > 0 ? <Label testID="groups-parent-count">{tr.groups.parentLinked(me.parentCount)}</Label> : null}
+          {parentCode !== null ? (
+            <Label testID="groups-parent-code" variant="heading">
+              {tr.groups.parentCodeShown(formatCode(parentCode.code), minutesLeft(parentCode.expiresAt, Date.now()))}
+            </Label>
+          ) : null}
+          <Button
+            testID="groups-parent-create"
+            kind="secondary"
+            title={tr.groups.parentCode}
+            disabled={busy}
+            onPress={() => run(async () => setParentCode(await api.createParentCode()))}
+          />
+        </Card>
+      ) : null}
+
+      <Card>
+        <Label variant="heading">{tr.groups.accountTitle}</Label>
+        {confirmDelete ? (
+          <View style={{ gap: 8 }}>
+            <Label>{tr.groups.deleteAccountConfirm}</Label>
+            <Button
+              testID="groups-delete-confirm"
+              kind="danger"
+              title={tr.groups.deleteAccountYes}
+              disabled={busy}
+              onPress={() =>
+                run(async () => {
+                  await api.deleteMyAccount();
+                  storeGroupsAccount(false);
+                  setConfirmDelete(false);
+                  setHasAccount(false);
+                  setMe(null);
+                  setGroups([]);
+                  setNotice(tr.groups.deleted);
+                })
+              }
+            />
+            <Button kind="secondary" title={tr.common.cancel} onPress={() => setConfirmDelete(false)} />
+          </View>
+        ) : (
+          <Button testID="groups-delete" kind="danger" title={tr.groups.deleteAccount} onPress={() => setConfirmDelete(true)} />
+        )}
       </Card>
     </Screen>
   );

@@ -39,7 +39,10 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:web": "node scripts/test-web.mjs",
-    "test:all": "tsc --noEmit && jest --ci && node scripts/test-web.mjs"
+    "test:all": "tsc --noEmit && jest --ci && node scripts/test-web.mjs",
+    "test:db": "npx supabase test db",
+    "test:db:pglite": "node scripts/test-db-pglite.mjs",
+    "test:backend": "node scripts/test-backend.mjs"
   },
   "jest": {
     "preset": "jest-expo",
