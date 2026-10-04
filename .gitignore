@@ -44,3 +44,6 @@ example
 
 # CI build output (testflight.yml)
 /build
+
+# Serai
+.serai/cache/
