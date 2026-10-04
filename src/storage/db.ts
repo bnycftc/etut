@@ -43,6 +43,33 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (exam_id, section_id)
   );
   `,
+  // 2: topic of a session and where it came from ('timer' or 'manual' = added afterwards).
+  `
+  ALTER TABLE sessions ADD COLUMN topic_id TEXT;
+  ALTER TABLE sessions ADD COLUMN source TEXT NOT NULL DEFAULT 'timer';
+  CREATE INDEX IF NOT EXISTS sessions_topic_id ON sessions (topic_id);
+  `,
+  // 3: topic progress ("bitti" / "tekrar lazım").
+  `
+  CREATE TABLE IF NOT EXISTS topic_progress (
+    topic_id TEXT PRIMARY KEY NOT NULL,
+    status TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  `,
+  // 4: mock exam analysis: wrong/blank questions per topic, and when the analysis was finished.
+  `
+  ALTER TABLE mock_exams ADD COLUMN analysis_done_at INTEGER;
+  CREATE TABLE IF NOT EXISTS mock_exam_marks (
+    exam_id TEXT NOT NULL REFERENCES mock_exams (id) ON DELETE CASCADE,
+    section_id TEXT NOT NULL,
+    topic_id TEXT NOT NULL,
+    wrong INTEGER NOT NULL,
+    blank INTEGER NOT NULL,
+    PRIMARY KEY (exam_id, section_id, topic_id)
+  );
+  CREATE INDEX IF NOT EXISTS mock_exam_marks_topic_id ON mock_exam_marks (topic_id);
+  `,
 ];
 
 let db: SQLite.SQLiteDatabase | null = null;
@@ -75,7 +102,10 @@ export function getDb(): SQLite.SQLiteDatabase {
 export function wipeDatabase(): void {
   const database = getDb();
   database.withTransactionSync(() => {
-    database.execSync('DELETE FROM mock_exam_scores; DELETE FROM mock_exams; DELETE FROM sessions;');
+    database.execSync(
+      'DELETE FROM mock_exam_marks; DELETE FROM mock_exam_scores; DELETE FROM mock_exams; ' +
+        'DELETE FROM sessions; DELETE FROM topic_progress;',
+    );
   });
   // Compaction is best effort: the rows are already deleted at this point.
   try {

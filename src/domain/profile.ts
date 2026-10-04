@@ -82,6 +82,27 @@ export function refreshSoloFlag(profile: Profile, currentYear: number): Profile 
   return profile;
 }
 
+/**
+ * K-17: after "delete all data" the age declaration must not be raised freely. The device keeps
+ * the youngest birth year ever declared (the latest year) outside the deletable data. A new
+ * declaration may not move the student from "under 15" to "15+" compared with that record.
+ * Declaring the same or a younger age, or staying on the same side of the threshold, is allowed;
+ * once the recorded year itself makes the student certainly 15+, nothing is blocked.
+ */
+export function canDeclareBirthYear(
+  birthYear: number,
+  youngestDeclared: number | null,
+  currentYear: number,
+): boolean {
+  if (youngestDeclared === null || birthYear >= youngestDeclared) return true;
+  return !(isSoloOnly(youngestDeclared, currentYear) && !isSoloOnly(birthYear, currentYear));
+}
+
+/** The record to keep after a declaration: the latest birth year (= youngest age) so far. */
+export function nextYoungestDeclared(youngestDeclared: number | null, birthYear: number): number {
+  return youngestDeclared === null ? birthYear : Math.max(youngestDeclared, birthYear);
+}
+
 export function isProfile(value: unknown): value is Profile {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;

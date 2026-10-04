@@ -6,14 +6,37 @@
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
 
+import type { TopicMark } from '../domain/exam-analysis';
 import type { Profile } from '../domain/profile';
 import type { ActiveSession, CompletedSession } from '../domain/timer';
+import type { MockExamWithScores } from '../storage/mock-exams';
 
 const memory: {
   profile: Profile | null;
   active: ActiveSession | null;
   sessions: CompletedSession[];
-} = { profile: null, active: null, sessions: [] };
+  /** K-17 record; survives "delete all data" like the real separate store. */
+  youngestBirthYear: number | null;
+  dailyGoal: number | null;
+  timerMode: 'stopwatch' | 'pomodoro';
+  topicStatuses: Record<string, 'done' | 'review'>;
+  exams: MockExamWithScores[];
+  marks: Record<string, TopicMark[]>;
+  examDates: Record<string, string>;
+  netTargets: Record<string, number>;
+} = {
+  profile: null,
+  active: null,
+  sessions: [],
+  youngestBirthYear: null,
+  dailyGoal: null,
+  timerMode: 'stopwatch',
+  topicStatuses: {},
+  exams: [],
+  marks: {},
+  examDates: {},
+  netTargets: {},
+};
 
 jest.mock('../storage/kv', () => ({
   loadProfile: () => memory.profile,
@@ -26,24 +49,94 @@ jest.mock('../storage/kv', () => ({
   },
   loadLastSubject: () => null,
   storeLastSubject: () => {},
+  loadDailyGoal: () => memory.dailyGoal,
+  storeDailyGoal: (m: number | null) => {
+    memory.dailyGoal = m;
+  },
+  loadPomodoroConfig: () => ({ workMin: 25, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 }),
+  storePomodoroConfig: () => {},
+  loadTimerMode: () => memory.timerMode,
+  storeTimerMode: (m: 'stopwatch' | 'pomodoro') => {
+    memory.timerMode = m;
+  },
+  loadCustomExamDate: (t: string) => memory.examDates[t] ?? null,
+  storeCustomExamDate: (t: string, day: string | null) => {
+    if (day === null) delete memory.examDates[t];
+    else memory.examDates[t] = day;
+  },
+  loadNetTargets: () => memory.netTargets,
+  storeNetTarget: (key: string, value: number | null) => {
+    if (value === null) delete memory.netTargets[key];
+    else memory.netTargets[key] = value;
+  },
   wipeKeyValueStore: () => {
     memory.profile = null;
     memory.active = null;
+    memory.dailyGoal = null;
+    memory.examDates = {};
+    memory.netTargets = {};
+  },
+}));
+
+jest.mock('../storage/age-guard', () => ({
+  loadYoungestDeclaredBirthYear: () => memory.youngestBirthYear,
+  storeYoungestDeclaredBirthYear: (y: number) => {
+    memory.youngestBirthYear = y;
   },
 }));
 
 jest.mock('../storage/sessions', () => ({
   saveSession: (s: CompletedSession) => {
-    memory.sessions.push(s);
+    memory.sessions = [...memory.sessions.filter((x) => x.id !== s.id), s];
   },
-  sessionsOverlapping: () => memory.sessions,
+  sessionsOverlapping: (from: number, to: number) =>
+    memory.sessions.filter((s) => s.endedAt > from && s.startedAt < to),
+  recentManualSessions: () => memory.sessions.filter((s) => s.source === 'manual').reverse(),
+  deleteManualSession: (id: string) => {
+    memory.sessions = memory.sessions.filter((s) => !(s.id === id && s.source === 'manual'));
+  },
+  topicTotals: () => {
+    const out: Record<string, number> = {};
+    for (const s of memory.sessions) {
+      if (s.topicId) out[s.topicId] = (out[s.topicId] ?? 0) + s.durationMs;
+    }
+    return out;
+  },
+}));
+
+jest.mock('../storage/topics', () => ({
+  loadTopicStatuses: () => memory.topicStatuses,
+  setTopicStatus: (id: string, status: 'done' | 'review' | null) => {
+    const next = { ...memory.topicStatuses };
+    if (status === null) delete next[id];
+    else next[id] = status;
+    memory.topicStatuses = next;
+  },
 }));
 
 jest.mock('../storage/mock-exams', () => ({
-  listMockExams: () => [],
-  getMockExam: () => null,
+  listMockExams: () => memory.exams,
+  listExamsNeedingAnalysis: () =>
+    memory.exams.filter(
+      (e) => e.analysisDoneAt === null && e.scores.some((s) => s.questions - s.correct > 0),
+    ),
+  getMockExam: (id: string) => memory.exams.find((e) => e.id === id) ?? null,
   saveMockExam: () => {},
   deleteMockExam: () => {},
+  getExamMarks: (id: string) => memory.marks[id] ?? [],
+  listAllMarks: () => Object.values(memory.marks).flat(),
+  saveExamAnalysis: (id: string, marks: TopicMark[], now: number) => {
+    memory.marks[id] = marks.filter((m) => m.wrong + m.blank > 0);
+    memory.exams = memory.exams.map((e) => (e.id === id ? { ...e, analysisDoneAt: now } : e));
+  },
+  sectionNetHistory: (kind: string, sectionId: string) =>
+    memory.exams
+      .filter((e) => e.kind === kind)
+      .flatMap((e) =>
+        e.scores
+          .filter((s) => s.sectionId === sectionId)
+          .map((s) => ({ examId: e.id, takenOn: e.takenOn, scope: e.scope, net: s.correct - s.wrong / 4 })),
+      ),
 }));
 
 jest.mock('../storage/db', () => ({
@@ -62,6 +155,14 @@ beforeEach(() => {
   memory.profile = null;
   memory.active = null;
   memory.sessions = [];
+  memory.youngestBirthYear = null;
+  memory.dailyGoal = null;
+  memory.timerMode = 'stopwatch';
+  memory.topicStatuses = {};
+  memory.exams = [];
+  memory.marks = {};
+  memory.examDates = {};
+  memory.netTargets = {};
 });
 
 it('first launch shows onboarding with no birth year pre-selected', () => {

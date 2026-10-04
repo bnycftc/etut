@@ -7,7 +7,12 @@ import { createContext, type ReactNode, useContext, useEffect, useRef, useState 
 import { AppState } from 'react-native';
 
 import { istanbulYear } from '../domain/istanbul-day';
-import { type Profile, refreshSoloFlag } from '../domain/profile';
+import {
+  canDeclareBirthYear,
+  nextYoungestDeclared,
+  type Profile,
+  refreshSoloFlag,
+} from '../domain/profile';
 import {
   type ActiveSession,
   type CompletedSession,
@@ -21,8 +26,11 @@ import {
   onAppLaunch,
   pauseSession,
   resumeSession,
+  skipBreak,
+  type StartOptions,
   startSession,
 } from '../domain/timer';
+import { loadYoungestDeclaredBirthYear, storeYoungestDeclaredBirthYear } from '../storage/age-guard';
 import { newId } from '../storage/db';
 import {
   loadActiveSession,
@@ -34,13 +42,17 @@ import {
 import { saveSession } from '../storage/sessions';
 import { wipeAllData } from '../storage/wipe';
 
+export type SaveProfileResult = 'ok' | 'age_blocked';
+
 interface AppStateValue {
   profile: Profile | null;
-  saveProfile: (profile: Profile) => void;
+  /** Refuses a declaration that would raise the age above the K-17 record. */
+  saveProfile: (profile: Profile) => SaveProfileResult;
   active: ActiveSession | null;
-  start: (subjectId: string) => void;
+  start: (subjectId: string, options?: StartOptions) => void;
   pause: () => void;
   resume: () => void;
+  skipBreak: () => void;
   finish: () => CompletedSession | null;
   creditAway: () => void;
   dismissAway: () => void;
@@ -52,9 +64,17 @@ interface AppStateValue {
 
 const AppStateContext = createContext<AppStateValue | null>(null);
 
+/** Keeps the K-17 record up to date (also for profiles created before the record existed). */
+function recordDeclaration(birthYear: number): void {
+  const previous = loadYoungestDeclaredBirthYear();
+  const next = nextYoungestDeclared(previous, birthYear);
+  if (next !== previous) storeYoungestDeclaredBirthYear(next);
+}
+
 function initialProfile(): Profile | null {
   const stored = loadProfile();
   if (stored === null) return null;
+  recordDeclaration(stored.birthYear);
   const refreshed = refreshSoloFlag(stored, istanbulYear(Date.now()));
   if (refreshed !== stored) storeProfile(refreshed);
   return refreshed;
@@ -120,17 +140,24 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const value: AppStateValue = {
     profile,
     saveProfile: (p) => {
+      const year = istanbulYear(Date.now());
+      if (!canDeclareBirthYear(p.birthYear, loadYoungestDeclaredBirthYear(), year)) {
+        return 'age_blocked';
+      }
+      recordDeclaration(p.birthYear);
       storeProfile(p);
       setProfile(p);
+      return 'ok';
     },
     active,
-    start: (subjectId) => {
+    start: (subjectId, options) => {
       if (activeRef.current !== null) return;
       storeLastSubject(subjectId);
-      setActive(startSession(newId(), subjectId, Date.now()));
+      setActive(startSession(newId(), subjectId, Date.now(), options));
     },
     pause: () => update((s) => pauseSession(s, Date.now())),
     resume: () => update((s) => resumeSession(s, Date.now())),
+    skipBreak: () => update((s) => skipBreak(s, Date.now())),
     finish: () => {
       const current = activeRef.current;
       if (current === null) return null;
