@@ -23,12 +23,12 @@ export default function ExamsScreen() {
   const kinds = examKindsInOrder(profile?.yksArea ?? null);
 
   return (
-    <Screen>
+    <Screen testID="exams-screen">
       {profile !== null && profile.examType !== 'YKS' ? (
         <Label variant="muted">{tr.exams.onlyYksNote}</Label>
       ) : null}
 
-      <Button large title={tr.exams.add} onPress={() => router.push('/deneme/yeni')} />
+      <Button large testID="exams-add" title={tr.exams.add} onPress={() => router.push('/deneme/yeni')} />
 
       <Card>
         <Label variant="heading">{tr.exams.chartTitle(tr.examKind(chartKind))}</Label>
@@ -53,17 +53,18 @@ export default function ExamsScreen() {
 
       <Label variant="heading">{tr.exams.listTitle}</Label>
       {exams.length === 0 ? <Label variant="muted">{tr.exams.empty}</Label> : null}
-      {exams.map((e) => (
+      {exams.map((e, index) => (
         <Pressable
           key={e.id}
+          testID={`exam-item-${index}`}
           accessibilityRole="button"
           onPress={() => router.push({ pathname: '/deneme/[id]', params: { id: e.id } })}>
           <Card>
             <Row>
-              <Label variant="heading" style={{ flex: 1 }}>
+              <Label variant="heading" testID={`exam-item-${index}-kind`} style={{ flex: 1 }}>
                 {tr.examKind(e.kind)}
               </Label>
-              <Label variant="heading">
+              <Label variant="heading" testID={`exam-item-${index}-net`}>
                 {formatNet(e.totalNet)} {tr.exams.net}
               </Label>
             </Row>

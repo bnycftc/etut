@@ -96,6 +96,7 @@ export default function NewExamScreen() {
           {kinds.map((k) => (
             <Chip
               key={k}
+              testID={`exam-kind-${k}`}
               title={tr.examKind(k)}
               selected={k === kind}
               onPress={() => chooseKind(k)}
@@ -150,18 +151,20 @@ export default function NewExamScreen() {
               </Row>
               <Row>
                 <CountInput
+                  testID={`exam-correct-${s.id}`}
                   label={tr.exams.correct}
                   value={entries[s.id]?.correct ?? ''}
                   onChange={(v) => setEntry(s.id, 'correct', v)}
                 />
                 <CountInput
+                  testID={`exam-wrong-${s.id}`}
                   label={tr.exams.wrong}
                   value={entries[s.id]?.wrong ?? ''}
                   onChange={(v) => setEntry(s.id, 'wrong', v)}
                 />
                 <View style={styles.netBox}>
                   <Label variant="small">{tr.exams.net}</Label>
-                  <Label variant="heading">
+                  <Label variant="heading" testID={`exam-net-${s.id}`}>
                     {error === null ? formatNet(net(score.correct, score.wrong)) : '–'}
                   </Label>
                 </View>
@@ -178,14 +181,16 @@ export default function NewExamScreen() {
           <Label variant="heading" style={{ flex: 1 }}>
             {tr.exams.totalNet}
           </Label>
-          <Label variant="heading">{hasErrors ? '–' : formatNet(totalNet(scores))}</Label>
+          <Label variant="heading" testID="exam-total-net">
+            {hasErrors ? '–' : formatNet(totalNet(scores))}
+          </Label>
         </Row>
       </Card>
 
       {showErrors && hasErrors ? (
         <Label style={{ color: c.danger }}>{tr.exams.fixErrors}</Label>
       ) : null}
-      <Button large title={tr.common.save} onPress={save} />
+      <Button large testID="exam-save" title={tr.common.save} onPress={save} />
     </Screen>
   );
 }
@@ -194,16 +199,19 @@ function CountInput({
   label,
   value,
   onChange,
+  testID,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  testID?: string;
 }) {
   const c = usePalette();
   return (
     <View style={{ flex: 1, gap: 4 }}>
       <Label variant="small">{label}</Label>
       <TextInput
+        testID={testID}
         accessibilityLabel={label}
         value={value}
         onChangeText={onChange}

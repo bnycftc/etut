@@ -13,7 +13,7 @@ export default function SettingsScreen() {
   const build = Application.nativeBuildVersion ?? '–';
 
   return (
-    <Screen>
+    <Screen testID="settings-screen">
       {profile !== null ? (
         <Card>
           <Label variant="heading">{tr.settings.profile}</Label>
@@ -43,6 +43,7 @@ export default function SettingsScreen() {
             <Label>{tr.settings.deleteAllConfirm}</Label>
             <Button
               kind="danger"
+              testID="settings-delete-all-confirm"
               title={tr.settings.deleteAllYes}
               onPress={() => {
                 setConfirming(false);
@@ -52,7 +53,12 @@ export default function SettingsScreen() {
             <Button kind="secondary" title={tr.common.cancel} onPress={() => setConfirming(false)} />
           </>
         ) : (
-          <Button kind="danger" title={tr.settings.deleteAll} onPress={() => setConfirming(true)} />
+          <Button
+            kind="danger"
+            testID="settings-delete-all"
+            title={tr.settings.deleteAll}
+            onPress={() => setConfirming(true)}
+          />
         )}
       </Card>
 

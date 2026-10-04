@@ -3,10 +3,11 @@ import { Pressable, ScrollView, StyleSheet, Text, type TextStyle, View } from 'r
 
 import { space, usePalette } from './theme';
 
-export function Screen({ children }: { children: ReactNode }) {
+export function Screen({ children, testID }: { children: ReactNode; testID?: string }) {
   const c = usePalette();
   return (
     <ScrollView
+      testID={testID}
       style={{ flex: 1, backgroundColor: c.background }}
       contentContainerStyle={styles.screen}
       keyboardShouldPersistTaps="handled">
@@ -30,14 +31,20 @@ export function Label({
   children,
   variant = 'body',
   style,
+  testID,
 }: {
   children: ReactNode;
   variant?: TextVariant;
   style?: TextStyle;
+  testID?: string;
 }) {
   const c = usePalette();
   const color = variant === 'muted' || variant === 'small' ? c.textMuted : c.text;
-  return <Text style={[styles[variant], { color }, style]}>{children}</Text>;
+  return (
+    <Text testID={testID} style={[styles[variant], { color }, style]}>
+      {children}
+    </Text>
+  );
 }
 
 type ButtonKind = 'primary' | 'secondary' | 'danger';
@@ -48,18 +55,21 @@ export function Button({
   kind = 'primary',
   disabled = false,
   large = false,
+  testID,
 }: {
   title: string;
   onPress: () => void;
   kind?: ButtonKind;
   disabled?: boolean;
   large?: boolean;
+  testID?: string;
 }) {
   const c = usePalette();
   const background = kind === 'primary' ? c.accent : kind === 'danger' ? c.danger : c.surface;
   const color = kind === 'secondary' ? c.text : c.accentText;
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       disabled={disabled}
@@ -82,14 +92,17 @@ export function Chip({
   title,
   selected,
   onPress,
+  testID,
 }: {
   title: string;
   selected: boolean;
   onPress: () => void;
+  testID?: string;
 }) {
   const c = usePalette();
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}

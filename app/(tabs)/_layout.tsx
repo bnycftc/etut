@@ -28,6 +28,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: tr.tabs.timer,
+          tabBarButtonTestID: 'tab-timer',
           tabBarIcon: ({ color }) => <Glyph symbol="◷" color={color} />,
         }}
       />
@@ -35,6 +36,7 @@ export default function TabsLayout() {
         name="denemeler"
         options={{
           title: tr.tabs.exams,
+          tabBarButtonTestID: 'tab-exams',
           tabBarIcon: ({ color }) => <Glyph symbol="✎" color={color} />,
         }}
       />
@@ -43,6 +45,7 @@ export default function TabsLayout() {
           name="gruplar"
           options={{
             title: tr.tabs.groups,
+            tabBarButtonTestID: 'tab-groups',
             tabBarIcon: ({ color }) => <Glyph symbol="◎" color={color} />,
           }}
         />
@@ -51,6 +54,7 @@ export default function TabsLayout() {
         name="ayarlar"
         options={{
           title: tr.tabs.settings,
+          tabBarButtonTestID: 'tab-settings',
           tabBarIcon: ({ color }) => <Glyph symbol={'⚙︎'}color={color} />,
         }}
       />
