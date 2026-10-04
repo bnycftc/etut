@@ -80,7 +80,7 @@ insert into app.daily_totals (user_id, day, seconds) values
   ('55555555-0000-0000-0000-00000000000a', app.istanbul_day(now()), 3600),
   ('55555555-0000-0000-0000-00000000000b', app.istanbul_day(now()), 7200),
   ('55555555-0000-0000-0000-00000000000d', app.istanbul_day(now()), 99999 % 57600);
-select app.refresh_leaderboards() is null as refreshed;
+do $$ begin perform app.refresh_leaderboards(); end $$;
 select is((select count(*)::int from app.leaderboard_cache where group_id = '66666666-0000-0000-0000-000000000001'
             and user_id not in (select user_id from app.memberships where group_id = '66666666-0000-0000-0000-000000000001')), 0,
   'the cache of G holds members only');

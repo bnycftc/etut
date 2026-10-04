@@ -19,6 +19,10 @@ begin
 end
 $$;
 grant execute on procedure tests.act_as(uuid) to authenticated;
+create temp table g1 (group_id uuid, invite_code text, invite_expires_at timestamptz);
+create temp table g2 (group_id uuid, invite_code text, invite_expires_at timestamptz);
+create temp table pc (code text, expires_at timestamptz);
+grant all on g1, g2, pc to authenticated;
 -- Every uuid column of every table in `app` that still holds the given id.
 create function tests.traces(p_id uuid) returns text[] language plpgsql as $$
 declare
@@ -44,8 +48,8 @@ values ('99999999-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000
 
 -- Groups: G1 founded by U with V; G2 founded by U alone; G3 founded by V with U and W.
 call tests.act_as('99999999-0000-0000-0000-00000000000a');
-create temp table g1 on commit drop as select * from public.create_group('Grup Bir');
-create temp table g2 on commit drop as select * from public.create_group('Grup İki');
+insert into g1 select * from public.create_group('Grup Bir');
+insert into g2 select * from public.create_group('Grup İki');
 reset role;
 insert into app.groups (id, name) values ('aaaaaaaa-1111-0000-0000-000000000003', 'Grup Üç');
 insert into app.memberships (group_id, user_id, role, joined_at) values
@@ -62,7 +66,7 @@ select is(public.submit_session('dddddddd-0000-0000-0000-000000000002', 'edebiya
 select is(public.send_reaction((select group_id from g1), '99999999-0000-0000-0000-00000000000b', 'tebrik'), 'sent', 'U sent a reaction');
 select is(public.report('99999999-0000-0000-0000-00000000000c', null, 'nickname'), 'reported', 'U reported W');
 select lives_ok($$ select public.block_user('99999999-0000-0000-0000-00000000000c') $$, 'U blocked W');
-create temp table pc on commit drop as select * from public.create_parent_code();
+insert into pc select * from public.create_parent_code();
 reset role;
 call tests.act_as('99999999-0000-0000-0000-0000000000a1');
 select is((select status from public.claim_parent_code((select code from pc))), 'linked', 'parent linked');
@@ -72,7 +76,7 @@ call tests.act_as('99999999-0000-0000-0000-00000000000b');
 select is(public.send_reaction((select group_id from g1), '99999999-0000-0000-0000-00000000000a', 'hadi'), 'sent', 'U received a reaction');
 select is(public.report('99999999-0000-0000-0000-00000000000a', null, 'harassment'), 'reported', 'V reported U');
 reset role;
-select app.refresh_leaderboards() is null as refreshed;
+do $$ begin perform app.refresh_leaderboards(); end $$;
 select ok(array_length(tests.traces('99999999-0000-0000-0000-00000000000a'), 1) >= 10, 'U has data in many tables before deletion');
 
 -- ---------------------------------------------------------------- delete
@@ -112,7 +116,7 @@ insert into app.reactions (group_id, from_user, to_user, kind, created_at)
 values ('aaaaaaaa-1111-0000-0000-000000000003', '99999999-0000-0000-0000-00000000000c', '99999999-0000-0000-0000-00000000000b', 'hadi',
         now() - interval '91 days');
 insert into audit.events (user_id, action, at) values (null, 'old', now() - interval '400 days');
-select app.purge_expired() is null as purged;
+do $$ begin perform app.purge_expired(); end $$;
 select is((select count(*)::int from auth.users where id = '99999999-0000-0000-0000-0000000000a1'), 0,
   'an account without profile is purged after a day');
 select is((select count(*)::int from auth.users where id = '99999999-0000-0000-0000-00000000000c'), 0,

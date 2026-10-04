@@ -23,6 +23,9 @@ $$;
 grant execute on procedure tests.act_as(uuid) to authenticated;
 create table tests.codes (key text primary key, code text);
 grant select on tests.codes to authenticated;
+create temp table c1 (code text, expires_at timestamptz);
+create temp table c2 (code text, expires_at timestamptz);
+grant all on c1, c2 to authenticated;
 
 call tests.user('77777777-0000-0000-0000-00000000000c'); -- child, 15-17
 call tests.profile('77777777-0000-0000-0000-00000000000c', 'Öğrenci', '15_17');
@@ -45,7 +48,7 @@ select throws_ok($$ select * from public.create_parent_code() $$, 'P0001', 'not_
   'an 18+ account has no parent link');
 reset role;
 call tests.act_as('77777777-0000-0000-0000-00000000000c');
-create temp table c1 on commit drop as select * from public.create_parent_code();
+insert into c1 select * from public.create_parent_code();
 reset role;
 insert into tests.codes select 'c1', code from c1;
 select is((select expires_at from c1), now() + interval '10 minutes', 'the code is valid for 10 minutes');
@@ -73,7 +76,7 @@ select is((select status from public.claim_parent_code((select code from tests.c
 reset role;
 -- Expired code.
 call tests.act_as('77777777-0000-0000-0000-00000000000c');
-create temp table c2 on commit drop as select * from public.create_parent_code();
+insert into c2 select * from public.create_parent_code();
 reset role;
 update app.parent_link_codes set expires_at = now() - interval '1 second';
 call tests.act_as('77777777-0000-0000-0000-0000000000a3');

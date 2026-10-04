@@ -18,8 +18,8 @@ end
 $$;
 grant execute on procedure tests.act_as(uuid) to authenticated;
 
-select tests.new_user('11111111-0000-0000-0000-000000000001') is not null as setup; -- U1
-select tests.new_user('11111111-0000-0000-0000-000000000002') is not null as setup; -- U2
+do $$ begin perform tests.new_user('11111111-0000-0000-0000-000000000001'); end $$; -- U1
+do $$ begin perform tests.new_user('11111111-0000-0000-0000-000000000002'); end $$; -- U2
 
 -- ---------------------------------------------------------------- under 15 refused (K-16)
 call tests.act_as('11111111-0000-0000-0000-000000000001');

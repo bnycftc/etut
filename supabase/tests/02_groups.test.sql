@@ -23,6 +23,12 @@ grant execute on procedure tests.act_as(uuid) to authenticated;
 -- Ids returned by RPCs, kept for later steps (written as postgres only).
 create table tests.ids (key text primary key, id uuid, code text);
 grant select on tests.ids to authenticated;
+create temp table created (group_id uuid, invite_code text, invite_expires_at timestamptz);
+create temp table rotated (invite_code text, invite_expires_at timestamptz);
+create temp table rotated2 (invite_code text, invite_expires_at timestamptz);
+create temp table solo (group_id uuid, invite_code text, invite_expires_at timestamptz);
+-- RPC results are stored while acting as a user, read later as postgres.
+grant all on created, rotated, rotated2, solo to authenticated;
 
 call tests.user_with_profile('22222222-0000-0000-0000-00000000000a', 'Kurucu');   -- owner
 call tests.user_with_profile('22222222-0000-0000-0000-00000000000b', 'Üye Bir');  -- member
@@ -31,7 +37,7 @@ call tests.user_with_profile('22222222-0000-0000-0000-00000000000d', 'İstekçi'
 
 -- ---------------------------------------------------------------- create
 call tests.act_as('22222222-0000-0000-0000-00000000000a');
-create temp table created on commit drop as select * from public.create_group('Sayısal Ekip');
+insert into created select * from public.create_group('Sayısal Ekip');
 reset role;
 insert into tests.ids select 'g1', group_id, invite_code from created;
 
@@ -120,7 +126,7 @@ select is(public.request_join((select code from tests.ids where key = 'g1')), 'i
 reset role;
 call tests.act_as('22222222-0000-0000-0000-00000000000a');
 select is((select invite_code from public.my_groups()), null, 'an expired code is not shown');
-create temp table rotated on commit drop as select * from public.rotate_invite((select id from tests.ids where key = 'g1'));
+insert into rotated select * from public.rotate_invite((select id from tests.ids where key = 'g1'));
 select isnt((select invite_code from rotated), (select code from tests.ids where key = 'g1'), 'rotation gives a new code');
 select lives_ok($$ select public.revoke_invite((select id from tests.ids where key = 'g1')) $$, 'founder revokes the code');
 reset role;
@@ -132,7 +138,7 @@ select is(public.request_join('AAAAAAA' || n::text), 'invalid_code', 'wrong code
 select is(public.request_join('BBBBBBBB'), 'invalid_code', 'wrong code 10');
 reset role;
 call tests.act_as('22222222-0000-0000-0000-00000000000a');
-create temp table rotated2 on commit drop as select * from public.rotate_invite((select id from tests.ids where key = 'g1'));
+insert into rotated2 select * from public.rotate_invite((select id from tests.ids where key = 'g1'));
 reset role;
 call tests.act_as('22222222-0000-0000-0000-00000000000d');
 select is(public.request_join((select invite_code from rotated2)), 'rate_limited',
@@ -186,7 +192,7 @@ select is((select user_id from app.memberships where group_id = (select id from 
   '22222222-0000-0000-0000-00000000000b'::uuid, 'the longest-standing member becomes the founder');
 -- A group whose last member leaves is removed.
 call tests.act_as('22222222-0000-0000-0000-00000000000c');
-create temp table solo on commit drop as select * from public.create_group('Tek Kişilik');
+insert into solo select * from public.create_group('Tek Kişilik');
 select lives_ok($$ select public.leave_group((select group_id from solo)) $$, 'last member leaves');
 reset role;
 select is((select count(*)::int from app.groups where id = (select group_id from solo)), 0, 'empty group is removed');
