@@ -38,6 +38,22 @@ export function spanStudyMs(span: SessionSpan): number {
   return intervalsTotal(workIntervals(span.startedAt, span.pauses, span.endedAt));
 }
 
+/**
+ * Study time per Istanbul day before `today`, only for days the spans touch (e.g. a running
+ * session that crossed one or more midnights).
+ */
+export function pastDayTotals(spans: SessionSpan[], today: DayKey): Map<DayKey, number> {
+  const out = new Map<DayKey, number>();
+  for (const s of spans) {
+    for (const interval of workIntervals(s.startedAt, s.pauses, s.endedAt)) {
+      for (const part of splitByIstanbulDay(interval)) {
+        if (part.day < today) out.set(part.day, (out.get(part.day) ?? 0) + part.ms);
+      }
+    }
+  }
+  return out;
+}
+
 /** Study time inside `[from, to)` across all spans. */
 export function studiedBetween(spans: SessionSpan[], from: number, to: number): number {
   let total = 0;

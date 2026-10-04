@@ -5,72 +5,9 @@
 
 import * as SQLite from 'expo-sqlite';
 
+import { MIGRATIONS } from './migrations';
+
 const DB_NAME = 'etut.db';
-
-/** Each entry upgrades the schema by one version (PRAGMA user_version). Append only. */
-const MIGRATIONS: string[] = [
-  `
-  CREATE TABLE IF NOT EXISTS sessions (
-    id TEXT PRIMARY KEY NOT NULL,
-    subject_id TEXT NOT NULL,
-    started_at INTEGER NOT NULL,
-    ended_at INTEGER NOT NULL,
-    pauses TEXT NOT NULL,
-    duration_ms INTEGER NOT NULL,
-    created_at INTEGER NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS sessions_started_at ON sessions (started_at);
-  CREATE INDEX IF NOT EXISTS sessions_ended_at ON sessions (ended_at);
-
-  CREATE TABLE IF NOT EXISTS mock_exams (
-    id TEXT PRIMARY KEY NOT NULL,
-    kind TEXT NOT NULL,
-    scope TEXT NOT NULL,
-    brans_section_id TEXT,
-    taken_on TEXT NOT NULL,
-    total_net REAL NOT NULL,
-    created_at INTEGER NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS mock_exams_taken_on ON mock_exams (taken_on);
-
-  CREATE TABLE IF NOT EXISTS mock_exam_scores (
-    exam_id TEXT NOT NULL REFERENCES mock_exams (id) ON DELETE CASCADE,
-    section_id TEXT NOT NULL,
-    questions INTEGER NOT NULL,
-    correct INTEGER NOT NULL,
-    wrong INTEGER NOT NULL,
-    net REAL NOT NULL,
-    PRIMARY KEY (exam_id, section_id)
-  );
-  `,
-  // 2: topic of a session and where it came from ('timer' or 'manual' = added afterwards).
-  `
-  ALTER TABLE sessions ADD COLUMN topic_id TEXT;
-  ALTER TABLE sessions ADD COLUMN source TEXT NOT NULL DEFAULT 'timer';
-  CREATE INDEX IF NOT EXISTS sessions_topic_id ON sessions (topic_id);
-  `,
-  // 3: topic progress ("bitti" / "tekrar lazım").
-  `
-  CREATE TABLE IF NOT EXISTS topic_progress (
-    topic_id TEXT PRIMARY KEY NOT NULL,
-    status TEXT NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
-  `,
-  // 4: mock exam analysis: wrong/blank questions per topic, and when the analysis was finished.
-  `
-  ALTER TABLE mock_exams ADD COLUMN analysis_done_at INTEGER;
-  CREATE TABLE IF NOT EXISTS mock_exam_marks (
-    exam_id TEXT NOT NULL REFERENCES mock_exams (id) ON DELETE CASCADE,
-    section_id TEXT NOT NULL,
-    topic_id TEXT NOT NULL,
-    wrong INTEGER NOT NULL,
-    blank INTEGER NOT NULL,
-    PRIMARY KEY (exam_id, section_id, topic_id)
-  );
-  CREATE INDEX IF NOT EXISTS mock_exam_marks_topic_id ON mock_exam_marks (topic_id);
-  `,
-];
 
 let db: SQLite.SQLiteDatabase | null = null;
 

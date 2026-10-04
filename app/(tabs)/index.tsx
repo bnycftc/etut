@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, Vibration, View } from 'react-native';
+import { AppState, StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { formatClock } from '@/domain/clock';
 import { topicName } from '@/domain/curriculum';
@@ -24,6 +24,9 @@ import { Button, Card, Chip, ChipRow, Label, ProgressBar, Row, Screen, Tag } fro
 import { formatDuration } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
 import { TopicPicker } from '@/ui/topic-picker';
+
+/** A phase change seen within this time of the previous render tick happened on screen. */
+const PHASE_SIGNAL_MAX_GAP_MS = 3_000;
 
 export default function TimerScreen() {
   const app = useAppState();
@@ -54,18 +57,36 @@ export default function TimerScreen() {
   );
   const examDate = resolveExamDate(examType, customExamDay);
   const daysLeft = examDate === null ? null : daysUntil(examDate.day, today);
-  const pomodoro = active === null ? null : pomodoroStatus(active, now);
+  // The render clock ticks once a second; never show a moment before the last "Molayı geç".
+  const lastSkipAt = active?.pomodoro?.skips[active.pomodoro.skips.length - 1]?.at ?? 0;
+  const shownNow = Math.max(now, lastSkipAt);
+  const pomodoro = active === null ? null : pomodoroStatus(active, shownNow);
   const onBreak = pomodoro !== null && pomodoro.phase !== 'work';
 
-  // A short vibration when a pomodoro phase changes while the app is open (no notifications).
+  // A short vibration when a pomodoro phase ends while the student is looking at the app
+  // (no notifications). Not after returning from the background (big time jump) and not for a
+  // change the student made ("Molayı geç").
   const phaseKey = pomodoro === null ? null : `${pomodoro.block}|${pomodoro.phase}`;
-  const lastPhase = useRef(phaseKey);
+  const lastPhase = useRef({ key: phaseKey, at: shownNow });
+  const skipped = useRef(false);
   useEffect(() => {
-    if (phaseKey !== null && lastPhase.current !== null && phaseKey !== lastPhase.current) {
+    const prev = lastPhase.current;
+    const changed = phaseKey !== null && prev.key !== null && phaseKey !== prev.key;
+    if (
+      changed &&
+      !skipped.current &&
+      shownNow - prev.at <= PHASE_SIGNAL_MAX_GAP_MS &&
+      AppState.currentState !== 'background'
+    ) {
       Vibration.vibrate();
     }
-    lastPhase.current = phaseKey;
-  }, [phaseKey]);
+    if (changed) skipped.current = false;
+    lastPhase.current = { key: phaseKey, at: shownNow };
+  }, [phaseKey, shownNow]);
+  const skipBreak = () => {
+    skipped.current = true;
+    app.skipBreak();
+  };
 
   const finish = () => {
     const done = app.finish();
@@ -223,12 +244,12 @@ export default function TimerScreen() {
             style={[styles.clock, { color: running && !onBreak ? c.text : c.textMuted }]}
             numberOfLines={1}
             adjustsFontSizeToFit>
-            {formatClock(pomodoro !== null ? pomodoro.remainingMs : elapsedMs(active, now))}
+            {formatClock(pomodoro !== null ? pomodoro.remainingMs : elapsedMs(active, shownNow))}
           </Text>
           <Label variant="muted" style={{ textAlign: 'center' }}>
             {pomodoro !== null
               ? running
-                ? tr.pomodoro.studied(formatClock(elapsedMs(active, now)))
+                ? tr.pomodoro.studied(formatClock(elapsedMs(active, shownNow)))
                 : tr.pomodoro.paused
               : running
                 ? tr.timer.running
@@ -240,7 +261,7 @@ export default function TimerScreen() {
                 {tr.pomodoro.breakNote}
               </Label>
               {running ? (
-                <Button testID="pomodoro-skip" kind="secondary" title={tr.pomodoro.skip} onPress={app.skipBreak} />
+                <Button testID="pomodoro-skip" kind="secondary" title={tr.pomodoro.skip} onPress={skipBreak} />
               ) : null}
             </>
           ) : null}

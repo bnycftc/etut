@@ -90,15 +90,7 @@ export default function SettingsScreen() {
               {profile.yksArea ? ` · ${tr.yksArea(profile.yksArea)}` : ''}
             </Label>
           </Row>
-          <Row>
-            <Label variant="muted" style={{ flex: 1 }}>
-              {tr.settings.ageGroup}
-            </Label>
-            {/* K-17/K-20: the birth year itself is not shown, only the 15 threshold. */}
-            <Label testID="settings-age-group">
-              {profile.soloOnly ? tr.settings.ageUnder15 : tr.settings.ageOver15}
-            </Label>
-          </Row>
+          {/* K-20: neither the birth year nor an age group is shown anywhere. */}
         </Card>
       ) : null}
 
@@ -121,7 +113,7 @@ export default function SettingsScreen() {
               onChange={setDateText}
               maxLength={10}
               numeric={false}
-              placeholder={examDate === null ? '19.06.2027' : formatDayInput(examDate.day)}
+              placeholder={examDate === null ? tr.countdown.placeholder : formatDayInput(examDate.day)}
             />
           </Row>
           {dateError ? (

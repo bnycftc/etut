@@ -102,9 +102,9 @@ export function listMockExams(): MockExam[] {
 }
 
 /**
- * Exams whose analysis is still pending, newest first. Exams saved before the analysis
- * feature have no flag; they only count when some question was wrong or blank
- * (questions − correct > 0, the same rule as `examNeedsAnalysis`).
+ * Exams whose analysis is still pending, newest first: no `analysis_done_at` and some question
+ * wrong or blank (questions − correct > 0, the same rule as `examNeedsAnalysis`). Exams saved
+ * before migration 4 were marked as analysed by that migration.
  */
 export function listExamsNeedingAnalysis(): MockExam[] {
   return getDb()

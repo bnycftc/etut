@@ -1,8 +1,9 @@
 /**
  * K-17 age-declaration record. Lives in its own kv-store database file, which "Tüm verileri
  * sil" deliberately does not touch, so that deleting the data cannot be used to raise a
- * declared age. Holds a single number: the latest birth year ever declared on this device
- * (= the youngest age). Never leaves the device; removed only by uninstalling the app.
+ * declared age. Holds a single number, and only after an under-15 declaration: that birth year
+ * (the youngest one declared). It is removed as soon as it no longer means "under 15"
+ * (`guardRecordAfter`), and by uninstalling the app. Never leaves the device.
  */
 
 import { SQLiteStorage } from 'expo-sqlite/kv-store';
@@ -23,6 +24,8 @@ export function loadYoungestDeclaredBirthYear(): number | null {
   return Number.isInteger(value) ? value : null;
 }
 
-export function storeYoungestDeclaredBirthYear(birthYear: number): void {
-  guard().setItemSync(KEY, String(birthYear));
+/** `null` removes the record. */
+export function storeYoungestDeclaredBirthYear(birthYear: number | null): void {
+  if (birthYear === null) guard().removeItemSync(KEY);
+  else guard().setItemSync(KEY, String(birthYear));
 }

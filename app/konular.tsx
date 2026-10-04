@@ -78,7 +78,7 @@ export default function TopicsScreen() {
                 <Label variant="heading" style={{ flex: 1 }}>
                   {g.paper}
                 </Label>
-                <Label variant="muted">{`%${p.percent}`}</Label>
+                <Label variant="muted">{tr.topics.percent(p.percent)}</Label>
               </Row>
             ) : null}
             {g.topics.map((t) => {

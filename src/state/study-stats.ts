@@ -4,7 +4,7 @@
  */
 
 import { compareWithPast, type SelfComparison } from '../domain/compare';
-import { activeSpan, dailyTotals, type SessionSpan } from '../domain/daily-totals';
+import { activeSpan, dailyTotals, pastDayTotals, type SessionSpan } from '../domain/daily-totals';
 import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey, lastDays } from '../domain/istanbul-day';
 import { computeStreak, STREAK_LOOKBACK_DAYS, type StreakResult, weekStartOf } from '../domain/streak';
 import { loadDailyGoal } from '../storage/kv';
@@ -46,9 +46,8 @@ export function useStudyStats(now: number): StudyStats {
     spans.filter((s) => s.source === 'manual'),
     [today],
   )[0].totalMs;
-  // A running session that started before midnight also counts towards yesterday.
-  const yesterday = addDays(today, -1);
-  const runningYesterday = running === null ? 0 : dailyTotals([running], [yesterday])[0].totalMs;
+  // A running session that crossed one or more midnights also counts towards those days.
+  const runningPast = running === null ? null : pastDayTotals([running], today);
   const goal = stored.goal;
   const streak =
     goal === null
@@ -57,7 +56,7 @@ export function useStudyStats(now: number): StudyStats {
           (day) =>
             day === today
               ? todayTotal
-              : (stored.past.get(day) ?? 0) + (day === yesterday ? runningYesterday : 0),
+              : (stored.past.get(day) ?? 0) + (runningPast?.get(day) ?? 0),
           today,
           goal,
         );

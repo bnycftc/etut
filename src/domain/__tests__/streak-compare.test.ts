@@ -1,5 +1,5 @@
 import { compareWithPast, weeklySummary } from '../compare';
-import { dailyTotals, type SessionSpan } from '../daily-totals';
+import { dailyTotals, pastDayTotals, type SessionSpan } from '../daily-totals';
 import type { DayKey } from '../istanbul-day';
 import { computeStreak, goalRatio, weekStartOf } from '../streak';
 
@@ -113,6 +113,30 @@ describe('computeStreak (goal 60 min)', () => {
     expect(computeStreak(totalsOf(map), '2026-10-07', GOAL)).toMatchObject({ current: 2 });
     // With a 61-minute goal both halves fall short.
     expect(computeStreak(totalsOf(map), '2026-10-07', 61).current).toBe(0);
+  });
+
+  it('a running session across two midnights counts towards every day it touched', () => {
+    const running: SessionSpan = {
+      subjectId: 'fizik',
+      startedAt: at('2026-10-05T20:00:00Z'), // Mon 23:00 Istanbul
+      endedAt: at('2026-10-07T07:00:00Z'), // Wed 10:00 (now)
+      pauses: [{ start: at('2026-10-05T22:00:00Z'), end: at('2026-10-06T19:00:00Z'), kind: 'manual' }],
+    };
+    const past = pastDayTotals([running], '2026-10-07');
+    expect(Object.fromEntries(past)).toEqual({
+      '2026-10-05': min(60), // Mon 23:00–24:00
+      '2026-10-06': min(60 + 120), // Tue 00:00–01:00 and 22:00–24:00
+    });
+    const totals = (day: DayKey) => (day === '2026-10-07' ? min(600) : (past.get(day) ?? 0));
+    expect(computeStreak(totals, '2026-10-07', 60)).toMatchObject({ current: 3, todayMet: true });
+  });
+
+  it('time added afterwards ("elle") counts for the streak', () => {
+    const spans: SessionSpan[] = [
+      { subjectId: 'fizik', startedAt: at('2026-10-06T07:00:00Z'), endedAt: at('2026-10-06T08:00:00Z'), pauses: [], source: 'manual' },
+    ];
+    const map = Object.fromEntries(dailyTotals(spans, ['2026-10-06']).map((t) => [t.day, t.totalMs]));
+    expect(computeStreak(totalsOf(map), '2026-10-07', 60).current).toBe(1);
   });
 
   it('goal ratio is capped at 1', () => {

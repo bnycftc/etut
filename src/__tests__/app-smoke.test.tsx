@@ -6,6 +6,7 @@
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
+import { Vibration } from 'react-native';
 
 import type { TopicMark } from '../domain/exam-analysis';
 import type { Profile } from '../domain/profile';
@@ -85,7 +86,7 @@ jest.mock('../storage/kv', () => ({
 
 jest.mock('../storage/age-guard', () => ({
   loadYoungestDeclaredBirthYear: () => memory.youngestBirthYear,
-  storeYoungestDeclaredBirthYear: (y: number) => {
+  storeYoungestDeclaredBirthYear: (y: number | null) => {
     memory.youngestBirthYear = y;
   },
 }));
@@ -317,6 +318,14 @@ describe('manual entry ("elle")', () => {
     expect(memory.sessions).toHaveLength(0);
   });
 
+  it('only the last 7 days can be chosen', () => {
+    renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    const prev = screen.getByTestId('manual-prev-day');
+    for (let i = 0; i < 6; i++) fireEvent.press(screen.getByTestId('manual-prev-day'));
+    const disabled = (el: typeof prev) => el.props.accessibilityState?.disabled ?? el.props['aria-disabled'];
+    expect(disabled(screen.getByTestId('manual-prev-day'))).toBeTruthy();
+  });
+
   it('a future time is refused', () => {
     renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
     // Today, ending 23:59 + 10 h is always after now.
@@ -412,7 +421,7 @@ describe('mock exam analysis', () => {
     expect(screen.getByTestId('trend-target').props.children).toBe('Bu ders için hedef koymadın.');
     fireEvent.changeText(screen.getByTestId('trend-target-input'), '45');
     fireEvent.press(screen.getByTestId('trend-target-save'));
-    expect(screen.getByText('0 ile 40 arasında, 0,25’in katı bir net gir.')).toBeTruthy();
+    expect(screen.getByText('0’dan büyük, en fazla 40 olan ve 0,25’in katı bir net gir (ör. 32,5).')).toBeTruthy();
     fireEvent.changeText(screen.getByTestId('trend-target-input'), '30');
     fireEvent.press(screen.getByTestId('trend-target-save'));
     expect(memory.netTargets['TYT:matematik']).toBe(30);
@@ -503,12 +512,22 @@ describe('pomodoro mode', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     expect(memory.active?.pomodoro?.config.workMin).toBe(25);
     expect(screen.getByTestId('pomodoro-phase').props.children).toBe('Çalışma 1/4');
+    const vibrate = jest.spyOn(Vibration, 'vibrate').mockImplementation(() => {});
 
-    jump(25 * 60_000);
+    // Work block ends while the screen is open (tick by tick): one vibration.
+    jump(25 * 60_000 - 2000);
+    expect(screen.getByTestId('pomodoro-phase').props.children).toBe('Çalışma 1/4');
+    act(() => jest.advanceTimersByTime(1000));
     expect(screen.getByTestId('pomodoro-phase').props.children).toBe('Kısa mola');
+    expect(vibrate).toHaveBeenCalledTimes(1);
+
+    // "Molayı geç" changes the phase without vibrating.
     jump(2 * 60_000);
     fireEvent.press(screen.getByTestId('pomodoro-skip'));
     expect(screen.getByTestId('pomodoro-phase').props.children).toBe('Çalışma 2/4');
+    act(() => jest.advanceTimersByTime(1000));
+    expect(vibrate).toHaveBeenCalledTimes(1);
+
     jump(60_000);
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
 
@@ -517,6 +536,18 @@ describe('pomodoro mode', () => {
     expect(saved.durationMs).toBeGreaterThanOrEqual(26 * 60_000);
     expect(saved.durationMs).toBeLessThan(27 * 60_000);
     expect(saved.pauses.some((p) => p.kind === 'break')).toBe(true);
+    vibrate.mockRestore();
+  });
+
+  it('no vibration for a phase change that happened while away (time jump)', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('mode-pomodoro'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    const vibrate = jest.spyOn(Vibration, 'vibrate').mockImplementation(() => {});
+    jump(27 * 60_000);
+    expect(screen.getByTestId('pomodoro-phase').props.children).toBe('Kısa mola');
+    expect(vibrate).not.toHaveBeenCalled();
+    vibrate.mockRestore();
   });
 
   it('settings change the pomodoro lengths within limits', () => {
@@ -590,13 +621,47 @@ describe('K-17: age declaration after deleting all data', () => {
     expect(memory.profile?.soloOnly).toBe(true);
   });
 
-  it('an existing profile is recorded on start; settings show only the age group', () => {
+  it('2000 → nothing kept; delete; 2012 → kept; delete; 2000 → refused', () => {
+    const year = new Date().getUTCFullYear();
+    const deleteAll = () => {
+      act(() => router.push('/ayarlar'));
+      fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    };
+    const declare = (birthYear: number) => {
+      fireEvent.press(screen.getByText(String(birthYear)));
+      fireEvent.press(screen.getByText('KPSS'));
+      fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    };
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    declare(year - 26);
+    expect(memory.profile?.soloOnly).toBe(false);
+    expect(memory.youngestBirthYear).toBeNull();
+    deleteAll();
+    declare(year - 14);
+    expect(memory.profile?.soloOnly).toBe(true);
+    expect(memory.youngestBirthYear).toBe(year - 14);
+    deleteAll();
+    declare(year - 26);
+    expect(memory.profile).toBeNull();
+    expect(screen.getByTestId('onboarding-age-blocked').props.children).toBe(
+      'Bu doğum yılı bu cihazda kaydedilemiyor. Seçimini kontrol edip yeniden dene.',
+    );
+  });
+
+  it('an expired record is dropped at start', () => {
+    memory.youngestBirthYear = new Date().getUTCFullYear() - 30; // certainly 15+ by now
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(memory.youngestBirthYear).toBeNull();
+  });
+
+  it('an adult profile keeps no record; settings show neither birth year nor age group', () => {
     memory.profile = ADULT_SAYISAL;
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
-    expect(memory.youngestBirthYear).toBe(2000);
-    expect(screen.getByTestId('settings-age-group').props.children).toBe('15 ve üstü');
+    expect(memory.youngestBirthYear).toBeNull();
     expect(screen.queryByText('2000')).toBeNull();
     expect(screen.queryByText('Doğum yılı')).toBeNull();
+    expect(screen.queryByText(/15 ve üstü|15 altı/)).toBeNull();
   });
 });
 

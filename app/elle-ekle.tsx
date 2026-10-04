@@ -5,6 +5,7 @@ import { topicName } from '@/domain/curriculum';
 import { addDays, istanbulDayKey, istanbulTimeOfDay } from '@/domain/istanbul-day';
 import {
   buildManualSession,
+  earliestManualDay,
   type ManualEntryError,
   parseDurationFields,
   parseStartTime,
@@ -110,6 +111,7 @@ export default function ManualEntryScreen() {
             testID="manual-prev-day"
             kind="secondary"
             title={tr.exams.prevDay}
+            disabled={day <= earliestManualDay(Date.now())}
             onPress={() => setDay(addDays(day, -1))}
           />
           <Button
@@ -124,14 +126,42 @@ export default function ManualEntryScreen() {
 
         <Label variant="heading">{tr.manual.start}</Label>
         <Row>
-          <Field testID="manual-start-hour" label={tr.manual.hour} value={startH} onChange={setStartH} maxLength={2} placeholder="14" />
-          <Field testID="manual-start-minute" label={tr.manual.minute} value={startM} onChange={setStartM} maxLength={2} placeholder="00" />
+          <Field
+            testID="manual-start-hour"
+            label={tr.manual.hour}
+            value={startH}
+            onChange={setStartH}
+            maxLength={2}
+            placeholder={tr.manual.placeholders.startHour}
+          />
+          <Field
+            testID="manual-start-minute"
+            label={tr.manual.minute}
+            value={startM}
+            onChange={setStartM}
+            maxLength={2}
+            placeholder={tr.manual.placeholders.startMinute}
+          />
         </Row>
 
         <Label variant="heading">{tr.manual.duration}</Label>
         <Row>
-          <Field testID="manual-duration-hours" label={tr.manual.hours} value={durH} onChange={setDurH} maxLength={2} placeholder="0" />
-          <Field testID="manual-duration-minutes" label={tr.manual.minutes} value={durM} onChange={setDurM} maxLength={2} placeholder="45" />
+          <Field
+            testID="manual-duration-hours"
+            label={tr.manual.hours}
+            value={durH}
+            onChange={setDurH}
+            maxLength={2}
+            placeholder={tr.manual.placeholders.durationHours}
+          />
+          <Field
+            testID="manual-duration-minutes"
+            label={tr.manual.minutes}
+            value={durM}
+            onChange={setDurM}
+            maxLength={2}
+            placeholder={tr.manual.placeholders.durationMinutes}
+          />
         </Row>
         <Label variant="small">{tr.manual.limits}</Label>
       </Card>

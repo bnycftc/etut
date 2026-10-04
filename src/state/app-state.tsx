@@ -9,7 +9,7 @@ import { AppState } from 'react-native';
 import { istanbulYear } from '../domain/istanbul-day';
 import {
   canDeclareBirthYear,
-  nextYoungestDeclared,
+  guardRecordAfter,
   type Profile,
   refreshSoloFlag,
 } from '../domain/profile';
@@ -64,17 +64,27 @@ interface AppStateValue {
 
 const AppStateContext = createContext<AppStateValue | null>(null);
 
-/** Keeps the K-17 record up to date (also for profiles created before the record existed). */
-function recordDeclaration(birthYear: number): void {
+/**
+ * Keeps the K-17 record up to date: set for an under-15 declaration, removed once it no
+ * longer means "under 15" (also covers profiles created before the record existed).
+ */
+function recordDeclaration(birthYear: number, currentYear: number): void {
   const previous = loadYoungestDeclaredBirthYear();
-  const next = nextYoungestDeclared(previous, birthYear);
+  const next = guardRecordAfter(previous, birthYear, currentYear);
   if (next !== previous) storeYoungestDeclaredBirthYear(next);
 }
 
 function initialProfile(): Profile | null {
   const stored = loadProfile();
-  if (stored === null) return null;
-  recordDeclaration(stored.birthYear);
+  if (stored === null) {
+    // No profile (e.g. after "delete all"): only drop a record that has expired.
+    const record = loadYoungestDeclaredBirthYear();
+    if (record !== null && guardRecordAfter(record, record, istanbulYear(Date.now())) === null) {
+      storeYoungestDeclaredBirthYear(null);
+    }
+    return null;
+  }
+  recordDeclaration(stored.birthYear, istanbulYear(Date.now()));
   const refreshed = refreshSoloFlag(stored, istanbulYear(Date.now()));
   if (refreshed !== stored) storeProfile(refreshed);
   return refreshed;
@@ -144,7 +154,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (!canDeclareBirthYear(p.birthYear, loadYoungestDeclaredBirthYear(), year)) {
         return 'age_blocked';
       }
-      recordDeclaration(p.birthYear);
+      recordDeclaration(p.birthYear, year);
       storeProfile(p);
       setProfile(p);
       return 'ok';

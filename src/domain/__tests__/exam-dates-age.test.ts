@@ -7,7 +7,7 @@ import {
   resolveExamDate,
 } from '../exam-dates';
 import { istanbulWeekday } from '../istanbul-day';
-import { canDeclareBirthYear, isSoloOnly, nextYoungestDeclared } from '../profile';
+import { canDeclareBirthYear, guardRecordAfter, isSoloOnly } from '../profile';
 
 describe('exam countdown', () => {
   it('built-in 2027 dates are marked as estimates', () => {
@@ -81,9 +81,26 @@ describe('K-17: age declaration after deleting all data', () => {
     expect(canDeclareBirthYear(2000, 2012, 2028)).toBe(true);
   });
 
-  it('the record keeps the youngest declaration', () => {
-    expect(nextYoungestDeclared(null, 2005)).toBe(2005);
-    expect(nextYoungestDeclared(2005, 2012)).toBe(2012);
-    expect(nextYoungestDeclared(2012, 2005)).toBe(2012);
+  it('only an under-15 declaration is recorded; the youngest one wins', () => {
+    expect(guardRecordAfter(null, 2000, YEAR)).toBeNull();
+    expect(guardRecordAfter(null, 2012, YEAR)).toBe(2012);
+    expect(guardRecordAfter(2012, 2014, YEAR)).toBe(2014);
+    expect(guardRecordAfter(2014, 2012, YEAR)).toBe(2014);
+  });
+
+  it('a record that no longer means "under 15" is dropped', () => {
+    // 2012 is under 15 in 2026 but certainly 15+ in 2028.
+    expect(guardRecordAfter(2012, 2012, 2028)).toBeNull();
+    expect(guardRecordAfter(2012, 2000, 2028)).toBeNull();
+    expect(guardRecordAfter(2012, 2015, 2028)).toBe(2015);
+  });
+
+  it('flow: 2000 → nothing kept; delete; 2012 → kept; delete; 2000 → refused', () => {
+    let record = guardRecordAfter(null, 2000, YEAR);
+    expect(record).toBeNull();
+    expect(canDeclareBirthYear(2012, record, YEAR)).toBe(true);
+    record = guardRecordAfter(record, 2012, YEAR);
+    expect(record).toBe(2012);
+    expect(canDeclareBirthYear(2000, record, YEAR)).toBe(false);
   });
 });

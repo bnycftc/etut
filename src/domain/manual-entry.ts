@@ -2,18 +2,32 @@
  * Adding a study session afterwards ("sayacı açmayı unuttum"). Such sessions are stored with
  * `source = 'manual'` and are labelled "elle" wherever they appear (and later in groups).
  *
- * Limits: whole minutes, at least 1 minute, at most 10 hours per entry, must end by now (no
- * future time) and must not overlap any other session, including the one that is running.
+ * Limits: whole minutes, at least 1 minute, at most 10 hours per entry, must start within the
+ * last 7 Istanbul days (today included), must end by now (no future time) and must not
+ * overlap any other session, including the one that is running.
  */
 
-import { type DayKey, dayStartMs } from './istanbul-day';
+import { addDays, type DayKey, dayStartMs, istanbulDayKey } from './istanbul-day';
 import type { CompletedSession } from './timer';
 
 const MIN_MS = 60_000;
 export const MANUAL_MIN_MS = MIN_MS;
 export const MANUAL_MAX_MS = 10 * 60 * MIN_MS;
+/** Today and the 6 days before it. */
+export const MANUAL_DAYS = 7;
 
-export type ManualEntryError = 'invalid' | 'too_short' | 'too_long' | 'future' | 'overlap';
+export type ManualEntryError =
+  | 'invalid'
+  | 'too_short'
+  | 'too_long'
+  | 'too_old'
+  | 'future'
+  | 'overlap';
+
+/** Earliest Istanbul day a manual entry may start on. */
+export function earliestManualDay(now: number): DayKey {
+  return addDays(istanbulDayKey(now), -(MANUAL_DAYS - 1));
+}
 
 export interface ManualEntryInput {
   subjectId: string;
@@ -47,6 +61,7 @@ export function validateManualEntry(
   if (durationMs < MANUAL_MIN_MS) return 'too_short';
   if (durationMs > MANUAL_MAX_MS) return 'too_long';
   const span = { startedAt: startMs, endedAt: startMs + durationMs };
+  if (startMs < dayStartMs(earliestManualDay(now))) return 'too_old';
   if (span.endedAt > now) return 'future';
   if (existing.some((e) => overlaps(span, e))) return 'overlap';
   return null;

@@ -1,6 +1,7 @@
 import { dailyTotals } from '../daily-totals';
 import {
   buildManualSession,
+  earliestManualDay,
   MANUAL_MAX_MS,
   parseDurationFields,
   parseStartTime,
@@ -37,6 +38,17 @@ describe('validateManualEntry', () => {
     expect(validateManualEntry(entry('2026-10-04T14:00:00Z', 60), [], NOW)).toBeNull();
     expect(validateManualEntry(entry('2026-10-04T14:00:00Z', 61), [], NOW)).toBe('future');
     expect(validateManualEntry(entry('2026-10-05T08:00:00Z', 10), [], NOW)).toBe('future');
+  });
+
+  it('only the last 7 Istanbul days, today included, can be filled in', () => {
+    expect(earliestManualDay(NOW)).toBe('2026-09-28');
+    // 2026-09-28 00:00 Istanbul = 2026-09-27T21:00Z
+    expect(validateManualEntry(entry('2026-09-27T21:00:00Z', 30), [], NOW)).toBeNull();
+    expect(validateManualEntry(entry('2026-09-27T20:59:00Z', 30), [], NOW)).toBe('too_old');
+    // Just after Istanbul midnight the window moves by a day.
+    const justAfterMidnight = at('2026-10-04T21:00:00Z'); // 2026-10-05 00:00 Istanbul
+    expect(earliestManualDay(justAfterMidnight)).toBe('2026-09-29');
+    expect(validateManualEntry(entry('2026-09-27T21:00:00Z', 30), [], justAfterMidnight)).toBe('too_old');
   });
 
   it('allows at most 10 hours and at least 1 minute per entry', () => {

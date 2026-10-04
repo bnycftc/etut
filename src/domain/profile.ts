@@ -83,11 +83,11 @@ export function refreshSoloFlag(profile: Profile, currentYear: number): Profile 
 }
 
 /**
- * K-17: after "delete all data" the age declaration must not be raised freely. The device keeps
- * the youngest birth year ever declared (the latest year) outside the deletable data. A new
- * declaration may not move the student from "under 15" to "15+" compared with that record.
- * Declaring the same or a younger age, or staying on the same side of the threshold, is allowed;
- * once the recorded year itself makes the student certainly 15+, nothing is blocked.
+ * K-17: after "delete all data" the age declaration must not be raised freely. Only an under-15
+ * declaration is recorded (outside the deletable data), and only until that birth year makes
+ * the student certainly 15+. A new declaration may not move the student from "under 15" to
+ * "15+" compared with that record. Declaring the same or a younger age, or staying under 15,
+ * is allowed; once the recorded year itself means 15+, nothing is blocked.
  */
 export function canDeclareBirthYear(
   birthYear: number,
@@ -98,9 +98,19 @@ export function canDeclareBirthYear(
   return !(isSoloOnly(youngestDeclared, currentYear) && !isSoloOnly(birthYear, currentYear));
 }
 
-/** The record to keep after a declaration: the latest birth year (= youngest age) so far. */
-export function nextYoungestDeclared(youngestDeclared: number | null, birthYear: number): number {
-  return youngestDeclared === null ? birthYear : Math.max(youngestDeclared, birthYear);
+/**
+ * The record to keep after an (allowed) declaration of `birthYear`, or `null` = keep nothing.
+ * Only under-15 declarations are kept, the youngest (latest year) one wins, and a record that
+ * no longer means "under 15" in `currentYear` is dropped.
+ */
+export function guardRecordAfter(
+  record: number | null,
+  birthYear: number,
+  currentYear: number,
+): number | null {
+  const live = record !== null && isSoloOnly(record, currentYear) ? record : null;
+  if (!isSoloOnly(birthYear, currentYear)) return live;
+  return live === null ? birthYear : Math.max(live, birthYear);
 }
 
 export function isProfile(value: unknown): value is Profile {

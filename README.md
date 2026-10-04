@@ -127,6 +127,6 @@ tanımlanması önerilir. Aynı gizli değerler CarPlay Medya deposundakilerle a
 v0'da veri yalnız cihazdadır: doğum yılı, sınav türü/alan, çalışma oturumları (konu ve
 "elle" bilgisiyle), konu ilerlemesi, denemeler ve analizleri, hedefler. Ad, e-posta, tam doğum
 tarihi sorulmaz. Ayarlar → "Tüm verileri sil" veritabanını ve anahtar-değer deposunu temizler.
-İstisna (hukuk/03 K-17): cihazda beyan edilmiş en genç doğum yılı ayrı bir dosyada
-(`EtutAgeGuard`, `src/storage/age-guard.ts`) kalır; silme sonrası 15 yaş altı beyanından 15+
-beyanına geçişi engellemek için. Uygulama kaldırılınca o da silinir.
+İstisna (hukuk/03 K-17): yalnız 15 yaş altı beyanında, beyan edilen doğum yılı 15 yaşına
+gelene kadar ayrı bir dosyada (`EtutAgeGuard`, `src/storage/age-guard.ts`) kalır; silme sonrası
+15+ beyanına geçişi engellemek için. Süresi dolunca açılışta, uygulama kaldırılınca da silinir.

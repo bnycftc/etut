@@ -116,8 +116,7 @@ export const tr = {
     examTitle: 'Hazırlandığın sınav',
     areaTitle: 'Alanın',
     start: 'Başla',
-    ageBlocked:
-      'Bu seçim, bu cihazda daha önce yapılan yaş beyanıyla uyuşmuyor. Doğum yılını kontrol edip yeniden seç.',
+    ageBlocked: 'Bu doğum yılı bu cihazda kaydedilemiyor. Seçimini kontrol edip yeniden dene.',
   },
 
   timer: {
@@ -156,9 +155,12 @@ export const tr = {
     minutes: 'Dakika',
     add: 'Ekle',
     added: (duration: string) => `Eklendi: ${duration} (elle)`,
-    limits: 'Tek kayıt en fazla 10 saat; gelecekteki ya da başka kayıtla çakışan zaman eklenemez.',
+    limits:
+      'Yalnız son 7 gün (bugün dahil) için; tek kayıt en fazla 10 saat; gelecekteki ya da başka kayıtla çakışan zaman eklenemez.',
+    placeholders: { startHour: '14', startMinute: '00', durationHours: '0', durationMinutes: '45' },
     errors: {
       invalid: 'Başlangıç saatini ve süreyi kontrol et.',
+      too_old: 'Yalnız son 7 gün için süre eklenebilir.',
       too_short: 'Süre en az 1 dakika olmalı.',
       too_long: 'Tek kayıt en fazla 10 saat olabilir.',
       future: 'Henüz gelmemiş bir zaman eklenemez.',
@@ -201,6 +203,7 @@ export const tr = {
       'ÖSYM ve MEB 2027 takvimini henüz açıklamadı; gösterilen tarih tahminidir. Kesin tarih açıklanınca buradan düzeltebilirsin.',
     none: 'Tarih yok',
     input: 'Tarih (GG.AA.YYYY)',
+    placeholder: 'GG.AA.YYYY',
     save: 'Tarihi kaydet',
     reset: 'Tahmini tarihe dön',
     invalid: 'Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.',
@@ -267,6 +270,7 @@ export const tr = {
     title: 'Konular',
     pickSubject: 'Ders',
     progress: (percent: number, done: number, total: number) => `%${percent} · ${done}/${total} konu bitti`,
+    percent: (p: number) => `%${p}`,
     reviewCount: (n: number) => `${n} konu tekrar bekliyor`,
     done: 'Bitti',
     review: 'Tekrar lazım',
@@ -358,7 +362,8 @@ export const tr = {
     targetCurrent: (target: string) => `Hedef: ${target} net`,
     targetSave: 'Hedefi kaydet',
     targetClear: 'Hedefi kaldır',
-    targetInvalid: (questions: number) => `0 ile ${questions} arasında, 0,25’in katı bir net gir.`,
+    targetInvalid: (questions: number) =>
+      `0’dan büyük, en fazla ${questions} olan ve 0,25’in katı bir net gir (ör. 32,5).`,
     gap: (gap: string, average: string) =>
       `Hedefe ${gap} net kaldı (son denemelerin ortalaması: ${average}).`,
     reached: (average: string) => `Hedefe ulaştın (son denemelerin ortalaması: ${average}).`,
@@ -374,16 +379,13 @@ export const tr = {
     title: 'Ayarlar',
     profile: 'Profil',
     exam: 'Sınav',
-    ageGroup: 'Yaş grubu',
-    ageOver15: '15 ve üstü',
-    ageUnder15: '15 altı',
     dataTitle: 'Veriler',
     dataInfo: 'Tüm verilerin yalnız bu cihazda tutulur. Hiçbir sunucuya gönderilmez.',
     deleteAll: 'Tüm verileri sil',
     deleteAllConfirm:
       'Çalışma kayıtların, denemelerin, hedeflerin ve profilin bu cihazdan silinecek. Bu işlem geri alınamaz.',
     deleteAllAgeNote:
-      'Yaş kuralı gereği yalnız beyan ettiğin doğum yılı bu cihazda ayrıca kalır; uygulamayı kaldırınca o da silinir.',
+      '15 yaş altı beyanı yapıldıysa, yaş kuralı gereği yalnız o doğum yılı 15 yaşına gelene kadar bu cihazda ayrıca kalır; uygulamayı kaldırınca o da silinir.',
     deleteAllYes: 'Evet, hepsini sil',
     about: 'Hakkında',
     version: 'Sürüm',
