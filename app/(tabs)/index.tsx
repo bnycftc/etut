@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { formatClock } from '@/domain/clock';
 import { topicName } from '@/domain/curriculum';
-import { dailyTotals, type SessionSpan } from '@/domain/daily-totals';
+import { activeSpan, dailyTotals, type SessionSpan } from '@/domain/daily-totals';
 import { DAY_MS, dayStartMs, istanbulDayKey } from '@/domain/istanbul-day';
 import { defaultSubject, SUBJECTS_BY_EXAM } from '@/domain/subjects';
 import { elapsedMs, isPaused } from '@/domain/timer';
@@ -41,8 +41,12 @@ export default function TimerScreen() {
   });
 
   const spans: SessionSpan[] = [...completedToday];
-  if (active !== null) spans.push({ ...active, endedAt: now });
+  if (active !== null) spans.push(activeSpan(active, now));
   const todayTotal = dailyTotals(spans, [today])[0].totalMs;
+  const todayManual = dailyTotals(
+    spans.filter((s) => s.source === 'manual'),
+    [today],
+  )[0].totalMs;
 
   const finish = () => {
     const done = app.finish();
@@ -61,6 +65,9 @@ export default function TimerScreen() {
           <View style={{ flex: 1 }}>
             <Label variant="muted">{tr.timer.today}</Label>
             <Label variant="heading">{formatDuration(todayTotal)}</Label>
+            {todayManual > 0 ? (
+              <Label variant="small">{tr.timer.manualPart(formatDuration(todayManual))}</Label>
+            ) : null}
           </View>
           <View>
             <Button kind="secondary" title={tr.timer.history} onPress={() => router.push('/gecmis')} />
@@ -112,6 +119,12 @@ export default function TimerScreen() {
           />
           {savedMessage ? <Label variant="muted">{savedMessage}</Label> : null}
           <Row>
+            <Button
+              testID="open-manual"
+              kind="secondary"
+              title={tr.timer.addManual}
+              onPress={() => router.push('/elle-ekle')}
+            />
             <Button
               testID="open-topics"
               kind="secondary"

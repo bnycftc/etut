@@ -1,12 +1,12 @@
 import { View } from 'react-native';
 
 import { hoursMinutes } from '@/domain/clock';
-import { dailyTotals, type SessionSpan, subjectBreakdown } from '@/domain/daily-totals';
+import { activeSpan, dailyTotals, type SessionSpan, subjectBreakdown } from '@/domain/daily-totals';
 import { DAY_MS, dayStartMs, istanbulDayKey, istanbulWeekday, lastDays } from '@/domain/istanbul-day';
 import { useAppState, useNow, useStored } from '@/state/app-state';
 import { sessionsOverlapping } from '@/storage/sessions';
 import { tr } from '@/strings';
-import { BarChart, Card, Label, Row, Screen } from '@/ui/components';
+import { BarChart, Card, Label, Row, Screen, Tag } from '@/ui/components';
 import { formatDay, formatDuration } from '@/ui/format';
 
 const LIST_DAYS = 30;
@@ -21,9 +21,15 @@ export default function HistoryScreen() {
     sessionsOverlapping(dayStartMs(days[0]), dayStartMs(today) + DAY_MS),
   );
   const spans: SessionSpan[] = [...stored];
-  if (active !== null) spans.push({ ...active, endedAt: now });
+  if (active !== null) spans.push(activeSpan(active, now));
 
   const totals = dailyTotals(spans, days);
+  const manualByDay = new Map(
+    dailyTotals(
+      spans.filter((s) => s.source === 'manual'),
+      days,
+    ).map((t) => [t.day, t.totalMs]),
+  );
   const week = totals.slice(-7);
   const listed = [...totals].reverse().filter((t) => t.totalMs > 0);
 
@@ -55,6 +61,12 @@ export default function HistoryScreen() {
             </Label>
             <Label variant="heading">{formatDuration(t.totalMs)}</Label>
           </Row>
+          {(manualByDay.get(t.day) ?? 0) > 0 ? (
+            <Row>
+              <Tag title={tr.manualTag} />
+              <Label variant="small">{tr.history.manualLine(formatDuration(manualByDay.get(t.day) ?? 0))}</Label>
+            </Row>
+          ) : null}
           <View style={{ gap: 4 }}>
             {subjectBreakdown(t).map((s) => (
               <Row key={s.subjectId}>

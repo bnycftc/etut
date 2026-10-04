@@ -4,6 +4,7 @@
  * no "sosyal ağ / sohbet / topluluk" positioning (K-13).
  */
 
+import type { ManualEntryError } from './domain/manual-entry';
 import type { ExamKind, ScoreError, YksArea } from './domain/net';
 import type { ExamType } from './domain/profile';
 
@@ -134,7 +135,42 @@ export const tr = {
     lessThanMinute: '1 dakikadan az',
     saved: (duration: string) => `Kaydedildi: ${duration}`,
     topics: 'Konular',
+    addManual: 'Elle ekle',
+    manualPart: (duration: string) => `${duration} elle eklendi`,
   },
+
+  manual: {
+    title: 'Elle süre ekle',
+    intro:
+      'Sayacı açmayı unuttuysan çalıştığın süreyi sonradan ekle. Bu kayıtlar her yerde “elle” etiketiyle görünür.',
+    subject: 'Ders',
+    day: 'Gün',
+    start: 'Başlangıç',
+    duration: 'Süre',
+    hour: 'Saat',
+    minute: 'Dakika',
+    hours: 'Saat',
+    minutes: 'Dakika',
+    add: 'Ekle',
+    added: (duration: string) => `Eklendi: ${duration} (elle)`,
+    limits: 'Tek kayıt en fazla 10 saat; gelecekteki ya da başka kayıtla çakışan zaman eklenemez.',
+    errors: {
+      invalid: 'Başlangıç saatini ve süreyi kontrol et.',
+      too_short: 'Süre en az 1 dakika olmalı.',
+      too_long: 'Tek kayıt en fazla 10 saat olabilir.',
+      future: 'Henüz gelmemiş bir zaman eklenemez.',
+      overlap: 'Bu saatlerde başka bir çalışma kaydın var.',
+    } satisfies Record<ManualEntryError, string>,
+    recent: 'Son elle eklediklerin',
+    empty: 'Henüz elle eklenmiş süre yok.',
+    deleteConfirm: 'Bu kayıt silinsin mi?',
+    /** `4 Ekim 2026 · 14:30` */
+    when: (date: string, hours: number, minutes: number) =>
+      `${date} · ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`,
+  },
+
+  /** Label of sessions added afterwards (`source = 'manual'`). */
+  manualTag: 'elle',
 
   topicPicker: {
     title: 'Konu (isteğe bağlı)',
@@ -161,6 +197,7 @@ export const tr = {
     title: 'Geçmiş',
     last7: 'Son 7 gün',
     days: 'Günler',
+    manualLine: (duration: string) => `Elle eklenen: ${duration}`,
     empty: 'Henüz kayıtlı çalışma yok.',
     todayLabel: 'Bugün',
     /** Short label above a bar: `2:05` (hours) or `45 dk`. */

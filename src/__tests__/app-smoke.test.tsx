@@ -272,6 +272,71 @@ describe('topic tracking', () => {
   });
 });
 
+describe('manual entry ("elle")', () => {
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+  });
+
+  function fill(hour: string, minute: string, hours: string, minutes: string) {
+    fireEvent.changeText(screen.getByTestId('manual-start-hour'), hour);
+    fireEvent.changeText(screen.getByTestId('manual-start-minute'), minute);
+    fireEvent.changeText(screen.getByTestId('manual-duration-hours'), hours);
+    fireEvent.changeText(screen.getByTestId('manual-duration-minutes'), minutes);
+    fireEvent.press(screen.getByTestId('manual-add'));
+  }
+
+  it('adds a past session labelled "elle", refuses overlaps and over-long entries', () => {
+    renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    fireEvent.press(screen.getByTestId('manual-subject-kimya'));
+    fireEvent.press(screen.getByTestId('manual-prev-day'));
+    fill('10', '00', '0', '45');
+    expect(memory.sessions).toHaveLength(1);
+    expect(memory.sessions[0]).toMatchObject({ subjectId: 'kimya', source: 'manual', durationMs: 45 * 60_000 });
+    expect(screen.getByTestId('manual-added').props.children).toBe('Eklendi: 45 dk (elle)');
+    expect(screen.getAllByText('elle').length).toBeGreaterThan(0);
+
+    fill('10', '30', '1', '0');
+    expect(screen.getByTestId('manual-error').props.children).toBe('Bu saatlerde başka bir çalışma kaydın var.');
+    expect(memory.sessions).toHaveLength(1);
+
+    fill('11', '00', '10', '1');
+    expect(screen.getByTestId('manual-error').props.children).toBe('Tek kayıt en fazla 10 saat olabilir.');
+
+    fill('25', '00', '1', '0');
+    expect(screen.getByTestId('manual-error').props.children).toBe('Başlangıç saatini ve süreyi kontrol et.');
+
+    const id = memory.sessions[0].id;
+    fireEvent.press(screen.getByTestId(`manual-delete-${id}`));
+    fireEvent.press(screen.getByTestId(`manual-delete-yes-${id}`));
+    expect(memory.sessions).toHaveLength(0);
+  });
+
+  it('a future time is refused', () => {
+    renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    // Today, ending 23:59 + 10 h is always after now.
+    fill('23', '59', '10', '0');
+    expect(screen.getByTestId('manual-error').props.children).toBe('Henüz gelmemiş bir zaman eklenemez.');
+  });
+
+  it('history shows the manual part of a day', () => {
+    const now = Date.now();
+    memory.sessions = [
+      {
+        id: 'm',
+        subjectId: 'fizik',
+        topicId: null,
+        startedAt: now - 3 * 3_600_000,
+        endedAt: now - 3 * 3_600_000 + 30 * 60_000,
+        pauses: [],
+        durationMs: 30 * 60_000,
+        source: 'manual',
+      },
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/gecmis' });
+    expect(screen.getByText('Elle eklenen: 30 dk')).toBeTruthy();
+  });
+});
+
 describe('other screens render', () => {
   beforeEach(() => {
     memory.profile = {
