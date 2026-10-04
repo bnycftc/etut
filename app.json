@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Etüt",
+    "slug": "etut",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "etut",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.bnycftc.etut",
+      "appleTeamId": "26322AY3MH",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "tr",
+        "CFBundleLocalizations": ["tr"]
+      }
+    },
+    "android": {
+      "package": "com.bnycftc.etut"
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1F6FEB",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false,
+      "reactCompiler": true
+    }
+  }
+}
