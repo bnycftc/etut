@@ -1,5 +1,5 @@
+# e. TYT denemesi (net = doğru − yanlış/4)
 appId: com.bnycftc.etut
-name: e. TYT denemesi (net = doğru − yanlış/4)
 tags:
   - e2e
 ---
@@ -20,15 +20,19 @@ tags:
 - tapOn:
     id: exam-kind-TYT
 # Türkçe: 10 doğru, 4 yanlış -> 10 - 4/4 = 9 net.
+# The Türkçe row sits right at the top edge of the number pad, so the pad is closed after each
+# field by tapping the plain "Sınav" heading at the top (Screen uses
+# keyboardShouldPersistTaps="handled": a tap on plain text dismisses the keyboard).
 - tapOn:
     id: exam-correct-turkce
 - inputText: "10"
 - tapOn:
+    id: exam-form-kind-title
+- tapOn:
     id: exam-wrong-turkce
 - inputText: "4"
-# Tapping plain text closes the number pad (Screen uses keyboardShouldPersistTaps="handled").
 - tapOn:
-    id: exam-net-turkce
+    id: exam-form-kind-title
 - assertVisible:
     id: exam-net-turkce
     text: "9"

@@ -1,5 +1,5 @@
+# b. Sayaç (başla, mola, devam, bitir)
 appId: com.bnycftc.etut
-name: b. Sayaç (başla, mola, devam, bitir)
 tags:
   - e2e
 ---
@@ -42,7 +42,7 @@ tags:
 - extendedWaitUntil:
     visible:
       id: e2e-never-present
-    timeout: 3000
+    timeout: 5000
     optional: true
 # A paused clock does not move.
 - assertVisible:

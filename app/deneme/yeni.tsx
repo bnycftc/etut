@@ -91,7 +91,9 @@ export default function NewExamScreen() {
   return (
     <Screen>
       <Card>
-        <Label variant="heading">{tr.exams.kind}</Label>
+        <Label variant="heading" testID="exam-form-kind-title">
+          {tr.exams.kind}
+        </Label>
         <ChipRow>
           {kinds.map((k) => (
             <Chip

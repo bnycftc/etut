@@ -1,6 +1,8 @@
 # Maestro workspace config (`maestro test e2e/`). Only top-level flows run; reusable steps live in
 # subflows/. Every flow starts with `launchApp: clearState: true`, so they do not depend on each
 # other; the fixed order only keeps reports and screenshots easy to read.
+# flowsOrder matches a flow's `name:` header if it has one, otherwise its file name, so the flows
+# deliberately have no `name:` (their title is the first comment line).
 flows:
   - "*"
 executionOrder:
