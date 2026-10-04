@@ -417,6 +417,65 @@ describe('mock exam analysis', () => {
   });
 });
 
+describe('goal, streak and "dünkü sen"', () => {
+  const at = (iso: string) => Date.parse(iso);
+  const session = (id: string, startIso: string, endIso: string, source: 'timer' | 'manual' = 'timer') => ({
+    id,
+    subjectId: 'fizik',
+    topicId: null,
+    startedAt: at(startIso),
+    endedAt: at(endIso),
+    pauses: [],
+    durationMs: at(endIso) - at(startIso),
+    source,
+  });
+
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+    jest.setSystemTime(at('2026-10-07T09:00:00Z')); // Wednesday 12:00 Istanbul
+    memory.sessions = [
+      session('lw', '2026-09-30T07:00:00Z', '2026-09-30T07:30:00Z'), // last Wednesday
+      session('mon', '2026-10-05T07:00:00Z', '2026-10-05T08:00:00Z'),
+      session('tue', '2026-10-06T07:00:00Z', '2026-10-06T08:00:00Z'),
+      session('tue-late', '2026-10-06T12:00:00Z', '2026-10-06T13:00:00Z'), // after "same time"
+      session('wed', '2026-10-07T07:00:00Z', '2026-10-07T08:00:00Z', 'manual'),
+    ];
+  });
+
+  it('home shows goal progress, streak and comparisons with own past', () => {
+    memory.dailyGoal = 60;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
+    expect(screen.getByTestId('streak').props.children).toBe('Seri: 3 gün');
+    expect(screen.getByTestId('compare-yesterday').props.children).toBe('1 sa 0 dk');
+    expect(screen.getByTestId('compare-last-week').props.children).toBe('30 dk');
+    expect(screen.getByText('1 sa 0 dk elle eklendi')).toBeTruthy();
+  });
+
+  it('without a goal, the home screen offers to set one in settings', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.queryByTestId('streak')).toBeNull();
+    fireEvent.press(screen.getByTestId('goal-set'));
+    fireEvent.press(screen.getByTestId('settings-goal-on'));
+    expect(memory.dailyGoal).toBe(120);
+    fireEvent.press(screen.getByTestId('settings-goal-plus'));
+    expect(memory.dailyGoal).toBe(135);
+    fireEvent.press(screen.getByTestId('settings-goal-off'));
+    expect(memory.dailyGoal).toBeNull();
+  });
+
+  it('weekly summary: total, longest session, previous week', () => {
+    memory.dailyGoal = 60;
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    expect(screen.getByTestId('weekly-total').props.children).toBe('4 sa 0 dk');
+    expect(screen.getByText('Önceki hafta: 30 dk')).toBeTruthy();
+    expect(screen.getByText('Hedefi tutturduğun gün: 3/7')).toBeTruthy();
+    expect(screen.getByText('Elle eklenen: 1 sa 0 dk')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('weekly-prev'));
+    expect(screen.getByTestId('weekly-total').props.children).toBe('30 dk');
+  });
+});
+
 describe('other screens render', () => {
   beforeEach(() => {
     memory.profile = {

@@ -4,26 +4,24 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { formatClock } from '@/domain/clock';
 import { topicName } from '@/domain/curriculum';
-import { activeSpan, dailyTotals, type SessionSpan } from '@/domain/daily-totals';
-import { DAY_MS, dayStartMs, istanbulDayKey } from '@/domain/istanbul-day';
+import { goalRatio } from '@/domain/streak';
 import { defaultSubject, SUBJECTS_BY_EXAM } from '@/domain/subjects';
 import { elapsedMs, isPaused } from '@/domain/timer';
-import { useAppState, useNow, useStored } from '@/state/app-state';
+import { useAppState, useNow } from '@/state/app-state';
+import { useStudyStats } from '@/state/study-stats';
 import { loadLastSubject } from '@/storage/kv';
-import { sessionsOverlapping } from '@/storage/sessions';
 import { tr } from '@/strings';
-import { Button, Card, Chip, ChipRow, Label, Row, Screen } from '@/ui/components';
+import { Button, Card, Chip, ChipRow, Label, ProgressBar, Row, Screen } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
 import { TopicPicker } from '@/ui/topic-picker';
 
 export default function TimerScreen() {
   const app = useAppState();
-  const { active, profile, dataVersion } = app;
+  const { active, profile } = app;
   const c = usePalette();
   const running = active !== null && !isPaused(active);
   const now = useNow(running);
-  const today = istanbulDayKey(now);
 
   const examType = profile?.examType ?? 'DIGER';
   const yksArea = profile?.yksArea ?? null;
@@ -35,18 +33,7 @@ export default function TimerScreen() {
     setSubjectIdState(id);
   };
 
-  const completedToday = useStored(`${today}|${dataVersion}`, () => {
-    const from = dayStartMs(today);
-    return sessionsOverlapping(from, from + DAY_MS);
-  });
-
-  const spans: SessionSpan[] = [...completedToday];
-  if (active !== null) spans.push(activeSpan(active, now));
-  const todayTotal = dailyTotals(spans, [today])[0].totalMs;
-  const todayManual = dailyTotals(
-    spans.filter((s) => s.source === 'manual'),
-    [today],
-  )[0].totalMs;
+  const { todayTotal, todayManual, comparison, goal, streak } = useStudyStats(now);
 
   const finish = () => {
     const done = app.finish();
@@ -73,6 +60,27 @@ export default function TimerScreen() {
             <Button kind="secondary" title={tr.timer.history} onPress={() => router.push('/gecmis')} />
           </View>
         </Row>
+        {goal !== null && streak !== null ? (
+          <>
+            <ProgressBar ratio={goalRatio(todayTotal, goal)} />
+            <Label testID="goal-progress" variant="small">
+              {streak.todayMet
+                ? tr.goal.met
+                : tr.goal.progress(formatDuration(goal * 60_000), Math.floor(goalRatio(todayTotal, goal) * 100))}
+            </Label>
+            <Label testID="streak">{tr.goal.streak(streak.current)}</Label>
+            <Label variant="small">{streak.restUsedThisWeek ? tr.goal.restUsed : tr.goal.restFree}</Label>
+          </>
+        ) : (
+          <Row>
+            <Button
+              testID="goal-set"
+              kind="secondary"
+              title={tr.goal.set}
+              onPress={() => router.push('/ayarlar')}
+            />
+          </Row>
+        )}
       </Card>
 
       {active?.pendingAway ? (
@@ -159,7 +167,39 @@ export default function TimerScreen() {
           </Row>
         </Card>
       )}
+
+      <Card>
+        <Label variant="heading">{tr.compare.title}</Label>
+        <CompareRow
+          testID="compare-yesterday"
+          label={tr.compare.yesterday}
+          value={comparison.yesterdaySameTime}
+        />
+        <CompareRow label={tr.compare.thisWeek} value={comparison.thisWeek} />
+        <CompareRow
+          testID="compare-last-week"
+          label={tr.compare.lastWeek}
+          value={comparison.lastWeekSameTime}
+        />
+        <Button
+          testID="open-weekly"
+          kind="secondary"
+          title={tr.compare.weekly}
+          onPress={() => router.push('/haftalik')}
+        />
+      </Card>
     </Screen>
+  );
+}
+
+function CompareRow({ label, value, testID }: { label: string; value: number; testID?: string }) {
+  return (
+    <Row>
+      <Label variant="muted" style={{ flex: 1 }}>
+        {label}
+      </Label>
+      <Label testID={testID}>{formatDuration(value)}</Label>
+    </Row>
   );
 }
 

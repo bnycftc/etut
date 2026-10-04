@@ -173,6 +173,45 @@ export const tr = {
   /** Label of sessions added afterwards (`source = 'manual'`). */
   manualTag: 'elle',
 
+  goal: {
+    title: 'Günlük hedef',
+    progress: (goal: string, percent: number) => `Hedef ${goal} · %${percent}`,
+    met: 'Bugünkü hedefini tutturdun.',
+    set: 'Günlük hedef koy',
+    streak: (days: number) => `Seri: ${days} gün`,
+    restUsed: 'Bu haftaki dinlenme günün kullanıldı.',
+    restFree: 'Bu hafta 1 dinlenme günü hakkın var.',
+    off: 'Kapalı',
+    turnOff: 'Hedefi kapat',
+    turnOn: 'Hedef koy',
+    info: 'Hedefini tutturduğun ardışık günler seriyi oluşturur. Haftada 1 gün hedefin altında kalırsan seri bozulmaz; o gün dinlenme günü sayılır.',
+  },
+
+  compare: {
+    title: 'Kendinle kıyas',
+    yesterday: 'Dün bu saate kadar',
+    thisWeek: 'Bu hafta',
+    lastWeek: 'Geçen hafta bu zamana kadar',
+    weekly: 'Haftalık özet',
+  },
+
+  weekly: {
+    title: 'Haftalık özet',
+    range: (from: string, to: string) => `${from} – ${to}`,
+    prev: '‹ Önceki hafta',
+    next: 'Sonraki hafta ›',
+    total: 'Toplam',
+    previousWeek: (duration: string) => `Önceki hafta: ${duration}`,
+    subjects: 'Ders dağılımı',
+    longest: 'En uzun oturum',
+    streak: 'Seri',
+    goalDays: (n: number) => `Hedefi tutturduğun gün: ${n}/7`,
+    activeDays: (n: number) => `Çalıştığın gün: ${n}/7`,
+    manual: (duration: string) => `Elle eklenen: ${duration}`,
+    empty: 'Bu hafta kayıtlı çalışma yok.',
+    percent: (p: number) => `%${p}`,
+  },
+
   topicPicker: {
     title: 'Konu (isteğe bağlı)',
     none: 'Konu seçilmedi',

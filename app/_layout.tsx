@@ -28,6 +28,7 @@ function RootStack() {
         <Stack.Screen name="konular" options={{ title: tr.topics.title }} />
         <Stack.Screen name="elle-ekle" options={{ title: tr.manual.title }} />
         <Stack.Screen name="analiz/[id]" options={{ title: tr.analysis.title }} />
+        <Stack.Screen name="haftalik" options={{ title: tr.weekly.title }} />
       </Stack.Protected>
       <Stack.Protected guard={profile === null}>
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
