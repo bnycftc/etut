@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Used by .github/workflows/testflight.yml: sign for App Store (stored Apple Distribution identity if installed, else cloud-managed) and upload. The workflow also exports a local copy with destination "export" to verify the signature first. -->
+	<!-- "app-store-connect" replaces the deprecated "app-store" (Xcode 15.3+). -->
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>destination</key>
+	<string>upload</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>teamID</key>
+	<string>26322AY3MH</string>
+	<key>uploadSymbols</key>
+	<true/>
+	<!-- The workflow sets CURRENT_PROJECT_VERSION=<run_number>.<run_attempt>; Xcode must not rewrite it. -->
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+</dict>
+</plist>
