@@ -23,15 +23,20 @@ tags:
     id: timer-saved
 - tapOn:
     id: tab-settings
-- extendedWaitUntil:
-    visible:
+# Settings grew (exam date, goal, pomodoro); the delete button is at the bottom.
+- scrollUntilVisible:
+    element:
       id: settings-delete-all
-    timeout: 10000
+    direction: DOWN
+    timeout: 20000
 - takeScreenshot: g-sil-01-ayarlar
 - tapOn:
     id: settings-delete-all
-- assertVisible:
-    id: settings-delete-all-confirm
+- scrollUntilVisible:
+    element:
+      id: settings-delete-all-confirm
+    direction: DOWN
+    timeout: 10000
 - takeScreenshot: g-sil-02-onay
 - tapOn:
     id: settings-delete-all-confirm

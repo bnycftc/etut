@@ -68,10 +68,12 @@ tags:
 - tapOn:
     id: exam-save
 # Back on the list: the new exam is the first row (TYT, 11,5 net).
-- extendedWaitUntil:
-    visible:
+# The list now starts with the analysis card and net charts, so the row can sit below the fold.
+- scrollUntilVisible:
+    element:
       id: exam-item-0
-    timeout: 10000
+    direction: DOWN
+    timeout: 20000
 - assertVisible:
     id: exam-item-0
     text: ".*TYT.*"
