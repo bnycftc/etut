@@ -125,6 +125,8 @@ export function Chip({
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ selected }}
       onPress={onPress}
+      // Same layout as before; the touch target grows to ≥ 44 pt (the row gap is 8).
+      hitSlop={4}
       style={[
         styles.chip,
         {
@@ -355,8 +357,6 @@ const styles = StyleSheet.create({
   buttonText: { fontSize: 17, fontWeight: '600', textAlign: 'center' },
   buttonTextLarge: { fontSize: 22 },
   chip: {
-    minHeight: 44,
-    justifyContent: 'center',
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
     borderRadius: 999,
@@ -379,9 +379,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   stepButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',

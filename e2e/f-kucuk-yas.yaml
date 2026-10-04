@@ -19,10 +19,8 @@ tags:
     end: 50%, 40%
 - tapOn:
     id: onboarding-start
-- extendedWaitUntil:
-    visible:
-      id: timer-start
-    timeout: 15000
+- runFlow:
+    file: subflows/ipucu-gec.yaml
 - assertVisible:
     id: tab-timer
 - assertVisible:

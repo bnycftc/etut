@@ -129,18 +129,12 @@ export default function TimerScreen() {
               <Label variant="small">{tr.timer.manualPart(formatDuration(todayManual))}</Label>
             ) : null}
           </View>
-          <View style={{ gap: 8 }}>
+          <View>
             <Button
               testID="open-history"
               kind="secondary"
               title={tr.timer.history}
               onPress={() => router.push('/gecmis')}
-            />
-            <Button
-              testID="open-share"
-              kind="secondary"
-              title={tr.share.open}
-              onPress={() => router.push('/paylas')}
             />
           </View>
         </Row>
@@ -329,12 +323,20 @@ export default function TimerScreen() {
           label={tr.compare.lastWeek}
           value={comparison.lastWeekSameTime}
         />
-        <Button
-          testID="open-weekly"
-          kind="secondary"
-          title={tr.compare.weekly}
-          onPress={() => router.push('/haftalik')}
-        />
+        <Row>
+          <Button
+            testID="open-weekly"
+            kind="secondary"
+            title={tr.compare.weekly}
+            onPress={() => router.push('/haftalik')}
+          />
+          <Button
+            testID="open-share"
+            kind="secondary"
+            title={tr.share.open}
+            onPress={() => router.push('/paylas')}
+          />
+        </Row>
       </Card>
     </Screen>
   );

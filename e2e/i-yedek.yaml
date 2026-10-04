@@ -1,0 +1,64 @@
+# i. Yedekle (JSON dosyası yazılır, sistemin paylaşım sayfası açılır)
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+# One short session, so the backup has a record.
+- tapOn:
+    id: timer-start
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: "0:0[2-9]"
+    timeout: 15000
+- tapOn:
+    id: timer-finish
+- assertVisible:
+    id: timer-saved
+- tapOn:
+    id: tab-settings
+- scrollUntilVisible:
+    element:
+      id: settings-open-backup
+    direction: DOWN
+- tapOn:
+    id: settings-open-backup
+- extendedWaitUntil:
+    visible:
+      id: backup-export
+    timeout: 10000
+- assertVisible:
+    id: backup-import
+- assertVisible:
+    id: csv-sessions
+- takeScreenshot: i-yedek-01-ekran
+# The system share sheet opens with etut-yedek-<gün>.json.
+- tapOn:
+    id: backup-export
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: i-yedek-02-paylasim-sayfasi
+# Close the share sheet (tap the dimmed area above it, else drag it down); the app then reports
+# the file as ready.
+- tapOn:
+    point: "50%,8%"
+- runFlow:
+    when:
+      notVisible:
+        id: backup-message
+    commands:
+      - swipe:
+          start: 50%, 55%
+          end: 50%, 98%
+          duration: 400
+- extendedWaitUntil:
+    visible:
+      id: backup-message
+    timeout: 20000
+- takeScreenshot: i-yedek-03-hazir

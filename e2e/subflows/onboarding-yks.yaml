@@ -1,5 +1,5 @@
-# Completes the first-launch screen: birth year (current year - AGE), exam YKS, area Sayısal.
-# Called with runFlow + env AGE. Ends on the timer tab.
+# Completes the first-launch screen: birth year (current year - AGE), exam YKS, area Sayısal,
+# then closes the one-time tips. Called with runFlow + env AGE. Ends on the timer tab.
 appId: com.bnycftc.etut
 ---
 - extendedWaitUntil:
@@ -19,7 +19,5 @@ appId: com.bnycftc.etut
     id: yks-area-sayisal
 - tapOn:
     id: onboarding-start
-- extendedWaitUntil:
-    visible:
-      id: timer-start
-    timeout: 15000
+- runFlow:
+    file: ipucu-gec.yaml

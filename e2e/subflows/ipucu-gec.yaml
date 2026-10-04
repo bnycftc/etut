@@ -1,0 +1,13 @@
+# Closes the first-use tips that appear once after onboarding ("Geç"). Ends on the timer tab.
+appId: com.bnycftc.etut
+---
+- extendedWaitUntil:
+    visible:
+      id: tips-card
+    timeout: 15000
+- tapOn:
+    id: tips-skip
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 15000

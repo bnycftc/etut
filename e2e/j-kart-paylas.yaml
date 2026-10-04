@@ -1,0 +1,57 @@
+# j. Çalışma kartı (günlük/haftalık, açık/koyu; görüntü sistemin paylaşım sayfasıyla)
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+# The card button sits in the "Kendinle kıyas" card at the bottom of the timer screen.
+- scrollUntilVisible:
+    element:
+      id: open-share
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: open-share
+- extendedWaitUntil:
+    visible:
+      id: share-card-preview
+    timeout: 10000
+- takeScreenshot: j-kart-01-gunluk-acik
+- tapOn:
+    id: share-period-week
+- tapOn:
+    id: share-theme-dark
+- takeScreenshot: j-kart-02-haftalik-koyu
+- scrollUntilVisible:
+    element:
+      id: share-card-share
+    direction: DOWN
+- tapOn:
+    id: share-card-share
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: j-kart-03-paylasim-sayfasi
+# Close the share sheet (tap above it, else drag it down); no error message may appear.
+- tapOn:
+    point: "50%,8%"
+- runFlow:
+    when:
+      notVisible:
+        id: share-card-share
+    commands:
+      - swipe:
+          start: 50%, 55%
+          end: 50%, 98%
+          duration: 400
+- extendedWaitUntil:
+    visible:
+      id: share-card-share
+    timeout: 20000
+- assertNotVisible:
+    id: share-message
+- takeScreenshot: j-kart-04-sonra

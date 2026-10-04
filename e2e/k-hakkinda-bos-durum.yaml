@@ -1,0 +1,76 @@
+# k. Hakkında, yasal metinler ve boş durumlar
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+    timeout: 60000
+# The short notice is reachable before anything is saved. Scroll the outer screen (starting
+# below the year list, which scrolls on its own).
+- swipe:
+    start: 50%, 85%
+    end: 50%, 30%
+- tapOn:
+    id: onboarding-privacy
+- extendedWaitUntil:
+    visible:
+      id: legal-aydinlatma
+    timeout: 10000
+- takeScreenshot: k-01-aydinlatma
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+# Empty history explains what will appear there.
+- tapOn:
+    id: open-history
+- extendedWaitUntil:
+    visible:
+      id: history-empty
+    timeout: 10000
+- takeScreenshot: k-02-gecmis-bos
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 30000
+- tapOn:
+    id: tab-exams
+# Below the add button and the (empty) charts.
+- scrollUntilVisible:
+    element:
+      id: exams-empty
+    direction: DOWN
+    timeout: 20000
+- takeScreenshot: k-03-denemeler-bos
+- tapOn:
+    id: tab-settings
+- scrollUntilVisible:
+    element:
+      id: settings-open-about
+    direction: DOWN
+- tapOn:
+    id: settings-open-about
+- extendedWaitUntil:
+    visible:
+      id: about-controller
+    timeout: 10000
+- assertVisible:
+    id: about-controller
+    text: "\\[DOLDURULACAK\\]"
+- takeScreenshot: k-04-hakkinda
+- tapOn:
+    id: about-doc-gizlilik
+- extendedWaitUntil:
+    visible:
+      id: legal-gizlilik
+    timeout: 10000
+- takeScreenshot: k-05-gizlilik
