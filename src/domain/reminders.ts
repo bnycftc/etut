@@ -10,6 +10,7 @@
  * Kinds:
  * - `long_session`: the timer has been running without a manual pause for `hours` ("Hâlâ
  *   çalışıyor musun?"). Once per running stretch; a manual pause + resume starts a new stretch.
+ *   Pomodoro breaks do not pause the timer, so the text never says "without a break".
  * - `pomodoro`: a pomodoro phase ends (the in-app vibration covers the foreground case).
  * - `daily`: the student's daily study reminder at a chosen Istanbul time; skipped today once
  *   the student has studied today or a session is running.
@@ -29,8 +30,13 @@ export const DAILY_MINUTE_STEP = 15;
 export const EXAM_REMINDER_HOUR = 18;
 /** Days of daily reminders kept scheduled ahead (refreshed whenever the app is opened). */
 export const DAILY_DAYS_AHEAD = 10;
-/** Pomodoro phase changes kept scheduled ahead. */
-export const POMODORO_CHANGES_AHEAD = 8;
+/**
+ * Pomodoro phase changes kept scheduled ahead: ≈ 10 h 50 min with the default 25/5/15 rhythm,
+ * so a locked phone keeps getting them. The plan moves on at every phase change while the app is
+ * open and when it goes to the background. With 10 daily reminders, 1 long-session reminder and at
+ * most 2 exam days (yesterday's and today's exams) it stays under `MAX_PLANNED`.
+ */
+export const POMODORO_CHANGES_AHEAD = 40;
 /** iOS keeps at most 64 pending local notifications per app. */
 export const MAX_PLANNED = 60;
 

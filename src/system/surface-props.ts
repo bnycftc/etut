@@ -8,6 +8,7 @@
  */
 
 import { topicName } from '../domain/curriculum';
+import { istanbulTimeOfDay } from '../domain/istanbul-day';
 import type { LiveTimerView } from '../domain/live-timer';
 import type { PomodoroPhase } from '../domain/pomodoro';
 import type { PlannedNotification } from '../domain/reminders';
@@ -33,7 +34,11 @@ export interface TimerActivityProps {
   /** Pomodoro: phase progress bar; `progress` is used while paused (no live range then). */
   showProgress: boolean;
   progress: number;
-  /** Shown once the Live Activity is stale (the pomodoro phase after the current one). */
+  /**
+   * Shown once the Live Activity is stale: the pomodoro phase after the current one and its end
+   * time. Without push the activity cannot change again by itself, so after that phase its clock
+   * stays at 0:00 while the end time keeps saying when the phase ended.
+   */
   nextStatus: string | null;
   nextIcon: ActivityIcon | null;
   nextFrom: number | null;
@@ -59,6 +64,12 @@ function phaseLabel(phase: PomodoroPhase, blockInSet: number, longEvery: number)
   if (phase === 'short_break') return tr.pomodoro.shortBreak;
   if (phase === 'long_break') return tr.pomodoro.longBreak;
   return tr.pomodoro.work(blockInSet, longEvery);
+}
+
+/** Istanbul clock time `10:30` of the instant `ms`. */
+function clockTime(ms: number): string {
+  const { hours, minutes } = istanbulTimeOfDay(ms);
+  return tr.reminders.time(hours, minutes);
 }
 
 function phaseIcon(phase: PomodoroPhase | null): ActivityIcon {
@@ -90,7 +101,13 @@ export function timerActivityProps(session: ActiveSession, view: LiveTimerView):
     pausedAt: clock.pausedAt,
     showProgress: view.mode === 'pomodoro',
     progress: span > 0 ? Math.min(1, Math.max(0, (shownAt - clock.from) / span)) : 0,
-    nextStatus: view.next === null ? null : phaseLabel(view.next.phase, view.next.blockInSet, longEvery),
+    nextStatus:
+      view.next === null
+        ? null
+        : tr.liveActivity.phaseEnds(
+            phaseLabel(view.next.phase, view.next.blockInSet, longEvery),
+            clockTime(view.next.clock.to),
+          ),
     nextIcon: view.next === null ? null : phaseIcon(view.next.phase),
     nextFrom: view.next?.clock.from ?? null,
     nextTo: view.next?.clock.to ?? null,

@@ -9,6 +9,7 @@ import {
   normalizeReminderPrefs,
   notificationSignature,
   planNotifications,
+  POMODORO_CHANGES_AHEAD,
   type ReminderInput,
   type ReminderPrefs,
   runningStretchStart,
@@ -92,9 +93,45 @@ describe('pomodoro phase ends', () => {
   it('schedules the next phase changes of a running pomodoro', () => {
     const active = startSession('p', 'fizik', NOW, { pomodoro: DEFAULT_POMODORO });
     const plan = planNotifications(input({ prefs, active, now: NOW + MIN }));
-    expect(plan.map((n) => (n.at - NOW) / MIN)).toEqual([25, 30, 55, 60, 85, 90, 115, 130]);
+    expect(plan.slice(0, 8).map((n) => (n.at - NOW) / MIN)).toEqual([25, 30, 55, 60, 85, 90, 115, 130]);
     expect(plan[0]).toMatchObject({ kind: 'pomodoro', ended: 'work', next: 'short_break' });
     expect(plan[6]).toMatchObject({ ended: 'work', next: 'long_break' });
+  });
+
+  it('a phone locked for hours keeps getting them (≈ 10 h with 25/5/15)', () => {
+    const active = startSession('p', 'fizik', NOW, { pomodoro: DEFAULT_POMODORO });
+    const plan = planNotifications(input({ prefs, active, now: NOW + MIN }));
+    expect(plan).toHaveLength(POMODORO_CHANGES_AHEAD);
+    // 40 changes = 5 cycles of 130 min.
+    expect(plan[plan.length - 1].at - NOW).toBe(650 * MIN);
+  });
+
+  it('planned from a later moment, the reminders start from there (renewed on each sync)', () => {
+    const active = startSession('p', 'fizik', NOW, { pomodoro: DEFAULT_POMODORO });
+    const plan = planNotifications(input({ prefs, active, now: NOW + 140 * MIN }));
+    expect(plan).toHaveLength(POMODORO_CHANGES_AHEAD);
+    expect(plan[0].at).toBe(NOW + 155 * MIN);
+  });
+
+  it('room for everything: pomodoro, the daily reminders, the long session and two exam days', () => {
+    const active = startSession('p', 'fizik', NOW, { pomodoro: DEFAULT_POMODORO });
+    const plan = planNotifications(
+      input({
+        prefs: { ...DEFAULT_REMINDER_PREFS, daily: { enabled: true, hour: 23, minute: 0 } },
+        active,
+        now: NOW + MIN,
+        pendingExams: [
+          { id: 'y', createdAt: NOW - 24 * HOUR },
+          { id: 't', createdAt: NOW },
+        ],
+      }),
+    );
+    const count = (kind: string) => plan.filter((n) => n.kind === kind).length;
+    expect(count('pomodoro')).toBe(POMODORO_CHANGES_AHEAD);
+    expect(count('daily')).toBe(DAILY_DAYS_AHEAD - 1); // today skipped: a session runs
+    expect(count('long_session')).toBe(1);
+    expect(count('exam_analysis')).toBe(2);
+    expect(plan.length).toBeLessThanOrEqual(MAX_PLANNED);
   });
 
   it('nothing while paused, after finishing, or for the stopwatch', () => {

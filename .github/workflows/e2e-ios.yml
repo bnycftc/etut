@@ -108,6 +108,12 @@ jobs:
               echo "::error::$ent contains aps-environment; Etüt uses no push (see plugins/with-etut-ios.js)"; exit 1
             fi
           done
+          # Privacy manifests (app.json ios.privacyManifests, plugins/with-etut-ios.js): both declare
+          # the App Group UserDefaults reason 1C8F.1; the extension's is in its own Resources phase.
+          for manifest in "ios/$scheme/PrivacyInfo.xcprivacy" "$ext_dir/PrivacyInfo.xcprivacy"; do
+            [ -f "$manifest" ] || { echo "::error::Privacy manifest missing: $manifest"; exit 1; }
+            plutil -p "$manifest" | grep -q '1C8F\.1' || { echo "::error::$manifest lacks the UserDefaults reason 1C8F.1"; exit 1; }
+          done
 
       - name: Install CocoaPods dependencies
         working-directory: ios
@@ -150,6 +156,12 @@ jobs:
           esac
           /usr/libexec/PlistBuddy -c 'Print :NSSupportsLiveActivities' "$app/Info.plist" | grep -qx true \
             || { echo "::error::NSSupportsLiveActivities is not set"; exit 1; }
+          # Both bundles carry their own privacy manifest with the App Group reason (ITMS-91053).
+          for manifest in "$app/PrivacyInfo.xcprivacy" "$appex/PrivacyInfo.xcprivacy"; do
+            [ -f "$manifest" ] || { echo "::error::$manifest was not copied into the bundle"; exit 1; }
+            echo "$manifest:"; plutil -p "$manifest"
+            plutil -p "$manifest" | grep -q '1C8F\.1' || { echo "::error::$manifest lacks the UserDefaults reason 1C8F.1"; exit 1; }
+          done
           echo "APP_PATH=$app" >> "$GITHUB_ENV"
 
       # The simulator takes its clock and time zone from the host.

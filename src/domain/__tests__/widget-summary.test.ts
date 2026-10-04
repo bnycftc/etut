@@ -1,7 +1,7 @@
 import { addDays, dayStartMs, type DayKey } from '../istanbul-day';
-import { DEFAULT_POMODORO } from '../pomodoro';
-import { type CompletedSession, pauseSession, startSession } from '../timer';
-import { MAX_WIDGET_ENTRIES, savedTotalsLookup, widgetTimeline } from '../widget-summary';
+import { DEFAULT_POMODORO, upcomingPhaseChanges } from '../pomodoro';
+import { type CompletedSession, elapsedMs, pauseSession, startSession } from '../timer';
+import { MAX_WIDGET_ENTRIES, PHASE_CHANGES_AHEAD, savedTotalsLookup, widgetTimeline } from '../widget-summary';
 
 const HOUR = 3_600_000;
 const MIN = 60_000;
@@ -88,5 +88,33 @@ describe('widgetTimeline', () => {
     expect(entries.length).toBeLessThanOrEqual(MAX_WIDGET_ENTRIES);
     const times = entries.map((e) => e.at);
     expect([...times].sort((a, b) => a - b)).toEqual(times);
+  });
+
+  it('pomodoro all day with the app closed: exact while covered, never more than studied after', () => {
+    const start = dayStartMs(TODAY) + 8 * HOUR; // 08:00 Istanbul
+    const active = startSession('p', 'fizik', start, { pomodoro: DEFAULT_POMODORO });
+    const entries = widgetTimeline({ now: start, savedTotal: () => 0, active, goalMinutes: null });
+    expect(entries.length).toBeLessThanOrEqual(MAX_WIDGET_ENTRIES);
+    // The two midnights are never dropped.
+    expect(entries.map((e) => e.at)).toEqual(expect.arrayContaining([midnight(TODAY, 1), midnight(TODAY, 2)]));
+
+    // What the widget shows at `t`: the entry in effect, counting on from its `at` if `counting`.
+    const shown = (t: number) => {
+      const e = [...entries].reverse().find((x) => x.at <= t)!;
+      return e.todayMs + (e.counting ? t - e.at : 0);
+    };
+    const changes = upcomingPhaseChanges(active, start, PHASE_CHANGES_AHEAD);
+    const coveredUntil = changes[changes.length - 1].at;
+    // 34 changes ≈ 9 h: the widget is exact until 17:10 …
+    expect(coveredUntil - start).toBe(550 * MIN);
+    for (let t = start; t < midnight(TODAY, 1); t += 5 * MIN) {
+      const studied = elapsedMs(active, t);
+      if (t <= coveredUntil) expect(shown(t)).toBe(studied);
+      // … and then stops counting instead of counting the breaks as study.
+      else expect(shown(t)).toBeLessThanOrEqual(studied);
+    }
+    expect(shown(dayStartMs(TODAY) + 18 * HOUR)).toBe(elapsedMs(active, coveredUntil));
+    // A new day starts from zero.
+    expect(shown(midnight(TODAY, 1) + HOUR)).toBe(0);
   });
 });

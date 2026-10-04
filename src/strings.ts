@@ -380,7 +380,7 @@ export const tr = {
     summaryOn: (count: number) => (count === 0 ? 'Açık hatırlatıcı yok.' : `${count} hatırlatıcı açık.`),
     info: 'Hatırlatıcılar bu cihazda kurulur; hiçbir sunucuya bir şey gönderilmez. Uygulama açıkken bildirim gösterilmez.',
     permissionMissing: 'Hatırlatıcıların gelmesi için bildirim izni gerekiyor.',
-    permissionAsk: 'Bildirimlere izin ver',
+    permissionAsk: 'Bildirim izni iste',
     permissionDenied:
       'Bildirim izni kapalı. Telefonun Ayarlar uygulamasından Etüt’ün bildirimlerini açabilirsin.',
     openSettings: 'Ayarları aç',
@@ -389,7 +389,7 @@ export const tr = {
     off: 'Kapalı',
     longSession: 'Uzun oturum uyarısı',
     longSessionInfo: (hours: number) =>
-      `Sayaç ${hours} saat boyunca molasız açık kalırsa “Hâlâ çalışıyor musun?” diye sorar.`,
+      `Sayaç ${hours} saat boyunca duraklatılmadan açık kalırsa “Hâlâ çalışıyor musun?” diye sorar. Pomodoro molaları sayacı duraklatmaz.`,
     longSessionHours: 'Süre',
     hours: (n: number) => `${n} saat`,
     pomodoro: 'Pomodoro aşama sonu',
@@ -414,8 +414,8 @@ export const tr = {
     local:
       'Bildirimler bu cihazda kurulur. Etüt bunun için hiçbir sunucuya bağlanmaz ve bilgi göndermez.',
     later: 'İzin vermezsen uygulama aynen çalışır; yalnız hatırlatıcılar gelmez. Fikrini sonra Ayarlar’dan değiştirebilirsin.',
+    /** The only button: it opens the system prompt, where the student allows or refuses (HIG). */
     allow: 'Devam et',
-    notNow: 'Şimdi değil',
     denied: 'İzin verilmedi. Hatırlatıcılar kapalı kalır; uygulamanın geri kalanı aynen çalışır.',
     granted: 'İzin verildi. Hatırlatıcılar açık.',
     close: 'Kapat',
@@ -425,7 +425,7 @@ export const tr = {
   notification: {
     longSessionTitle: 'Hâlâ çalışıyor musun?',
     longSessionBody: (hours: number) =>
-      `Sayaç ${hours} saattir molasız açık. Ara verdiysen sayacı durdurabilirsin.`,
+      `Sayaç ${hours} saattir duraklatılmadan açık. Ara verdiysen sayacı durdurabilirsin.`,
     workEndedTitle: 'Çalışma bloğu bitti',
     shortBreakBody: 'Kısa mola başladı.',
     longBreakBody: 'Uzun mola başladı.',
@@ -443,7 +443,11 @@ export const tr = {
 
   /** Lock Screen / Dynamic Island timer (iOS Live Activity). */
   liveActivity: {
-    next: (label: string) => `Sıradaki: ${label}`,
+    /**
+     * The phase shown once the Live Activity is stale, with its end time: it stays true after the
+     * phase is over (the activity cannot change by itself any more; the app updates it when opened).
+     */
+    phaseEnds: (label: string, time: string) => `${label} · bitiş ${time}`,
   },
 
   /** Home Screen widget (iOS). */

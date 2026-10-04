@@ -6,7 +6,12 @@
  * Istanbul midnight (a new day), pomodoro phase changes (study time stops/starts growing) and the
  * moment the daily goal is reached. While study time grows the widget draws the clock itself
  * (`counting`, from `at - todayMs`), so no entry per minute is needed.
- * The app sends a new timeline whenever the data changes (start, pause, finish, goal, …).
+ * The app sends a new timeline whenever the data changes (start, pause, finish, goal, …) and at
+ * every pomodoro phase change while it is open.
+ *
+ * A pomodoro has more phase changes before the last midnight than the timeline can hold. After the
+ * last phase change it covers, the widget cannot know when the breaks come, so from that entry on
+ * it stops counting: it may show less than was studied, never more.
  */
 
 import { activeSpan, dailyTotals, type SessionSpan } from './daily-totals';
@@ -17,10 +22,14 @@ import { type ActiveSession, isPaused, workIntervals } from './timer';
 
 /** Midnights ahead covered by the timeline (the widget shows a fresh day even if the app stays closed). */
 const MIDNIGHTS_AHEAD = 2;
-/** Pomodoro phase changes covered (≈ 12 hours with the default 25/5/15 rhythm). */
-const PHASE_CHANGES_AHEAD = 24;
 /** WidgetKit keeps the timeline small; later entries are dropped. */
 export const MAX_WIDGET_ENTRIES = 40;
+/**
+ * Pomodoro phase changes covered: what is left of `MAX_WIDGET_ENTRIES` after "now", the midnights
+ * and the moments the goal is reached (at most one per day shown). 34 changes ≈ 9 hours with the
+ * default 25/5/15 rhythm.
+ */
+export const PHASE_CHANGES_AHEAD = MAX_WIDGET_ENTRIES - 1 - MIDNIGHTS_AHEAD - (MIDNIGHTS_AHEAD + 1);
 
 export interface WidgetEntry {
   /** When this entry becomes current. */
@@ -67,13 +76,14 @@ function isCounting(active: ActiveSession | null, at: number): boolean {
   return status === null || status.phase === 'work';
 }
 
-function entryAt(input: WidgetTimelineInput, at: number): WidgetEntry {
+/** `known`: the timeline still knows what happens after `at` (see the cut in `widgetTimeline`). */
+function entryAt(input: WidgetTimelineInput, at: number, known: boolean): WidgetEntry {
   const { savedTotal, active, goalMinutes } = input;
   const day = istanbulDayKey(at);
   const running = active === null ? null : runningByDay(active, at);
   const total = (d: DayKey) => savedTotal(d) + (running?.get(d) ?? 0);
   const todayMs = total(day);
-  const counting = isCounting(active, at);
+  const counting = known && isCounting(active, at);
   const met = goalMinutes !== null && goalMet(todayMs, goalMinutes);
   return {
     at,
@@ -93,23 +103,27 @@ export function widgetTimeline(input: WidgetTimelineInput): WidgetEntry[] {
   const points = new Set<number>([now]);
   const today = istanbulDayKey(now);
   for (let i = 1; i <= MIDNIGHTS_AHEAD; i++) points.add(dayStartMs(addDays(today, i)));
-  if (active !== null) {
-    for (const change of upcomingPhaseChanges(active, now, PHASE_CHANGES_AHEAD)) points.add(change.at);
-  }
   const horizon = dayStartMs(addDays(today, MIDNIGHTS_AHEAD));
+  // From `knownUntil` on the breaks are not covered any more: the widget stops counting there.
+  let knownUntil = Number.POSITIVE_INFINITY;
+  if (active !== null) {
+    const changes = upcomingPhaseChanges(active, now, PHASE_CHANGES_AHEAD + 1).filter((c) => c.at <= horizon);
+    for (const change of changes.slice(0, PHASE_CHANGES_AHEAD)) points.add(change.at);
+    if (changes.length > PHASE_CHANGES_AHEAD) knownUntil = changes[PHASE_CHANGES_AHEAD - 1].at;
+  }
   const times = [...points].filter((t) => t >= now && t <= horizon).sort((a, b) => a - b);
 
   // The goal is reached inside a counting stretch: add that moment as its own entry.
   const goalMs = goalMinutes === null ? null : goalMinutes * 60_000;
   const entries: WidgetEntry[] = [];
   for (let i = 0; i < times.length; i++) {
-    const entry = entryAt(input, times[i]);
+    const entry = entryAt(input, times[i], times[i] < knownUntil);
     const end = i + 1 < times.length ? times[i + 1] : times[i] + DAY_MS;
     if (goalMs !== null && entry.counting && !entry.goalMet) {
       const reachAt = entry.at + (goalMs - entry.todayMs);
       entry.goalReachedAt = reachAt;
       entries.push(entry);
-      if (reachAt < end) entries.push(entryAt(input, reachAt));
+      if (reachAt < end) entries.push(entryAt(input, reachAt, reachAt < knownUntil));
     } else {
       entries.push(entry);
     }

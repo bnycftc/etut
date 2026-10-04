@@ -30,10 +30,17 @@ describe('Live Activity props', () => {
     expect(props.nextStatus).toBeNull();
   });
 
-  it('a break says what comes next', () => {
+  it('a break says what comes next and when that ends (still true once its clock is at 0:00)', () => {
     const s = startSession('p', 'kimya', T0, { pomodoro: DEFAULT_POMODORO });
     const props = timerActivityProps(s, liveTimerView(s, T0 + 26 * MIN));
-    expect(props).toMatchObject({ status: 'Kısa mola', icon: 'cup.and.saucer.fill', nextStatus: 'Çalışma 2/4' });
+    // T0 = 10:00 Istanbul; the second work block runs 10:30–10:55.
+    expect(props).toMatchObject({
+      status: 'Kısa mola',
+      icon: 'cup.and.saucer.fill',
+      nextStatus: 'Çalışma 2/4 · bitiş 10:55',
+      nextFrom: T0 + 30 * MIN,
+      nextTo: T0 + 55 * MIN,
+    });
   });
 });
 
@@ -88,7 +95,8 @@ describe('notification texts (neutral for every age)', () => {
   it('maps each planned reminder to a title, body and route', () => {
     expect(notificationText({ id: 'a', at: 0, kind: 'long_session', hours: 3 })).toEqual({
       title: 'Hâlâ çalışıyor musun?',
-      body: 'Sayaç 3 saattir molasız açık. Ara verdiysen sayacı durdurabilirsin.',
+      // Pomodoro breaks do not pause the timer, so the text does not claim "without a break".
+      body: 'Sayaç 3 saattir duraklatılmadan açık. Ara verdiysen sayacı durdurabilirsin.',
       url: '/',
     });
     expect(notificationText({ id: 'b', at: 0, kind: 'pomodoro', ended: 'work', next: 'long_break' }).body).toBe(

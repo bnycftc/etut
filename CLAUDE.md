@@ -27,7 +27,9 @@ expo-router. Kurulum, komutlar ve yayın hattı: `README.md`.
   props'la gelir (`surface-props.ts`); nesne/dizi yayma, `for…of`, sınıf kullanma (Babel yardımcısı üretir).
 - Push yok: `plugins/with-etut-ios.js` `aps-environment`'ı kaldırır ve app.json `plugins` listesinde
   **ilk sırada** kalmalı (Expo ilk eklentinin mod'larını en son çalıştırır). Uzantı kimliği
-  `com.bnycftc.etut.ExpoWidgetsTarget`, App Group `group.com.bnycftc.etut`.
+  `com.bnycftc.etut.ExpoWidgetsTarget`, App Group `group.com.bnycftc.etut`. Aynı eklenti uzantının
+  `PrivacyInfo.xcprivacy`'sini yazar; uygulamanınki `app.json` → `ios.privacyManifests`. Uzantıya
+  required-reason API kullanan kod/pod eklersen iki manifesti de güncelle.
 - `app/` — ekranlar. Profil yoksa yalnız `onboarding` erişilebilir (`Stack.Protected`).
 - `src/strings.ts` — kullanıcıya görünen **tüm** metinler burada; ekranlara metin gömme.
 

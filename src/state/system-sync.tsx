@@ -2,8 +2,11 @@
  * Keeps the system surfaces in step with the app: the iOS Live Activity (Lock Screen / Dynamic
  * Island timer), the Home Screen widget and the local reminders. Glue only: what to show comes
  * from the domain (`live-timer.ts`, `widget-summary.ts`, `reminders.ts`), how to show it from
- * `src/system/`. Runs after every change of the running session or the stored data and whenever
- * the app comes to the foreground; never ticks, never while in the background.
+ * `src/system/`. Runs after every change of the running session or the stored data, whenever the
+ * app comes to the foreground and when a pomodoro phase ends while the app stays open (a phase
+ * change changes nothing in the stored session). Going to the background is a session change
+ * too, so the surfaces get a last sync then; only starting a Live Activity needs the foreground.
+ * Never ticks.
  */
 
 import { router } from 'expo-router';
@@ -81,9 +84,12 @@ const inBackground = () => AppState.currentState === 'background';
 const runLiveActivity = serial();
 let lastLiveKey: string | null = null;
 
-/** Starts, updates, refreshes or ends the Live Activity (only possible in the foreground). */
+/**
+ * Starts, updates, refreshes or ends the Live Activity. ActivityKit starts one only while the app
+ * is in the foreground; updating and ending also work while it goes to the background.
+ */
 async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
-  if (!liveActivity.supported || inBackground()) return;
+  if (!liveActivity.supported) return;
   const now = Date.now();
   const action = liveActivityAction({
     sessionId: active?.id ?? null,
@@ -91,6 +97,9 @@ async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
     record: loadLiveActivityRecord(),
     now,
   });
+  // A start would be refused here, and a restart would end the old one and leave none: both wait
+  // for the foreground.
+  if (inBackground() && (action === 'start' || action === 'restart')) return;
   if (action === 'end' || action === 'restart') {
     await liveActivity.endAll();
     lastLiveKey = null;
@@ -115,7 +124,7 @@ async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
 let lastWidgetKey: string | null = null;
 
 function syncWidget(active: ActiveSession | null, data: SurfaceData | null): void {
-  if (!homeWidget.supported || inBackground()) return;
+  if (!homeWidget.supported) return;
   const now = Date.now();
   const entries =
     data === null
@@ -145,6 +154,30 @@ function syncReminders(active: ActiveSession | null, data: SurfaceData | null): 
   return notifications.sync(planned, notificationText);
 }
 
+/** Longest wait between two looks at the clock (a timer can fire late; the clock can be changed). */
+const PHASE_CHECK_MS = 60_000;
+
+/**
+ * Counts the ends of the pomodoro phase shown on the system surfaces (`staleAt`) while the app
+ * stays open, so that each phase change syncs the Live Activity, the reminder plan and the widget.
+ */
+function usePhaseEnds(session: ActiveSession | null, foreground: number): number {
+  const [ends, setEnds] = useState(0);
+  useEffect(() => {
+    const end = session === null ? null : liveTimerView(session, Date.now()).staleAt;
+    if (end === null) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const check = () => {
+      const left = end - Date.now();
+      if (left <= 0) setEnds((n) => n + 1);
+      else timer = setTimeout(check, Math.min(left, PHASE_CHECK_MS));
+    };
+    check();
+    return () => clearTimeout(timer);
+  }, [session, foreground, ends]);
+  return ends;
+}
+
 export function SystemSync(): null {
   const { active, profile, dataVersion } = useAppState();
   // Minute ticks only matter for the day key (a new day reloads the data).
@@ -154,6 +187,7 @@ export function SystemSync(): null {
     profile === null ? null : loadSurfaceData(today),
   );
   const session = profile === null ? null : active;
+  const phaseEnds = usePhaseEnds(session, foreground);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (status) => {
@@ -174,16 +208,16 @@ export function SystemSync(): null {
 
   useEffect(() => {
     runLiveActivity(() => syncLiveActivity(session));
-  }, [session, foreground]);
+  }, [session, foreground, phaseEnds]);
 
   useEffect(() => {
     syncWidget(session, data);
-  }, [session, data, foreground]);
+  }, [session, data, foreground, phaseEnds]);
 
   useEffect(() => {
-    if (!notifications.supported || inBackground()) return;
+    if (!notifications.supported) return;
     void syncReminders(session, data);
-  }, [session, data, foreground]);
+  }, [session, data, foreground, phaseEnds]);
 
   return null;
 }

@@ -27,6 +27,9 @@ function reminderLabel(key: ReminderKey, prefs: ReminderPrefs): string {
 /**
  * Explains the reminders before the system permission prompt. Opened only when the student
  * turns a reminder on (or asks for the permission on the reminders screen).
+ * Apple HIG (Privacy, pre-alert screens): a single button that opens the system prompt, titled
+ * like "Continue" (not "Allow"), and no other way out of the screen; the student allows or
+ * refuses in the system prompt itself. The modal cannot be swiped away (`app/_layout.tsx`).
  */
 export default function NotificationPermissionScreen() {
   const { enable } = useLocalSearchParams<{ enable?: string }>();
@@ -77,20 +80,12 @@ export default function NotificationPermissionScreen() {
           />
         </>
       ) : (
-        <>
-          <Button
-            testID="notification-permission-allow"
-            title={tr.notificationPermission.allow}
-            disabled={asking}
-            onPress={() => void allow()}
-          />
-          <Button
-            testID="notification-permission-later"
-            kind="secondary"
-            title={tr.notificationPermission.notNow}
-            onPress={() => router.back()}
-          />
-        </>
+        <Button
+          testID="notification-permission-allow"
+          title={tr.notificationPermission.allow}
+          disabled={asking}
+          onPress={() => void allow()}
+        />
       )}
     </Screen>
   );

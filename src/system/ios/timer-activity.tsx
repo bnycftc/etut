@@ -10,7 +10,10 @@
  *
  * The clock is drawn by the system (`Text` with `timerInterval`), so the app sends an update
  * only when something changes. After `staleDate` (end of the pomodoro phase) the system marks the
- * activity stale and the layout switches to the next phase on its own.
+ * activity stale and the layout switches to the next phase on its own. That works for one phase
+ * only: without push nothing can change the activity while the app is closed, so the next phase is
+ * shown with its end time ("Kısa mola · bitiş 10:30"), which stays true once its clock is at 0:00.
+ * The app updates it at every phase change while it is open and when it goes to the background.
  */
 
 import { HStack, Image, ProgressView, Spacer, Text, VStack } from '@expo/ui/swift-ui';

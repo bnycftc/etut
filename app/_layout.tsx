@@ -31,9 +31,10 @@ function RootStack() {
         <Stack.Screen name="analiz/[id]" options={{ title: tr.analysis.title }} />
         <Stack.Screen name="haftalik" options={{ title: tr.weekly.title }} />
         <Stack.Screen name="hatirlaticilar" options={{ title: tr.reminders.title }} />
+        {/* Pre-permission screen: left only through its button (HIG), so no swipe-down. */}
         <Stack.Screen
           name="bildirim-izni"
-          options={{ title: tr.notificationPermission.title, presentation: 'modal' }}
+          options={{ title: tr.notificationPermission.title, presentation: 'modal', gestureEnabled: false }}
         />
       </Stack.Protected>
       <Stack.Protected guard={profile === null}>

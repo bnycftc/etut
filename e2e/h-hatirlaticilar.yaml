@@ -48,12 +48,30 @@ tags:
     timeout: 10000
 - assertVisible:
     id: notification-permission-item-daily
-- assertVisible:
+# Apple HIG: one button ("Devam et") that leads to the system prompt, no second way out.
+- assertNotVisible:
     id: notification-permission-later
 - takeScreenshot: h-hatirlaticilar-03-aciklama
-# "Şimdi değil": no prompt, the reminder stays off, the app keeps working.
+# The system prompt is not opened here: restart the app instead (the permission stays unanswered).
+# Nothing was granted, so the reminder stays off and the app keeps working.
+- stopApp
+- launchApp:
+    clearState: false
+    permissions:
+      notifications: unset
+- extendedWaitUntil:
+    visible:
+      id: tab-settings
+    timeout: 30000
 - tapOn:
-    id: notification-permission-later
+    id: tab-settings
+- scrollUntilVisible:
+    element:
+      id: settings-reminders
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: settings-reminders
 - extendedWaitUntil:
     visible:
       id: reminder-daily-toggle

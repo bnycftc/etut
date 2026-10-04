@@ -18,10 +18,23 @@
       "infoPlist": {
         "CFBundleDevelopmentRegion": "tr",
         "CFBundleLocalizations": ["tr"]
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1", "1C8F.1"]
+          }
+        ]
       }
     },
     "android": {
-      "package": "com.bnycftc.etut"
+      "package": "com.bnycftc.etut",
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "output": "single",

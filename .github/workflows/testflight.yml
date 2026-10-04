@@ -15,7 +15,8 @@ name: TestFlight
 # "Verify distribution signature" checks the exported IPA before anything is uploaded: the app and
 # every embedded extension (the expo-widgets target com.bnycftc.etut.ExpoWidgetsTarget: Home Screen
 # widget + Live Activity) must be distribution-signed, carry the same version/build number and the
-# App Group group.com.bnycftc.etut, and must not carry aps-environment (no push is used).
+# App Group group.com.bnycftc.etut, must not carry aps-environment (no push is used), and must
+# contain its own PrivacyInfo.xcprivacy declaring the App Group UserDefaults reason 1C8F.1.
 # Automatic signing registers the extension's App ID and the App Group capability itself; if
 # Apple refuses, register them once by hand (README, "App Store Connect'te elle yapılacaklar").
 #
@@ -108,6 +109,12 @@ jobs:
             if /usr/libexec/PlistBuddy -c 'Print :aps-environment' "$ent" > /dev/null 2>&1; then
               echo "::error::$ent contains aps-environment; Etüt uses no push (see plugins/with-etut-ios.js)"; exit 1
             fi
+          done
+          # Privacy manifests (app.json ios.privacyManifests, plugins/with-etut-ios.js): both declare
+          # the App Group UserDefaults reason 1C8F.1; the extension's is in its own Resources phase.
+          for manifest in "ios/$scheme/PrivacyInfo.xcprivacy" "$ext_dir/PrivacyInfo.xcprivacy"; do
+            [ -f "$manifest" ] || { echo "::error::Privacy manifest missing: $manifest"; exit 1; }
+            plutil -p "$manifest" | grep -q '1C8F\.1' || { echo "::error::$manifest lacks the UserDefaults reason 1C8F.1"; exit 1; }
           done
           {
             echo "WORKSPACE=$workspace"
@@ -245,6 +252,16 @@ jobs:
           }
           check_entitlements "$app"
 
+          # Privacy manifest of the app and of every extension (ITMS-91053 "Missing API declaration"):
+          # each bundle declares the App Group UserDefaults reason 1C8F.1.
+          check_privacy_manifest() {
+            local manifest="$1/PrivacyInfo.xcprivacy"
+            [ -f "$manifest" ] || { echo "::error::$1 has no PrivacyInfo.xcprivacy"; exit 1; }
+            echo "$manifest:"; plutil -p "$manifest"
+            plutil -p "$manifest" | grep -q '1C8F\.1' || { echo "::error::$manifest lacks the UserDefaults reason 1C8F.1"; exit 1; }
+          }
+          check_privacy_manifest "$app"
+
           # App extensions (the expo-widgets Home Screen widget + Live Activity): each must be signed
           # for distribution on its own, live under the app's bundle id and carry the app's versions.
           extensions=0
@@ -267,6 +284,7 @@ jobs:
             [ "$ext_build" = "$BUILD_NUMBER" ] || { echo "::error::$ext_id CFBundleVersion is $ext_build, expected $BUILD_NUMBER"; exit 1; }
             [ "$ext_version" = "$app_version" ] || { echo "::error::$ext_id version $ext_version differs from the app's $app_version"; exit 1; }
             check_entitlements "$appex"
+            check_privacy_manifest "$appex"
           done
           [ "$extensions" -ge 1 ] || { echo "::error::No app extension found; the widget extension (ExpoWidgetsTarget) is missing"; exit 1; }
           echo "Verified app + $extensions extension(s)." >> "$GITHUB_STEP_SUMMARY"

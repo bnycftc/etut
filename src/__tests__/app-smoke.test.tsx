@@ -6,12 +6,12 @@
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
-import { Vibration } from 'react-native';
+import { AppState, type AppStateStatus, Vibration } from 'react-native';
 
 import type { TopicMark } from '../domain/exam-analysis';
 import type { Profile } from '../domain/profile';
 import type { ActiveSession, CompletedSession } from '../domain/timer';
-import type { PlannedNotification } from '../domain/reminders';
+import { type PlannedNotification, POMODORO_CHANGES_AHEAD } from '../domain/reminders';
 import type { MockExamWithScores } from '../storage/mock-exams';
 import type { TimerActivityProps, TodayWidgetProps } from '../system/surface-props';
 
@@ -39,6 +39,8 @@ const memory: {
   answerPermission: boolean;
   planned: PlannedNotification[];
   liveActivities: TimerActivityProps[];
+  /** `staleAt` handed to the last start/update of the Live Activity. */
+  liveActivityStaleAt: number | null;
   widget: { at: number; props: TodayWidgetProps }[];
 } = {
   profile: null,
@@ -61,6 +63,7 @@ const memory: {
   answerPermission: false,
   planned: [],
   liveActivities: [],
+  liveActivityStaleAt: null,
   widget: [],
 };
 
@@ -87,12 +90,14 @@ jest.mock('../system/live-activity', () => ({
   liveActivity: {
     supported: true,
     count: () => memory.liveActivities.length,
-    start: (props: TimerActivityProps) => {
+    start: (props: TimerActivityProps, staleAt: number | null) => {
       memory.liveActivities = [...memory.liveActivities, props];
+      memory.liveActivityStaleAt = staleAt;
       return true;
     },
-    update: async (props: TimerActivityProps) => {
+    update: async (props: TimerActivityProps, staleAt: number | null) => {
       memory.liveActivities = memory.liveActivities.map(() => props);
+      memory.liveActivityStaleAt = staleAt;
     },
     endAll: async () => {
       memory.liveActivities = [];
@@ -255,6 +260,7 @@ beforeEach(() => {
   memory.answerPermission = false;
   memory.planned = [];
   memory.liveActivities = [];
+  memory.liveActivityStaleAt = null;
   memory.widget = [];
 });
 
@@ -839,9 +845,104 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     await settle();
     const props = memory.liveActivities[0];
-    expect(props).toMatchObject({ status: 'Çalışma 1/4', countsDown: true, showProgress: true, nextStatus: 'Kısa mola' });
+    expect(props).toMatchObject({ status: 'Çalışma 1/4', countsDown: true, showProgress: true });
+    expect(props.nextStatus).toMatch(/^Kısa mola · bitiş \d\d:\d\d$/);
     expect(props.to - props.from).toBe(25 * 60_000);
     expect(props.nextFrom).toBe(props.to);
+    // The system switches to the next phase when the work block ends.
+    expect(memory.liveActivityStaleAt).toBe(props.to);
+  });
+
+  /** Moves the clock on and lets the app's timers run for a minute (the phase-end check included). */
+  function jumpAndRun(ms: number) {
+    act(() => {
+      jest.setSystemTime(Date.now() + ms);
+      jest.advanceTimersByTime(60_000);
+    });
+  }
+
+  const futurePomodoroReminders = () =>
+    memory.planned.filter((n) => n.kind === 'pomodoro' && n.at > Date.now());
+
+  it('pomodoro, app left open: each phase change updates the Live Activity and moves the reminders on', async () => {
+    memory.permission = 'granted';
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('mode-pomodoro'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    await settle();
+    const startedAt = memory.active!.startedAt;
+
+    // 31 min: second work block. Nothing in the stored session changed, the phase end did.
+    jumpAndRun(31 * 60_000);
+    await settle();
+    expect(memory.liveActivities).toHaveLength(1);
+    const props = memory.liveActivities[0];
+    expect(props.status).toBe('Çalışma 2/4');
+    expect(props.to).toBe(startedAt + 55 * 60_000);
+    expect(memory.liveActivityStaleAt).toBe(props.to);
+    expect(screen.getByTestId('pomodoro-phase').props.children).toBe('Çalışma 2/4');
+
+    // Long after the first plan (140 min): the phase-end reminders still lie ahead.
+    jumpAndRun(108 * 60_000);
+    await settle();
+    expect(futurePomodoroReminders()).toHaveLength(POMODORO_CHANGES_AHEAD);
+    expect(memory.widget[0].at).toBeGreaterThanOrEqual(startedAt + 140 * 60_000);
+  });
+
+  /** Sends an AppState change to the listeners registered since `from` (the mock never calls them). */
+  function emitAppState(status: AppStateStatus, from: number) {
+    Object.defineProperty(AppState, 'currentState', { value: status, configurable: true, writable: true });
+    const calls = (AppState.addEventListener as jest.Mock).mock.calls.slice(from);
+    act(() => {
+      for (const [type, listener] of calls) if (type === 'change') listener(status);
+    });
+  }
+
+  describe('going to the background', () => {
+    const original = AppState.currentState;
+    afterEach(() => {
+      Object.defineProperty(AppState, 'currentState', { value: original, configurable: true, writable: true });
+    });
+
+    it('syncs once more: the Live Activity is updated, the reminders start from now', async () => {
+      memory.permission = 'granted';
+      const from = (AppState.addEventListener as jest.Mock).mock.calls.length;
+      renderRouter(APP_DIR, { initialUrl: '/' });
+      fireEvent.press(screen.getByTestId('mode-pomodoro'));
+      fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+      await settle();
+      const startedAt = memory.active!.startedAt;
+
+      // The break began a moment ago; no app timer has run since (e.g. the phone was just locked).
+      act(() => jest.setSystemTime(startedAt + 26 * 60_000));
+      expect(memory.liveActivities[0].status).toBe('Çalışma 1/4');
+      emitAppState('background', from);
+      await settle();
+      expect(memory.active?.backgroundedAt).not.toBeNull();
+      expect(memory.liveActivities[0].status).toBe('Kısa mola');
+      expect(memory.liveActivityStaleAt).toBe(startedAt + 30 * 60_000);
+      const reminders = futurePomodoroReminders();
+      expect(reminders).toHaveLength(POMODORO_CHANGES_AHEAD);
+      expect(reminders[0]).toMatchObject({ at: startedAt + 30 * 60_000, ended: 'short_break' });
+    });
+
+    it('never starts a Live Activity there; it starts once the app is back', async () => {
+      const from = (AppState.addEventListener as jest.Mock).mock.calls.length;
+      renderRouter(APP_DIR, { initialUrl: '/' });
+      fireEvent.press(screen.getByText('Fizik'));
+      fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+      await settle();
+      // The system had refused it (e.g. Live Activities off): none and no record.
+      memory.liveActivities = [];
+      memory.liveActivityRecord = null;
+      emitAppState('background', from);
+      await settle();
+      expect(memory.liveActivities).toHaveLength(0);
+      emitAppState('active', from);
+      await settle();
+      expect(memory.liveActivities).toHaveLength(1);
+      expect(memory.liveActivityRecord).toMatchObject({ sessionId: memory.active?.id });
+    });
   });
 
   it('the widget shows today, the goal and the streak; "delete all" leaves nothing personal', async () => {
@@ -870,7 +971,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     expect(memory.widget[0].props).toMatchObject({ total: '0 dk', goalLine: null, streakLine: null });
   });
 
-  it('turning a reminder on asks through the explanation screen; "Şimdi değil" keeps it off', async () => {
+  it('turning a reminder on asks through the explanation screen, whose only button opens the prompt', async () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
     await settle();
     expect(screen.getByTestId('settings-reminders-summary').props.children).toBe(
@@ -879,6 +980,8 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     fireEvent.press(screen.getByTestId('settings-reminders'));
     await settle();
     expect(screen.getByTestId('reminders-permission-missing')).toBeTruthy();
+    // Neutral wording: asking is not granting.
+    expect(screen.getByRole('button', { name: 'Bildirim izni iste' })).toBeTruthy();
     expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.selected).toBe(false);
     fireEvent.press(screen.getByTestId('reminder-daily-toggle'));
     await settle();
@@ -887,14 +990,12 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     expect(screen.getByTestId('notification-permission-item-longSession').props.children).toBe(
       '• Uzun oturum uyarısı (3 saat)',
     );
-    fireEvent.press(screen.getByTestId('notification-permission-later'));
-    await settle();
     expect(memory.permissionRequests).toBe(0);
-    expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.selected).toBe(false);
+    // Apple HIG: one "Continue"-like button, no second way out of the explanation.
+    expect(screen.queryByTestId('notification-permission-later')).toBeNull();
+    expect(screen.queryByText('Şimdi değil')).toBeNull();
 
-    // Second time: "Devam et" shows the system prompt (granted here) and turns it on.
-    fireEvent.press(screen.getByTestId('reminder-daily-toggle'));
-    await settle();
+    // "Devam et" shows the system prompt (granted here) and turns the reminder on.
     fireEvent.press(screen.getByTestId('notification-permission-allow'));
     await settle();
     expect(memory.permissionRequests).toBe(1);
