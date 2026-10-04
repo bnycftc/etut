@@ -4,6 +4,7 @@ import { StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { formatClock } from '@/domain/clock';
 import { topicName } from '@/domain/curriculum';
+import { daysUntil, resolveExamDate } from '@/domain/exam-dates';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { goalRatio } from '@/domain/streak';
 import { defaultSubject, SUBJECTS_BY_EXAM } from '@/domain/subjects';
@@ -11,6 +12,7 @@ import { elapsedMs, isPaused } from '@/domain/timer';
 import { useAppState, useNow, useStored } from '@/state/app-state';
 import { useStudyStats } from '@/state/study-stats';
 import {
+  loadCustomExamDate,
   loadLastSubject,
   loadPomodoroConfig,
   loadTimerMode,
@@ -18,7 +20,7 @@ import {
   type TimerMode,
 } from '@/storage/kv';
 import { tr } from '@/strings';
-import { Button, Card, Chip, ChipRow, Label, ProgressBar, Row, Screen } from '@/ui/components';
+import { Button, Card, Chip, ChipRow, Label, ProgressBar, Row, Screen, Tag } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
 import { TopicPicker } from '@/ui/topic-picker';
@@ -46,7 +48,12 @@ export default function TimerScreen() {
   };
   const pomodoroConfig = useStored(`pomodoro|${app.dataVersion}`, loadPomodoroConfig);
 
-  const { todayTotal, todayManual, comparison, goal, streak } = useStudyStats(now);
+  const { today, todayTotal, todayManual, comparison, goal, streak } = useStudyStats(now);
+  const customExamDay = useStored(`examDate|${examType}|${app.dataVersion}`, () =>
+    loadCustomExamDate(examType),
+  );
+  const examDate = resolveExamDate(examType, customExamDay);
+  const daysLeft = examDate === null ? null : daysUntil(examDate.day, today);
   const pomodoro = active === null ? null : pomodoroStatus(active, now);
   const onBreak = pomodoro !== null && pomodoro.phase !== 'work';
 
@@ -73,6 +80,14 @@ export default function TimerScreen() {
   return (
     <Screen>
       <Card>
+        {examDate !== null && daysLeft !== null && daysLeft >= 0 ? (
+          <Row>
+            <Label testID="countdown" style={{ fontWeight: '600', flex: 1 }}>
+              {daysLeft === 0 ? tr.countdown.today : tr.countdown.days(examType, daysLeft)}
+            </Label>
+            {examDate.estimated ? <Tag title={tr.countdown.estimated} /> : null}
+          </Row>
+        ) : null}
         <Row>
           <View style={{ flex: 1 }}>
             <Label variant="muted">{tr.timer.today}</Label>

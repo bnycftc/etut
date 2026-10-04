@@ -2,6 +2,7 @@ import {
   daysUntil,
   EXAM_DATES,
   formatDayInput,
+  isValidCustomExamDay,
   parseDayInput,
   resolveExamDate,
 } from '../exam-dates';
@@ -41,6 +42,12 @@ describe('exam countdown', () => {
     expect(parseDayInput('2027-06-19')).toBeNull();
     expect(parseDayInput('')).toBeNull();
     expect(formatDayInput('2027-06-19')).toBe('19.06.2027');
+  });
+
+  it('a custom date must not be in the past', () => {
+    expect(isValidCustomExamDay('2026-10-04', '2026-10-04')).toBe(true);
+    expect(isValidCustomExamDay('2026-10-03', '2026-10-04')).toBe(false);
+    expect(isValidCustomExamDay('2035-01-01', '2026-10-04')).toBe(false);
   });
 });
 

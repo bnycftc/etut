@@ -64,6 +64,12 @@ export function parseDayInput(text: string): DayKey | null {
   return addDays(key, 0) === key ? key : null;
 }
 
+/** A date the student sets must be today or later (at most ~5 years ahead). */
+export function isValidCustomExamDay(day: DayKey, today: DayKey): boolean {
+  const days = daysUntil(day, today);
+  return days >= 0 && days <= 5 * 366;
+}
+
 /** Day key → `GG.AA.YYYY` for the edit field. */
 export function formatDayInput(day: DayKey): string {
   const [y, m, d] = day.split('-');

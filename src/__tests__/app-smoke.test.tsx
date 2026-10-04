@@ -527,6 +527,41 @@ describe('pomodoro mode', () => {
   });
 });
 
+describe('exam countdown', () => {
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+    jest.setSystemTime(Date.parse('2026-10-04T09:00:00Z'));
+  });
+
+  it('home shows the days left to the estimated YKS date', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.getByTestId('countdown').props.children).toBe('YKS’ye 258 gün');
+    expect(screen.getByText('tahmini')).toBeTruthy();
+  });
+
+  it('the student can set the exact date and go back to the estimate', () => {
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    expect(screen.getByTestId('settings-exam-date').props.children).toBe('19 Haziran 2027');
+    fireEvent.changeText(screen.getByTestId('settings-exam-date-input'), '01.01.2020');
+    fireEvent.press(screen.getByTestId('settings-exam-date-save'));
+    expect(screen.getByText('Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.')).toBeTruthy();
+    fireEvent.changeText(screen.getByTestId('settings-exam-date-input'), '26.06.2027');
+    fireEvent.press(screen.getByTestId('settings-exam-date-save'));
+    expect(memory.examDates.YKS).toBe('2027-06-26');
+    expect(screen.getByTestId('settings-exam-date').props.children).toBe('26 Haziran 2027');
+    expect(screen.getByText('senin girdiğin tarih')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('settings-exam-date-reset'));
+    expect(memory.examDates.YKS).toBeUndefined();
+  });
+
+  it('a custom date is shown on the home screen without "tahmini"', () => {
+    memory.examDates.YKS = '2027-06-26';
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.getByTestId('countdown').props.children).toBe('YKS’ye 265 gün');
+    expect(screen.queryByText('tahmini')).toBeNull();
+  });
+});
+
 describe('other screens render', () => {
   beforeEach(() => {
     memory.profile = {

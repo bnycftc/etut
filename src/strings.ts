@@ -187,6 +187,23 @@ export const tr = {
     info: 'Hedefini tutturduğun ardışık günler seriyi oluşturur. Haftada 1 gün hedefin altında kalırsan seri bozulmaz; o gün dinlenme günü sayılır.',
   },
 
+  countdown: {
+    /** "YKS'ye 258 gün" — every built-in exam name ends in "S", so the suffix is "'ye". */
+    days: (examType: ExamType, days: number) =>
+      examType === 'DIGER' ? `Sınavına ${days} gün` : `${examTypes[examType]}’ye ${days} gün`,
+    today: 'Sınav günü bugün. Başarılar!',
+    estimated: 'tahmini',
+    custom: 'senin girdiğin tarih',
+    settingsTitle: 'Sınav tarihi',
+    settingsInfo:
+      'ÖSYM ve MEB 2027 takvimini henüz açıklamadı; gösterilen tarih tahminidir. Kesin tarih açıklanınca buradan düzeltebilirsin.',
+    none: 'Tarih yok',
+    input: 'Tarih (GG.AA.YYYY)',
+    save: 'Tarihi kaydet',
+    reset: 'Tahmini tarihe dön',
+    invalid: 'Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.',
+  },
+
   compare: {
     title: 'Kendinle kıyas',
     yesterday: 'Dün bu saate kadar',

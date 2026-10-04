@@ -3,6 +3,13 @@ import Constants from 'expo-constants';
 import { useState } from 'react';
 
 import {
+  formatDayInput,
+  isValidCustomExamDay,
+  parseDayInput,
+  resolveExamDate,
+} from '@/domain/exam-dates';
+import { istanbulDayKey } from '@/domain/istanbul-day';
+import {
   DEFAULT_POMODORO,
   normalizePomodoroConfig,
   type PomodoroConfig,
@@ -10,10 +17,18 @@ import {
 } from '@/domain/pomodoro';
 import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '@/domain/streak';
 import { useAppState, useStored } from '@/state/app-state';
-import { loadDailyGoal, loadPomodoroConfig, storeDailyGoal, storePomodoroConfig } from '@/storage/kv';
+import {
+  loadCustomExamDate,
+  loadDailyGoal,
+  loadPomodoroConfig,
+  storeCustomExamDate,
+  storeDailyGoal,
+  storePomodoroConfig,
+} from '@/storage/kv';
 import { tr } from '@/strings';
-import { Button, Card, Label, Row, Screen, Stepper } from '@/ui/components';
-import { formatDuration } from '@/ui/format';
+import { Button, Card, Field, Label, Row, Screen, Stepper, Tag } from '@/ui/components';
+import { formatDay, formatDuration } from '@/ui/format';
+import { usePalette } from '@/ui/theme';
 
 const DEFAULT_GOAL_MINUTES = 120;
 const GOAL_STEP_MINUTES = 15;
@@ -43,6 +58,21 @@ export default function SettingsScreen() {
     storePomodoroConfig(normalizePomodoroConfig(config));
     notifyDataChanged();
   };
+  const c = usePalette();
+  const examType = profile?.examType ?? 'DIGER';
+  const customDay = useStored(`examDate|${examType}|${dataVersion}`, () => loadCustomExamDate(examType));
+  const examDate = resolveExamDate(examType, customDay);
+  const [dateText, setDateText] = useState('');
+  const [dateError, setDateError] = useState(false);
+  const saveDate = () => {
+    const day = parseDayInput(dateText);
+    const ok = day !== null && isValidCustomExamDay(day, istanbulDayKey(Date.now()));
+    setDateError(!ok);
+    if (!ok) return;
+    storeCustomExamDate(examType, day);
+    setDateText('');
+    notifyDataChanged();
+  };
   const version = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '–';
   const build = Application.nativeBuildVersion ?? '–';
 
@@ -65,6 +95,50 @@ export default function SettingsScreen() {
               {tr.settings.birthYear}
             </Label>
             <Label>{String(profile.birthYear)}</Label>
+          </Row>
+        </Card>
+      ) : null}
+
+      {profile !== null ? (
+        <Card>
+          <Label variant="heading">{tr.countdown.settingsTitle}</Label>
+          <Row>
+            <Label testID="settings-exam-date" style={{ flex: 1 }}>
+              {examDate === null ? tr.countdown.none : formatDay(examDate.day)}
+            </Label>
+            {examDate?.estimated ? <Tag title={tr.countdown.estimated} /> : null}
+            {examDate?.custom ? <Tag title={tr.countdown.custom} /> : null}
+          </Row>
+          <Label variant="small">{tr.countdown.settingsInfo}</Label>
+          <Row>
+            <Field
+              testID="settings-exam-date-input"
+              label={tr.countdown.input}
+              value={dateText}
+              onChange={setDateText}
+              maxLength={10}
+              numeric={false}
+              placeholder={examDate === null ? '19.06.2027' : formatDayInput(examDate.day)}
+            />
+          </Row>
+          {dateError ? (
+            <Label variant="small" style={{ color: c.danger }}>
+              {tr.countdown.invalid}
+            </Label>
+          ) : null}
+          <Row>
+            <Button testID="settings-exam-date-save" kind="secondary" title={tr.countdown.save} onPress={saveDate} />
+            {examDate?.custom ? (
+              <Button
+                testID="settings-exam-date-reset"
+                kind="secondary"
+                title={tr.countdown.reset}
+                onPress={() => {
+                  storeCustomExamDate(profile.examType, null);
+                  notifyDataChanged();
+                }}
+              />
+            ) : null}
           </Row>
         </Card>
       ) : null}
