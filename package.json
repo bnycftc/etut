@@ -3,6 +3,7 @@
   "main": "index",
   "version": "0.1.0",
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
     "expo": "~57.0.26",
     "expo-application": "~57.0.3",
     "expo-constants": "~57.0.20",
@@ -20,6 +21,8 @@
     "react-native-web": "~0.21.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-pgtap": "^0.0.9",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.2.2",
