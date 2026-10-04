@@ -24,18 +24,29 @@ npm ci
 | `npx jest` | Alan (domain) birim testleri (`src/domain/__tests__`) |
 | `npx expo-doctor` | Bağımlılık ve yapılandırma denetimi |
 | `npx expo export --platform ios` | iOS JS paketini `dist/` altına üretir (yerel derleme olmadan doğrulama) |
-| `npx expo start --web` | Web önizlemesi (aşağıdaki nota bakın) |
+| `npm run web` | Web önizlemesi, sabit port 8081 (`http://localhost:8081`; `npx expo start --web` de çalışır) |
+| `npm run test:web` | Web duman testi: geliştirme sunucusunu kendisi açar/kapatır, Playwright ile uygulamayı dener |
+| `npm run test:all` | `tsc` + `jest --ci` + `test:web` |
 | `npx expo install <paket>` | SDK ile uyumlu sürümle paket ekler (npm install yerine bunu kullanın) |
 
 **Windows notu:** iOS projesi (`ios/`) Windows'ta üretilemez ve derlenemez
 (`expo prebuild --platform ios` Windows'ta reddedilir). iOS yalnız CI'da derlenir.
 Expo Go da kullanılmaz; uygulama doğrudan TestFlight derlemesiyle denenir.
 
-**Web notu:** `npx expo start --web` paketi derler ama uygulama açılışta durur:
-expo-sqlite web'de `SharedArrayBuffer` ister, bu da sayfanın
-`Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` başlıklarıyla sunulmasını gerektirir;
-yerel Expo geliştirme sunucusu bu başlıkları göndermiyor (metro `enhanceMiddleware` ve
-expo-router `headers` denendi, HTML yanıtına eklenmedi). Web v0'da hedef değildir.
+**Web notu:** Web yalnız geliştirme/test önizlemesidir (yayın hedefi değil). Mobil ile aynı
+`src/storage/db.ts` / `kv.ts`, aynı şema ve göçler çalışır: expo-sqlite web'de SQLite'ı (wa-sqlite)
+bir worker'da çalıştırır ve veriyi tarayıcının OPFS'inde (origin private file system) kalıcı tutar.
+Bunun için iki şey gerekir, ikisi de hazır:
+- Sayfa çapraz köken yalıtımlı olmalı (`SharedArrayBuffer`). Metro'nun `server.enhanceMiddleware`
+  kancası HTML belgesine ulaşmaz (belgeyi Expo CLI'nin kendi ara katmanı döndürür); bu yüzden
+  `metro.config.js` `Cross-Origin-Opener-Policy: same-origin` ve
+  `Cross-Origin-Embedder-Policy: credentialless` başlıklarını geliştirme sunucusunun tüm yanıtlarına ekler.
+- Eşzamanlı SQLite çağrıları worker hazır değilken zaman aşımına uğrar; `index.web.ts` worker'ı ilk
+  render'dan önce ısıtır (yerel giriş `index.ts` → `expo-router/entry`, değişmedi).
+
+Sınırlar: Chrome/Edge/Firefox'ta çalışır (Safari `credentialless` desteklemez). Aynı tarayıcıda
+uygulamayı **tek sekmede** açın: OPFS dosya tutamaçları özeldir, ikinci sekme veritabanını açamaz.
+Web verisini sıfırlamak için uygulamadaki "Tüm verileri sil" ya da tarayıcıda site verilerini temizleyin.
 
 ## Yapı
 
@@ -55,14 +66,38 @@ src/storage/            expo-sqlite veritabanı ve kv-store
 src/state/              Uygulama durumu (domain ile depolama arasındaki ince katman)
 src/ui/                 Tema, ortak bileşenler, biçimlendirme
 src/strings.ts          Kullanıcıya görünen tüm metinler
+index.ts / index.web.ts Giriş noktası (web: SQLite worker'ını ısıtıp expo-router'ı başlatır)
+scripts/test-web.mjs    Web duman testi (npm run test:web)
+e2e/                    Maestro akışları (iOS simülatörü, e2e-ios.yml)
 ci/ExportOptions.plist  TestFlight ihracat ayarları
-.github/workflows/      ci.yml, testflight.yml
+.github/workflows/      ci.yml, testflight.yml, e2e-ios.yml
 ```
 
 ## Yayın hattı
 
 ### `ci.yml` (her push ve PR)
 ubuntu-latest: `npm ci` → `npx tsc --noEmit` → `npx jest --ci` → `npx expo-doctor`.
+
+### `e2e-ios.yml` (elle `workflow_dispatch` veya `main`'e push: `app/`, `src/`, `package*.json`, `app.json`, `e2e/`)
+İnsan test edici olmadan iOS simülatöründe uçtan uca test. Gizli değer gerekmez.
+1. macOS 26 koşucusu, Xcode denetimi, Node + Java 17, `npm ci`.
+2. `expo prebuild --platform ios --clean --no-install` → `pod install`.
+3. `xcodebuild build` Release, `-sdk iphonesimulator`, `CODE_SIGNING_ALLOWED=NO`: JS paketi
+   (`main.jsbundle`) uygulamaya gömülüdür, Metro gerekmez.
+4. Koşucunun saat dilimi Europe/Istanbul yapılır (simülatör ana makineninkini kullanır); en yeni iOS
+   çalışma zamanında yeni bir iPhone simülatörü oluşturulur, `AppleLanguages=tr`, `AppleLocale=tr_TR`
+   yazılıp yeniden başlatılır, uygulama kurulur.
+5. Maestro resmi kurulum betiğiyle sabit sürümde (`MAESTRO_VERSION`) kurulur, `e2e/*.yaml` akışları çalışır.
+6. Her durumda: ekran görüntüleri, JUnit raporu, Maestro hata ayıklama çıktısı, xcodebuild ve uygulama
+   logları `e2e-ios-<numara>` artifact'ı olarak 14 gün saklanır; özet tabloda her akışın sonucu görünür.
+
+Akışlar (`e2e/`, yalnız `testID` seçicileri; ortak adımlar `e2e/subflows/`):
+`a-ilk-acilis` (15+ YKS Sayısal → sayaç), `b-sayac` (başla/mola/devam/bitir, bugünkü toplam > 0),
+`c-arka-plan` (15 sn ana ekran → "Çalışıyordum, süreye ekle"), `d-kapat-ac` (öldür-aç: sayaç sürer;
+20 sn kapalı: uzakta kuralı), `e-deneme` (TYT: 10D 4Y = 9 net, toplam 11,5), `f-kucuk-yas`
+(15 altı: Gruplar sekmesi yok), `g-tum-verileri-sil` (Ayarlar → sil → ilk açılış).
+Yeni ekran öğesine test gerekiyorsa metni değil `testID`'yi hedefleyin; mevcut `testID`'leri
+değiştirmeyin (akışlar ve `scripts/test-web.mjs` bunlara bağlı).
 
 ### `testflight.yml` (elle `workflow_dispatch` veya `v*` etiketi)
 macOS 26 koşucusu:

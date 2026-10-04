@@ -38,8 +38,11 @@ Bu listede "yapma" denen bir şey eklenecekse önce bny'ye sor.
 
 - Paket eklerken `npx expo install <paket>`; yeni yerel (native) modül eklemeden önce düşün —
   her biri iOS derlemesini CI'da riske atar ve yalnız TestFlight'ta denenebilir.
-- Bitti demeden önce: `npx tsc --noEmit`, `npx jest`, `npx expo-doctor`,
+- Bitti demeden önce: `npx tsc --noEmit`, `npx jest`, `npm run test:web`, `npx expo-doctor`,
   `npx expo export --platform ios` (çıktı `dist/`, git'e girmez).
+- Web önizleme `npm run web` (8081) yalnız test içindir; mobil ile aynı depolama kodu çalışır
+  (README "Web notu"). `testID`'ler Maestro (`e2e/`) ve `scripts/test-web.mjs` tarafından
+  kullanılır: değiştirme, yeni etkileşimli öğeye `testID` ver.
 - Expo API'leri sürümden sürüme değişir; hafızadan yazma, `https://docs.expo.dev/versions/v57.0.0/` belgelerine bak.
 - **Windows'ta iOS yerelde derlenemez** (`expo prebuild --platform ios` Windows'ta çalışmaz,
   Xcode yok). iOS yalnız `.github/workflows/testflight.yml` ile macOS koşucusunda derlenir.
