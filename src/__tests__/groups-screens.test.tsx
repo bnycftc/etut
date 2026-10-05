@@ -12,6 +12,10 @@ import type { ActiveSession } from '../domain/timer';
 import { setGroupApiForTests } from '../sync/api';
 import { createFakeServer, type FakeServer, ME_ID } from '../sync/testing/fake-api';
 
+// The first renderRouter of a cold run (fresh CI runner, empty transform cache) loads and
+// transforms every route and can take well over Jest's default 5 s.
+jest.setTimeout(30_000);
+
 const flags = { enabled: true };
 jest.mock('../config/features', () => ({
   get GROUPS_ENABLED() {
