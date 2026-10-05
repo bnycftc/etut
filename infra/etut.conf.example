@@ -26,3 +26,6 @@ BACKUP_RESTIC_PATH=/srv/backup/restic
 APPLE_CLIENT_ID=com.bnycftc.etut
 # Google OAuth client id(s) of the app (comma separated), when Google sign-in is added.
 GOOGLE_CLIENT_ID=
+# Linking Apple / Google to the anonymous account. Keep false until the app has the buttons and
+# the e-mail / name GoTrue stores on linking is cleaned up (docs/hukuk/kvkk/08 #11).
+ETUT_LINKING_ENABLED=false

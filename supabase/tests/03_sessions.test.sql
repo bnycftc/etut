@@ -35,6 +35,13 @@ grant execute on function tests.midnight(integer) to authenticated;
 
 call tests.user_with_profile('44444444-0000-0000-0000-00000000000a', 'Çalışkan');
 call tests.user_with_profile('44444444-0000-0000-0000-00000000000b', 'Başkası');
+call tests.user_with_profile('44444444-0000-0000-0000-00000000000c', 'Yalnız');
+call tests.user_with_profile('44444444-0000-0000-0000-00000000000d', 'Geç Gönderen');
+-- The live status is kept only for people in a group (nobody else could see it).
+insert into app.groups (id, name) values ('44444444-9999-0000-0000-000000000001', 'Oturum Grubu');
+insert into app.memberships (group_id, user_id, role) values
+  ('44444444-9999-0000-0000-000000000001', '44444444-0000-0000-0000-00000000000a', 'owner'),
+  ('44444444-9999-0000-0000-000000000001', '44444444-0000-0000-0000-00000000000d', 'member');
 
 -- ---------------------------------------------------------------- live session: heartbeat + verified
 call tests.act_as('44444444-0000-0000-0000-00000000000a');
@@ -46,25 +53,74 @@ select is(public.beat('aaaaaaaa-0000-0000-0000-000000000009', 'kimya', false), '
 select is((select count(*)::int from app.presence), 1, 'still one row (updated in place)');
 select is((select session_client_id from app.presence), 'aaaaaaaa-0000-0000-0000-000000000009'::uuid, 'row holds the new session');
 select is(public.beat('aaaaaaaa-0000-0000-0000-000000000001', 'fizik', false), 'ok', 'back to the first session');
+select throws_ok($$ select public.beat('aaaaaaaa-0000-0000-0000-000000000001', 'insta: ali.0532 yaz', false) $$,
+  'P0001', 'invalid_input', 'the subject is an id from the fixed list, never free text (K-09)');
 reset role;
 -- 30 minutes have passed on the server, last beat 1 minute ago.
 update app.presence set started_at = now() - interval '30 minutes', last_beat_at = now() - interval '1 minute';
 
 call tests.act_as('44444444-0000-0000-0000-00000000000a');
--- The device claims 3 hours: the server only saw 30 minutes.
+-- The device reports 29 minutes of active time: the server saw all of it.
 select is(public.submit_session('aaaaaaaa-0000-0000-0000-000000000001', 'fizik', null,
-  now() - interval '3 hours', now(), 9000, 'timer'), 'accepted', 'live session is accepted');
+  now() - interval '3 hours', now(), 1740, 'timer'), 'accepted', 'live session is accepted');
 select is((select verified from app.study_sessions where client_id = 'aaaaaaaa-0000-0000-0000-000000000001'), true,
   'live session is verified');
-select is((select duration_s from app.study_sessions where client_id = 'aaaaaaaa-0000-0000-0000-000000000001'), 1800,
-  'duration is capped at what the server observed');
+select is((select duration_s from app.study_sessions where client_id = 'aaaaaaaa-0000-0000-0000-000000000001'), 1740,
+  'verified duration is the active time');
 select is((select started_at from app.study_sessions where client_id = 'aaaaaaaa-0000-0000-0000-000000000001'),
-  now() - interval '30 minutes', 'start is server time');
+  now() - interval '30 minutes', 'start is server time, not the device time');
+select is((select ended_at from app.study_sessions where client_id = 'aaaaaaaa-0000-0000-0000-000000000001'),
+  now() - interval '1 minute', 'end is the last time the server saw it (start + active time ≤ last beat)');
 select is((select count(*)::int from app.presence), 0, 'finishing ends the live status');
 select is(public.submit_session('aaaaaaaa-0000-0000-0000-000000000001', 'fizik', null,
-  now() - interval '3 hours', now(), 9000, 'timer'), 'duplicate', 'resending the same uuid is idempotent');
+  now() - interval '3 hours', now(), 1740, 'timer'), 'duplicate', 'resending the same uuid is idempotent');
 select is((select count(*)::int from app.study_sessions), 1, 'still one row');
-select is((select sum(seconds)::int from app.daily_totals), 1800, 'daily total counted once');
+select is((select sum(seconds)::int from app.daily_totals), 1740, 'daily total counted once');
+
+-- ---------------------------------------------------------------- live, but the server saw only part of it
+-- The first beats were lost (started offline): the server saw 10 of the 40 minutes. The session is
+-- kept with the device times, unverified, instead of being cut to 10 minutes.
+select is(public.beat('aaaaaaaa-0000-0000-0000-0000000000e1', 'kimya', false), 'ok', 'late first beat');
+reset role;
+update app.presence set started_at = now() - interval '10 minutes', last_beat_at = now() - interval '1 minute';
+call tests.act_as('44444444-0000-0000-0000-00000000000a');
+select is(public.submit_session('aaaaaaaa-0000-0000-0000-0000000000e1', 'kimya', null,
+  tests.midnight(5) + interval '3 hours', tests.midnight(5) + interval '3 hours 40 minutes', 2400, 'timer'), 'accepted',
+  'partly observed session is accepted');
+select is((select duration_s::text || '/' || verified::text from app.study_sessions
+            where client_id = 'aaaaaaaa-0000-0000-0000-0000000000e1'), '2400/false',
+  'full device duration, marked unverified (not cut to what the server saw)');
+select is((select count(*)::int from app.presence), 0, 'the upload ends the live status in this case too');
+
+-- ---------------------------------------------------------------- late retry of a verified session
+-- A ended 4 minutes ago (last beat 5 minutes ago); the first upload failed and the outbox sends it
+-- now. B was studied offline right after A. A must end when it ended, not now.
+reset role;
+call tests.act_as('44444444-0000-0000-0000-00000000000d');
+select is(public.beat('aaaaaaaa-0000-0000-0000-0000000000a1', 'tarih', false), 'ok', 'A is live');
+reset role;
+update app.presence set started_at = now() - interval '34 minutes', last_beat_at = now() - interval '5 minutes';
+call tests.act_as('44444444-0000-0000-0000-00000000000d');
+select is(public.submit_session('aaaaaaaa-0000-0000-0000-0000000000a1', 'tarih', null,
+  now() - interval '34 minutes', now() - interval '4 minutes', 1800, 'timer'), 'accepted', 'late upload of A');
+select is((select verified::text || '/' || (ended_at = now() - interval '4 minutes')::text from app.study_sessions
+            where client_id = 'aaaaaaaa-0000-0000-0000-0000000000a1'), 'true/true',
+  'A is verified and ends at start + active time, not at the time of sending');
+select is(public.submit_session('aaaaaaaa-0000-0000-0000-0000000000b1', 'tarih', null,
+  now() - interval '3 minutes 30 seconds', now() - interval '1 minute 30 seconds', 120, 'timer'), 'accepted',
+  'B right after A is not an overlap');
+select is(public.submit_session('aaaaaaaa-0000-0000-0000-0000000000b2', 'tarih', null,
+  now() - interval '1 minute', now() - interval '10 seconds', 50, 'manual'), 'accepted',
+  'neither is a manual entry after it');
+
+-- ---------------------------------------------------------------- no group: no live status
+reset role;
+call tests.act_as('44444444-0000-0000-0000-00000000000c');
+select is(public.beat('aaaaaaaa-0000-0000-0000-0000000000c1', 'fizik', false), 'ignored',
+  'without a group the heartbeat is not stored (KVKK m.4)');
+select is((select count(*)::int from app.presence), 0, 'no presence row');
+reset role;
+call tests.act_as('44444444-0000-0000-0000-00000000000a');
 
 -- ---------------------------------------------------------------- offline session: unverified
 select is(public.submit_session('aaaaaaaa-0000-0000-0000-000000000002', 'matematik', 'tyt.matematik.problemler',
@@ -145,6 +201,27 @@ call tests.act_as('44444444-0000-0000-0000-00000000000b');
 select is((select count(*)::int from app.study_sessions), 0, 'another user sees none of the sessions');
 select is((select count(*)::int from app.daily_totals), 0, 'another user sees none of the totals');
 select is((select count(*)::int from app.presence), 0, 'another user sees no presence row');
+
+-- ---------------------------------------------------------------- delete one session (KVKK m.7, kvkk/08 #4)
+select is(public.delete_session('aaaaaaaa-0000-0000-0000-000000000011'), 'not_found', 'nobody deletes another user''s session');
+reset role;
+call tests.act_as('44444444-0000-0000-0000-00000000000a');
+select is(public.delete_session('aaaaaaaa-0000-0000-0000-000000000011'), 'deleted', 'the owner deletes a manual entry');
+select is((select count(*)::int from app.study_sessions where client_id = 'aaaaaaaa-0000-0000-0000-000000000011'), 0,
+  'the session is gone');
+select is((select manual_seconds from app.daily_totals where day = tests.day(2)), 0, 'the day total loses the manual part');
+select is(public.delete_session('aaaaaaaa-0000-0000-0000-000000000015'), 'deleted', 'a session across midnight');
+select is((select count(*)::int from app.daily_totals where day in (tests.day(3), tests.day(4))), 0,
+  'both days lose exactly what the session added');
+select is(public.delete_session('aaaaaaaa-0000-0000-0000-000000000015'), 'not_found', 'deleting twice is harmless');
+
+-- ---------------------------------------------------------------- subjects and topics are ids
+select is(public.submit_session('aaaaaaaa-0000-0000-0000-000000000020', 'https://t.me/x', null,
+  tests.t('20 hours'), tests.t('21 hours'), 600, 'timer'), 'invalid', 'an unknown subject is refused');
+select is(public.submit_session('aaaaaaaa-0000-0000-0000-000000000021', 'fizik', 'Ali yaz bana',
+  tests.t('20 hours'), tests.t('21 hours'), 600, 'timer'), 'invalid', 'a topic is an id, never free text');
+select is(public.submit_session('aaaaaaaa-0000-0000-0000-000000000022', 'fizik', 'tyt.fizik.optik',
+  tests.t('20 hours'), tests.t('21 hours'), 600, 'timer'), 'accepted', 'a curriculum topic id is fine');
 
 select * from finish();
 rollback;

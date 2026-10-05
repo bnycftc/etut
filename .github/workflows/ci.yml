@@ -35,3 +35,36 @@ jobs:
 
       - name: Expo doctor
         run: npx --yes expo-doctor
+
+  backend:
+    # The SQL rules and the supabase-js path against the real local stack (Docker on the runner):
+    # catches what PGlite cannot (GoTrue, PostgREST, the real auth schema).
+    name: Backend (pgTAP + supabase-js, local stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: pgTAP on PGlite
+        run: npm run test:db:pglite
+
+      - name: Start the local Supabase stack
+        run: npx --yes supabase start
+
+      - name: pgTAP on the stack
+        run: npx --yes supabase test db
+
+      - name: supabase-js end-to-end (fails instead of skipping)
+        run: node scripts/test-backend.mjs --strict
+
+      - name: Stop the stack
+        if: always()
+        run: npx --yes supabase stop --no-backup

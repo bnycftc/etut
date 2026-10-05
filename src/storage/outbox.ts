@@ -1,19 +1,20 @@
 /**
  * On-device outgoing queue (expo-sqlite, migration 5). Holds finished sessions until the group
- * server stored them; only used when the group module is on and a group account exists.
+ * server stored them, and deletions of sessions the server may hold; only used when the group
+ * module is on and a group account exists.
  */
 
-import type { SessionPayload } from '../domain/outbox';
+import type { OutboxPayload } from '../domain/outbox';
 import { getDb } from './db';
 
 export interface OutboxItem {
   localId: string;
-  payload: SessionPayload;
+  payload: OutboxPayload;
   attempts: number;
 }
 
-/** Same session twice keeps the first entry (the queue is idempotent too). */
-export function enqueueSession(localId: string, payload: SessionPayload, now: number): void {
+/** Same item twice keeps the first entry (the queue is idempotent too). */
+export function enqueueSession(localId: string, payload: OutboxPayload, now: number): void {
   getDb().runSync(
     `INSERT OR IGNORE INTO sync_outbox (local_id, payload, attempts, next_attempt_at, created_at)
      VALUES (?, ?, 0, ?, ?)`,
@@ -34,15 +35,16 @@ export function dueItems(now: number, limit: number): OutboxItem[] {
     )
     .flatMap((row) => {
       try {
-        return [{ localId: row.local_id, payload: JSON.parse(row.payload) as SessionPayload, attempts: row.attempts }];
+        return [{ localId: row.local_id, payload: JSON.parse(row.payload) as OutboxPayload, attempts: row.attempts }];
       } catch {
         return [];
       }
     });
 }
 
-export function removeItem(localId: string): void {
-  getDb().runSync('DELETE FROM sync_outbox WHERE local_id = ?', localId);
+/** True when the item was still waiting in the queue. */
+export function removeItem(localId: string): boolean {
+  return getDb().runSync('DELETE FROM sync_outbox WHERE local_id = ?', localId).changes > 0;
 }
 
 export function scheduleRetry(localId: string, attempts: number, nextAt: number, error: string): void {
@@ -53,6 +55,16 @@ export function scheduleRetry(localId: string, attempts: number, nextAt: number,
     error.slice(0, 200),
     localId,
   );
+}
+
+/** When the next waiting item becomes due (`null` = queue empty). */
+export function nextAttemptAt(): number | null {
+  return getDb().getFirstSync<{ at: number | null }>('SELECT MIN(next_attempt_at) AS at FROM sync_outbox')?.at ?? null;
+}
+
+/** The group account is gone: nothing queued for it may reach a later account. */
+export function clearOutbox(): void {
+  getDb().runSync('DELETE FROM sync_outbox');
 }
 
 export function pendingCount(): number {

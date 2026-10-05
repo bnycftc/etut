@@ -82,8 +82,18 @@ set_env DISABLE_SIGNUP false
 set_env PGRST_DB_SCHEMAS "public,graphql_public"   # never add `app` or `audit`
 set_env APPLE_CLIENT_ID "${APPLE_CLIENT_ID}"
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
-  set_env GOOGLE_ENABLED true
   set_env GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID}"
+fi
+# Linking Apple / Google writes the e-mail (Google: also the name) into auth.users and
+# auth.identities. Off until the app has the buttons and that data is cleaned (kvkk/08 #11).
+if [ "${ETUT_LINKING_ENABLED:-false}" = "true" ]; then
+  set_env LINKING_ENABLED true
+  set_env APPLE_ENABLED true
+  if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then set_env GOOGLE_ENABLED true; fi
+else
+  set_env LINKING_ENABLED false
+  set_env APPLE_ENABLED false
+  set_env GOOGLE_ENABLED false
 fi
 
 # --- overrides and the db image with pgBackRest ---------------------------------------------

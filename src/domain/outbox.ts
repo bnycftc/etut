@@ -16,6 +16,25 @@ export interface SessionPayload {
   source: 'timer' | 'manual';
 }
 
+/** A session deleted on the device that may be on the server too (KVKK m.7: deleted there as well). */
+export interface DeletePayload {
+  delete: true;
+  clientId: string;
+}
+
+export type OutboxPayload = SessionPayload | DeletePayload;
+
+export function isDeletePayload(payload: OutboxPayload): payload is DeletePayload {
+  return 'delete' in payload && payload.delete === true;
+}
+
+/** Queue key of the delete request for a local session (next to its upload, never replacing it). */
+export function deleteQueueId(localId: string): string {
+  return `delete:${localId}`;
+}
+
+export type DeleteStatus = 'deleted' | 'not_found';
+
 /** Server answers that end an item's life in the queue. */
 export type SubmitStatus =
   | 'accepted'

@@ -185,11 +185,19 @@ call tests.act_as('33333333-0000-0000-0000-000000000001');
 select throws_ok($$ select * from public.group_board((select id from tests.ids where key = 'g1')) $$,
   'P0001', 'not_member', 'a removed member loses access');
 reset role;
+-- Clearly different join times (all rows above were added in one transaction, so now() is the
+-- same for all of them); the longest-standing member is neither the first nor the last by id.
+update app.memberships set joined_at = now() - interval '1 day'
+ where group_id = (select id from tests.ids where key = 'g1') and role = 'member';
+update app.memberships set joined_at = now() - interval '10 days'
+ where group_id = (select id from tests.ids where key = 'g1') and user_id = '22222222-0000-0000-0000-00000000000b';
+update app.memberships set joined_at = now() - interval '20 days'
+ where group_id = (select id from tests.ids where key = 'g1') and user_id = '33333333-0000-0000-0000-000000000015';
 call tests.act_as('22222222-0000-0000-0000-00000000000a');
 select lives_ok($$ select public.leave_group((select id from tests.ids where key = 'g1')) $$, 'founder leaves');
 reset role;
 select is((select user_id from app.memberships where group_id = (select id from tests.ids where key = 'g1') and role = 'owner'),
-  '22222222-0000-0000-0000-00000000000b'::uuid, 'the longest-standing member becomes the founder');
+  '33333333-0000-0000-0000-000000000015'::uuid, 'the longest-standing member becomes the founder');
 -- A group whose last member leaves is removed.
 call tests.act_as('22222222-0000-0000-0000-00000000000c');
 insert into solo select * from public.create_group('Tek Kişilik');

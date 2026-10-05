@@ -25,7 +25,9 @@ create table tests.codes (key text primary key, code text);
 grant select on tests.codes to authenticated;
 create temp table c1 (code text, expires_at timestamptz);
 create temp table c2 (code text, expires_at timestamptz);
-grant all on c1, c2 to authenticated;
+create temp table c3 (code text, expires_at timestamptz);
+create temp table c4 (code text, expires_at timestamptz);
+grant all on c1, c2, c3, c4 to authenticated;
 
 call tests.user('77777777-0000-0000-0000-00000000000c'); -- child, 15-17
 call tests.profile('77777777-0000-0000-0000-00000000000c', 'Öğrenci', '15_17');
@@ -81,7 +83,8 @@ reset role;
 update app.parent_link_codes set expires_at = now() - interval '1 second';
 call tests.act_as('77777777-0000-0000-0000-0000000000a3');
 select is((select status from public.claim_parent_code((select code from c2))), 'invalid_code', 'an expired code does not work');
-select is((select count(*)::int from app.parent_controls), 0, 'a stranger cannot read the controls');
+select throws_ok($$ select count(*) from app.parent_controls $$, '42501', null, 'a stranger cannot read the controls');
+select is((select count(*)::int from public.parent_children()), 0, 'and sees no child');
 select throws_ok($$ select * from public.parent_weekly_summary('77777777-0000-0000-0000-00000000000c') $$,
   'P0001', 'not_parent', 'a stranger cannot read the weekly summary');
 select throws_ok($$ select public.parent_set_controls('77777777-0000-0000-0000-00000000000c', true, true, null) $$,
@@ -99,7 +102,8 @@ select throws_ok($$ select public.parent_set_controls('77777777-0000-0000-0000-0
   'P0001', 'invalid_input', 'daily limit has a sensible range');
 select lives_ok($$ select public.parent_set_controls('77777777-0000-0000-0000-00000000000c', false, true, 60) $$,
   'parent forces "görünmez çalış" and sets a 60-minute limit');
-select is((select count(*)::int from app.parent_controls), 1, 'the parent can read the controls');
+select is((select force_invisible::text || '/' || daily_limit_minutes || '/' || other_parents from public.parent_children()),
+  'true/60/0', 'the parent reads the own settings back');
 reset role;
 call tests.act_as('77777777-0000-0000-0000-00000000000c');
 select is((select force_invisible::text || '/' || invisible::text || '/' || daily_limit_minutes from public.get_me()),
@@ -143,6 +147,48 @@ select lives_ok($$ select public.parent_unlink('77777777-0000-0000-0000-00000000
 reset role;
 call tests.act_as('77777777-0000-0000-0000-00000000000c');
 select is((select groups_disabled::text || parent_count from public.get_me()), 'false0', 'locks end with the last link');
+
+-- ---------------------------------------------------------------- two parents: the strictest setting wins
+-- P1 links again and locks. A second "parent" account (e.g. on a device the student controls)
+-- links and turns everything off: the locks stay, and P1 can see that a second account exists.
+insert into c3 select * from public.create_parent_code();
+reset role;
+call tests.act_as('77777777-0000-0000-0000-0000000000a1');
+select is((select status from public.claim_parent_code((select code from c3))), 'linked', 'P1 links again');
+select lives_ok($$ select public.parent_set_controls('77777777-0000-0000-0000-00000000000c', true, true, 30) $$, 'P1 locks');
+reset role;
+call tests.act_as('77777777-0000-0000-0000-00000000000c');
+insert into c4 select * from public.create_parent_code();
+reset role;
+call tests.act_as('77777777-0000-0000-0000-0000000000a3');
+select is((select status from public.claim_parent_code((select code from c4))), 'linked', 'a second parent account links');
+select lives_ok($$ select public.parent_set_controls('77777777-0000-0000-0000-00000000000c', false, false, null) $$,
+  'the second account turns everything off');
+select is((select groups_disabled::text || '/' || other_parents from public.parent_children()), 'false/1',
+  'it sees its own setting and the other parent');
+reset role;
+call tests.act_as('77777777-0000-0000-0000-00000000000c');
+select is((select groups_disabled::text || '/' || force_invisible::text || '/' || daily_limit_minutes || '/' || parent_count
+             from public.get_me()), 'true/true/30/2', 'the strictest setting of all parents applies');
+reset role;
+call tests.act_as('77777777-0000-0000-0000-0000000000a1');
+select is((select other_parents from public.parent_children()), 1, 'P1 sees that a second parent account is linked');
+-- A parent's locks go with the parent's account: nothing stays locked without an owner.
+select lives_ok($$ select public.delete_my_account() $$, 'P1 deletes the parent account');
+reset role;
+call tests.act_as('77777777-0000-0000-0000-00000000000c');
+select is((select groups_disabled::text || '/' || force_invisible::text || '/' || coalesce(daily_limit_minutes::text, '-')
+             || '/' || parent_count from public.get_me()), 'false/false/-/1', 'only the remaining parent''s settings apply');
+select lives_ok($$ select * from public.create_group('Serbest Grup') $$, 'the student is not locked out');
+reset role;
+call tests.act_as('77777777-0000-0000-0000-0000000000a3');
+select lives_ok($$ select public.parent_set_controls('77777777-0000-0000-0000-00000000000c', true, false, null) $$,
+  'the remaining parent locks');
+select lives_ok($$ select public.delete_my_account() $$, 'and deletes the account too');
+reset role;
+call tests.act_as('77777777-0000-0000-0000-00000000000c');
+select is((select groups_disabled::text || parent_count from public.get_me()), 'false0',
+  'the last parent account deleted: no lock is left behind');
 
 select * from finish();
 rollback;

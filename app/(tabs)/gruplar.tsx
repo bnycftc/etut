@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { GROUPS_ENABLED } from '@/config/features';
@@ -8,15 +8,18 @@ import {
   checkNameLocally,
   cleanName,
   formatCode,
+  groupsAllowedForExam,
   nameMaxLength,
   normalizeCode,
   usageLimitReached,
 } from '@/domain/groups';
-import { istanbulDayKey, istanbulYear } from '@/domain/istanbul-day';
+import { istanbulYear } from '@/domain/istanbul-day';
 import { useAppState } from '@/state/app-state';
-import { loadGroupsAccount, loadGroupsUsage, storeGroupsAccount, storeGroupsUsage } from '@/storage/groups-kv';
+import { useGroupsUsage } from '@/state/groups-usage';
+import { loadGroupsAccount, storeGroupsAccount, storeGroupsMember } from '@/storage/groups-kv';
 import { tr } from '@/strings';
-import { type GroupSummary, groupApi, type IncomingReaction, type Me } from '@/sync/api';
+import { type GroupSummary, groupApi, type IncomingReaction, isAccountGone, type Me } from '@/sync/api';
+import { endGroupsAccount } from '@/sync/session-sync';
 import { Button, Card, Chip, ChipRow, Label, Row, Screen, Tag, TextField } from '@/ui/components';
 import { errorText, Message, minutesLeft, ToggleRow } from '@/ui/group-ui';
 import { usePalette } from '@/ui/theme';
@@ -37,13 +40,12 @@ export default function GroupsScreen() {
   return <GroupsHome />;
 }
 
-const USAGE_TICK_MS = 30_000;
-
 function GroupsHome() {
   const { profile } = useAppState();
   const api = groupApi();
   const c = usePalette();
   const band = profile === null ? null : ageBandFor(profile.birthYear, istanbulYear(Date.now()));
+  const usedMs = useGroupsUsage();
 
   const [hasAccount, setHasAccount] = useState(loadGroupsAccount);
   const [me, setMe] = useState<Me | null>(null);
@@ -58,53 +60,44 @@ function GroupsHome() {
   const [code, setCode] = useState('');
   const [parentCode, setParentCode] = useState<{ code: string; expiresAt: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [usedMs, setUsedMs] = useState(() => loadGroupsUsage(istanbulDayKey(Date.now())));
-  const focusStart = useRef<number | null>(null);
+
+  const accountGone = useCallback(() => {
+    // The server account no longer exists (deleted, or purged after long inactivity): stop the
+    // heartbeat and drop the queue so nothing of it reaches a new account.
+    endGroupsAccount();
+    setHasAccount(false);
+    setMe(null);
+    setGroups([]);
+  }, []);
 
   const refresh = useCallback(async () => {
     setError(null);
     try {
       const current = await api.getMe();
       if (current === null) {
-        // The server account no longer exists (deleted or purged after long inactivity).
-        storeGroupsAccount(false);
-        setHasAccount(false);
-        setMe(null);
+        accountGone();
         return;
       }
       setMe(current);
       if (!current.groupsDisabled) {
         const [mine, reactions] = await Promise.all([api.myGroups(), api.takeReactions()]);
         setGroups(mine);
+        // Without any group the live status is not sent (session-sync, KVKK m.4).
+        storeGroupsMember(mine.length > 0);
         if (reactions.length > 0) setIncoming(reactions);
       }
     } catch (e) {
-      setError(errorText(e));
+      if (isAccountGone(e)) accountGone();
+      else setError(errorText(e));
     } finally {
       setLoaded(true);
     }
-  }, [api]);
+  }, [api, accountGone]);
 
-  // Load on focus; count time spent here for the parent's daily limit (K-22 c).
+  // Load on focus; time spent here counts for the parent's daily limit (useGroupsUsage, K-22 c).
   useFocusEffect(
     useCallback(() => {
       if (hasAccount) void refresh();
-      const day = istanbulDayKey(Date.now());
-      focusStart.current = Date.now();
-      const flush = () => {
-        if (focusStart.current === null) return;
-        const now = Date.now();
-        const total = loadGroupsUsage(day) + (now - focusStart.current);
-        focusStart.current = now;
-        storeGroupsUsage(day, total);
-        setUsedMs(total);
-      };
-      const id = setInterval(flush, USAGE_TICK_MS);
-      return () => {
-        clearInterval(id);
-        flush();
-        focusStart.current = null;
-      };
     }, [hasAccount, refresh]),
   );
 
@@ -126,6 +119,16 @@ function GroupsHome() {
       <Screen>
         <Card>
           <Label variant="muted">{tr.groups.unavailable}</Label>
+        </Card>
+      </Screen>
+    );
+  }
+
+  if (!groupsAllowedForExam(profile.examType)) {
+    return (
+      <Screen testID="groups-unavailable-exam">
+        <Card>
+          <Label variant="muted">{tr.groups.unavailableLgs}</Label>
         </Card>
       </Screen>
     );
@@ -156,6 +159,13 @@ function GroupsHome() {
           <Label variant="title">{tr.groups.introTitle}</Label>
           <Label variant="muted">{tr.groups.introBody}</Label>
           <Label variant="small">{tr.groups.introData}</Label>
+          <Label variant="small">{tr.groups.introSecurity}</Label>
+          <Button
+            testID="groups-privacy"
+            kind="secondary"
+            title={tr.groups.privacyLink}
+            onPress={() => router.push('/gizlilik')}
+          />
         </Card>
         <Card>
           <Row>
@@ -182,7 +192,9 @@ function GroupsHome() {
       <Screen>
         <Card>
           <Label variant="muted">{error ?? tr.groups.loading}</Label>
-          {error !== null ? <Button kind="secondary" title={tr.groups.retry} onPress={() => void refresh()} /> : null}
+          {error !== null ? (
+            <Button testID="groups-retry" kind="secondary" title={tr.groups.retry} onPress={() => void refresh()} />
+          ) : null}
         </Card>
       </Screen>
     );
@@ -282,8 +294,14 @@ function GroupsHome() {
           />
         </Row>
         <ChipRow>
-          {tr.groups.suggestions.map((s) => (
-            <Chip key={s} title={s} selected={groupName === s} onPress={() => setGroupName(s)} />
+          {tr.groups.suggestions.map((s, index) => (
+            <Chip
+              key={s}
+              testID={`groups-suggestion-${index}`}
+              title={s}
+              selected={groupName === s}
+              onPress={() => setGroupName(s)}
+            />
           ))}
         </ChipRow>
         <Button testID="groups-create" title={tr.groups.create} onPress={createGroup} disabled={busy} />
@@ -363,7 +381,8 @@ function GroupsHome() {
               onPress={() =>
                 run(async () => {
                   await api.deleteMyAccount();
-                  storeGroupsAccount(false);
+                  // Also stops the heartbeat and empties the upload queue of this account.
+                  endGroupsAccount();
                   setConfirmDelete(false);
                   setHasAccount(false);
                   setMe(null);
@@ -372,7 +391,12 @@ function GroupsHome() {
                 })
               }
             />
-            <Button kind="secondary" title={tr.common.cancel} onPress={() => setConfirmDelete(false)} />
+            <Button
+              testID="groups-delete-cancel"
+              kind="secondary"
+              title={tr.common.cancel}
+              onPress={() => setConfirmDelete(false)}
+            />
           </View>
         ) : (
           <Button testID="groups-delete" kind="danger" title={tr.groups.deleteAccount} onPress={() => setConfirmDelete(true)} />

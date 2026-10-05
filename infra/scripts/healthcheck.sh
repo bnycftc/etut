@@ -52,4 +52,13 @@ lb=$(docker compose exec -T db psql -U supabase_admin -d postgres -tAc \
   "select coalesce(extract(epoch from now() - max(end_time))::int, -1) from cron.job_run_details d join cron.job j using (jobid) where j.jobname = 'etut-leaderboards' and d.status = 'succeeded'" 2>/dev/null)
 [ -n "$lb" ] && [ "$lb" -ge 0 ] && [ "$lb" -lt 900 ] && ok "leaderboard job ${lb}s ago" || bad "leaderboard job: ${lb:-unknown}"
 
+# Moderation (K-28, K-29): open reports waiting more than 12 hours, and any open 'danger' report
+# (threat / self-harm: the emergency procedure starts at once). Counts only, no personal data.
+# Close a report after review with: select app.close_report('<id>', '<decision>');
+reports=$(docker compose exec -T db psql -U supabase_admin -d postgres -tAc \
+  "select count(*) filter (where created_at < now() - interval '12 hours') || ' ' || count(*) filter (where reason = 'danger') from app.reports where status = 'open'" 2>/dev/null)
+waiting=${reports%% *}
+danger=${reports#* }
+[ "${waiting:-x}" = "0" ] && [ "${danger:-x}" = "0" ] && ok "no report waiting" || bad "open reports: ${waiting:-?} older than 12 h, ${danger:-?} danger"
+
 exit $fail

@@ -6,7 +6,7 @@ import { istanbulYear } from '@/domain/istanbul-day';
 import { useAppState } from '@/state/app-state';
 import { loadParentAccount, storeParentAccount } from '@/storage/groups-kv';
 import { tr } from '@/strings';
-import { type ChildSummary, type DayTotal, groupApi, type ParentControls } from '@/sync/api';
+import { type ChildSummary, type DayTotal, groupApi, isAccountGone, type ParentControls } from '@/sync/api';
 import { BarChart, Button, Card, Label, Row, Screen, Stepper, TextField } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
 import { errorText, Message, ToggleRow } from '@/ui/group-ui';
@@ -28,6 +28,7 @@ export default function ParentScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState<string | null>(null);
+  const [linked, setLinked] = useState(loadParentAccount);
 
   const load = useCallback(async () => {
     if (!loadParentAccount()) return;
@@ -39,7 +40,16 @@ export default function ParentScreen() {
       );
       setSummaries(Object.fromEntries(entries));
     } catch (e) {
-      setError(errorText(e));
+      if (isAccountGone(e)) {
+        // The parent account was purged (unused) or removed: forget it, so "Tüm verileri sil"
+        // does not wait for a server account that no longer exists.
+        storeParentAccount(false);
+        setLinked(false);
+        setChildren([]);
+        setNotice(tr.parent.accountGone);
+      } else {
+        setError(errorText(e));
+      }
     }
   }, [api]);
 
@@ -80,6 +90,7 @@ export default function ParentScreen() {
       const result = await api.claimParentCode(normalizeCode(code));
       if (result.status === 'linked') {
         storeParentAccount(true);
+        setLinked(true);
         setCode('');
       }
       return tr.parent.claimStatus[result.status];
@@ -118,7 +129,11 @@ export default function ParentScreen() {
 
       <Card>
         <Label variant="heading">{tr.parent.children}</Label>
-        {children.length === 0 ? <Label variant="muted">{tr.parent.none}</Label> : null}
+        {children.length === 0 ? (
+          <Label testID="parent-none" variant="muted">
+            {linked ? tr.parent.linkGone : tr.parent.none}
+          </Label>
+        ) : null}
       </Card>
 
       {children.map((child, index) => {
@@ -128,6 +143,11 @@ export default function ParentScreen() {
             <Label variant="heading" testID={`parent-child-${index}`}>
               {child.nickname}
             </Label>
+            {child.otherParents > 0 ? (
+              <Label testID={`parent-others-${index}`} variant="small">
+                {tr.parent.otherParents(child.otherParents)}
+              </Label>
+            ) : null}
             <ToggleRow
               testID={`parent-groups-off-${index}`}
               label={tr.parent.groupsOff}
@@ -177,7 +197,12 @@ export default function ParentScreen() {
                       })
                     }
                   />
-                  <Button kind="secondary" title={tr.common.cancel} onPress={() => setConfirmUnlink(null)} />
+                  <Button
+                    testID={`parent-unlink-cancel-${index}`}
+                    kind="secondary"
+                    title={tr.common.cancel}
+                    onPress={() => setConfirmUnlink(null)}
+                  />
                 </Row>
               </>
             ) : (

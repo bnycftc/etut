@@ -2,8 +2,16 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { formatCode, GROUP_REFRESH_MS, liveElapsedMs, REACTION_KINDS, REPORT_REASONS } from '@/domain/groups';
+import {
+  formatCode,
+  GROUP_REFRESH_MS,
+  liveElapsedMs,
+  REACTION_KINDS,
+  REPORT_REASONS,
+  usageLimitReached,
+} from '@/domain/groups';
 import { useNow } from '@/state/app-state';
+import { useGroupsUsage } from '@/state/groups-usage';
 import { tr } from '@/strings';
 import {
   type BoardMember,
@@ -23,6 +31,10 @@ export default function GroupScreen() {
   const groupId = typeof id === 'string' ? id : '';
   const api = groupApi();
   const now = useNow(true, 30_000);
+  // The parent's daily limit (K-22 c) counts here too, not only on the Gruplar tab.
+  const usedMs = useGroupsUsage();
+  const [limitMinutes, setLimitMinutes] = useState<number | null>(null);
+  const limited = usageLimitReached(usedMs, limitMinutes);
 
   const [info, setInfo] = useState<GroupSummary | null>(null);
   const [board, setBoard] = useState<BoardMember[]>([]);
@@ -38,6 +50,8 @@ export default function GroupScreen() {
 
   const load = useCallback(async () => {
     try {
+      const me = await api.getMe();
+      setLimitMinutes(me?.dailyLimitMinutes ?? null);
       const [mine, members, ranking] = await Promise.all([
         api.myGroups(),
         api.groupBoard(groupId),
@@ -54,14 +68,26 @@ export default function GroupScreen() {
     }
   }, [api, groupId, period]);
 
-  // Poll while the screen is open (no realtime socket); stop when it is left.
+  // Poll while the screen is open (no realtime socket); stop when it is left or the limit is hit.
   useFocusEffect(
     useCallback(() => {
+      if (limited) return;
       void load();
       const timer = setInterval(() => void load(), GROUP_REFRESH_MS);
       return () => clearInterval(timer);
-    }, [load]),
+    }, [load, limited]),
   );
+
+  if (limited) {
+    return (
+      <Screen testID="group-limit">
+        <Card>
+          <Label variant="heading">{tr.group.limitTitle}</Label>
+          <Label variant="muted">{tr.groups.limitReached}</Label>
+        </Card>
+      </Screen>
+    );
+  }
 
   const run = async (task: () => Promise<string | null | void>) => {
     setBusy(true);
@@ -202,6 +228,9 @@ export default function GroupScreen() {
             <Label style={{ flex: 1, fontWeight: l.isMe ? '700' : undefined }}>{l.nickname}</Label>
             <Label>{formatDuration(l.seconds * 1000)}</Label>
             {l.manualSeconds > 0 ? <Tag title={tr.group.manualPart(formatDuration(l.manualSeconds * 1000))} /> : null}
+            {l.unverifiedSeconds > 0 ? (
+              <Tag title={tr.group.unverifiedPart(formatDuration(l.unverifiedSeconds * 1000))} />
+            ) : null}
           </Row>
         ))}
         <Label variant="small">{tr.group.updated}</Label>
@@ -285,7 +314,12 @@ export default function GroupScreen() {
                 }
               }}
             />
-            <Button kind="secondary" title={tr.common.cancel} onPress={() => setConfirmLeave(false)} />
+            <Button
+              testID="group-leave-cancel"
+              kind="secondary"
+              title={tr.common.cancel}
+              onPress={() => setConfirmLeave(false)}
+            />
           </View>
         ) : (
           <Button testID="group-leave" kind="danger" title={tr.group.leave} onPress={() => setConfirmLeave(true)} />

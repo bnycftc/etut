@@ -41,7 +41,7 @@ import {
 } from '../storage/kv';
 import { saveSession } from '../storage/sessions';
 import { wipeAllData } from '../storage/wipe';
-import { flushPending, syncFinishedSession, syncPresence } from '../sync/session-sync';
+import { flushPending, stopSync, syncFinishedSession, syncPresence } from '../sync/session-sync';
 
 export type SaveProfileResult = 'ok' | 'age_blocked';
 
@@ -198,6 +198,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     dataVersion,
     notifyDataChanged,
     resetAll: () => {
+      // No heartbeat or retry may outlive the data (and the group account) it belongs to.
+      stopSync();
       wipeAllData();
       activeRef.current = null;
       setActiveState(null);

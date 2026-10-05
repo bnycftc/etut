@@ -24,8 +24,18 @@ const memory: {
   active: ActiveSession | null;
   groupsAccount: boolean;
   parentAccount: boolean;
+  member: boolean;
   usage: { day: string; ms: number } | null;
-} = { profile: null, active: null, groupsAccount: false, parentAccount: false, usage: null };
+  outboxCleared: boolean;
+} = {
+  profile: null,
+  active: null,
+  groupsAccount: false,
+  parentAccount: false,
+  member: true,
+  usage: null,
+  outboxCleared: false,
+};
 
 jest.mock('../storage/kv', () => ({
   loadProfile: () => memory.profile,
@@ -64,6 +74,10 @@ jest.mock('../storage/groups-kv', () => ({
   storeParentAccount: (on: boolean) => {
     memory.parentAccount = on;
   },
+  loadGroupsMember: () => memory.member,
+  storeGroupsMember: (on: boolean) => {
+    memory.member = on;
+  },
   loadGroupsUsage: (day: string) => (memory.usage?.day === day ? memory.usage.ms : 0),
   storeGroupsUsage: (day: string, ms: number) => {
     memory.usage = { day, ms };
@@ -72,8 +86,12 @@ jest.mock('../storage/groups-kv', () => ({
 jest.mock('../storage/outbox', () => ({
   enqueueSession: () => {},
   dueItems: () => [],
-  removeItem: () => {},
+  removeItem: () => false,
   scheduleRetry: () => {},
+  nextAttemptAt: () => null,
+  clearOutbox: () => {
+    memory.outboxCleared = true;
+  },
 }));
 jest.mock('../storage/age-guard', () => ({
   loadYoungestDeclaredBirthYear: () => null,
@@ -125,7 +143,9 @@ beforeEach(() => {
   memory.active = null;
   memory.groupsAccount = false;
   memory.parentAccount = false;
+  memory.member = true;
   memory.usage = null;
+  memory.outboxCleared = false;
   server = createFakeServer();
   setGroupApiForTests(server.api);
 });
@@ -205,7 +225,7 @@ describe('group module ON', () => {
     fireEvent.press(screen.getByTestId('group-report'));
     fireEvent.press(screen.getByTestId('group-report-harassment'));
     await flush();
-    expect(screen.getByText('Bildirimin alındı. 24 saat içinde incelenir.')).toBeTruthy();
+    expect(screen.getByText('Bildirimin alındı ve incelemeye alındı.')).toBeTruthy();
     fireEvent.press(screen.getByTestId('group-block'));
     await flush();
     expect(server.calls).toContain('blockUser');
@@ -335,7 +355,166 @@ describe('group module ON', () => {
     expect(server.calls.filter((c) => c === 'deleteMyAccount')).toHaveLength(2);
     expect(memory.profile).toBeNull();
   });
+
+  it('"delete all data" still wipes the device when the server account is already gone', async () => {
+    // E.g. a parent account purged after the student unlinked it: requests now run as anon.
+    memory.parentAccount = true;
+    server.signedIn = true;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await flush();
+    const { ApiError } = jest.requireActual('../sync/api');
+    server.failNext = new ApiError('not_authenticated');
+    fireEvent.press(screen.getByTestId('settings-delete-all'));
+    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    await flush();
+    expect(server.calls).toContain('deleteMyAccount');
+    expect(memory.profile).toBeNull();
+  });
+
+  it('deleting the group account also empties the upload queue', async () => {
+    await signUp();
+    fireEvent.press(screen.getByTestId('groups-delete'));
+    fireEvent.press(screen.getByTestId('groups-delete-confirm'));
+    await flush();
+    expect(memory.outboxCleared).toBe(true);
+  });
+
+  it('a server account that no longer answers is forgotten on the device', async () => {
+    memory.groupsAccount = true;
+    server.signedIn = true;
+    server.me = studentMe({});
+    const { ApiError } = jest.requireActual('../sync/api');
+    server.failNext = new ApiError('not_authenticated');
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    expect(screen.getByTestId('groups-intro')).toBeTruthy();
+    expect(memory.groupsAccount).toBe(false);
+    expect(memory.outboxCleared).toBe(true);
+  });
+
+  it('remembers whether the student is in any group (no live status without one)', async () => {
+    await signUp();
+    expect(memory.member).toBe(false);
+    fireEvent.changeText(screen.getByTestId('groups-create-name'), 'Sayısal Ekip');
+    fireEvent.press(screen.getByTestId('groups-create'));
+    await flush();
+    expect(memory.member).toBe(true);
+  });
+
+  it('the parent daily limit also counts on the group screen and closes it there', async () => {
+    memory.groupsAccount = true;
+    server.signedIn = true;
+    server.me = studentMe({ dailyLimitMinutes: 30 });
+    server.groups.push({ id: 'g-1', name: 'Sayısal Ekip', code: null, members: [{ userId: ME_ID, nickname: 'Öğrenci', role: 'member' }], requests: [] });
+    memory.profile = profile(teenYear);
+    const { istanbulDayKey } = jest.requireActual('../domain/istanbul-day');
+    memory.usage = { day: istanbulDayKey(Date.now()), ms: 29 * 60_000 + 50_000 };
+    renderRouter(APP_DIR, { initialUrl: '/grup/g-1' });
+    await flush();
+    expect(screen.getByTestId('group-screen')).toBeTruthy();
+    await act(async () => {
+      jest.advanceTimersByTime(30_000);
+    });
+    await flush();
+    expect(screen.getByTestId('group-limit')).toBeTruthy();
+    expect(memory.usage?.ms).toBeGreaterThanOrEqual(30 * 60_000);
+    // Polling stops with the limit: no more board requests.
+    const boards = server.calls.filter((c) => c === 'groupBoard').length;
+    await act(async () => {
+      jest.advanceTimersByTime(5 * 60_000);
+    });
+    await flush();
+    expect(server.calls.filter((c) => c === 'groupBoard')).toHaveLength(boards);
+  });
+
+  it('time in the background does not count towards the daily limit', async () => {
+    // AppState is a mock in Jest: keep the live listeners to play "background" / "active".
+    const { AppState } = jest.requireActual('react-native');
+    const live = new Set<(state: string) => void>();
+    // AppState.addEventListener is already a jest.fn here: keep its implementation to put back.
+    const spy = jest.spyOn(AppState, 'addEventListener');
+    const original = spy.getMockImplementation();
+    spy.mockImplementation(((_type: string, handler: (s: string) => void) => {
+      live.add(handler);
+      return { remove: () => live.delete(handler) };
+    }) as never);
+    memory.groupsAccount = true;
+    server.signedIn = true;
+    server.me = studentMe({ dailyLimitMinutes: 30 });
+    memory.profile = profile(teenYear);
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    const emit = async (state: string) => {
+      await act(async () => {
+        for (const handler of [...live]) handler(state);
+      });
+    };
+    await emit('background');
+    await act(async () => {
+      jest.advanceTimersByTime(2 * 3_600_000);
+    });
+    await emit('active');
+    await act(async () => {
+      jest.advanceTimersByTime(30_000);
+    });
+    await flush();
+    expect(live.size).toBeGreaterThan(0);
+    expect(memory.usage?.ms ?? 0).toBeLessThan(2 * 60_000);
+    expect(screen.queryByTestId('groups-limit')).toBeNull();
+    spy.mockImplementation(original as never);
+  });
+
+  it('an LGS profile does not open a group account (K-17, K-45)', async () => {
+    memory.profile = { ...profile(adultYear), examType: 'LGS', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    expect(screen.getByTestId('groups-unavailable-exam')).toBeTruthy();
+    expect(screen.queryByTestId('groups-enable')).toBeNull();
+    expect(server.calls).toEqual([]);
+  });
+
+  it('the intro links to the plain-language privacy notice', async () => {
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    fireEvent.press(screen.getByTestId('groups-privacy'));
+    await flush();
+    expect(screen.getByTestId('privacy-screen')).toBeTruthy();
+    expect(screen.getByText(/395 gün/)).toBeTruthy();
+  });
+
+  it('a parent sees that another parent account is linked to the same student', async () => {
+    memory.parentAccount = true;
+    server.signedIn = true;
+    server.children.push({
+      childId: 'child-2',
+      nickname: 'Genç',
+      groupsDisabled: true,
+      forceInvisible: false,
+      dailyLimitMinutes: null,
+      linkedAt: new Date().toISOString(),
+      otherParents: 1,
+    });
+    renderRouter(APP_DIR, { initialUrl: '/veli' });
+    await flush();
+    expect(screen.getByTestId('parent-others-0')).toBeTruthy();
+  });
 });
+
+function studentMe(over: Partial<import('../sync/api').Me>): import('../sync/api').Me {
+  return {
+    nickname: 'Öğrenci',
+    examType: 'YKS',
+    yksArea: 'sayisal',
+    ageBand: '15_17',
+    invisible: false,
+    reactionsEnabled: true,
+    groupsDisabled: false,
+    forceInvisible: false,
+    dailyLimitMinutes: null,
+    parentCount: 1,
+    ...over,
+  };
+}
 
 describe('group module OFF', () => {
   it('shows "Yakında", makes no network request and never touches the server API', async () => {

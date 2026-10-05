@@ -7,7 +7,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { AgeBand, ReactionKind, ReportReason } from '../domain/groups';
-import { isSubmitStatus, type SessionPayload, type SubmitStatus } from '../domain/outbox';
+import { type DeleteStatus, isSubmitStatus, type SessionPayload, type SubmitStatus } from '../domain/outbox';
 import type { YksArea } from '../domain/net';
 import type { ExamType } from '../domain/profile';
 import { getSupabase } from './client';
@@ -58,12 +58,26 @@ export class ApiError extends Error {
   }
 }
 
-/** Server error message → code. Anything unexpected is 'unknown', a failed fetch 'network'. */
+/**
+ * Server error message → code. Anything unexpected is 'unknown', a failed fetch 'network'.
+ * Without a valid session the request runs as `anon`, which may execute no function at all
+ * (42501), or PostgREST rejects the token (PGRST30x): both mean "not signed in" — e.g. the
+ * server account was deleted or purged and the refresh token no longer works.
+ */
 export function toApiError(error: { message?: string; code?: string } | null | undefined): ApiError {
   const message = error?.message ?? '';
+  const code = error?.code ?? '';
   if ((KNOWN_CODES as readonly string[]).includes(message)) return new ApiError(message as ApiErrorCode);
+  if (code === '42501' || /^PGRST30\d$/.test(code) || /\bJWT\b|refresh token/i.test(message)) {
+    return new ApiError('not_authenticated');
+  }
   if (/fetch|network|timeout|Failed to/i.test(message)) return new ApiError('network');
   return new ApiError('unknown');
+}
+
+/** The server account cannot be reached any more (deleted, purged, tokens gone). */
+export function isAccountGone(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'not_authenticated';
 }
 
 export interface Me {
@@ -141,6 +155,8 @@ export interface LeaderRow {
   isMe: boolean;
   seconds: number;
   manualSeconds: number;
+  /** Timer time the server did not see live (offline, invisible); labelled like "elle". */
+  unverifiedSeconds: number;
   computedAt: string | null;
 }
 
@@ -169,6 +185,8 @@ export interface ChildSummary {
   forceInvisible: boolean;
   dailyLimitMinutes: number | null;
   linkedAt: string;
+  /** Other parent accounts linked to the same student (the strictest setting of all applies). */
+  otherParents: number;
 }
 
 export interface ParentControls {
@@ -205,6 +223,8 @@ export interface GroupApi {
   beat(sessionId: string, subjectId: string, paused: boolean): Promise<void>;
   endPresence(sessionId: string | null): Promise<void>;
   submitSession(payload: SessionPayload): Promise<SubmitStatus>;
+  /** A session deleted on the device is deleted on the server too ('not_found' = was never there). */
+  deleteSession(clientId: string): Promise<DeleteStatus>;
   sendReaction(groupId: string, toUserId: string, kind: ReactionKind): Promise<ReactionStatus>;
   takeReactions(): Promise<IncomingReaction[]>;
   report(targetUserId: string | null, groupId: string | null, reason: ReportReason): Promise<ReportStatus>;
@@ -348,6 +368,7 @@ export function createSupabaseApi(getClient: () => SupabaseClient = getSupabase)
         isMe: bool(r.is_me),
         seconds: num(r.seconds),
         manualSeconds: num(r.manual_seconds),
+        unverifiedSeconds: num(r.unverified_seconds),
         computedAt: strOrNull(r.computed_at),
       }));
     },
@@ -368,6 +389,11 @@ export function createSupabaseApi(getClient: () => SupabaseClient = getSupabase)
         p_source: p.source,
       });
       if (!isSubmitStatus(status)) throw new ApiError('unknown');
+      return status;
+    },
+    async deleteSession(clientId) {
+      const status = await call<unknown>('delete_session', { p_client_id: clientId });
+      if (status !== 'deleted' && status !== 'not_found') throw new ApiError('unknown');
       return status;
     },
     async sendReaction(groupId, toUserId, kind) {
@@ -410,6 +436,7 @@ export function createSupabaseApi(getClient: () => SupabaseClient = getSupabase)
         forceInvisible: bool(r.force_invisible),
         dailyLimitMinutes: numOrNull(r.daily_limit_minutes),
         linkedAt: str(r.linked_at),
+        otherParents: num(r.other_parents),
       }));
     },
     async parentSetControls(childId, c) {

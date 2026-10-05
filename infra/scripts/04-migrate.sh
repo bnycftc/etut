@@ -4,15 +4,18 @@
 #
 #   sudo bash infra/scripts/04-migrate.sh            # from the repository checkout on the server
 #
-# Alternative from the developer machine: open an SSH tunnel to 127.0.0.1:5432 and run
-# `npx supabase db push --db-url <connection string>`; the password is POSTGRES_PASSWORD in
-# /opt/etut/supabase/.env and is typed in, never stored on the developer machine.
+# This is the ONLY way migrations reach production. Do not mix in `supabase db push`: it keeps
+# its own list (supabase_migrations.schema_migrations) and would try to apply everything again.
+#
+# Migrations run as `postgres`, the same role as locally (supabase CLI, PGlite tests), so every
+# table and SECURITY DEFINER function is owned by postgres there too — not by the superuser
+# supabase_admin, which would give every RPC superuser rights the tests never exercised.
 set -euo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "Run as root"; exit 1; }
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 cd /opt/etut/supabase
 
-psql_db() { docker compose exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres "$@"; }
+psql_db() { docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d postgres "$@"; }
 
 psql_db -c "create schema if not exists ops;
             revoke all on schema ops from public, anon, authenticated;

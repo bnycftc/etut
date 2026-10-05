@@ -78,6 +78,14 @@ select is(public.report('99999999-0000-0000-0000-00000000000a', null, 'harassmen
 reset role;
 do $$ begin perform app.refresh_leaderboards(); end $$;
 select ok(array_length(tests.traces('99999999-0000-0000-0000-00000000000a'), 1) >= 10, 'U has data in many tables before deletion');
+-- GoTrue's own audit table (off in production, GOTRUE_AUDIT_LOG_DISABLE_POSTGRES). Created here
+-- when the test database has no auth service (PGlite); same columns as GoTrue's.
+create table if not exists auth.audit_log_entries (
+  instance_id uuid, id uuid primary key, payload json, created_at timestamptz, ip_address varchar(64) not null default '');
+insert into auth.audit_log_entries (id, payload, created_at, ip_address) values
+  (gen_random_uuid(), json_build_object('actor_id', '99999999-0000-0000-0000-00000000000a', 'action', 'token_refreshed'), now(), '203.0.113.7'),
+  (gen_random_uuid(), json_build_object('actor_id', '99999999-0000-0000-0000-00000000000b', 'action', 'token_refreshed'), now(), '203.0.113.8'),
+  (gen_random_uuid(), json_build_object('actor_id', '99999999-0000-0000-0000-00000000000b', 'action', 'login'), now() - interval '400 days', '203.0.113.8');
 
 -- ---------------------------------------------------------------- delete
 call tests.act_as('99999999-0000-0000-0000-00000000000a');
@@ -97,6 +105,10 @@ select is((select count(*)::int from app.parent_links), 0, 'parent link removed'
 select ok(exists (select 1 from audit.events where user_id = '99999999-0000-0000-0000-00000000000a' and action = 'account_deleted'),
   'the audit trail keeps the deletion (5651 exception)');
 select ok(exists (select 1 from audit.destruction_log where category = 'account_on_request'), 'the deletion is in the destruction log');
+select is((select count(*)::int from auth.audit_log_entries where payload ->> 'actor_id' = '99999999-0000-0000-0000-00000000000a'), 0,
+  'GoTrue''s audit rows about U (IP, account id) go with the account');
+select is((select count(*)::int from auth.audit_log_entries where payload ->> 'actor_id' = '99999999-0000-0000-0000-00000000000b'), 2,
+  'other people''s rows stay');
 
 -- ---------------------------------------------------------------- audit integrity
 select throws_ok($$ delete from audit.events $$, 'P0001', 'audit_append_only', 'audit rows cannot be deleted');
@@ -116,7 +128,20 @@ insert into app.reactions (group_id, from_user, to_user, kind, created_at)
 values ('aaaaaaaa-1111-0000-0000-000000000003', '99999999-0000-0000-0000-00000000000c', '99999999-0000-0000-0000-00000000000b', 'hadi',
         now() - interval '91 days');
 insert into audit.events (user_id, action, at) values (null, 'old', now() - interval '400 days');
+-- Parent accounts have no profile: inactivity is measured by the parent's own last use.
+insert into auth.users (id, instance_id, aud, role, is_anonymous, created_at) values
+  ('99999999-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', true, now() - interval '2 years'),
+  ('99999999-0000-0000-0000-0000000000a3', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', true, now() - interval '2 years');
+insert into app.parent_links (child_id, parent_id, parent_active_at) values
+  ('99999999-0000-0000-0000-00000000000b', '99999999-0000-0000-0000-0000000000a2', now() - interval '7 months'),
+  ('99999999-0000-0000-0000-00000000000b', '99999999-0000-0000-0000-0000000000a3', now() - interval '1 month');
 do $$ begin perform app.purge_expired(); end $$;
+select is((select count(*)::int from auth.users where id = '99999999-0000-0000-0000-0000000000a2'), 0,
+  'a parent account unused for 6 months is purged');
+select is((select count(*)::int from auth.users where id = '99999999-0000-0000-0000-0000000000a3'), 1,
+  'an active parent account stays');
+select is((select count(*)::int from auth.audit_log_entries where created_at < now() - interval '395 days'), 0,
+  'GoTrue audit rows older than 395 days are purged');
 select is((select count(*)::int from auth.users where id = '99999999-0000-0000-0000-0000000000a1'), 0,
   'an account without profile is purged after a day');
 select is((select count(*)::int from auth.users where id = '99999999-0000-0000-0000-00000000000c'), 0,

@@ -4,7 +4,7 @@
  * can decide what to show and what to send.
  */
 
-import { minimumAge, SOLO_AGE_LIMIT } from './profile';
+import { type ExamType, minimumAge, SOLO_AGE_LIMIT } from './profile';
 
 /** Only the band leaves the device, never the birth year (hukuk/03 K-16, K-19, K-33). */
 export type AgeBand = '15_17' | '18_plus';
@@ -19,6 +19,14 @@ export function ageBandFor(birthYear: number, currentYear: number): AgeBand | nu
   const age = minimumAge(birthYear, currentYear);
   if (age < SOLO_AGE_LIMIT) return null;
   return age >= ADULT_AGE ? '18_plus' : '15_17';
+}
+
+/**
+ * LGS candidates are typically 13–14: an LGS profile never opens a group account, whatever birth
+ * year was declared (K-17: conflicting signals → the lower age; K-45). The server refuses it too.
+ */
+export function groupsAllowedForExam(examType: ExamType): boolean {
+  return examType !== 'LGS';
 }
 
 /** Parent mode is for adults only (the parent declares an adult birth year on their device). */

@@ -103,11 +103,16 @@ describe('group backend through supabase-js', () => {
     assert.equal(board.length, 2);
   });
 
-  it('shows the live status and stores sessions idempotently with server time', async () => {
+  it('shows the live status and stores sessions idempotently', async () => {
     const session = randomUUID();
     assert.equal(await rpc(student, 'beat', { p_session: session, p_subject: 'fizik', p_paused: false }), 'ok');
     const board = await rpc<{ nickname: string; studying: boolean }[]>(founder, 'group_board', { p_group: groupId });
     assert.equal(board.find((m) => m.nickname === 'Genç Kişi')?.studying, true);
+    assert.equal(await rpcError(student, 'beat', { p_session: session, p_subject: 'insta: yaz bana', p_paused: true }),
+      'invalid_input', 'the subject is an id, never free text');
+    // Sent right after the first beat: the server saw almost none of the 50 minutes, so the
+    // session is kept with the device times, unverified (the verified path is covered by pgTAP,
+    // which can move the server clock: supabase/tests/03_sessions.test.sql).
     const args = {
       p_client_id: session,
       p_subject: 'fizik',
@@ -122,6 +127,12 @@ describe('group backend through supabase-js', () => {
     const offline = { ...args, p_client_id: randomUUID(), p_started_at: new Date(Date.now() - 6 * 3_600_000).toISOString(), p_ended_at: new Date(Date.now() - 5 * 3_600_000).toISOString() };
     assert.equal(await rpc(student, 'submit_session', offline), 'accepted');
     assert.equal(await rpc(student, 'submit_session', { ...offline, p_client_id: randomUUID() }), 'overlap');
+    const boardAfter = await rpc<{ nickname: string; studying: boolean }[]>(founder, 'group_board', { p_group: groupId });
+    assert.equal(boardAfter.find((m) => m.nickname === 'Genç Kişi')?.studying, false, 'the upload ended the live status');
+    // Deleted on the device → deleted on the server (KVKK m.7).
+    assert.equal(await rpc(student, 'delete_session', { p_client_id: offline.p_client_id }), 'deleted');
+    assert.equal(await rpc(student, 'delete_session', { p_client_id: offline.p_client_id }), 'not_found');
+    assert.equal(await rpc(founder, 'delete_session', { p_client_id: session }), 'not_found', "nobody deletes another user's session");
   });
 
   it('limits reactions to 3 a day per person (K-08)', async () => {

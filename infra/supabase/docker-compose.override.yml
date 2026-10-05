@@ -17,14 +17,26 @@ services:
 
   auth:
     environment:
-      # Anonymous start, later link Apple / Google (hukuk/kvkk/00 §3.3; no e-mail, no SMS).
-      GOTRUE_SECURITY_MANUAL_LINKING_ENABLED: "true"
-      GOTRUE_EXTERNAL_APPLE_ENABLED: "true"
-      GOTRUE_EXTERNAL_APPLE_CLIENT_ID: ${APPLE_CLIENT_ID}
+      # Anonymous start (hukuk/kvkk/00 §3.3; no e-mail, no SMS). Linking Apple / Google stays OFF
+      # until the app has the buttons AND a cleanup of the e-mail / name GoTrue copies into
+      # auth.users and auth.identities exists (kvkk/08 #11 says "e-posta saklanmaz"). Turn on
+      # with ETUT_LINKING_ENABLED=true in /etc/etut/etut.conf (03-supabase.sh) only then.
+      GOTRUE_SECURITY_MANUAL_LINKING_ENABLED: ${LINKING_ENABLED:-false}
+      GOTRUE_EXTERNAL_APPLE_ENABLED: ${APPLE_ENABLED:-false}
+      GOTRUE_EXTERNAL_APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED:-false}
       GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      # Anonymous sign-ins per IP per hour (GoTrue default 30).
+      # Anonymous sign-ins per IP per hour (GoTrue default 30). GoTrue applies its IP limits
+      # only when it is told which header carries the client IP; without this every limit is
+      # silently off (internal/api/middleware.go performRateLimitingWithHeader). Caddy replaces
+      # any client-sent X-Forwarded-For, and GoTrue keys on its first value.
       GOTRUE_RATE_LIMIT_ANONYMOUS_USERS: "30"
+      GOTRUE_RATE_LIMIT_HEADER: "X-Forwarded-For"
+      # GoTrue's own audit table (auth.audit_log_entries: account id, IP, e-mail) would keep IPs
+      # outside our retention rules. The 5651 trail is audit.events / audit.ip_events (395
+      # days) and the Caddy access log (400 days). GoTrue still logs to stdout (docker logs,
+      # rotated by daemon.json in 02-docker.sh).
+      GOTRUE_AUDIT_LOG_DISABLE_POSTGRES: "true"
 
   db:
     # Official image + pgBackRest (infra/supabase/db/Dockerfile) for WAL archiving.

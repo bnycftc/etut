@@ -35,6 +35,7 @@ function RootStack() {
       <Stack.Protected guard={GROUPS_ENABLED && profile !== null && !profile.soloOnly}>
         <Stack.Screen name="grup/[id]" options={{ title: tr.group.title }} />
         <Stack.Screen name="veli" options={{ title: tr.parent.title }} />
+        <Stack.Screen name="gizlilik" options={{ title: tr.privacy.title }} />
       </Stack.Protected>
       <Stack.Protected guard={profile === null}>
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />

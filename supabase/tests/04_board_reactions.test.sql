@@ -155,6 +155,11 @@ call tests.act_as('55555555-0000-0000-0000-00000000000a');
 select is(public.send_reaction('66666666-0000-0000-0000-000000000001', '55555555-0000-0000-0000-00000000000b', 'hadi'),
   'not_allowed', 'a blocked person cannot send reactions');
 select is((select count(*)::int from app.blocks), 0, 'blocks are visible only to the blocker');
+select is((select count(*)::int from public.group_board('66666666-0000-0000-0000-000000000001')
+            where user_id = '55555555-0000-0000-0000-00000000000b'), 0,
+  'the blocked person no longer sees the blocker either (live status, subject, start)');
+select is((select count(*)::int from public.group_leaderboard('66666666-0000-0000-0000-000000000001', 'day')
+            where user_id = '55555555-0000-0000-0000-00000000000b'), 0, 'nor the blocker''s ranking');
 reset role;
 call tests.act_as('55555555-0000-0000-0000-00000000000b');
 select is(public.report('55555555-0000-0000-0000-00000000000a', '66666666-0000-0000-0000-000000000001', 'nickname'),
@@ -172,6 +177,28 @@ select lives_ok($$ select public.unblock_user('55555555-0000-0000-0000-000000000
 reset role;
 call tests.act_as('55555555-0000-0000-0000-00000000000a');
 select is((select count(*)::int from app.reports), 0, 'reports are visible only to the reporter');
+
+-- ---------------------------------------------------------------- many reactions: none is lost
+reset role;
+insert into app.reactions (group_id, from_user, to_user, kind, created_at)
+select '66666666-0000-0000-0000-000000000001', '55555555-0000-0000-0000-00000000000a', '55555555-0000-0000-0000-00000000000b',
+       'hadi', now() - n * interval '1 minute'
+  from generate_series(1, 25) n;
+call tests.act_as('55555555-0000-0000-0000-00000000000b');
+select is((select count(*)::int from public.take_reactions()), 20, 'at most 20 are shown at once');
+select is((select count(*)::int from public.take_reactions()), 5, 'the rest come the next time instead of being lost');
+select is((select count(*)::int from public.take_reactions()), 0, 'then none');
+
+-- ---------------------------------------------------------------- unverified time is labelled
+reset role;
+update app.daily_totals set verified_seconds = 3600, manual_seconds = 1200
+ where user_id = '55555555-0000-0000-0000-00000000000b' and day = app.istanbul_day(now());
+do $$ begin perform app.refresh_leaderboards(); end $$;
+call tests.act_as('55555555-0000-0000-0000-00000000000a');
+select is((select seconds || '/' || manual_seconds || '/' || unverified_seconds
+             from public.group_leaderboard('66666666-0000-0000-0000-000000000001', 'day')
+            where user_id = '55555555-0000-0000-0000-00000000000b'), '7200/1200/2400',
+  'the ranking shows the manual and the unverified timer part separately');
 
 select * from finish();
 rollback;

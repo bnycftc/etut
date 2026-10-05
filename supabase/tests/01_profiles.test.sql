@@ -85,6 +85,44 @@ select is(app.check_name('Siktir Git', 'group'), 'name_banned', 'profanity in a 
 select is(app.check_name('amk ekip', 'group'), 'name_banned', 'short root as a whole word');
 select is(app.check_name('Admin', 'nickname'), 'name_banned', 'reserved nickname');
 select is(app.check_name('Etüt Kampı', 'group'), null, 'app name is fine in a group name');
+-- No false positives: the -(y)arak suffix, words joined across spaces, prefixes.
+select is(app.check_name('Okuyarak Kazan', 'group'), null, 'no false positive: okuyarak');
+select is(app.check_name('Planlayarak Calis', 'group'), null, 'no false positive: planlayarak');
+select is(app.check_name('Tekrarlayarak', 'group'), null, 'no false positive: tekrarlayarak');
+select is(app.check_name('Anlayarak Öğren', 'group'), null, 'no false positive: anlayarak');
+select is(app.check_name('Hazırlayarak', 'nickname'), null, 'no false positive: hazırlayarak');
+select is(app.check_name('Sakal Takımı', 'group'), null, 'no false positive across words: sakal takımı');
+select is(app.check_name('Ekibin Stajı', 'group'), null, 'no false positive across words: ekibin stajı');
+select is(app.check_name('Dickens', 'nickname'), null, 'no false positive: Dickens');
+select is(app.check_name('Sık Çalış', 'group'), null, 'no false positive: sık');
+select is(app.check_name('Sıkışık Program', 'group'), null, 'no false positive: sıkışık');
+select is(app.check_name('Amin Ali', 'nickname'), null, 'no false positive across words: amin ali');
+select is(app.check_name('Fen Takımı', 'group'), null, 'no false positive: fen');
+select is(app.check_name('Lise Sınavı', 'group'), null, 'no false positive: lise sınavı');
+select is(app.check_name('Gece Etüdü', 'group'), null, 'no false positive: etüdü');
+select is(app.check_name('Kilise Yolu', 'group'), null, 'no false positive: kilise is not Kilis');
+select is(app.check_name('Karşı Takım', 'group'), null, 'no false positive: karşı is not Kars');
+select is(app.check_name('Sırt Çantası', 'group'), null, 'no false positive: sırt is not Siirt');
+select is(app.check_name('Yalnız Kurt', 'nickname'), null, 'an everyday word as the last word is fine');
+-- Dotless ı spellings and two-word forms.
+select is(app.check_name('amına koyim', 'nickname'), 'name_banned', 'dotless ı: amına');
+select is(app.check_name('amınakoyim', 'nickname'), 'name_banned', 'dotless ı: amınakoyim');
+select is(app.check_name('Amcık Ekip', 'group'), 'name_banned', 'dotless ı: amcık');
+select is(app.check_name('s ı k e r ı m', 'nickname'), 'name_banned', 'dotless ı, spaced');
+select is(app.check_name('ı b n e', 'nickname'), 'name_banned', 'dotless ı, short root spaced');
+select is(app.check_name('Piç Kurusu', 'nickname'), 'name_banned', 'two-word profanity');
+select is(app.check_name('Yarrak', 'nickname'), 'name_banned', 'yarak is still refused as a word');
+-- K-27: school, province, real name, social media.
+select is(app.check_name('Kadıköy Anadolu Lisesi', 'group'), 'name_personal', 'school name');
+select is(app.check_name('Ankara Fen Lisesi 12A', 'group'), 'name_personal', 'school name with class');
+select is(app.check_name('Bornova Koleji 11-B', 'group'), 'name_personal', 'college name');
+select is(app.check_name('Kadıköy İmam Hatip', 'group'), 'name_personal', 'school type across words');
+select is(app.check_name('Izmirli Ekip', 'group'), 'name_personal', 'province with a suffix');
+select is(app.check_name('Siirt Grubu', 'group'), 'name_personal', 'province with a double letter');
+select is(app.check_name('Elif Kaya Izmir', 'nickname'), 'name_personal', 'province in a nickname');
+select is(app.check_name('Ahmet Yılmaz', 'nickname'), 'name_personal', 'first name + common surname');
+select is(app.check_name('ig ahmet.yilmaz', 'nickname'), 'name_personal', 'ig handle');
+select is(app.check_name('Tik Tok Ekibi', 'group'), 'name_personal', 'platform name across words');
 
 call tests.act_as('11111111-0000-0000-0000-000000000001');
 select throws_ok($$ select public.save_profile('0r0spu', 'YKS', 'sayisal', '15_17') $$,
@@ -93,6 +131,10 @@ select is((select nickname from public.get_me()), 'Gece Kuşu', 'refused change 
 select lives_ok($$ select public.save_profile('  Gece   Kuşu  ', 'KPSS', null, '18_plus') $$,
   'whitespace is normalised, band can be raised without a parent link');
 select is((select nickname from public.get_me()), 'Gece Kuşu', 'stored in canonical form');
+-- LGS candidates are typically 13-14: not a group profile (K-17 lower age wins, K-45).
+select throws_ok($$ select public.save_profile('Sekizinci', 'LGS', null, '15_17') $$,
+  'P0001', 'invalid_input', 'LGS is not accepted for a group profile');
+select is((select exam_type from public.get_me()), 'KPSS', 'the refused change kept the old exam type');
 
 select * from finish();
 rollback;

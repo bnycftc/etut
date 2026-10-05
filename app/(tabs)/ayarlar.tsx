@@ -31,7 +31,7 @@ import {
 } from '@/storage/kv';
 import { loadGroupsAccount, loadParentAccount } from '@/storage/groups-kv';
 import { tr } from '@/strings';
-import { groupApi } from '@/sync/api';
+import { groupApi, isAccountGone } from '@/sync/api';
 import { Button, Card, Field, Label, Row, Screen, Stepper, Tag } from '@/ui/components';
 import { formatDay, formatDuration } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
@@ -87,15 +87,20 @@ export default function SettingsScreen() {
 
   // With the group module, "delete all" removes the server account first; if that fails nothing is
   // deleted, so the student can retry instead of losing the way to delete the server data.
+  // An account that is already gone (deleted elsewhere, purged after inactivity, no session left
+  // on this device) has nothing left to delete there and must not block the local wipe.
   const deleteAll = async () => {
     setDeleteError(false);
     if (GROUPS_ENABLED && (loadGroupsAccount() || loadParentAccount())) {
       setDeleting(true);
       try {
         await groupApi().deleteMyAccount();
-      } catch {
-        setDeleteError(true);
-        return;
+      } catch (e) {
+        const gone = isAccountGone(e) || !(await groupApi().hasSession().catch(() => true));
+        if (!gone) {
+          setDeleteError(true);
+          return;
+        }
       } finally {
         setDeleting(false);
       }
@@ -245,6 +250,18 @@ export default function SettingsScreen() {
           />
         )}
       </Card>
+
+      {GROUPS_ENABLED && profile !== null && !profile.soloOnly ? (
+        <Card>
+          <Label variant="heading">{tr.privacy.title}</Label>
+          <Button
+            testID="settings-privacy"
+            kind="secondary"
+            title={tr.privacy.settingsEntry}
+            onPress={() => router.push('/gizlilik')}
+          />
+        </Card>
+      ) : null}
 
       {parentMode ? (
         <Card>

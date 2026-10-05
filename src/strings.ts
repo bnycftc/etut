@@ -83,7 +83,8 @@ const months = [
 
 export const tr = {
   appName: 'Etüt',
-  subject: (id: string) => subjects[id] ?? id,
+  // An unknown id (e.g. sent by someone else's modified app) is never shown as text (K-09).
+  subject: (id: string) => subjects[id] ?? 'Ders',
   examType: (t: ExamType) => examTypes[t],
   yksArea: (a: YksArea) => yksAreas[a],
   examKind: (k: ExamKind) => examKinds[k],
@@ -379,7 +380,11 @@ export const tr = {
     introBody:
       'Davet koduyla kurulan, en fazla 30 kişilik gruplarda kimin şu an çalıştığını ve günlük, haftalık süreleri görürsün. Sohbet yoktur; yalnız hazır tepkiler vardır. Sayaç ve denemeler gruplar olmadan da tam çalışır.',
     introData:
-      'Grupları açarsan takma adın, sınav türün, yaş bandın (15–17 ya da 18+; doğum yılın gönderilmez) ve çalışma sürelerin Türkiye’deki sunucumuzda tutulur. Denemelerin ve netlerin cihazında kalır.',
+      'Grupları açarsan takma adın, sınav türün, yaş bandın (15–17 ya da 18+; doğum yılın gönderilmez) ve çalışma oturumların Türkiye’deki sunucumuzda tutulur. Denemelerin ve netlerin cihazında kalır.',
+    introSecurity:
+      'Güvenlik ve yasal zorunluluk (5651) için yaptığın işlemler hesap numarası, zaman ve IP adresiyle 395 gün saklanır. Reklam ve analitik yok; hiçbir bilgin yurt dışına gönderilmez.',
+    privacyLink: 'Bilgilerin ne oluyor? (Gizlilik)',
+    unavailableLgs: 'Gruplar YKS, KPSS ve diğer sınavlar için. LGS profilinde sayaç ve denemeler gruplar olmadan tam çalışır.',
     nickname: 'Takma ad',
     nicknameHint: 'Gerçek adını, okulunu, şehrini ya da sosyal medya adını yazma.',
     nicknamePlaceholder: 'ör. Gece Kuşu',
@@ -432,7 +437,7 @@ export const tr = {
     accountTitle: 'Grup hesabı',
     deleteAccount: 'Grup hesabımı sil',
     deleteAccountConfirm:
-      'Sunucudaki takma adın, grup üyeliklerin, çalışma sürelerin, tepkilerin ve veli bağlantın kalıcı olarak silinir. Cihazındaki kayıtlar kalır. Yasal zorunluluk gereği yalnız erişim kayıtları (hesap numarası, zaman, IP) 1 yıl saklanır.',
+      'Sunucudaki takma adın, grup üyeliklerin, çalışma sürelerin, tepkilerin ve veli bağlantın hemen ve kalıcı olarak silinir. Cihazındaki kayıtlar kalır. Yasal zorunluluk gereği yalnız güvenlik kayıtları (hesap numarası, işlem, zaman, IP) 395 gün saklanır.',
     deleteAccountYes: 'Evet, sunucudan sil',
     deleted: 'Grup hesabın silindi.',
   },
@@ -449,7 +454,9 @@ export const tr = {
     today: 'Bugün',
     week: 'Bu hafta',
     manualPart: (duration: string) => `${duration} elle`,
-    updated: 'Sıralama 5 dakikada bir güncellenir.',
+    unverifiedPart: (duration: string) => `${duration} çevrimdışı`,
+    updated: 'Sıralama 5 dakikada bir güncellenir. “Çevrimdışı” süreyi sunucu canlı görmedi; “elle” sonradan eklendi.',
+    limitTitle: 'Bugünkü grup süresi doldu',
     inviteTitle: 'Davet kodu',
     inviteNone: 'Etkin kod yok.',
     inviteValid: (code: string, hours: number) => `${code} · ${hours} saat geçerli`,
@@ -477,13 +484,13 @@ export const tr = {
     report: 'Bildir',
     reportReason: 'Neden?',
     reportStatus: {
-      reported: 'Bildirimin alındı. 24 saat içinde incelenir.',
+      reported: 'Bildirimin alındı ve incelemeye alındı.',
       rate_limited: 'Bugün çok fazla bildirim yaptın.',
       invalid: 'Bildirim gönderilemedi.',
     },
     dangerNote: 'Acil bir tehlike varsa hemen 112’yi ara.',
     block: 'Engelle',
-    blocked: 'Engellendi. Artık sana tepki gönderemez ve onu listelerde görmezsin.',
+    blocked: 'Engellendi. Artık sana tepki gönderemez; ikiniz de birbirinizi listelerde görmezsiniz.',
     remove: 'Gruptan çıkar',
     reportGroup: 'Grup adını bildir',
     leave: 'Gruptan çık',
@@ -530,7 +537,48 @@ export const tr = {
     weekly: 'Son 7 günün çalışma süresi',
     purchases: 'Uygulama içi satın almalar App Store / Google Play aile onayına bağlıdır (Satın Almak İçin Sor / Family Link).',
     unlink: 'Bağlantıyı kaldır',
-    unlinkConfirm: 'Bağlantı kaldırılınca kilitler de kalkar.',
+    unlinkConfirm: 'Bağlantı kaldırılınca senin koyduğun kilitler de kalkar.',
+    otherParents: (n: number) =>
+      `Bu öğrenciye ${n === 1 ? 'başka bir' : `${n} başka`} veli hesabı daha bağlı. Tüm velilerin ayarlarından en kısıtlayıcı olanı geçerlidir; bu hesabı tanımıyorsan çocuğunla konuş.`,
+    linkGone:
+      'Bağlı öğrenci yok. Bağlantıyı sen kaldırdıysan ya da öğrenci grup hesabını sildiyse burada görünmez; o zaman kilitler de geçerli değildir.',
+    accountGone: 'Bu cihazdaki veli hesabı sunucuda artık yok. Yeniden bağlanmak için öğrencinin yeni bir kod oluşturması gerekir.',
+  },
+
+  privacy: {
+    title: 'Gizlilik',
+    intro: 'Gruplar açıkken bilgilerinin ne olduğunu kısaca anlatıyoruz. Onay istemiyoruz; yalnız bilmeni istiyoruz.',
+    sections: [
+      {
+        title: 'Ne tutuyoruz?',
+        body: 'Takma adın, sınav türün, yaş bandın (15–17 ya da 18+), grupların ve katılma isteklerin, çalışma oturumların (ders, konu, başlangıç, bitiş, süre, sayaç mı “elle” mi), o an çalışıp çalışmadığın, hazır tepkiler, bildirdiğin ve engellediğin kişiler, veli bağlantın ve velinin ayarları.',
+      },
+      {
+        title: 'Toplamadıklarımız',
+        body: 'Adın, doğum yılın, e-postan, telefonun, okulun, konumun, fotoğrafların, rehberin. Denemelerin ve netlerin yalnız cihazında kalır.',
+      },
+      {
+        title: 'Kim görüyor?',
+        body: 'Yalnız aynı gruptakiler: takma adın; görünmez değilsen o an çalıştığın ders ve ne zamandır çalıştığın; günlük ve haftalık süren ve sıralaman. Bağlı velin son 7 günün günlük toplam süresini görür. Engellediğin kişiyle birbirinizi görmezsiniz.',
+      },
+      {
+        title: 'Güvenlik kaydı',
+        body: 'Kötüye kullanımı önlemek ve yasal zorunluluk (5651) için yaptığın işlemler hesap numarası, zaman ve IP adresiyle 395 gün (yaklaşık 13 ay) saklanır. Bu kayıt hesabını silsen de süresi dolana kadar kalır ve yalnız yasal bir talep olursa açılır.',
+      },
+      {
+        title: 'Nerede, ne kadar?',
+        body: 'Türkiye’deki sunucumuzda; yurt dışına gönderilmez, reklam ve analitik yok. Hesabın açık olduğu sürece tutulur; 6 ay kullanmazsan hesap kendiliğinden silinir. Hazır tepkiler 90 gün sonra silinir.',
+      },
+      {
+        title: 'Hakların',
+        body: 'Bilgilerini öğrenebilir, düzelttirebilir ve sildirebilirsin. Cihazdan sildiğin bir oturum sunucudan da silinir. Grup hesabını Gruplar ekranından ya da Ayarlar → Tüm verileri sil ile hemen silersin.',
+      },
+    ],
+    under18Title: '18 yaşından küçüksen',
+    under18:
+      'Velin de bilsin istiyoruz: bu sayfayı ona göster. Velin kendi telefonunda veli modunu açıp grup ayarlarını kilitleyebilir ve günlük sınır koyabilir.',
+    fullText: 'Tam aydınlatma metni',
+    settingsEntry: 'Gizlilik ve verilerin',
   },
 
   groupErrors: {

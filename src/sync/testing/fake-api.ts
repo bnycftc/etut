@@ -37,6 +37,7 @@ export interface FakeServer {
   seconds: Record<string, number>;
   reactionsSent: Record<string, number>;
   submitted: SessionPayload[];
+  deleted: string[];
   beats: { sessionId: string; subjectId: string; paused: boolean }[];
   children: ChildSummary[];
   controls: Record<string, ParentControls>;
@@ -57,6 +58,7 @@ export function createFakeServer(): FakeServer {
     seconds: {},
     reactionsSent: {},
     submitted: [],
+    deleted: [],
     beats: [],
     children: [],
     controls: {},
@@ -239,6 +241,7 @@ export function createFakeServer(): FakeServer {
         isMe: m.userId === ME_ID,
         seconds,
         manualSeconds: 0,
+        unverifiedSeconds: 0,
         computedAt: new Date().toISOString(),
       }));
     },
@@ -255,6 +258,13 @@ export function createFakeServer(): FakeServer {
       if (payload.durationS > 36000) return 'too_long';
       s.submitted.push(payload);
       return 'accepted';
+    },
+    async deleteSession(clientId) {
+      await step('deleteSession');
+      const before = s.submitted.length;
+      s.submitted = s.submitted.filter((p) => p.clientId !== clientId);
+      s.deleted.push(clientId);
+      return s.submitted.length < before ? 'deleted' : 'not_found';
     },
     async sendReaction(groupId, toUserId, _kind: ReactionKind) {
       await step('sendReaction');
@@ -301,6 +311,7 @@ export function createFakeServer(): FakeServer {
         forceInvisible: false,
         dailyLimitMinutes: null,
         linkedAt: new Date().toISOString(),
+        otherParents: 0,
       });
       return { status: 'linked', childNickname: child.nickname };
     },
