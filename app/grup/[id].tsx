@@ -266,22 +266,48 @@ export default function GroupScreen() {
           <Label variant="heading">{tr.group.requestsTitle}</Label>
           {requests.length === 0 ? <Label variant="muted">{tr.group.noRequests}</Label> : null}
           {requests.map((r, index) => (
-            <Row key={r.requestId}>
-              <Label style={{ flex: 1 }}>{r.nickname}</Label>
-              <Button
-                testID={`group-request-approve-${index}`}
-                title={tr.group.approve}
-                disabled={busy}
-                onPress={() => run(async () => tr.group.decideStatus[await api.decideJoinRequest(r.requestId, true)])}
-              />
-              <Button
-                testID={`group-request-reject-${index}`}
-                kind="secondary"
-                title={tr.group.reject}
-                disabled={busy}
-                onPress={() => run(async () => tr.group.decideStatus[await api.decideJoinRequest(r.requestId, false)])}
-              />
-            </Row>
+            <View key={r.requestId} style={{ gap: 6 }}>
+              <Row>
+                <Label style={{ flex: 1 }}>{r.nickname}</Label>
+                <Button
+                  testID={`group-request-approve-${index}`}
+                  title={tr.group.approve}
+                  disabled={busy}
+                  onPress={() => run(async () => tr.group.decideStatus[await api.decideJoinRequest(r.requestId, true)])}
+                />
+                <Button
+                  testID={`group-request-reject-${index}`}
+                  kind="secondary"
+                  title={tr.group.reject}
+                  disabled={busy}
+                  onPress={() => run(async () => tr.group.decideStatus[await api.decideJoinRequest(r.requestId, false)])}
+                />
+              </Row>
+              {/* The nickname in a request is content too: it can be reported and its sender blocked (K-28). */}
+              <Row>
+                <Button
+                  testID={`group-request-report-${index}`}
+                  kind="secondary"
+                  title={tr.group.reportNickname}
+                  disabled={busy}
+                  onPress={() =>
+                    run(async () => tr.group.reportStatus[await api.reportJoinRequest(r.requestId, 'nickname')])
+                  }
+                />
+                <Button
+                  testID={`group-request-block-${index}`}
+                  kind="secondary"
+                  title={tr.group.block}
+                  disabled={busy}
+                  onPress={() =>
+                    run(async () => {
+                      await api.blockJoinRequest(r.requestId);
+                      return tr.group.requestBlocked;
+                    })
+                  }
+                />
+              </Row>
+            </View>
           ))}
         </Card>
       ) : null}

@@ -2,11 +2,18 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
 import { canUseParentMode, formatCode, normalizeCode, stepDailyLimit } from '@/domain/groups';
-import { istanbulYear } from '@/domain/istanbul-day';
+import { istanbulDayKey, istanbulYear } from '@/domain/istanbul-day';
 import { useAppState } from '@/state/app-state';
 import { loadParentAccount, storeParentAccount } from '@/storage/groups-kv';
 import { tr } from '@/strings';
-import { type ChildSummary, type DayTotal, groupApi, isAccountGone, type ParentControls } from '@/sync/api';
+import {
+  type ChildSummary,
+  type DayTotal,
+  groupApi,
+  isAccountGone,
+  type ParentControls,
+  type ParentNotice,
+} from '@/sync/api';
 import { BarChart, Button, Card, Label, Row, Screen, Stepper, TextField } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
 import { errorText, Message, ToggleRow } from '@/ui/group-ui';
@@ -23,6 +30,7 @@ export default function ParentScreen() {
 
   const [code, setCode] = useState('');
   const [children, setChildren] = useState<ChildSummary[]>([]);
+  const [notices, setNotices] = useState<ParentNotice[]>([]);
   const [summaries, setSummaries] = useState<Record<string, DayTotal[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -33,8 +41,9 @@ export default function ParentScreen() {
   const load = useCallback(async () => {
     if (!loadParentAccount()) return;
     try {
-      const list = await api.parentChildren();
+      const [list, notes] = await Promise.all([api.parentChildren(), api.parentNotices()]);
       setChildren(list);
+      setNotices(notes);
       const entries = await Promise.all(
         list.map(async (child) => [child.childId, await api.parentWeeklySummary(child.childId)] as const),
       );
@@ -134,6 +143,11 @@ export default function ParentScreen() {
             {linked ? tr.parent.linkGone : tr.parent.none}
           </Label>
         ) : null}
+        {notices.map((n, index) => (
+          <Label key={`${n.kind}-${n.createdAt}`} testID={`parent-notice-${index}`} variant="small">
+            {tr.parent.noticeLine(tr.parent.noticeKinds[n.kind], istanbulDayKey(Date.parse(n.createdAt)))}
+          </Label>
+        ))}
       </Card>
 
       {children.map((child, index) => {

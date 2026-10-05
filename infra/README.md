@@ -179,6 +179,7 @@ beyanı güncellenerek: "Data Not Collected" artık doğru değildir; `docs/huku
 | Kullanılmayan hesap | anonim 6 ay, Apple/Google bağlı 24 ay | `app.purge_expired()` her gün 03:30 (İstanbul) |
 | Profilsiz oturum açılmış hesap | 1 gün | aynı iş |
 | Hazır tepkiler | 90 gün | aynı iş |
+| Veli bildirimleri (bağlantı öğrenci tarafında bitti; yalnız tür ve zaman) | 90 gün; bildirimi olan profilsiz veli hesabı o süre silinmez | aynı iş |
 | Katılma istekleri | karar sonrası 30 gün | aynı iş |
 | Raporlar (moderasyon kaydı) | kapanıştan sonra 2 yıl; hesap silinince kişi bağı kaldırılır | aynı iş |
 | Denetim kaydı `audit.events` (hesap no + işlem + zaman) ve `audit.ip_events` (IP, ayrı tablo) | 395 gün; hesap silmeden sonra da (K-37 trafik istisnası) | aynı iş, yalnız bu iş silebilir |
@@ -209,6 +210,15 @@ beyanı güncellenerek: "Data Not Collected" artık doğru değildir; `docs/huku
 - GoTrue `auth.sessions` tablosu her oturum için `ip` ve `user_agent` tutar (sürüme göre). Satır
   hesapla birlikte silinir; anonim hesapta oturum hesap süresince yaşar. Gerçek yığında
   `\d auth.sessions` ile bak; kvkk/08 #14'te "olası" olarak yazılı, kesinleşince güncelle.
+- **Hız sınırları:** GoTrue IP başına sınırları `GOTRUE_RATE_LIMIT_HEADER` ile açılır
+  (`docker-compose.override.yml`). Okul Wi-Fi'ı ya da operatör NAT'ı arkasında çok öğrenci aynı
+  IP'yi paylaşır. Token yenileme 429 alırsa ve erişim belirtecinin süresi dolmuşsa uygulama
+  oturumu siler (auth-js 429'u kalıcı sayar); anonim hesaba yeniden girilemez, öğrenci grup
+  hesabını kaybeder ve eski hesap 6 ay sonra temizlenene kadar sunucuda kalır. Bu yüzden
+  `GOTRUE_RATE_LIMIT_TOKEN_REFRESH` 3000/5 dk'ya çekildi; anonim kayıt sınırı (30/saat/IP) bir
+  sınıfın aynı anda kaydolmasına yetmeyebilir. Açılıştan önce GoTrue günlüğünde 429 sayısına
+  bakın, gerekirse iki sınırı da yükseltin; uzun vadede Apple/Google hesap bağlama
+  (GROUPS_LAUNCH_BLOCKERS).
 - `healthcheck.sh` açık `danger` raporunu ve 12 saatten eski raporu `FAIL` olarak yazar; bu yalnız
   `journalctl`e düşer. Operatöre anında, yurt içi bir kanaldan (e-posta / SMS) uyarı gitmesi
   bayrak açılmadan önce kurulmalı (K-28, K-29; `src/config/features.ts` GROUPS_LAUNCH_BLOCKERS).

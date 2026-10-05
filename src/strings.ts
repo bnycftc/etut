@@ -5,7 +5,7 @@
  */
 
 import type { MarkError } from './domain/exam-analysis';
-import type { ReactionKind, ReportReason } from './domain/groups';
+import type { ParentNoticeKind, ReactionKind, ReportReason } from './domain/groups';
 import type { ManualEntryError } from './domain/manual-entry';
 import type { ExamKind, ScoreError, YksArea } from './domain/net';
 import type { ExamType } from './domain/profile';
@@ -380,7 +380,7 @@ export const tr = {
     introBody:
       'Davet koduyla kurulan, en fazla 30 kişilik gruplarda kimin şu an çalıştığını ve günlük, haftalık süreleri görürsün. Sohbet yoktur; yalnız hazır tepkiler vardır. Sayaç ve denemeler gruplar olmadan da tam çalışır.',
     introData:
-      'Grupları açarsan takma adın, sınav türün, yaş bandın (15–17 ya da 18+; doğum yılın gönderilmez) ve çalışma oturumların Türkiye’deki sunucumuzda tutulur. Denemelerin ve netlerin cihazında kalır.',
+      'Grupları açarsan takma adın, yaş bandın (15–17 ya da 18+; doğum yılın gönderilmez) ve çalışma oturumların Türkiye’deki sunucumuzda tutulur. Sınav türün yalnız denetlenir, saklanmaz. Denemelerin ve netlerin cihazında kalır.',
     introSecurity:
       'Güvenlik ve yasal zorunluluk (5651) için yaptığın işlemler hesap numarası, zaman ve IP adresiyle 395 gün saklanır. Reklam ve analitik yok; hiçbir bilgin yurt dışına gönderilmez.',
     privacyLink: 'Bilgilerin ne oluyor? (Gizlilik)',
@@ -432,12 +432,21 @@ export const tr = {
     parentInfo:
       'Velin kendi telefonunda Etüt’ü açıp Ayarlar → Veli modu’na bu kodu yazar. Velin grup ayarlarını kilitleyebilir, günlük sınır koyabilir ve haftalık çalışma süreni görür. Kod 10 dakika geçerlidir.',
     parentLinked: (n: number) => (n === 1 ? 'Bir velin bağlı.' : `${n} velin bağlı.`),
+    parentUnlink: 'Veli bağlantısını kaldır',
+    parentUnlinkConfirm:
+      'Bağlı velilerin artık süreni göremez ve koyduğu kilitler kalkar. Velin, bağlantıyı senin kaldırdığını kendi ekranında görür.',
+    parentUnlinked: 'Veli bağlantısı kaldırıldı.',
+    blocksShow: 'Engellediklerim',
+    blocksTitle: 'Engellediklerin',
+    blocksNone: 'Kimseyi engellemedin.',
+    unblock: 'Engeli kaldır',
+    unblocked: 'Engel kaldırıldı.',
     parentCode: 'Veli kodu oluştur',
     parentCodeShown: (code: string, minutes: number) => `Kod: ${code} · ${minutes} dk geçerli`,
     accountTitle: 'Grup hesabı',
     deleteAccount: 'Grup hesabımı sil',
     deleteAccountConfirm:
-      'Sunucudaki takma adın, grup üyeliklerin, çalışma sürelerin, tepkilerin ve veli bağlantın hemen ve kalıcı olarak silinir. Cihazındaki kayıtlar kalır. Yasal zorunluluk gereği yalnız güvenlik kayıtları (hesap numarası, işlem, zaman, IP) 395 gün saklanır.',
+      'Sunucudaki takma adın, grup üyeliklerin, çalışma sürelerin, tepkilerin ve veli bağlantın hemen ve kalıcı olarak silinir; bağlı velin yalnız hesabını sildiğini görür. Cihazındaki kayıtlar kalır. Yasal zorunluluk gereği yalnız güvenlik kayıtları (hesap numarası, işlem, zaman, IP) 395 gün saklanır.',
     deleteAccountYes: 'Evet, sunucudan sil',
     deleted: 'Grup hesabın silindi.',
   },
@@ -467,6 +476,8 @@ export const tr = {
     noRequests: 'Bekleyen istek yok.',
     approve: 'Onayla',
     reject: 'Reddet',
+    reportNickname: 'Takma adı bildir',
+    requestBlocked: 'Engellendi. Bu kişi grubuna yeniden istek gönderemez.',
     decideStatus: {
       approved: 'Gruba eklendi.',
       rejected: 'İstek reddedildi.',
@@ -543,6 +554,13 @@ export const tr = {
     linkGone:
       'Bağlı öğrenci yok. Bağlantıyı sen kaldırdıysan ya da öğrenci grup hesabını sildiyse burada görünmez; o zaman kilitler de geçerli değildir.',
     accountGone: 'Bu cihazdaki veli hesabı sunucuda artık yok. Yeniden bağlanmak için öğrencinin yeni bir kod oluşturması gerekir.',
+    noticeKinds: {
+      child_deleted_account: 'Bağlı öğrencin grup hesabını sildi',
+      child_unlinked: 'Bağlı öğrencin veli bağlantısını kaldırdı',
+      child_adult: 'Bağlı öğrencin 18 yaşını doldurduğunu bildirdi',
+      link_ended: 'Bir öğrenci bağlantısı sona erdi',
+    } as Record<ParentNoticeKind, string>,
+    noticeLine: (what: string, day: string) => `${day}: ${what}. Bu bağlantının kilitleri artık geçerli değil.`,
   },
 
   privacy: {
@@ -551,7 +569,7 @@ export const tr = {
     sections: [
       {
         title: 'Ne tutuyoruz?',
-        body: 'Takma adın, sınav türün, yaş bandın (15–17 ya da 18+) ve bu bandı hangi yıl bildirdiğin, grupların ve katılma isteklerin, çalışma oturumların (başlangıç, bitiş, süre, sayaç mı “elle” mi; ders ve konu gönderilmez), çalışırken o an hangi derse çalıştığın, hazır tepkiler, bildirdiğin ve engellediğin kişiler, veli bağlantın ve velinin ayarları. Hiçbir grupta değilken oturumların ve canlı durumun gönderilmez.',
+        body: 'Takma adın, yaş bandın (15–17 ya da 18+) ve bu bandı hangi yıl bildirdiğin, grupların ve katılma isteklerin, çalışma oturumların (başlangıç, bitiş, süre, sayaç mı “elle” mi; ders ve konu gönderilmez), çalışırken o an hangi derse çalıştığın, hazır tepkiler, bildirdiğin ve engellediğin kişiler, veli bağlantın ve velinin ayarları. Sınav türün yalnız denetlenir (LGS profiliyle grup açılmaz), saklanmaz. Hiçbir grupta (ya da bekleyen bir katılma isteğinde) değilken canlı durumun gönderilmez; bağlı bir velin de yoksa oturumların da gönderilmez, gönderilse bile sunucu saklamaz.',
       },
       {
         title: 'Toplamadıklarımız',
@@ -559,7 +577,7 @@ export const tr = {
       },
       {
         title: 'Kim görüyor?',
-        body: 'Yalnız aynı gruptakiler: takma adın; görünmez değilsen o an çalıştığın ders ve ne zamandır çalıştığın; günlük ve haftalık süren ve sıralaman. Bağlı velin son 7 günün günlük toplam süresini görür. Engellediğin kişiyle birbirinizi görmezsiniz.',
+        body: 'Yalnız aynı gruptakiler: takma adın; görünmez değilsen o an çalıştığın ders ve ne zamandır çalıştığın; günlük ve haftalık süren ve sıralaman. Bağlı velin takma adını ve son 7 günün günlük toplam süresini görür; bağlantıyı Gruplar ekranından kaldırabilirsin, velin bunu görür. Engellediğin kişiyle birbirinizi görmezsiniz; engeli Gruplar → Engellediklerim’den kaldırırsın.',
       },
       {
         title: 'Güvenlik kaydı',
@@ -567,7 +585,7 @@ export const tr = {
       },
       {
         title: 'Nerede, ne kadar?',
-        body: 'Türkiye’deki sunucumuzda; yurt dışına gönderilmez, reklam ve analitik yok. Hesabın açık olduğu sürece tutulur; 6 ay kullanmazsan hesap kendiliğinden silinir. Hazır tepkiler 90 gün sonra silinir.',
+        body: 'Türkiye’deki sunucumuzda; yurt dışına gönderilmez, reklam ve analitik yok. Hesabın açık olduğu sürece tutulur; 6 ay kullanmazsan hesap kendiliğinden silinir. Hazır tepkiler 90 gün sonra silinir. Veli bağlantısı senin tarafında biterse velinin gördüğü bildirim (yalnız ne olduğu ve tarihi) 90 gün tutulur.',
       },
       {
         title: 'Hakların',

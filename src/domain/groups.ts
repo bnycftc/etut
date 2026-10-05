@@ -85,6 +85,9 @@ export type ReactionKind = (typeof REACTION_KINDS)[number];
 export const REPORT_REASONS = ['nickname', 'group_name', 'harassment', 'danger', 'other'] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];
 
+/** Why a parent link ended without the parent (K-22); shown to the parent for 90 days. */
+export type ParentNoticeKind = 'child_deleted_account' | 'child_unlinked' | 'child_adult' | 'link_ended';
+
 /** How often the live status is refreshed while a session is open (one row update). */
 export const HEARTBEAT_INTERVAL_MS = 5 * 60_000;
 /** Group screens poll at most this often (no realtime socket). */

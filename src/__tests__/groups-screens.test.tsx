@@ -25,6 +25,7 @@ const memory: {
   groupsAccount: boolean;
   parentAccount: boolean;
   member: boolean;
+  parentLinked: boolean;
   usage: { day: string; ms: number } | null;
   outboxCleared: boolean;
 } = {
@@ -33,6 +34,7 @@ const memory: {
   groupsAccount: false,
   parentAccount: false,
   member: true,
+  parentLinked: false,
   usage: null,
   outboxCleared: false,
 };
@@ -78,6 +80,10 @@ jest.mock('../storage/groups-kv', () => ({
   storeGroupsMember: (on: boolean) => {
     memory.member = on;
   },
+  loadParentLinked: () => memory.parentLinked,
+  storeParentLinked: (on: boolean) => {
+    memory.parentLinked = on;
+  },
   loadGroupsUsage: (day: string) => (memory.usage?.day === day ? memory.usage.ms : 0),
   storeGroupsUsage: (day: string, ms: number) => {
     memory.usage = { day, ms };
@@ -86,7 +92,7 @@ jest.mock('../storage/groups-kv', () => ({
 jest.mock('../storage/outbox', () => ({
   enqueueSession: () => {},
   dueItems: () => [],
-  removeItem: () => false,
+  removeItem: () => null,
   scheduleRetry: () => {},
   nextAttemptAt: () => null,
   clearOutbox: () => {
@@ -144,6 +150,7 @@ beforeEach(() => {
   memory.groupsAccount = false;
   memory.parentAccount = false;
   memory.member = true;
+  memory.parentLinked = false;
   memory.usage = null;
   memory.outboxCleared = false;
   server = createFakeServer();
@@ -174,7 +181,9 @@ describe('group module ON', () => {
   it('opening groups signs in anonymously and sends only the age band', async () => {
     await signUp();
     expect(server.calls.slice(0, 2)).toEqual(['ensureSignedIn', 'saveProfile']);
-    expect(server.me).toMatchObject({ nickname: 'Gece Kuşu', ageBand: '18_plus', examType: 'YKS' });
+    expect(server.me).toMatchObject({ nickname: 'Gece Kuşu', ageBand: '18_plus' });
+    // The exam type is sent for the server's LGS check; the server does not keep it.
+    expect(server.profileInputs[0]).toMatchObject({ examType: 'YKS', yksArea: 'sayisal' });
     expect(JSON.stringify(server.me)).not.toContain(String(adultYear));
     expect(memory.groupsAccount).toBe(true);
     await waitFor(() => expect(screen.getByTestId('groups-home')).toBeTruthy());
@@ -260,8 +269,6 @@ describe('group module ON', () => {
     server.signedIn = true;
     server.me = {
       nickname: 'Öğrenci',
-      examType: 'YKS',
-      yksArea: 'sayisal',
       ageBand: '15_17',
       invisible: true,
       reactionsEnabled: true,
@@ -282,8 +289,6 @@ describe('group module ON', () => {
     server.signedIn = true;
     server.me = {
       nickname: 'Öğrenci',
-      examType: 'YKS',
-      yksArea: 'sayisal',
       ageBand: '15_17',
       invisible: false,
       reactionsEnabled: true,
@@ -397,6 +402,8 @@ describe('group module ON', () => {
     await flush();
     expect(server.calls).toContain('saveProfile');
     expect(server.me?.ageBand).toBe('18_plus');
+    // The server keeps no exam type: the device profile's goes along for the LGS check.
+    expect(server.profileInputs[0]).toMatchObject({ examType: 'YKS', yksArea: 'sayisal', ageBand: '18_plus' });
     await waitFor(() => expect(screen.getByTestId('groups-home')).toBeTruthy());
   });
 
@@ -545,13 +552,73 @@ describe('group module ON', () => {
     await flush();
     expect(screen.getByTestId('parent-others-0')).toBeTruthy();
   });
+
+  it('a founder can report and block someone who only sent a request (K-28)', async () => {
+    await signUp();
+    fireEvent.changeText(screen.getByTestId('groups-create-name'), 'Sayısal Ekip');
+    fireEvent.press(screen.getByTestId('groups-create'));
+    await flush();
+    await waitFor(() => expect(screen.getByTestId('group-screen')).toBeTruthy());
+    server.groups[0].requests.push({ requestId: 'r-9', nickname: 'Kaba Ad', createdAt: new Date().toISOString() });
+    fireEvent.press(screen.getByTestId('group-period-week'));
+    await flush();
+    fireEvent.press(screen.getByTestId('group-request-report-0'));
+    await flush();
+    expect(server.reportedRequests).toEqual([{ requestId: 'r-9', reason: 'nickname' }]);
+    expect(screen.getByText('Bildirimin alındı ve incelemeye alındı.')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('group-request-block-0'));
+    await flush();
+    expect(server.blockedRequests).toEqual(['r-9']);
+    expect(screen.queryByTestId('group-request-approve-0')).toBeNull();
+  });
+
+  it('the student sees the parent link and can remove it; a linked parent keeps uploads on', async () => {
+    memory.groupsAccount = true;
+    server.signedIn = true;
+    server.me = studentMe({ parentCount: 1 });
+    memory.profile = profile(teenYear);
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    // In no group, but a parent sees the weekly time: sessions are still sent (session-sync).
+    expect(memory.member).toBe(false);
+    expect(memory.parentLinked).toBe(true);
+    fireEvent.press(screen.getByTestId('groups-parent-unlink'));
+    fireEvent.press(screen.getByTestId('groups-parent-unlink-confirm'));
+    await flush();
+    expect(server.calls).toContain('childUnlinkParents');
+    expect(memory.parentLinked).toBe(false);
+    expect(screen.queryByTestId('groups-parent-count')).toBeNull();
+  });
+
+  it('a parent is told when a link ended on the student side (K-22)', async () => {
+    memory.parentAccount = true;
+    server.signedIn = true;
+    server.parentNotices.push({ kind: 'child_deleted_account', createdAt: new Date().toISOString() });
+    renderRouter(APP_DIR, { initialUrl: '/veli' });
+    await flush();
+    expect(screen.getByTestId('parent-notice-0').props.children).toContain('grup hesabını sildi');
+  });
+
+  it('blocked people are listed and can be unblocked', async () => {
+    memory.groupsAccount = true;
+    server.signedIn = true;
+    server.me = studentMe({});
+    server.blocks.push({ userId: 'u-x', nickname: 'Eski Üye' });
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    fireEvent.press(screen.getByTestId('groups-blocks-show'));
+    await flush();
+    expect(screen.getByText('Eski Üye')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('groups-unblock-0'));
+    await flush();
+    expect(server.blocks).toEqual([]);
+    expect(screen.getByText('Kimseyi engellemedin.')).toBeTruthy();
+  });
 });
 
 function studentMe(over: Partial<import('../sync/api').Me>): import('../sync/api').Me {
   return {
     nickname: 'Öğrenci',
-    examType: 'YKS',
-    yksArea: 'sayisal',
     ageBand: '15_17',
     invisible: false,
     reactionsEnabled: true,

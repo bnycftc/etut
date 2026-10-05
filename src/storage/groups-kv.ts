@@ -12,6 +12,7 @@ const KEYS = {
   parent: 'etut.groups.parent.v1',
   usage: 'etut.groups.usage.v1',
   member: 'etut.groups.member.v1',
+  parentLinked: 'etut.groups.parent-linked.v1',
 } as const;
 
 /** True once this device created a group profile on the server (until the account is deleted). */
@@ -45,6 +46,19 @@ export function loadGroupsMember(): boolean {
 
 export function storeGroupsMember(member: boolean): void {
   Storage.setItemSync(KEYS.member, member ? '1' : '0');
+}
+
+/**
+ * Whether a parent was linked to this student at the last look (get_me). A linked parent sees
+ * the weekly study time, so finished sessions are sent even in no group. Unknown counts as no;
+ * the server decides in the end (submit_session answers 'ignored').
+ */
+export function loadParentLinked(): boolean {
+  return Storage.getItemSync(KEYS.parentLinked) === '1';
+}
+
+export function storeParentLinked(linked: boolean): void {
+  Storage.setItemSync(KEYS.parentLinked, linked ? '1' : '0');
 }
 
 /** Time spent on the group screens today (for the parent's daily limit, K-22 c). */

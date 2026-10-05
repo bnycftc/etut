@@ -10,7 +10,7 @@ import {
   stepDailyLimit,
   usageLimitReached,
 } from '../groups';
-import { isStored, retryDelayMs, toPayload, uuidFromLocalId } from '../outbox';
+import { isStored, isSubmitStatus, retryDelayMs, selectDue, toPayload, uuidFromLocalId } from '../outbox';
 import type { CompletedSession } from '../timer';
 
 describe('age band (K-16, K-17)', () => {
@@ -121,5 +121,18 @@ describe('outbox', () => {
     expect(isStored('duplicate')).toBe(true);
     expect(isStored('overlap')).toBe(false);
     expect(isStored('day_limit')).toBe(false);
+    expect(isStored('ignored')).toBe(false);
+    expect(isSubmitStatus('ignored')).toBe(true);
+  });
+
+  it('an upload waits while an earlier deletion waits; deletions and older uploads do not', () => {
+    const q = (localId: string, nextAt: number) => ({ localId, nextAt, item: localId });
+    const queue = [q('old', 0), q('delete:a', 90_000), q('a2', 0), q('delete:b', 0)];
+    // "a2" (a corrected entry) must not reach the server before "a" is deleted there.
+    expect(selectDue(queue, 35_000, 20)).toEqual(['old', 'delete:b']);
+    expect(selectDue(queue, 90_000, 20)).toEqual(['old', 'delete:a', 'a2', 'delete:b']);
+    expect(selectDue(queue, 90_000, 2)).toEqual(['old', 'delete:a']);
+    // An upload that is not due yet does not hold back the rest.
+    expect(selectDue([q('x', 60_000), q('y', 0)], 1_000, 20)).toEqual(['y']);
   });
 });

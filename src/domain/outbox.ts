@@ -31,14 +31,19 @@ export function isDeletePayload(payload: OutboxPayload): payload is DeletePayloa
   return 'delete' in payload && payload.delete === true;
 }
 
+const DELETE_PREFIX = 'delete:';
+
 /** Queue key of the delete request for a local session (next to its upload, never replacing it). */
 export function deleteQueueId(localId: string): string {
-  return `delete:${localId}`;
+  return `${DELETE_PREFIX}${localId}`;
 }
 
 export type DeleteStatus = 'deleted' | 'not_found';
 
-/** Server answers that end an item's life in the queue. */
+/**
+ * Server answers that end an item's life in the queue. 'ignored': nobody could see it (in no
+ * group, no pending request, no linked parent), so the server did not store it.
+ */
 export type SubmitStatus =
   | 'accepted'
   | 'duplicate'
@@ -47,7 +52,8 @@ export type SubmitStatus =
   | 'day_limit'
   | 'overlap'
   | 'future'
-  | 'too_old';
+  | 'too_old'
+  | 'ignored';
 
 /** 'accepted' and 'duplicate' mean "stored"; the others are permanent refusals (no retry). */
 export function isStored(status: SubmitStatus): boolean {
@@ -57,8 +63,39 @@ export function isStored(status: SubmitStatus): boolean {
 export function isSubmitStatus(value: unknown): value is SubmitStatus {
   return (
     typeof value === 'string' &&
-    ['accepted', 'duplicate', 'invalid', 'too_long', 'day_limit', 'overlap', 'future', 'too_old'].includes(value)
+    ['accepted', 'duplicate', 'invalid', 'too_long', 'day_limit', 'overlap', 'future', 'too_old', 'ignored'].includes(
+      value,
+    )
   );
+}
+
+/** A queue row as the store keeps it, oldest first. */
+export interface QueuedItem<T> {
+  localId: string;
+  nextAt: number;
+  item: T;
+}
+
+/**
+ * Which queued items may go out now. Each item waits for its own retry time, and an upload also
+ * waits while an earlier deletion is still waiting: otherwise a corrected entry for the same
+ * time ("elle" A deleted, A2 entered) could reach the server before A is gone there and be
+ * refused for good as an overlap. `items` must be in queue order (oldest first).
+ */
+export function selectDue<T>(items: readonly QueuedItem<T>[], now: number, limit: number): T[] {
+  const out: T[] = [];
+  let deleteWaiting = false;
+  for (const q of items) {
+    if (out.length >= limit) break;
+    const isDelete = q.localId.startsWith(DELETE_PREFIX);
+    if (q.nextAt > now) {
+      if (isDelete) deleteWaiting = true;
+      continue;
+    }
+    if (!isDelete && deleteWaiting) continue;
+    out.push(q.item);
+  }
+  return out;
 }
 
 /** Below one second there is nothing to send. */

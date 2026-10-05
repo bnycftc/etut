@@ -6,7 +6,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { AgeBand, ReactionKind, ReportReason } from '../domain/groups';
+import type { AgeBand, ParentNoticeKind, ReactionKind, ReportReason } from '../domain/groups';
 import { type DeleteStatus, isSubmitStatus, type SessionPayload, type SubmitStatus } from '../domain/outbox';
 import type { YksArea } from '../domain/net';
 import type { ExamType } from '../domain/profile';
@@ -80,10 +80,9 @@ export function isAccountGone(error: unknown): boolean {
   return error instanceof ApiError && error.code === 'not_authenticated';
 }
 
+/** The own account as the server holds it. The exam type is checked there but not stored. */
 export interface Me {
   nickname: string;
-  examType: ExamType;
-  yksArea: YksArea | null;
   ageBand: AgeBand;
   /** Effective: own choice or forced by a parent. */
   invisible: boolean;
@@ -201,6 +200,15 @@ export interface DayTotal {
   manualSeconds: number;
 }
 
+/**
+ * A link that ended on the student's side (kept 90 days). Only the kind and the time: the
+ * student's data went with the link.
+ */
+export interface ParentNotice {
+  kind: ParentNoticeKind;
+  createdAt: string;
+}
+
 export interface GroupApi {
   /** Anonymous sign-in on first use; later Apple/Google can be linked (linkIdToken). */
   ensureSignedIn(): Promise<void>;
@@ -215,6 +223,10 @@ export interface GroupApi {
   requestJoin(code: string): Promise<JoinStatus>;
   listJoinRequests(groupId: string): Promise<JoinRequest[]>;
   decideJoinRequest(requestId: string, approve: boolean): Promise<DecideStatus>;
+  /** Founder: blocks the person behind a request (their account id is never shown). */
+  blockJoinRequest(requestId: string): Promise<void>;
+  /** Founder: reports the nickname (or behaviour) of the person behind a request. */
+  reportJoinRequest(requestId: string, reason: Exclude<ReportReason, 'group_name'>): Promise<ReportStatus>;
   leaveGroup(groupId: string): Promise<void>;
   removeMember(groupId: string, userId: string): Promise<void>;
   myGroups(): Promise<GroupSummary[]>;
@@ -237,6 +249,9 @@ export interface GroupApi {
   parentSetControls(childId: string, controls: ParentControls): Promise<void>;
   parentWeeklySummary(childId: string): Promise<DayTotal[]>;
   parentUnlink(childId: string): Promise<void>;
+  parentNotices(): Promise<ParentNotice[]>;
+  /** Student: removes every parent link; the parents get a notice (K-22). */
+  childUnlinkParents(): Promise<void>;
   /** Deletes every personal record on the server, then signs out locally. */
   deleteMyAccount(): Promise<void>;
 }
@@ -283,8 +298,6 @@ export function createSupabaseApi(getClient: () => SupabaseClient = getSupabase)
       if (!r) return null;
       return {
         nickname: str(r.nickname),
-        examType: str(r.exam_type) as ExamType,
-        yksArea: strOrNull(r.yks_area) as YksArea | null,
         ageBand: str(r.age_band) as AgeBand,
         invisible: bool(r.invisible),
         reactionsEnabled: bool(r.reactions_enabled),
@@ -331,6 +344,12 @@ export function createSupabaseApi(getClient: () => SupabaseClient = getSupabase)
     },
     async decideJoinRequest(requestId, approve) {
       return await call<DecideStatus>('decide_join_request', { p_request: requestId, p_approve: approve });
+    },
+    async blockJoinRequest(requestId) {
+      await call('block_join_request', { p_request: requestId });
+    },
+    async reportJoinRequest(requestId, reason) {
+      return await call<ReportStatus>('report_join_request', { p_request: requestId, p_reason: reason });
     },
     async leaveGroup(groupId) {
       await call('leave_group', { p_group: groupId });
@@ -457,6 +476,15 @@ export function createSupabaseApi(getClient: () => SupabaseClient = getSupabase)
     },
     async parentUnlink(childId) {
       await call('parent_unlink', { p_child: childId });
+    },
+    async parentNotices() {
+      return (await rows('parent_notices')).map((r) => ({
+        kind: str(r.kind) as ParentNoticeKind,
+        createdAt: str(r.created_at),
+      }));
+    },
+    async childUnlinkParents() {
+      await call('child_unlink_parents');
     },
     async deleteMyAccount() {
       await call('delete_my_account');

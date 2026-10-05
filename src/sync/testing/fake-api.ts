@@ -9,6 +9,7 @@ import { normalizeCode, type ReactionKind } from '../../domain/groups';
 import type { SessionPayload, SubmitStatus } from '../../domain/outbox';
 import {
   ApiError,
+  type BlockedUser,
   type BoardMember,
   type ChildSummary,
   type GroupApi,
@@ -17,6 +18,8 @@ import {
   type LeaderRow,
   type Me,
   type ParentControls,
+  type ParentNotice,
+  type ProfileInput,
 } from '../api';
 
 interface FakeGroup {
@@ -31,6 +34,8 @@ export interface FakeServer {
   api: GroupApi;
   calls: string[];
   me: Me | null;
+  /** What saveProfile received (the exam type is checked by the server, not kept in `me`). */
+  profileInputs: ProfileInput[];
   signedIn: boolean;
   groups: FakeGroup[];
   /** Other users' live status shown on boards. */
@@ -43,6 +48,11 @@ export interface FakeServer {
   children: ChildSummary[];
   controls: Record<string, ParentControls>;
   parentCodes: Record<string, { childId: string; nickname: string }>;
+  parentNotices: ParentNotice[];
+  blocks: BlockedUser[];
+  /** Requests the founder blocked or reported (by request id). */
+  blockedRequests: string[];
+  reportedRequests: { requestId: string; reason: string }[];
   failNext: ApiError | null;
   /** The next upload gets this answer instead of being stored ('overlap', 'too_old', ...). */
   submitStatusNext: SubmitStatus | null;
@@ -55,6 +65,7 @@ export function createFakeServer(): FakeServer {
     api: undefined as unknown as GroupApi,
     calls: [],
     me: null,
+    profileInputs: [],
     signedIn: false,
     groups: [],
     studying: {},
@@ -66,6 +77,10 @@ export function createFakeServer(): FakeServer {
     children: [],
     controls: {},
     parentCodes: {},
+    parentNotices: [],
+    blocks: [],
+    blockedRequests: [],
+    reportedRequests: [],
     failNext: null,
     submitStatusNext: null,
   };
@@ -113,10 +128,9 @@ export function createFakeServer(): FakeServer {
     async saveProfile(input) {
       await step('saveProfile');
       if (!s.signedIn) throw new ApiError('not_authenticated');
+      s.profileInputs.push({ ...input });
       s.me = {
         nickname: input.nickname,
-        examType: input.examType,
-        yksArea: input.yksArea,
         ageBand: input.ageBand,
         invisible: false,
         reactionsEnabled: true,
@@ -185,6 +199,20 @@ export function createFakeServer(): FakeServer {
       if (!approve) return 'rejected';
       g.members.push({ userId: `user-${request.nickname}`, nickname: request.nickname, role: 'member' });
       return 'approved';
+    },
+    async blockJoinRequest(requestId) {
+      await step('blockJoinRequest');
+      const g = s.groups.find((x) => x.requests.some((r) => r.requestId === requestId));
+      if (!g || !g.members.some((m) => m.userId === ME_ID && m.role === 'owner')) throw new ApiError('invalid_input');
+      g.requests = g.requests.filter((r) => r.requestId !== requestId);
+      s.blockedRequests.push(requestId);
+    },
+    async reportJoinRequest(requestId, reason) {
+      await step('reportJoinRequest');
+      const g = s.groups.find((x) => x.requests.some((r) => r.requestId === requestId));
+      if (!g || !g.members.some((m) => m.userId === ME_ID && m.role === 'owner')) return 'invalid';
+      s.reportedRequests.push({ requestId, reason });
+      return 'reported';
     },
     async leaveGroup(groupId) {
       await step('leaveGroup');
@@ -294,15 +322,18 @@ export function createFakeServer(): FakeServer {
       await step('report');
       return 'reported';
     },
-    async blockUser() {
+    async blockUser(userId) {
       await step('blockUser');
+      const nickname = s.groups.flatMap((g) => g.members).find((m) => m.userId === userId)?.nickname ?? userId;
+      if (!s.blocks.some((b) => b.userId === userId)) s.blocks.push({ userId, nickname });
     },
-    async unblockUser() {
+    async unblockUser(userId) {
       await step('unblockUser');
+      s.blocks = s.blocks.filter((b) => b.userId !== userId);
     },
     async myBlocks() {
       await step('myBlocks');
-      return [];
+      return [...s.blocks];
     },
     async createParentCode() {
       await step('createParentCode');
@@ -344,6 +375,15 @@ export function createFakeServer(): FakeServer {
       await step('parentUnlink');
       s.children = s.children.filter((c) => c.childId !== childId);
       delete s.controls[childId];
+    },
+    async parentNotices() {
+      await step('parentNotices');
+      return [...s.parentNotices];
+    },
+    async childUnlinkParents() {
+      await step('childUnlinkParents');
+      const me = requireMe();
+      s.me = { ...me, parentCount: 0, groupsDisabled: false, forceInvisible: false, dailyLimitMinutes: null };
     },
     async deleteMyAccount() {
       await step('deleteMyAccount');

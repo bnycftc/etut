@@ -32,6 +32,12 @@ services:
       # any client-sent X-Forwarded-For, and GoTrue keys on its first value.
       GOTRUE_RATE_LIMIT_ANONYMOUS_USERS: "30"
       GOTRUE_RATE_LIMIT_HEADER: "X-Forwarded-For"
+      # Token refreshes per IP per 5 minutes (GoTrue default 150). Many students share one IP
+      # behind school Wi-Fi or carrier NAT. A refused refresh (429) with an expired access token
+      # makes the app drop its session (auth-js treats 429 as final), and an anonymous account
+      # cannot be signed into again: the student would lose the group account. So the limit is
+      # set well above what one NAT is expected to send. [KONTROL] infra/README.md, "Doğrulanamayanlar" → "Hız sınırları".
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: "3000"
       # GoTrue's own audit table (auth.audit_log_entries: account id, IP, e-mail) would keep IPs
       # outside our retention rules. The 5651 trail is audit.events / audit.ip_events (395
       # days) and the Caddy access log (400 days). GoTrue still logs to stdout (docker logs,

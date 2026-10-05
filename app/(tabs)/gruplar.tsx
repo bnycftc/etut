@@ -16,9 +16,16 @@ import {
 import { istanbulYear } from '@/domain/istanbul-day';
 import { useAppState } from '@/state/app-state';
 import { useGroupsUsage } from '@/state/groups-usage';
-import { loadGroupsAccount, storeGroupsAccount, storeGroupsMember } from '@/storage/groups-kv';
+import { loadGroupsAccount, storeGroupsAccount, storeGroupsMember, storeParentLinked } from '@/storage/groups-kv';
 import { tr } from '@/strings';
-import { type GroupSummary, groupApi, type IncomingReaction, isAccountGone, type Me } from '@/sync/api';
+import {
+  type BlockedUser,
+  type GroupSummary,
+  groupApi,
+  type IncomingReaction,
+  isAccountGone,
+  type Me,
+} from '@/sync/api';
 import { endGroupsAccount } from '@/sync/session-sync';
 import { Button, Card, Chip, ChipRow, Label, Row, Screen, Tag, TextField } from '@/ui/components';
 import { errorText, Message, minutesLeft, ToggleRow } from '@/ui/group-ui';
@@ -60,6 +67,8 @@ function GroupsHome() {
   const [code, setCode] = useState('');
   const [parentCode, setParentCode] = useState<{ code: string; expiresAt: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmUnlinkParents, setConfirmUnlinkParents] = useState(false);
+  const [blocks, setBlocks] = useState<BlockedUser[] | null>(null);
 
   const accountGone = useCallback(() => {
     // The server account no longer exists (deleted, or purged after long inactivity): stop the
@@ -80,14 +89,21 @@ function GroupsHome() {
       }
       // Turned 18 since the band was sent: the parent link ends (K-22 is for 15–17 only). The
       // server accepts it from the year after the 15–17 band was declared and refuses it before.
-      if (current.ageBand === '15_17' && band === '18_plus') {
-        const { nickname: name, examType, yksArea } = current;
+      // The exam type is only checked there, not stored, so it comes from the device profile.
+      if (current.ageBand === '15_17' && band === '18_plus' && profile !== null) {
         const raised = await api
-          .saveProfile({ nickname: name, examType, yksArea, ageBand: '18_plus' })
+          .saveProfile({
+            nickname: current.nickname,
+            examType: profile.examType,
+            yksArea: profile.yksArea,
+            ageBand: '18_plus',
+          })
           .then(() => true, () => false);
         if (raised) current = (await api.getMe()) ?? current;
       }
       setMe(current);
+      // A linked parent sees the weekly time: sessions are sent even in no group (session-sync).
+      storeParentLinked(current.parentCount > 0);
       if (!current.groupsDisabled) {
         // Reactions are marked as delivered when taken: show them even if the group list fails.
         const [mine, reactions] = await Promise.allSettled([api.myGroups(), api.takeReactions()]);
@@ -103,7 +119,7 @@ function GroupsHome() {
     } finally {
       setLoaded(true);
     }
-  }, [api, accountGone, band]);
+  }, [api, accountGone, band, profile]);
 
   // Load on focus; time spent here counts for the parent's daily limit (useGroupsUsage, K-22 c).
   useFocusEffect(
@@ -357,6 +373,38 @@ function GroupsHome() {
         />
         <Label variant="small">{tr.groups.reactionsInfo}</Label>
         {me.dailyLimitMinutes !== null ? <Label variant="small">{tr.groups.limitInfo(me.dailyLimitMinutes)}</Label> : null}
+        {blocks === null ? (
+          <Button
+            testID="groups-blocks-show"
+            kind="secondary"
+            title={tr.groups.blocksShow}
+            disabled={busy}
+            onPress={() => run(async () => setBlocks(await api.myBlocks()))}
+          />
+        ) : (
+          <View style={{ gap: 8 }}>
+            <Label variant="heading">{tr.groups.blocksTitle}</Label>
+            {blocks.length === 0 ? <Label variant="muted">{tr.groups.blocksNone}</Label> : null}
+            {blocks.map((b, index) => (
+              <Row key={b.userId}>
+                <Label style={{ flex: 1 }}>{b.nickname}</Label>
+                <Button
+                  testID={`groups-unblock-${index}`}
+                  kind="secondary"
+                  title={tr.groups.unblock}
+                  disabled={busy}
+                  onPress={() =>
+                    run(async () => {
+                      await api.unblockUser(b.userId);
+                      setBlocks(await api.myBlocks());
+                      setNotice(tr.groups.unblocked);
+                    })
+                  }
+                />
+              </Row>
+            ))}
+          </View>
+        )}
       </Card>
 
       {me.ageBand === '15_17' ? (
@@ -364,6 +412,41 @@ function GroupsHome() {
           <Label variant="heading">{tr.groups.parentTitle}</Label>
           <Label variant="small">{tr.groups.parentInfo}</Label>
           {me.parentCount > 0 ? <Label testID="groups-parent-count">{tr.groups.parentLinked(me.parentCount)}</Label> : null}
+          {me.parentCount > 0 ? (
+            confirmUnlinkParents ? (
+              <View style={{ gap: 8 }}>
+                <Label>{tr.groups.parentUnlinkConfirm}</Label>
+                <Button
+                  testID="groups-parent-unlink-confirm"
+                  kind="danger"
+                  title={tr.groups.parentUnlink}
+                  disabled={busy}
+                  onPress={() =>
+                    run(async () => {
+                      await api.childUnlinkParents();
+                      setConfirmUnlinkParents(false);
+                      setNotice(tr.groups.parentUnlinked);
+                      await refresh();
+                    })
+                  }
+                />
+                <Button
+                  testID="groups-parent-unlink-cancel"
+                  kind="secondary"
+                  title={tr.common.cancel}
+                  onPress={() => setConfirmUnlinkParents(false)}
+                />
+              </View>
+            ) : (
+              <Button
+                testID="groups-parent-unlink"
+                kind="secondary"
+                title={tr.groups.parentUnlink}
+                disabled={busy}
+                onPress={() => setConfirmUnlinkParents(true)}
+              />
+            )
+          ) : null}
           {parentCode !== null ? (
             <Label testID="groups-parent-code" variant="heading">
               {tr.groups.parentCodeShown(formatCode(parentCode.code), minutesLeft(parentCode.expiresAt, Date.now()))}

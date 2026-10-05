@@ -118,8 +118,13 @@ select throws_ok($$ select * from audit.events $$, '42501', null, 'clients canno
 reset role;
 
 -- ---------------------------------------------------------------- retention purge
--- The parent is now an anonymous user without profile or link: removed after a day.
+-- The parent was told that the student deleted the account (K-22); no student id is kept.
+select is((select kind from app.parent_notices where parent_id = '99999999-0000-0000-0000-0000000000a1'),
+  'child_deleted_account', 'the parent gets a notice that the linked student deleted the account');
+-- The parent is now an anonymous user without profile or link: removed after a day, once the
+-- notice (90 days) is gone.
 update auth.users set created_at = now() - interval '2 days' where id = '99999999-0000-0000-0000-0000000000a1';
+update app.parent_notices set created_at = now() - interval '91 days';
 update app.profiles set last_active_at = now() - interval '7 months' where user_id = '99999999-0000-0000-0000-00000000000c';
 select throws_ok($$ insert into app.reactions (group_id, from_user, to_user, kind) values
   ((select group_id from g1), '99999999-0000-0000-0000-00000000000b', '99999999-0000-0000-0000-00000000000b', 'hadi') $$,

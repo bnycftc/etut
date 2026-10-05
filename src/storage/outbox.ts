@@ -4,7 +4,7 @@
  * module is on and a group account exists.
  */
 
-import type { OutboxPayload } from '../domain/outbox';
+import { type OutboxPayload, selectDue } from '../domain/outbox';
 import { getDb } from './db';
 
 export interface OutboxItem {
@@ -25,26 +25,37 @@ export function enqueueSession(localId: string, payload: OutboxPayload, now: num
   );
 }
 
+/** What may go out now, in queue order (selectDue: an upload waits behind a waiting deletion). */
 export function dueItems(now: number, limit: number): OutboxItem[] {
-  return getDb()
-    .getAllSync<{ local_id: string; payload: string; attempts: number }>(
-      `SELECT local_id, payload, attempts FROM sync_outbox
-       WHERE next_attempt_at <= ? ORDER BY created_at LIMIT ?`,
-      now,
-      limit,
+  const rows = getDb()
+    .getAllSync<{ local_id: string; payload: string; attempts: number; next_attempt_at: number }>(
+      `SELECT local_id, payload, attempts, next_attempt_at FROM sync_outbox ORDER BY created_at, rowid`,
     )
     .flatMap((row) => {
       try {
-        return [{ localId: row.local_id, payload: JSON.parse(row.payload) as OutboxPayload, attempts: row.attempts }];
+        const item: OutboxItem = {
+          localId: row.local_id,
+          payload: JSON.parse(row.payload) as OutboxPayload,
+          attempts: row.attempts,
+        };
+        return [{ localId: row.local_id, nextAt: row.next_attempt_at, item }];
       } catch {
         return [];
       }
     });
+  return selectDue(rows, now, limit);
 }
 
-/** True when the item was still waiting in the queue. */
-export function removeItem(localId: string): boolean {
-  return getDb().runSync('DELETE FROM sync_outbox WHERE local_id = ?', localId).changes > 0;
+/**
+ * Removes a waiting item. Returns how often it was already tried (0 = never sent), or null when
+ * it was not in the queue (any more).
+ */
+export function removeItem(localId: string): number | null {
+  const db = getDb();
+  const row = db.getFirstSync<{ attempts: number }>('SELECT attempts FROM sync_outbox WHERE local_id = ?', localId);
+  if (row === null) return null;
+  db.runSync('DELETE FROM sync_outbox WHERE local_id = ?', localId);
+  return row.attempts;
 }
 
 export function scheduleRetry(localId: string, attempts: number, nextAt: number, error: string): void {

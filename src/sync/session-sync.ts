@@ -10,7 +10,14 @@ import { GROUPS_ENABLED } from '../config/features';
 import { HEARTBEAT_INTERVAL_MS } from '../domain/groups';
 import { deleteQueueId, toPayload, uuidFromLocalId } from '../domain/outbox';
 import { type ActiveSession, type CompletedSession, isPaused } from '../domain/timer';
-import { loadGroupsAccount, loadGroupsMember, storeGroupsAccount, storeGroupsMember } from '../storage/groups-kv';
+import {
+  loadGroupsAccount,
+  loadGroupsMember,
+  loadParentLinked,
+  storeGroupsAccount,
+  storeGroupsMember,
+  storeParentLinked,
+} from '../storage/groups-kv';
 import * as outboxStore from '../storage/outbox';
 import { groupApi as api } from './api';
 import { flushOutbox, isFlushing } from './outbox';
@@ -104,9 +111,11 @@ export function syncFinishedSession(session: CompletedSession, now: number): voi
     if (wasLive) api().endPresence(uuidFromLocalId(session.id)).catch(ignore);
     return;
   }
-  // In no group (not even a pending request): no ranking would count it, so the session stays on
-  // the device only (KVKK m.4/2-ç). A session that was live in a group is still sent.
-  if (!wasLive && !loadGroupsMember()) return;
+  // In no group (not even a pending request) and no parent linked: nobody would see it, so the
+  // session stays on the device only (KVKK m.4/2-ç). A linked parent sees the weekly total, so
+  // with one it is sent. A session that was live in a group is still sent. The server applies the
+  // same rule ('ignored'), so a stale flag here never stores anything.
+  if (!wasLive && !loadGroupsMember() && !loadParentLinked()) return;
   try {
     outboxStore.enqueueSession(session.id, payload, now);
   } catch {
@@ -122,9 +131,10 @@ export function syncFinishedSession(session: CompletedSession, now: number): voi
 export function syncManualDeleted(localId: string, now: number = Date.now()): void {
   if (!isSyncActive()) return;
   try {
-    const waiting = outboxStore.removeItem(localId) === true;
-    // Never sent: nothing to delete there. While a flush runs it may be on its way, though.
-    if (waiting && !isFlushing()) return;
+    const attempts = outboxStore.removeItem(localId);
+    // Never tried: nothing to delete there. While a flush runs it may be on its way, though, and
+    // after a failed try the server may have stored it with only the answer lost.
+    if (attempts === 0 && !isFlushing()) return;
     outboxStore.enqueueSession(deleteQueueId(localId), { delete: true, clientId: uuidFromLocalId(localId) }, now);
   } catch {
     return;
@@ -155,7 +165,15 @@ function scheduleNextFlush(): void {
 /** Sends whatever is due (app start, foreground, after a new session, retry timer). */
 export function flushPending(): void {
   if (!isSyncActive()) return;
-  flushOutbox(api(), outboxStore).then(scheduleNextFlush, ignore);
+  flushOutbox(api(), outboxStore).then((result) => {
+    if (result.refused.includes('ignored')) {
+      // The server sees no group, request or parent: stop sending until the Gruplar screen
+      // learns otherwise.
+      storeGroupsMember(false);
+      storeParentLinked(false);
+    }
+    scheduleNextFlush();
+  }, ignore);
 }
 
 // ------------------------------------------------------------------ account end
@@ -176,6 +194,7 @@ export function endGroupsAccount(): void {
   stopSync();
   storeGroupsAccount(false);
   storeGroupsMember(false);
+  storeParentLinked(false);
   try {
     outboxStore.clearOutbox();
   } catch {

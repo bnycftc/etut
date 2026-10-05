@@ -160,7 +160,11 @@ select throws_ok($$ select public.save_profile('Gece Kuşu', 'KPSS', null, '18_p
 -- LGS candidates are typically 13-14: not a group profile (K-17 lower age wins, K-45).
 select throws_ok($$ select public.save_profile('Sekizinci', 'LGS', null, '15_17') $$,
   'P0001', 'invalid_input', 'LGS is not accepted for a group profile');
-select is((select exam_type from public.get_me()), 'KPSS', 'the refused change kept the old exam type');
+-- The exam type is checked but not stored: nothing on the server reads it (KVKK m.4/2-ç).
+select is((select exam_type from public.get_me()), null, 'the exam type is not stored');
+reset role;
+select is((select count(*)::int from app.profiles where exam_type is not null or yks_area is not null), 0,
+  'no profile keeps an exam type or YKS area');
 
 select * from finish();
 rollback;

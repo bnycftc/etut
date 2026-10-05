@@ -20,4 +20,7 @@ export const GROUPS_LAUNCH_BLOCKERS: readonly string[] = [
   'K-37: web üzerinden hesap silme adresi (Google Play "Delete account URL")',
   'K-28 / K-29: "danger" raporu ve 24 saati aşan rapor için operatöre yurt içi kanaldan anında uyarı',
   'K-25 / K-42: web sitesinde aydınlatma metni, çocuk güvenliği sayfası ve iletişim (PRIVACY_NOTICE_URL)',
+  'K-17: iOS Declared Age Range sinyali okunur; cihazdaki beyanla çelişirse düşük yaş esas alınır',
+  'K-44 / kvkk/11: App Privacy, yaş derecelendirmesi (Parental Controls), Data safety ve inceleme notları grup modülüyle tutarlı ve gönderilen sürümle karşılaştırıldı',
+  'Anonim hesap kaybı: GoTrue IP başına sınırları (token yenileme, anonim kayıt) okul/operatör NAT yükünde denendi; uzun vadede Apple/Google hesap bağlama',
 ];
