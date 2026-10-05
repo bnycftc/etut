@@ -4,6 +4,7 @@ import { useColorScheme } from 'react-native';
 
 import { GROUPS_ENABLED } from '@/config/features';
 import { AppStateProvider, useAppState } from '@/state/app-state';
+import { SystemSync } from '@/state/system-sync';
 import { tr } from '@/strings';
 import { useReducedMotion } from '@/ui/motion';
 import { usePalette } from '@/ui/theme';
@@ -36,6 +37,12 @@ function RootStack() {
         <Stack.Screen name="haftalik" options={{ title: tr.weekly.title }} />
         <Stack.Screen name="paylas" options={{ title: tr.share.title }} />
         <Stack.Screen name="yedek" options={{ title: tr.backup.title }} />
+        <Stack.Screen name="hatirlaticilar" options={{ title: tr.reminders.title }} />
+        {/* Pre-permission screen: left only through its button (HIG), so no swipe-down. */}
+        <Stack.Screen
+          name="bildirim-izni"
+          options={{ title: tr.notificationPermission.title, presentation: 'modal', gestureEnabled: false }}
+        />
       </Stack.Protected>
       {/* Group module screens exist only while it is on, and never for under-15 profiles (K-16). */}
       <Stack.Protected guard={GROUPS_ENABLED && profile !== null && !profile.soloOnly}>
@@ -61,6 +68,7 @@ export default function RootLayout() {
     <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AppStateProvider>
         <RootStack />
+        <SystemSync />
         <StatusBar style="auto" />
       </AppStateProvider>
     </ThemeProvider>

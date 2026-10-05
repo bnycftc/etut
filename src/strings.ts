@@ -588,6 +588,97 @@ export const tr = {
     reached: (average: string) => `Hedefe ulaştın (son denemelerin ortalaması: ${average}).`,
   },
 
+  /**
+   * Reminders (local notifications only). Neutral wording for every age: no pressure, no
+   * comparison with others, no marketing (hukuk/03 K-16, K-34).
+   */
+  reminders: {
+    title: 'Hatırlatıcılar',
+    open: 'Hatırlatıcılar',
+    summaryOff: 'Bildirim izni verilmedi; hatırlatıcılar gelmez.',
+    summaryOn: (count: number) => (count === 0 ? 'Açık hatırlatıcı yok.' : `${count} hatırlatıcı açık.`),
+    info: 'Hatırlatıcılar bu cihazda kurulur; hiçbir sunucuya bir şey gönderilmez. Uygulama açıkken bildirim gösterilmez.',
+    permissionMissing: 'Hatırlatıcıların gelmesi için bildirim izni gerekiyor.',
+    permissionAsk: 'Bildirim izni iste',
+    permissionDenied:
+      'Bildirim izni kapalı. Telefonun Ayarlar uygulamasından Etüt’ün bildirimlerini açabilirsin.',
+    openSettings: 'Ayarları aç',
+    unsupported: 'Bu cihazda hatırlatıcı yok.',
+    on: 'Açık',
+    off: 'Kapalı',
+    longSession: 'Uzun oturum uyarısı',
+    longSessionInfo: (hours: number) =>
+      `Sayaç ${hours} saat boyunca duraklatılmadan açık kalırsa “Hâlâ çalışıyor musun?” diye sorar. Pomodoro molaları sayacı duraklatmaz.`,
+    longSessionHours: 'Süre',
+    hours: (n: number) => `${n} saat`,
+    pomodoro: 'Pomodoro aşama sonu',
+    pomodoroInfo: 'Uygulama kapalıyken çalışma ya da mola bitince haber verir.',
+    daily: 'Günlük çalışma hatırlatıcısı',
+    dailyInfo: 'Seçtiğin saatte bir kez hatırlatır; o gün çalıştıysan hatırlatmaz.',
+    dailyHour: 'Saat',
+    dailyMinute: 'Dakika',
+    /** `20:30` */
+    time: (hour: number, minute: number) =>
+      `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+    examAnalysis: 'Deneme analizi hatırlatıcısı',
+    examAnalysisInfo: 'Analizi bekleyen deneme için ertesi gün bir kez hatırlatır.',
+  },
+
+  /** Explanation shown before the system permission prompt. */
+  notificationPermission: {
+    title: 'Bildirim izni',
+    heading: 'Hatırlatıcılar için bildirim izni',
+    body: 'Etüt yalnız açık olan hatırlatıcılar için bildirim gösterir:',
+    willBeOn: 'İzin verirsen şunlar açık olur:',
+    local:
+      'Bildirimler bu cihazda kurulur. Etüt bunun için hiçbir sunucuya bağlanmaz ve bilgi göndermez.',
+    later: 'İzin vermezsen uygulama aynen çalışır; yalnız hatırlatıcılar gelmez. Fikrini sonra Ayarlar’dan değiştirebilirsin.',
+    /** The only button: it opens the system prompt, where the student allows or refuses (HIG). */
+    allow: 'Devam et',
+    denied: 'İzin verilmedi. Hatırlatıcılar kapalı kalır; uygulamanın geri kalanı aynen çalışır.',
+    granted: 'İzin verildi. Hatırlatıcılar açık.',
+    close: 'Kapat',
+  },
+
+  /** Texts of the local notifications. */
+  notification: {
+    longSessionTitle: 'Hâlâ çalışıyor musun?',
+    /** No duration: the text shows on the Lock Screen (hukuk/kvkk/08). */
+    longSessionBody: 'Sayaç uzun süredir duraklatılmadan açık. Ara verdiysen sayacı durdurabilirsin.',
+    workEndedTitle: 'Çalışma bloğu bitti',
+    shortBreakBody: 'Kısa mola başladı.',
+    longBreakBody: 'Uzun mola başladı.',
+    breakEndedTitle: 'Mola bitti',
+    workBody: 'Sıradaki çalışma bloğu başladı.',
+    dailyTitle: 'Çalışma zamanı',
+    dailyBody: 'Bugün çalışmaya başlamak istersen sayaç hazır.',
+    examTitle: 'Deneme analizi',
+    examBody: (count: number) =>
+      count === 1
+        ? 'Kaydettiğin denemenin yanlış ve boş sorularının konularını işaretleyebilirsin.'
+        : `Analizi bekleyen ${count} deneme var.`,
+    channel: 'Hatırlatıcılar',
+  },
+
+  /** Lock Screen / Dynamic Island timer (iOS Live Activity). */
+  liveActivity: {
+    /**
+     * The phase shown once the Live Activity is stale, with its end time: it stays true after the
+     * phase is over (the activity cannot change by itself any more; the app updates it when opened).
+     */
+    phaseEnds: (label: string, time: string) => `${label} · bitiş ${time}`,
+  },
+
+  /** Home Screen widget (iOS). */
+  widget: {
+    today: 'Bugün',
+    streak: (days: number) => `Seri: ${days} gün`,
+    goal: (goal: string) => `Hedef ${goal}`,
+    goalMet: 'Hedef tamam',
+    noGoal: 'Hedef koymadın',
+    running: 'Sayaç açık',
+  },
+
   groups: {
     title: 'Gruplar',
     soon: 'Yakında',

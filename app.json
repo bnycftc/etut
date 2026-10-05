@@ -19,6 +19,15 @@
         "CFBundleDevelopmentRegion": "tr",
         "CFBundleLocalizations": ["tr"],
         "NSPhotoLibraryAddUsageDescription": "Paylaşım ekranında “Görüntüyü Kaydet”i seçersen çalışma kartın Fotoğraflar’a eklenir. Etüt fotoğraflarını göremez."
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1", "1C8F.1"]
+          }
+        ]
       }
     },
     "android": {
@@ -34,6 +43,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/with-etut-ios.js",
       "expo-router",
       "expo-sqlite",
       [
@@ -46,6 +56,25 @@
             "backgroundColor": "#0D1117",
             "image": "./assets/splash-icon-dark.png"
           }
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          "bundleIdentifier": "com.bnycftc.etut.ExpoWidgetsTarget",
+          "groupIdentifier": "group.com.bnycftc.etut",
+          "enablePushNotifications": false,
+          "frequentUpdates": false,
+          "widgets": [
+            {
+              "name": "EtutToday",
+              "displayName": "Etüt: Bugün",
+              "description": "Bugünkü çalışma süren, serin ve günlük hedefin.",
+              "ios": {
+                "supportedFamilies": ["systemSmall", "systemMedium", "accessoryRectangular"]
+              }
+            }
+          ]
         }
       ]
     ],

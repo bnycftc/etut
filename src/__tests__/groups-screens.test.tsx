@@ -60,12 +60,39 @@ jest.mock('../storage/kv', () => ({
   storeCustomExamDate: () => {},
   loadNetTargets: () => ({}),
   storeNetTarget: () => {},
+  loadTipsSeen: () => true,
+  storeTipsSeen: () => {},
+  loadReminderPrefs: () => jest.requireActual('../domain/reminders').normalizeReminderPrefs(null),
+  storeReminderPrefs: () => {},
+  loadRemindersConfirmed: () => false,
+  storeRemindersConfirmed: () => {},
+  loadLiveActivityRecord: () => null,
+  storeLiveActivityRecord: () => {},
   wipeKeyValueStore: () => {
     memory.profile = null;
     memory.active = null;
     memory.groupsAccount = false;
     memory.parentAccount = false;
   },
+}));
+// System surfaces (Live Activity, widget, reminders) are covered in app-smoke.test.tsx; here they
+// are off so the native modules are never loaded. The permission check never answers (no act()
+// warnings), as in the older app-smoke tests.
+jest.mock('../system/notifications', () => ({
+  notifications: {
+    supported: false,
+    getPermission: () => new Promise(() => {}),
+    requestPermission: async () => 'unsupported',
+    sync: async () => {},
+    cancelAll: async () => {},
+    onOpen: () => () => {},
+  },
+}));
+jest.mock('../system/live-activity', () => ({
+  liveActivity: { supported: false, count: () => 0, start: () => false, update: async () => {}, endAll: async () => {} },
+}));
+jest.mock('../system/home-widget', () => ({
+  homeWidget: { supported: false, setTimeline: () => {} },
 }));
 jest.mock('../storage/groups-kv', () => ({
   loadGroupsAccount: () => memory.groupsAccount,

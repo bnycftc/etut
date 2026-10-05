@@ -22,12 +22,16 @@ import {
   POMODORO_LIMITS,
 } from '@/domain/pomodoro';
 import { EXAM_TYPES, type ExamType, YKS_AREAS } from '@/domain/profile';
+import { effectiveReminderPrefs } from '@/domain/reminders';
 import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '@/domain/streak';
 import { useAppState, useStored } from '@/state/app-state';
+import { useNotificationPermission } from '@/state/notification-permission';
 import {
   loadCustomExamDate,
   loadDailyGoal,
   loadPomodoroConfig,
+  loadReminderPrefs,
+  loadRemindersConfirmed,
   storeCustomExamDate,
   storeDailyGoal,
   storePomodoroConfig,
@@ -101,6 +105,11 @@ export default function SettingsScreen() {
     setDateText('');
     notifyDataChanged();
   };
+  const permission = useNotificationPermission();
+  const reminderPrefs = useStored(`reminders|${dataVersion}`, () =>
+    effectiveReminderPrefs(loadReminderPrefs(), loadRemindersConfirmed()),
+  );
+  const enabledReminders = Object.values(reminderPrefs).filter((r) => r.enabled).length;
   const version = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '–';
   const build = Application.nativeBuildVersion ?? '–';
   const parentMode = GROUPS_ENABLED && profile !== null && canUseParentMode(profile.birthYear, istanbulYear(Date.now()));
@@ -291,6 +300,23 @@ export default function SettingsScreen() {
           kind="secondary"
           title={tr.pomodoro.reset}
           onPress={() => setPomodoro(DEFAULT_POMODORO)}
+        />
+      </Card>
+
+      <Card>
+        <Label variant="heading">{tr.reminders.title}</Label>
+        <Label testID="settings-reminders-summary" variant="small">
+          {permission === 'granted'
+            ? tr.reminders.summaryOn(enabledReminders)
+            : permission === 'unsupported'
+              ? tr.reminders.unsupported
+              : tr.reminders.summaryOff}
+        </Label>
+        <Button
+          testID="settings-reminders"
+          kind="secondary"
+          title={tr.reminders.open}
+          onPress={() => router.push('/hatirlaticilar')}
         />
       </Card>
 

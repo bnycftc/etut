@@ -7,6 +7,7 @@ import * as SQLite from 'expo-sqlite';
 import Storage from 'expo-sqlite/kv-store';
 
 import type { DayKey } from '../domain/istanbul-day';
+import type { LiveActivityRecord } from '../domain/live-timer';
 import {
   DEFAULT_POMODORO,
   isPomodoroConfig,
@@ -14,6 +15,7 @@ import {
   type PomodoroConfig,
 } from '../domain/pomodoro';
 import { type ExamType, isProfile, type Profile } from '../domain/profile';
+import { normalizeReminderPrefs, type ReminderPrefs } from '../domain/reminders';
 import { clampGoalMinutes } from '../domain/streak';
 import { type ActiveSession, toActiveSession } from '../domain/timer';
 
@@ -27,6 +29,9 @@ const KEYS = {
   examDate: 'etut.examDate.v1',
   netTargets: 'etut.netTargets.v1',
   tipsSeen: 'etut.tipsSeen.v1',
+  reminderPrefs: 'etut.reminderPrefs.v1',
+  remindersConfirmed: 'etut.remindersConfirmed.v1',
+  liveActivity: 'etut.liveActivity.v1',
 } as const;
 
 export type TimerMode = 'stopwatch' | 'pomodoro';
@@ -166,6 +171,39 @@ export function loadTipsSeen(): boolean {
 
 export function storeTipsSeen(): void {
   Storage.setItemSync(KEYS.tipsSeen, '1');
+}
+
+export function loadReminderPrefs(): ReminderPrefs {
+  return normalizeReminderPrefs(readJson(KEYS.reminderPrefs));
+}
+
+export function storeReminderPrefs(prefs: ReminderPrefs): void {
+  Storage.setItemSync(KEYS.reminderPrefs, JSON.stringify(normalizeReminderPrefs(prefs)));
+}
+
+/** The student turned reminders on through the explanation screen (cleared by "Tüm verileri sil"). */
+export function loadRemindersConfirmed(): boolean {
+  return readJson(KEYS.remindersConfirmed) === true;
+}
+
+export function storeRemindersConfirmed(): void {
+  Storage.setItemSync(KEYS.remindersConfirmed, 'true');
+}
+
+/** The Live Activity the app last started (iOS); `null` = none. */
+export function loadLiveActivityRecord(): LiveActivityRecord | null {
+  const value = readJson(KEYS.liveActivity);
+  if (typeof value !== 'object' || value === null) return null;
+  const v = value as Record<string, unknown>;
+  if (typeof v.sessionId !== 'string' || typeof v.startedAt !== 'number') return null;
+  return v.dismissed === true
+    ? { sessionId: v.sessionId, startedAt: v.startedAt, dismissed: true }
+    : { sessionId: v.sessionId, startedAt: v.startedAt };
+}
+
+export function storeLiveActivityRecord(record: LiveActivityRecord | null): void {
+  if (record === null) Storage.removeItemSync(KEYS.liveActivity);
+  else Storage.setItemSync(KEYS.liveActivity, JSON.stringify(record));
 }
 
 /** expo-sqlite/kv-store keeps its rows in this database file (expo-sqlite src/Storage.ts). */

@@ -8,10 +8,11 @@
  *
  * Checks: page is cross-origin isolated, no console errors / uncaught exceptions, no network
  * request outside the dev server; onboarding (+ short notice) → first-use tips → timer (start,
- * pause, resume, finish; Sayısal subjects only) → reload keeps the profile → share card (1080x1920
- * PNG) → mock exam with the right net (area papers only) → reload keeps the exam → area change →
- * backup + CSV download → about / legal / licenses → "delete all data" returns to onboarding →
- * empty states → restore the backup twice (no duplicates) → dark theme with reduced motion.
+ * pause, resume, finish; Sayısal subjects only) → groups tab stays "Yakında" → reload keeps the
+ * profile → share card (1080x1920 PNG) → mock exam with the right net (area papers only) → reload
+ * keeps the exam → area change → backup + CSV download → about / legal / licenses → reminders
+ * screen renders → "delete all data" returns to onboarding → empty states → restore the backup
+ * twice (no duplicates) → dark theme with reduced motion.
  *
  * Environment:
  *   WEB_TEST_PORT     first port to try (default 8090; the next free port is used if busy)
@@ -336,6 +337,20 @@ async function runScenario(page, baseUrl) {
   await byId('about-licenses').click();
   await visible('licenses-screen');
   await page.goBack();
+  await page.goBack();
+
+  // 5e. Reminders screen renders (web has no local notifications: "unsupported", no prompt).
+  log('step: reminders');
+  await byId('tab-settings').click();
+  await visible('settings-reminders');
+  await byId('settings-reminders').click();
+  await visible('reminder-daily-toggle');
+  check((await text('reminder-daily-toggle')) === 'Kapalı', 'daily reminder must be off by default');
+  check(
+    await byId('reminders-screen').getByText('Bu cihazda hatırlatıcı yok.').isVisible(),
+    'web must say reminders are unsupported',
+  );
+  await screenshot('reminders');
   await page.goBack();
 
   // 6. Settings → delete all data → onboarding.

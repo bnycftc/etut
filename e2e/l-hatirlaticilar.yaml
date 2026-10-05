@@ -1,0 +1,90 @@
+# l. Hatırlatıcılar (açıklama ekranı; sistem izin penceresi açılmaz)
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+# notifications: unset = the student has not answered yet, so the explanation screen comes first.
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: unset
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+- tapOn:
+    id: tab-settings
+- scrollUntilVisible:
+    element:
+      id: settings-reminders
+    direction: DOWN
+    centerElement: true
+- assertVisible:
+    id: settings-reminders-summary
+    text: "Bildirim izni verilmedi; hatırlatıcılar gelmez\\."
+- takeScreenshot: l-hatirlaticilar-01-ayarlar
+- tapOn:
+    id: settings-reminders
+- extendedWaitUntil:
+    visible:
+      id: reminder-daily-toggle
+    timeout: 10000
+# Before the student has confirmed reminders once, every reminder is off; no permission yet.
+- assertVisible:
+    id: reminders-permission-missing
+- assertVisible:
+    id: reminder-daily-toggle
+    text: "Kapalı"
+- assertVisible:
+    id: reminder-long-toggle
+    text: "Kapalı"
+- takeScreenshot: l-hatirlaticilar-02-liste
+# Turning a reminder on opens the explanation, never the system prompt directly.
+- tapOn:
+    id: reminder-daily-toggle
+- extendedWaitUntil:
+    visible:
+      id: notification-permission-allow
+    timeout: 10000
+- assertVisible:
+    id: notification-permission-item-daily
+# The proposed defaults are listed too (they come on with the permission).
+- assertVisible:
+    id: notification-permission-item-longSession
+# Apple HIG: one button ("Devam et") that leads to the system prompt, no second way out.
+- assertNotVisible:
+    id: notification-permission-later
+- takeScreenshot: l-hatirlaticilar-03-aciklama
+# The system prompt is not opened here: restart the app instead (the permission stays unanswered).
+# Nothing was granted, so the reminder stays off and the app keeps working.
+- stopApp
+- launchApp:
+    clearState: false
+    permissions:
+      notifications: unset
+- extendedWaitUntil:
+    visible:
+      id: tab-settings
+    timeout: 30000
+- tapOn:
+    id: tab-settings
+- scrollUntilVisible:
+    element:
+      id: settings-reminders
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: settings-reminders
+- extendedWaitUntil:
+    visible:
+      id: reminder-daily-toggle
+    timeout: 10000
+- assertVisible:
+    id: reminder-daily-toggle
+    text: "Kapalı"
+- assertVisible:
+    id: reminder-long-toggle
+    text: "Kapalı"
+- assertVisible:
+    id: reminders-permission-missing
+- takeScreenshot: l-hatirlaticilar-04-izinsiz

@@ -77,9 +77,15 @@ app/                    Ekranlar (expo-router)
   hakkinda.tsx          Sürüm, yasal metinler, veri sorumlusu, lisanslar
   yasal/[doc].tsx       Kısa aydınlatma, gizlilik politikası, kullanım şartları (onboarding'den de açılır)
   lisanslar.tsx         Açık kaynak lisansları: npm paketleri + yerel kütüphaneler, satıra dokununca metin
+  hatirlaticilar.tsx    Yerel hatırlatıcı ayarları (uzun oturum, pomodoro, günlük, deneme analizi)
+  bildirim-izni.tsx     Sistem izin penceresinden önceki açıklama ekranı
 src/domain/             Saf TypeScript iş kuralları + Jest testleri
 src/storage/            expo-sqlite veritabanı ve kv-store; file-io(.web).ts paylaşım/dosya seçici
-src/state/              Uygulama durumu (domain ile depolama arasındaki ince katman)
+src/state/              Uygulama durumu (domain ile depolama arasındaki ince katman);
+                        system-sync.tsx sayaç/veri değişince canlı sayacı, widget'ı, hatırlatıcıları eşitler
+src/system/             Platform bağdaştırıcıları (varsayılan dosya = boş; .ios.ts / .native.ts = cihaz)
+  ios/                  Live Activity ve widget düzenleri ('widget' yönergeli işlevler)
+plugins/with-etut-ios.js Yerel config plugin (app.json'da İLK sırada kalmalı)
 src/ui/                 Tema (WCAG AA testli), ortak bileşenler, kart, ipucu, azaltılmış hareket
 src/legal/licenses.ts   Üretilen lisans listesi ve metinleri (npm run gen:licenses)
 src/strings.ts          Kullanıcıya görünen tüm metinler (yasal metinler ve DATA_CONTROLLER dahil)
@@ -95,6 +101,85 @@ e2e/                    Maestro akışları (iOS simülatörü, e2e-ios.yml)
 ci/ExportOptions.plist  TestFlight ihracat ayarları
 .github/workflows/      ci.yml, testflight.yml, e2e-ios.yml
 ```
+
+## iOS sistem yüzeyleri (kilit ekranı, Dynamic Island, widget, yerel bildirim)
+
+Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösterilen veri saf
+`src/domain/` modüllerinde hesaplanır ve testlidir (`live-timer.ts`, `widget-summary.ts`, `reminders.ts`).
+
+- **Canlı sayaç (Live Activity, expo-widgets + @expo/ui):** sayaç başlayınca başlar; mola/devam/
+  "Molayı geç"/"Çalışıyordum"da güncellenir, "Bitir"de biter. Süreyi sistem çizer
+  (`Text timerInterval` + `pauseTime`); uygulama her saniye güncelleme göndermez. Pomodoro'da
+  aşamanın kalan süresi geri sayılır; aşama bitince (`staleDate`) etkinlik sıradaki aşamayı ve onun
+  bitiş saatini kendisi gösterir ("Kısa mola · bitiş 10:30"). **Bu yalnız bir aşama için olur:**
+  push olmadan kapalı uygulama etkinliği değiştiremez; o aşama da bitince sayaç 0:00'da kalır,
+  bitiş saati doğru kalır. Uygulama açıkken her aşama değişiminde, arka plana geçerken de bir kez
+  daha güncellenir; kilitli telefonda aşama sonlarını yerel bildirimler duyurur (aşağıda b).
+  Ders (ve konu) adı görünür. Apple sınırı: bir Live Activity en çok 8 saat etkin kalır,
+  yalnız uygulama ön plandayken başlatılabilir ("Displaying live data with Live Activities"); güncelleme
+  ve bitirme arka planda da olur. Bu yüzden uzun oturumda uygulama her açıldığında 6 saatten eski
+  etkinliği yenisiyle değiştirir, sistemin 8 saatte bitirdiğini yeniden başlatır. Öğrencinin kendisi
+  kaldırdığını uygulama 8 saat dolmadan bir kez görürse kaydeder (`dismissed`) ve o oturumda bir daha
+  başlatmaz; kaldırmayı ancak 8 saatten sonra görürse sistemin bitirmesinden ayıramaz ve yenisini
+  başlatır. Sistemin bitirdiği etkinlik kilit ekranında 4 saate kadar donmuş kalabilir; expo-widgets
+  57.0.x bitmiş etkinlikleri listelemediği için uygulama onu ne sayabilir ne kaldırabilir: o süre
+  içinde kilit ekranında yenisinin yanında eskisi de görünebilir, oturum bitince de bir süre kalabilir.
+- **Ana ekran widget'ı "Etüt: Bugün"** (küçük, orta, kilit ekranı dikdörtgen): bugünkü süre, seri,
+  günlük hedef ilerlemesi. Uygulama zaman çizelgesini App Group'a (`group.com.bnycftc.etut`) yazar,
+  widget yalnız okur. Çizelge gece yarısı (İstanbul), pomodoro aşama değişimleri ve hedefe
+  ulaşılan an için girdi içerir; sayaç açıkken süre ve hedef çubuğu widget'ta kendiliğinden ilerler.
+  Çizelge en çok 40 girdi tutar ve ikinci gece yarısında biter: pomodoroda ilk 34 aşama değişimini
+  (25/5/15 ile ≈ 9 saat) kapsar; çizelgenin dışında kalan ilk aşama değişiminden sonrasına uzanan
+  girdi saymaz (açık sayaçtan az gösterebilir, fazla göstermez). Tek istisna uzakta kuralı: uygulama
+  uzun süre sonra dönünce o süreyi otomatik molaya çevirebilir; öğrenci "Çalışıyordum" demezse widget
+  o sürede kaydedilenden fazla saymış olur, sonraki eşitleme düzeltir. Uygulama açıldıkça ve açıkken
+  her aşama değişiminde çizelge yenilenir.
+- **Uzantı:** `com.bnycftc.etut.ExpoWidgetsTarget` (expo-widgets'ın ürettiği hedef; widget + Live
+  Activity aynı uzantıda). Derleme numarası uygulamayla aynıdır (`plugins/with-etut-ios.js`).
+- **Gizlilik manifestleri (PrivacyInfo.xcprivacy):** uygulamanınki `app.json` →
+  `ios.privacyManifests` ile UserDefaults için `1C8F.1` (App Group'u uzantıyla paylaşma) ekler;
+  React Native `pod install`'da pod'ların gerekçelerini buna katar. Uzantıya React Native bu işi
+  yapmaz, expo-widgets de manifest yazmaz: `plugins/with-etut-ios.js` uzantının kendi manifestini
+  (UserDefaults `1C8F.1`/`CA92.1`, FileTimestamp `C617.1`, SystemBootTime `35F9.1`; izleme ve toplanan
+  veri yok) yazar ve uzantı hedefinin Resources aşamasına ekler. İki iOS iş akışı da her iki
+  pakette manifestin varlığını ve `1C8F.1`'i denetler (ITMS-91053 "Missing API declaration").
+- **Yerel bildirimler (expo-notifications, yalnız zamanlanmış):** (a) sayaç ayarlanan süre
+  (varsayılan 3 saat) duraklatılmadan açık kalınca "Hâlâ çalışıyor musun?" (pomodoro molaları
+  sayacı duraklatmaz); (b) pomodoro aşama sonu: sıradaki 40 aşama (25/5/15 ile ≈ 10 sa 50 dk)
+  kurulur, plan uygulama açıkken her aşama değişiminde ve arka plana geçerken yenilenir;
+  (c) günlük çalışma hatırlatıcısı (saat seçilir, varsayılan kapalı; o gün çalışıldıysa gelmez);
+  (d) analizi bekleyen deneme için, denemenin kaydedildiği günün ertesinde 18:00'de tek hatırlatma.
+  **Öğrenci hatırlatıcıları açıklama ekranından bir kez onaylamadan hiçbir bildirim kurulmaz**
+  (`etut.remindersConfirmed.v1`; o zamana kadar ekranda hepsi "Kapalı" görünür). Bu, sistem izni
+  zaten verilmiş olsa da geçerlidir: Android 12 ve öncesinde izin kurulumda verilir ve sistem izin
+  penceresi yoktur; "Tüm verileri sil" de işletim sistemindeki izni geri almaz, yalnız onayı siler.
+  İzin yalnız öğrenci bir hatırlatıcıyı açtığında, açıklama ekranından sonra istenir (izin zaten
+  verilmişse düğme yalnız onaylar); reddedilirse uygulama aynen çalışır. Açıklama ekranı açılacak
+  hatırlatıcıları listeler (önerilen: uzun oturum, pomodoro, deneme analizi; günlük kapalı).
+  Açıklama ekranında Apple HIG'e göre tek düğme ("Devam et") vardır, sistem izin penceresini açar;
+  ekran kaydırılarak kapatılmaz, izin verme ya da reddetme sistem penceresinde yapılır.
+  Plan her değişiklikte yeniden hesaplanır ve sistemdekiyle karşılaştırılır (sabit kimlikler):
+  aynı bildirim iki kez kurulmaz, biten oturumun bildirimleri iptal edilir. Uygulama açıkken
+  bildirim gösterilmez (pomodoro'da mevcut titreşim). Metinler her yaş için nötrdür; kilit ekranında
+  göründükleri için ad, süre ve net içermez (deneme hatırlatıcısı yalnız bekleyen deneme sayısını söyler).
+  iOS en çok 64 bekleyen bildirim tutar; plan en çok 60 (40 pomodoro + 10 günlük + 1 uzun oturum +
+  en çok 2 deneme günü).
+- **Push yok:** expo-widgets 57.0.x `enablePushNotifications: false` olsa bile `aps-environment`
+  ekliyor; expo-notifications da ekliyor. `plugins/with-etut-ios.js` bunu kaldırır ve **plugins
+  listesinde ilk sırada kalmalıdır** (Expo ilk eklentinin mod'larını en son çalıştırır).
+  Her iki iOS iş akışı anahtar geri gelirse hata verir. expo-notifications'ın ikili dosyasında
+  `registerForRemoteNotifications` çağrısı bulunduğu için App Store Connect yüklemeden sonra
+  ITMS-90078 ("Missing Push Notification Entitlement") uyarısı gönderebilir: **bu beklenen
+  durumdur, yüklemeyi engellemez. Push yeteneği açılmaz, `aps-environment` eklenmez** (hukuk/03 K-16).
+- **Android:** iOS'a özgü kod `.ios.ts` dosyalarında; Android'de canlı sayaç ve widget yok,
+  yerel hatırlatıcılar çalışır. Kronometreli kalıcı bildirim expo-notifications ile yapılamıyor
+  (`setUsesChronometer` sunulmuyor; ayrı yerel modül gerekir), eklenmedi. Şablonun varsayılan
+  depolama izinleri (`READ/WRITE_EXTERNAL_STORAGE`) kullanılmadığı için `app.json` →
+  `android.blockedPermissions` ile kaldırılır.
+- **Widget düzeni kuralı:** `src/system/ios/*.tsx` içindeki `'widget'` yönergeli işlevler ayrı bir
+  JS çalışma ortamında koşar: yalnız props, environment ve `@expo/ui/swift-ui` görünür; dosyadaki
+  sabitler, `strings.ts`, yardımcılar görünmez. Babel'ın yardımcı işlev ürettiği söz dizimini
+  (nesne/dizi yayma, `for…of`, sınıf) kullanmayın. Metinler props'la hazır gelir (`surface-props.ts`).
 
 ## Yayın hattı
 
@@ -121,8 +206,18 @@ Akışlar (`e2e/`, yalnız `testID` seçicileri; ortak adımlar `e2e/subflows/`)
 (15 altı: Gruplar sekmesi yok), `g-tum-verileri-sil` (Ayarlar → sil → ilk açılış),
 `h-alan-degistir` (Sayısal → EA: ders ve deneme türleri değişir), `i-yedek` (yedek dosyası →
 paylaşım sayfası), `j-kart-paylas` (çalışma kartı, paylaşım sayfası), `k-hakkinda-bos-durum`
-(aydınlatma ilk açılıştan, boş durumlar, hakkında, gizlilik). İlk açılıştan sonraki tek seferlik
-ipucu `subflows/ipucu-gec.yaml` ile kapatılır.
+(aydınlatma ilk açılıştan, boş durumlar, hakkında, gizlilik),
+`l-hatirlaticilar` (onaydan önce hepsi kapalı; hatırlatıcı aç → tek düğmeli açıklama ekranı;
+sistem izin penceresi açılmaz, uygulama yeniden başlatılır ve hatırlatıcılar kapalı kalır),
+`m-canli-sayac` (ana ekranda Dynamic Island, Bildirim Merkezi'nde kilit ekranı görünümü, mola, pomodoro, bitir).
+İlk açılıştan sonraki tek seferlik ipucu `subflows/ipucu-gec.yaml` ile kapatılır.
+**`m-canli-sayac`'ın yeşil olması Live Activity'nin çizildiğini kanıtlamaz:** Maestro sistem
+(SpringBoard) içeriğini göremeyebilir, bu yüzden oradaki "Fizik"/"Çalışıyorsun" denetimleri isteğe
+bağlıdır (görülmezse yalnız uyarı). `m-canli-sayac-0x` ekran görüntüleri artifact'ta elle
+incelenmeden canlı sayaç doğrulanmış sayılmaz. Maestro'nun XCTest sürücüsü hiçbir akış başlamadan
+zaman aşımına uğrarsa (`IOSDriverTimeoutException`) akışlar bir kez daha çalıştırılır.
+Derleme adımı uzantının (`PlugIns/ExpoWidgetsTarget.appex`) gömüldüğünü, App Group'u,
+`aps-environment` olmadığını ve uygulama ile uzantıda `PrivacyInfo.xcprivacy` (`1C8F.1`) bulunduğunu da denetler.
 Yeni ekran öğesine test gerekiyorsa metni değil `testID`'yi hedefleyin; mevcut `testID`'leri
 değiştirmeyin (akışlar ve `scripts/test-web.mjs` bunlara bağlı).
 
@@ -146,7 +241,10 @@ macOS 26 koşucusu:
 8. `xcodebuild archive` (workspace, Release, otomatik imzalama, `-allowProvisioningUpdates`,
    `-authenticationKey*`, `DEVELOPMENT_TEAM=26322AY3MH`, `CURRENT_PROJECT_VERSION=<run_number>.<run_attempt>`).
 9. `-exportArchive` ile önce diske IPA çıkarılır; imza (Distribution sertifikası), bundle id ve
-   derleme numarası doğrulanır.
+   derleme numarası doğrulanır. Aynı denetim gömülü her uzantı için de yapılır (widget/Live Activity
+   uzantısı: dağıtım imzası, `com.bnycftc.etut.*` kimliği, uygulamayla aynı sürüm/derleme numarası);
+   uygulama ve uzantı imzasında App Group bulunmalı, `aps-environment` bulunmamalıdır; her iki
+   pakette `PrivacyInfo.xcprivacy` bulunmalı ve UserDefaults için `1C8F.1` beyan etmelidir.
 10. Aynı arşiv `ci/ExportOptions.plist` (`app-store-connect`, `upload`) ile App Store Connect'e yüklenir.
 11. Hata olursa arşiv ve loglar 7 günlük artifact olarak saklanır.
 12. Her durumda: CI'ın oluşturduğu "Created via API" geliştirme sertifikaları iptal edilir,
@@ -173,9 +271,12 @@ tanımlanması önerilir. Aynı gizli değerler CarPlay Medya deposundakilerle a
 
 ### App Store Connect'te elle yapılacaklar
 
-1. **Bundle ID:** developer.apple.com → Identifiers'da `com.bnycftc.etut` yoksa oluşturun
-   (Admin anahtarlı otomatik imzalama genelde kendisi kaydeder; ilk çalıştırmada hata alınırsa elle ekleyin).
-   Ek yetenek (capability) gerekmez.
+1. **Bundle ID'ler ve App Group:** `com.bnycftc.etut` ve widget uzantısı
+   `com.bnycftc.etut.ExpoWidgetsTarget`; ikisinde de **App Groups** yeteneği, grup
+   `group.com.bnycftc.etut`. Admin anahtarlı otomatik imzalama (`-allowProvisioningUpdates`)
+   App ID'leri, yeteneği ve grubu kendisi kaydeder; ilk çalıştırmada imza hatası alınırsa
+   developer.apple.com → Identifiers'da grubu (App Groups) ve iki App ID'yi elle oluşturup ikisinde
+   App Groups'u açın, grubu seçin. Push Notifications yeteneği **gerekmez** (yalnız yerel bildirim).
 2. **Uygulama kaydı:** App Store Connect → Apps → "+" → New App: platform iOS, ad "Etüt"
    (ad başkasına aitse farklı bir mağaza adı seçin), birincil dil Türkçe, bundle id
    `com.bnycftc.etut`, SKU serbest. Kayıt olmadan yükleme reddedilir.
@@ -218,6 +319,9 @@ anahtar herkese açıktır; servis anahtarı ya da başka bir sır asla `EXPO_PU
 v0'da veri yalnız cihazdadır: doğum yılı, sınav türü/alan, çalışma oturumları (konu ve
 "elle" bilgisiyle), konu ilerlemesi, denemeler ve analizleri, hedefler. Ad, e-posta, tam doğum
 tarihi sorulmaz. Ayarlar → "Tüm verileri sil" veritabanını ve anahtar-değer deposunu temizler.
+iOS'ta widget için bugünkü süre, seri ve hedef aynı cihazdaki App Group kabında; canlı sayaçta
+ders/konu adı kilit ekranında görünür. "Tüm verileri sil" canlı sayacı bitirir, widget'ı boş
+görünüme çevirir ve zamanlanmış hatırlatıcıları iptal eder. Bildirimler yalnız yereldir (push yok).
 İstisna (hukuk/03 K-17): yalnız 15 yaş altı beyanında, beyan edilen doğum yılı 15 yaşına
 gelene kadar ayrı bir dosyada (`EtutAgeGuard`, `src/storage/age-guard.ts`) kalır; silme sonrası
 15+ beyanına geçişi engellemek için. Süresi dolunca açılışta, uygulama kaldırılınca da silinir.
