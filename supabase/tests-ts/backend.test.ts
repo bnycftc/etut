@@ -73,6 +73,10 @@ describe('group backend through supabase-js', () => {
     assert.equal(await rpcError(student, 'save_profile', {
       p_nickname: 'or0spu', p_exam_type: 'YKS', p_yks_area: 'sayisal', p_age_band: '15_17',
     }), 'name_banned');
+    // K-17: a 15-17 band declared this year does not become 18+ before next year.
+    assert.equal(await rpcError(student, 'save_profile', {
+      p_nickname: 'Genç Kişi', p_exam_type: 'YKS', p_yks_area: 'sayisal', p_age_band: '18_plus',
+    }), 'not_allowed');
   });
 
   it('does not expose any table through the Data API', async () => {
@@ -115,7 +119,8 @@ describe('group backend through supabase-js', () => {
     // which can move the server clock: supabase/tests/03_sessions.test.sql).
     const args = {
       p_client_id: session,
-      p_subject: 'fizik',
+      // Like the app: no subject or topic in an upload (KVKK m.4/2-ç).
+      p_subject: null,
       p_topic: null,
       p_started_at: new Date(Date.now() - 3_600_000).toISOString(),
       p_ended_at: new Date().toISOString(),

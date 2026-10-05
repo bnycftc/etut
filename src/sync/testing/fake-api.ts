@@ -1,10 +1,11 @@
 /**
  * In-memory stand-in for the group server, for Jest only. It mirrors the server rules the
- * screens depend on (founder approval, 3 reactions a day per person, parent locks); the real
- * rules are tested with pgTAP in supabase/tests.
+ * screens depend on (founder approval, 3 reactions a day per person, parent locks, code
+ * normalisation, tied ranks); the real rules are tested with pgTAP in supabase/tests. The server's
+ * permanent refusals of an upload can be forced with submitStatusNext.
  */
 
-import type { ReactionKind } from '../../domain/groups';
+import { normalizeCode, type ReactionKind } from '../../domain/groups';
 import type { SessionPayload, SubmitStatus } from '../../domain/outbox';
 import {
   ApiError,
@@ -43,6 +44,8 @@ export interface FakeServer {
   controls: Record<string, ParentControls>;
   parentCodes: Record<string, { childId: string; nickname: string }>;
   failNext: ApiError | null;
+  /** The next upload gets this answer instead of being stored ('overlap', 'too_old', ...). */
+  submitStatusNext: SubmitStatus | null;
 }
 
 export const ME_ID = 'me-0000';
@@ -64,6 +67,7 @@ export function createFakeServer(): FakeServer {
     controls: {},
     parentCodes: {},
     failNext: null,
+    submitStatusNext: null,
   };
   let seq = 0;
   const next = (prefix: string) => `${prefix}-${++seq}`;
@@ -160,7 +164,8 @@ export function createFakeServer(): FakeServer {
     async requestJoin(code) {
       await step('requestJoin');
       const me = requireMe();
-      const g = s.groups.find((x) => x.code !== null && x.code === code);
+      // Like the server: spaces, dashes and case do not matter.
+      const g = s.groups.find((x) => x.code !== null && x.code === normalizeCode(code));
       if (!g) return 'invalid_code';
       if (g.members.some((m) => m.userId === ME_ID)) return 'already_member';
       if (g.requests.some((r) => r.requestId === `req-${ME_ID}`)) return 'already_pending';
@@ -193,7 +198,7 @@ export function createFakeServer(): FakeServer {
     },
     async myGroups(): Promise<GroupSummary[]> {
       await step('myGroups');
-      requireMe();
+      if (requireMe().groupsDisabled) throw new ApiError('parent_locked');
       return s.groups.flatMap((g): GroupSummary[] => {
         const mine = g.members.find((m) => m.userId === ME_ID);
         if (mine) {
@@ -234,8 +239,9 @@ export function createFakeServer(): FakeServer {
       const rows = group(groupId)
         .members.map((m) => ({ m, seconds: s.seconds[m.userId] ?? 0 }))
         .sort((a, b) => b.seconds - a.seconds);
-      return rows.map(({ m, seconds }, i) => ({
-        rank: i + 1,
+      // rank(): equal times share a rank, the next rank skips (1, 1, 3).
+      return rows.map(({ m, seconds }) => ({
+        rank: rows.filter((r) => r.seconds > seconds).length + 1,
         userId: m.userId,
         nickname: m.nickname,
         isMe: m.userId === ME_ID,
@@ -255,6 +261,11 @@ export function createFakeServer(): FakeServer {
     async submitSession(payload): Promise<SubmitStatus> {
       await step('submitSession');
       if (s.submitted.some((p) => p.clientId === payload.clientId)) return 'duplicate';
+      if (s.submitStatusNext !== null) {
+        const status = s.submitStatusNext;
+        s.submitStatusNext = null;
+        return status;
+      }
       if (payload.durationS > 36000) return 'too_long';
       s.submitted.push(payload);
       return 'accepted';

@@ -381,8 +381,9 @@ export function createSupabaseApi(getClient: () => SupabaseClient = getSupabase)
     async submitSession(p) {
       const status = await call<unknown>('submit_session', {
         p_client_id: p.clientId,
-        p_subject: p.subjectId,
-        p_topic: p.topicId,
+        // Not sent (KVKK m.4/2-ç); the parameters stay for the RPC's shape.
+        p_subject: null,
+        p_topic: null,
         p_started_at: p.startedAt,
         p_ended_at: p.endedAt,
         p_duration_s: p.durationS,

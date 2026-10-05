@@ -177,10 +177,13 @@ sekmesi "Yakında" kalır. Bayrak açılınca:
   18+; doğum yılı gitmez; 15 altı hiç hesap açamaz, sunucu da reddeder). Sonradan Apple/Google
   bağlama API'si hazır (`linkIdToken`), giriş düğmeleri yerel modül gerektirdiği için eklenmedi.
 - Bitirilen oturumlar (sayaç ve "elle") `sync_outbox` kuyruğuna (göç 5) girer ve sabit bir uuid ile
-  gönderilir; çevrimdışıyken kuyrukta bekler, tekrar gönderim çift kayıt üretmez. Sunucuya gitmiş
-  "elle" kayıt cihazdan silinirse sunucuda kalır (sunucu kayıtları yalnız eklenir).
-- Oturum açıkken 5 dakikada bir nabız gider (tek satır güncellenir); "şu an çalışıyor" bundan
-  türetilir, "görünmez çalış" bunu grubundan gizler.
+  gönderilir; çevrimdışıyken kuyrukta bekler, tekrar gönderim çift kayıt üretmez. Yalnız zamanlar,
+  süre ve kaynak gider; ders ve konu cihazda kalır. Hiçbir grupta değilken oturum gönderilmez.
+  Sunucuya gitmiş bir kayıt cihazdan silinirse sunucudan da silinir (`delete_session`, kuyrukla).
+- Oturum açıkken ve bir gruptayken 5 dakikada bir nabız gider (tek satır güncellenir); "şu an
+  çalışıyor" bundan türetilir, "görünmez çalış" bunu grubundan gizler.
+- Bayrağı açmadan önce `src/config/features.ts` içindeki `GROUPS_LAUNCH_BLOCKERS` boşalmalı
+  (K-23, K-25, K-28/29, K-31, K-37, K-38, K-42); boş değilken bayrak açılırsa Jest kırmızı olur.
 - Kurallar sunucuda: tüm tablolarda RLS, yazma yalnız `SECURITY DEFINER` RPC'lerle; 30 üye
   veritabanı kısıtı, 72 saatlik davet kodu + kurucu onayı, kişi başına günde 3 tepki, raporla/engelle,
   veli bağlantısı ve kilitleri, hesap silme. Ayrıntı: `supabase/migrations/`, testler `supabase/tests/`.

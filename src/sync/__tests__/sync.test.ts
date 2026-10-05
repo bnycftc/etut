@@ -66,8 +66,6 @@ const T0 = Date.UTC(2026, 9, 4, 9, 0, 0);
 function payload(id: string, durationS = 600): SessionPayload {
   return {
     clientId: id,
-    subjectId: 'fizik',
-    topicId: null,
     startedAt: new Date(T0).toISOString(),
     endedAt: new Date(T0 + durationS * 1000).toISOString(),
     durationS,
@@ -145,6 +143,17 @@ describe('flushOutbox', () => {
     const result = await flushOutbox(server.api, store, () => T0);
     expect(result.refused).toEqual(['too_long']);
     expect(queue).toHaveLength(0);
+  });
+
+  it('permanent refusals of the server (overlap, too_old) end the item like too_long', async () => {
+    const server = createFakeServer();
+    queue.push({ localId: 'a', payload: payload('u-a'), attempts: 0, nextAt: T0 });
+    queue.push({ localId: 'b', payload: payload('u-b'), attempts: 0, nextAt: T0 });
+    server.submitStatusNext = 'overlap';
+    const result = await flushOutbox(server.api, store, () => T0);
+    expect(result).toEqual({ stored: 1, deleted: 0, refused: ['overlap'], retried: 0 });
+    expect(queue).toHaveLength(0);
+    expect(server.submitted.map((p) => p.clientId)).toEqual(['u-b']);
   });
 
   it('an item queued while a flush runs goes out in the same flush', async () => {
@@ -227,6 +236,18 @@ describe('session sync', () => {
     flags.member = false;
     syncPresence(startSession('local-7', 'fizik', T0));
     expect(server.calls).toEqual([]);
+  });
+
+  it('in no group a finished session stays on the device (KVKK m.4)', async () => {
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    flags.member = false;
+    const session = startSession('local-9', 'fizik', T0);
+    syncPresence(session);
+    syncFinishedSession(finishSession(session, T0 + 600_000), T0 + 600_000);
+    await settle();
+    expect(server.calls).toEqual([]);
+    expect(queue).toHaveLength(0);
   });
 
   it('a failed upload is retried by a timer when it is due', async () => {

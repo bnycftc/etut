@@ -184,6 +184,34 @@ reset role;
 call tests.act_as('33333333-0000-0000-0000-000000000001');
 select throws_ok($$ select * from public.group_board((select id from tests.ids where key = 'g1')) $$,
   'P0001', 'not_member', 'a removed member loses access');
+select is(public.request_join((select invite_code from rotated2)), 'invalid_code',
+  'a removed member cannot ask again with the same code (K-28)');
+reset role;
+-- A rejected requester cannot ask again either; the founder can block someone who only asked.
+call tests.act_as('33333333-0000-0000-0000-000000000030');
+select is(public.request_join((select invite_code from rotated2)), 'requested', 'an outsider asks');
+reset role;
+insert into tests.ids select 'r30', id, null from app.join_requests
+ where status = 'pending' and user_id = '33333333-0000-0000-0000-000000000030';
+call tests.act_as('22222222-0000-0000-0000-00000000000a');
+select is(public.decide_join_request((select id from tests.ids where key = 'r30'), false), 'rejected', 'the founder says no');
+reset role;
+call tests.act_as('33333333-0000-0000-0000-000000000030');
+select is(public.request_join((select invite_code from rotated2)), 'invalid_code', 'a rejected person cannot ask again at once');
+reset role;
+call tests.act_as('22222222-0000-0000-0000-00000000000a');
+select lives_ok($$ select public.block_user('33333333-0000-0000-0000-000000000030') $$,
+  'the founder can block someone who only sent a request');
+select throws_ok($$ select public.block_user('33333333-0000-0000-0000-000000000099') $$, 'P0001', 'invalid_input',
+  'but not a stranger');
+reset role;
+update app.join_requests set decided_at = now() - interval '31 days'
+ where user_id in ('33333333-0000-0000-0000-000000000001', '33333333-0000-0000-0000-000000000030');
+call tests.act_as('33333333-0000-0000-0000-000000000030');
+select is(public.request_join((select invite_code from rotated2)), 'invalid_code', 'a blocked person never can');
+reset role;
+call tests.act_as('33333333-0000-0000-0000-000000000001');
+select is(public.request_join((select invite_code from rotated2)), 'requested', 'after 30 days a removed member may ask again');
 reset role;
 -- Clearly different join times (all rows above were added in one transaction, so now() is the
 -- same for all of them); the longest-standing member is neither the first nor the last by id.

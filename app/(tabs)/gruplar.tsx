@@ -73,18 +73,29 @@ function GroupsHome() {
   const refresh = useCallback(async () => {
     setError(null);
     try {
-      const current = await api.getMe();
+      let current = await api.getMe();
       if (current === null) {
         accountGone();
         return;
       }
+      // Turned 18 since the band was sent: the parent link ends (K-22 is for 15–17 only). The
+      // server accepts it from the year after the 15–17 band was declared and refuses it before.
+      if (current.ageBand === '15_17' && band === '18_plus') {
+        const { nickname: name, examType, yksArea } = current;
+        const raised = await api
+          .saveProfile({ nickname: name, examType, yksArea, ageBand: '18_plus' })
+          .then(() => true, () => false);
+        if (raised) current = (await api.getMe()) ?? current;
+      }
       setMe(current);
       if (!current.groupsDisabled) {
-        const [mine, reactions] = await Promise.all([api.myGroups(), api.takeReactions()]);
-        setGroups(mine);
-        // Without any group the live status is not sent (session-sync, KVKK m.4).
-        storeGroupsMember(mine.length > 0);
-        if (reactions.length > 0) setIncoming(reactions);
+        // Reactions are marked as delivered when taken: show them even if the group list fails.
+        const [mine, reactions] = await Promise.allSettled([api.myGroups(), api.takeReactions()]);
+        if (reactions.status === 'fulfilled' && reactions.value.length > 0) setIncoming(reactions.value);
+        if (mine.status === 'rejected') throw mine.reason;
+        setGroups(mine.value);
+        // Without any group the live status and sessions are not sent (session-sync, KVKK m.4).
+        storeGroupsMember(mine.value.length > 0);
       }
     } catch (e) {
       if (isAccountGone(e)) accountGone();
@@ -92,7 +103,7 @@ function GroupsHome() {
     } finally {
       setLoaded(true);
     }
-  }, [api, accountGone]);
+  }, [api, accountGone, band]);
 
   // Load on focus; time spent here counts for the parent's daily limit (useGroupsUsage, K-22 c).
   useFocusEffect(

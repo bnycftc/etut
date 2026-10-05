@@ -195,7 +195,7 @@ reset role;
 select throws_ok($$ update app.study_sessions set duration_s = 1 $$, 'P0001', 'append_only',
   'sessions cannot be changed even by the owner role');
 select throws_ok($$ insert into app.study_sessions (user_id, client_id, subject_id, started_at, ended_at, duration_s, source, verified)
-  values ('44444444-0000-0000-0000-00000000000a', gen_random_uuid(), 'x', tests.t('10 minutes'), tests.t('20 minutes'), 60, 'timer', false) $$,
+  values ('44444444-0000-0000-0000-00000000000a', gen_random_uuid(), null, tests.t('10 minutes'), tests.t('20 minutes'), 60, 'timer', false) $$,
   '23P01', null, 'the database itself refuses overlapping sessions');
 call tests.act_as('44444444-0000-0000-0000-00000000000b');
 select is((select count(*)::int from app.study_sessions), 0, 'another user sees none of the sessions');
@@ -222,6 +222,15 @@ select is(public.submit_session('aaaaaaaa-0000-0000-0000-000000000021', 'fizik',
   tests.t('20 hours'), tests.t('21 hours'), 600, 'timer'), 'invalid', 'a topic is an id, never free text');
 select is(public.submit_session('aaaaaaaa-0000-0000-0000-000000000022', 'fizik', 'tyt.fizik.optik',
   tests.t('20 hours'), tests.t('21 hours'), 600, 'timer'), 'accepted', 'a curriculum topic id is fine');
+-- KVKK m.4/2-ç: nothing on the server reads the subject or topic of a session, so neither is kept.
+select is((select count(*)::int from app.study_sessions where subject_id is not null or topic_id is not null), 0,
+  'no session keeps a subject or a topic');
+select is(public.submit_session('aaaaaaaa-0000-0000-0000-000000000023', null, null,
+  tests.t('22 hours'), tests.t('23 hours'), 600, 'timer'), 'accepted', 'the app sends neither');
+-- Offline timer sessions: the same 7-day window as "elle" entries.
+select is(public.submit_session('aaaaaaaa-0000-0000-0000-000000000024', null, null,
+  now() - interval '10 days', now() - interval '10 days' + interval '1 hour', 600, 'timer'), 'too_old',
+  'an offline timer session older than 7 days is refused');
 
 select * from finish();
 rollback;

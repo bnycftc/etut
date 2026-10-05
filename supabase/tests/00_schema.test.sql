@@ -52,7 +52,7 @@ select is(
 select is(
   (select count(*)::int from information_schema.column_privileges
     where table_schema = 'app' and grantee = 'authenticated'
-      and column_name in ('age_band', 'invite_code', 'invite_expires_at', 'last_active_at')),
+      and column_name in ('age_band', 'band_year', 'invite_code', 'invite_expires_at', 'last_active_at')),
   0, 'age band and invite code are not granted to clients');
 
 -- Every RPC in public is SECURITY DEFINER with a fixed search_path.

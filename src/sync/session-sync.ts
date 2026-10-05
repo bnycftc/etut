@@ -104,6 +104,9 @@ export function syncFinishedSession(session: CompletedSession, now: number): voi
     if (wasLive) api().endPresence(uuidFromLocalId(session.id)).catch(ignore);
     return;
   }
+  // In no group (not even a pending request): no ranking would count it, so the session stays on
+  // the device only (KVKK m.4/2-ç). A session that was live in a group is still sent.
+  if (!wasLive && !loadGroupsMember()) return;
   try {
     outboxStore.enqueueSession(session.id, payload, now);
   } catch {

@@ -6,10 +6,13 @@
 
 import type { CompletedSession } from './timer';
 
+/**
+ * What a finished session sends: times, length and source only. The subject and topic stay on
+ * the device (nothing on the server uses them, KVKK m.4/2-ç); only the live status carries the
+ * subject while it runs, for the group to see.
+ */
 export interface SessionPayload {
   clientId: string;
-  subjectId: string;
-  topicId: string | null;
   startedAt: string;
   endedAt: string;
   durationS: number;
@@ -64,8 +67,6 @@ export function toPayload(session: CompletedSession): SessionPayload | null {
   if (durationS < 1 || session.endedAt <= session.startedAt) return null;
   return {
     clientId: uuidFromLocalId(session.id),
-    subjectId: session.subjectId,
-    topicId: session.topicId,
     startedAt: new Date(session.startedAt).toISOString(),
     endedAt: new Date(session.endedAt).toISOString(),
     durationS,

@@ -43,6 +43,12 @@ insert into app.groups (id, name) values ('88888888-0000-0000-0000-000000000001'
 insert into app.memberships (group_id, user_id, role) values
   ('88888888-0000-0000-0000-000000000001', '77777777-0000-0000-0000-00000000000d', 'owner'),
   ('88888888-0000-0000-0000-000000000001', '77777777-0000-0000-0000-00000000000c', 'member');
+-- The child also founded a group (founder functions under a lock).
+insert into app.groups (id, name) values ('88888888-0000-0000-0000-000000000002', 'Çocuğun Grubu');
+insert into app.memberships (group_id, user_id, role) values
+  ('88888888-0000-0000-0000-000000000002', '77777777-0000-0000-0000-00000000000c', 'owner');
+create temp table c5 (code text, expires_at timestamptz);
+grant all on c5 to authenticated;
 
 -- ---------------------------------------------------------------- code
 call tests.act_as('77777777-0000-0000-0000-00000000000d');
@@ -125,6 +131,18 @@ select throws_ok($$ select * from public.create_group('Yeni Grup') $$, 'P0001', 
 select throws_ok($$ select * from public.group_board('88888888-0000-0000-0000-000000000001') $$, 'P0001', 'parent_locked',
   'no group board');
 select throws_ok($$ select public.request_join('ABCDEFGH') $$, 'P0001', 'parent_locked', 'no join request');
+-- Founder functions are locked too (the app hides them; the server must refuse them as well).
+select throws_ok($$ select * from public.rotate_invite('88888888-0000-0000-0000-000000000002') $$,
+  'P0001', 'parent_locked', 'founder: no new invite code');
+select throws_ok($$ select * from public.list_join_requests('88888888-0000-0000-0000-000000000002') $$,
+  'P0001', 'parent_locked', 'founder: no request list');
+select throws_ok($$ select public.decide_join_request(gen_random_uuid(), true) $$,
+  'P0001', 'parent_locked', 'founder: no decisions');
+select throws_ok($$ select public.remove_member('88888888-0000-0000-0000-000000000002', '77777777-0000-0000-0000-00000000000d') $$,
+  'P0001', 'parent_locked', 'founder: no removing');
+select throws_ok($$ select * from public.my_groups() $$, 'P0001', 'parent_locked', 'no group list');
+select lives_ok($$ select public.revoke_invite('88888888-0000-0000-0000-000000000002') $$,
+  'revoking the code stays possible (it only closes the group)');
 select is(public.beat('cccccccc-0000-0000-0000-000000000001', 'tarih', false), 'ignored', 'no live status');
 reset role;
 call tests.act_as('77777777-0000-0000-0000-00000000000d');
@@ -189,6 +207,33 @@ reset role;
 call tests.act_as('77777777-0000-0000-0000-00000000000c');
 select is((select groups_disabled::text || parent_count from public.get_me()), 'false0',
   'the last parent account deleted: no lock is left behind');
+
+-- ---------------------------------------------------------------- turning 18 ends the parent link
+reset role;
+call tests.user('77777777-0000-0000-0000-0000000000a4');
+call tests.act_as('77777777-0000-0000-0000-00000000000c');
+insert into c5 select * from public.create_parent_code();
+reset role;
+call tests.act_as('77777777-0000-0000-0000-0000000000a4');
+select is((select status from public.claim_parent_code((select code from c5))), 'linked', 'a parent links');
+select lives_ok($$ select public.parent_set_controls('77777777-0000-0000-0000-00000000000c', true, true, 30) $$, 'and locks');
+reset role;
+call tests.act_as('77777777-0000-0000-0000-00000000000c');
+select throws_ok($$ select public.save_profile('Öğrenci', 'YKS', 'esit_agirlik', '18_plus') $$, 'P0001', 'parent_locked',
+  'not in the year the 15-17 band was declared');
+reset role;
+-- A year later (the band was declared last year).
+update app.profiles set band_year = band_year - 1 where user_id = '77777777-0000-0000-0000-00000000000c';
+call tests.act_as('77777777-0000-0000-0000-00000000000c');
+select lives_ok($$ select public.save_profile('Öğrenci', 'YKS', 'esit_agirlik', '18_plus') $$,
+  'the next year the student declares 18+');
+select is((select age_band || '/' || groups_disabled::text || '/' || force_invisible::text || '/' || parent_count
+             from public.get_me()), '18_plus/false/false/0', 'the parent link and its locks end (K-22 is for 15-17 only)');
+reset role;
+call tests.act_as('77777777-0000-0000-0000-0000000000a4');
+select is((select count(*)::int from public.parent_children()), 0, 'the parent no longer sees the student');
+select throws_ok($$ select * from public.parent_weekly_summary('77777777-0000-0000-0000-00000000000c') $$,
+  'P0001', 'not_parent', 'nor the weekly summary');
 
 select * from finish();
 rollback;

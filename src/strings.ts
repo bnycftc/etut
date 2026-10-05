@@ -551,7 +551,7 @@ export const tr = {
     sections: [
       {
         title: 'Ne tutuyoruz?',
-        body: 'Takma adın, sınav türün, yaş bandın (15–17 ya da 18+), grupların ve katılma isteklerin, çalışma oturumların (ders, konu, başlangıç, bitiş, süre, sayaç mı “elle” mi), o an çalışıp çalışmadığın, hazır tepkiler, bildirdiğin ve engellediğin kişiler, veli bağlantın ve velinin ayarları.',
+        body: 'Takma adın, sınav türün, yaş bandın (15–17 ya da 18+) ve bu bandı hangi yıl bildirdiğin, grupların ve katılma isteklerin, çalışma oturumların (başlangıç, bitiş, süre, sayaç mı “elle” mi; ders ve konu gönderilmez), çalışırken o an hangi derse çalıştığın, hazır tepkiler, bildirdiğin ve engellediğin kişiler, veli bağlantın ve velinin ayarları. Hiçbir grupta değilken oturumların ve canlı durumun gönderilmez.',
       },
       {
         title: 'Toplamadıklarımız',
@@ -576,7 +576,7 @@ export const tr = {
     ],
     under18Title: '18 yaşından küçüksen',
     under18:
-      'Velin de bilsin istiyoruz: bu sayfayı ona göster. Velin kendi telefonunda veli modunu açıp grup ayarlarını kilitleyebilir ve günlük sınır koyabilir.',
+      'Velin de bilsin istiyoruz: bu sayfayı ona göster. Velin kendi telefonunda veli modunu açıp grup ayarlarını kilitleyebilir ve günlük sınır koyabilir. Doğum yılına göre 18 yaşını doldurduğun kesinleşince Gruplar ekranını ilk açışında veli bağlantısı ve velinin kilitleri kendiliğinden biter.',
     fullText: 'Tam aydınlatma metni',
     settingsEntry: 'Gizlilik ve verilerin',
   },
@@ -611,7 +611,8 @@ export const tr = {
     dataInfoGroups:
       'Kayıtların bu cihazda tutulur. Grupları açtıysan takma adın ve çalışma sürelerin ayrıca Türkiye’deki sunucumuzda durur; “Tüm verileri sil” sunucudaki grup hesabını da siler.',
     deleteAllServerFailed:
-      'Sunucudaki grup hesabın silinemedi, bu yüzden cihazdaki veriler de silinmedi. İnternet bağlantını kontrol edip yeniden dene.',
+      'Sunucudaki grup hesabın silinemedi, bu yüzden cihazdaki veriler de silinmedi. İnternet bağlantını kontrol edip yeniden dene. İstersen yalnız bu cihazdakileri silebilirsin: sunucudaki grup hesabın o zaman 6 ay kullanılmayınca kendiliğinden silinir.',
+    deleteAllLocalOnly: 'Yalnız bu cihazdan sil',
     about: 'Hakkında',
     version: 'Sürüm',
     build: 'Derleme',

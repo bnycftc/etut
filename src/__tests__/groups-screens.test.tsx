@@ -163,7 +163,8 @@ async function flush() {
 
 async function signUp(nickname = 'Gece Kuşu') {
   renderRouter(APP_DIR, { initialUrl: '/gruplar' });
-  await flush();
+  // The first render of a run can be slow under load: wait for the screen instead of a fixed flush.
+  await waitFor(() => expect(screen.getByTestId('groups-nickname')).toBeTruthy());
   fireEvent.changeText(screen.getByTestId('groups-nickname'), nickname);
   fireEvent.press(screen.getByTestId('groups-enable'));
   await flush();
@@ -176,16 +177,15 @@ describe('group module ON', () => {
     expect(server.me).toMatchObject({ nickname: 'Gece Kuşu', ageBand: '18_plus', examType: 'YKS' });
     expect(JSON.stringify(server.me)).not.toContain(String(adultYear));
     expect(memory.groupsAccount).toBe(true);
-    expect(screen.getByTestId('groups-home')).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId('groups-home')).toBeTruthy());
   });
 
   it('a bad nickname is caught before anything is sent', async () => {
     renderRouter(APP_DIR, { initialUrl: '/gruplar' });
-    await flush();
+    await waitFor(() => expect(screen.getByTestId('groups-nickname')).toBeTruthy());
     fireEvent.changeText(screen.getByTestId('groups-nickname'), 'A😀');
     fireEvent.press(screen.getByTestId('groups-enable'));
-    await flush();
-    expect(screen.getByTestId('groups-error')).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId('groups-error')).toBeTruthy());
     expect(server.calls).not.toContain('saveProfile');
   });
 
@@ -369,6 +369,53 @@ describe('group module ON', () => {
     await flush();
     expect(server.calls).toContain('deleteMyAccount');
     expect(memory.profile).toBeNull();
+  });
+
+  it('"delete all data" offline: the device data can still be deleted on its own (KVKK m.7)', async () => {
+    memory.groupsAccount = true;
+    server.signedIn = true;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await flush();
+    const { ApiError } = jest.requireActual('../sync/api');
+    server.failNext = new ApiError('network');
+    fireEvent.press(screen.getByTestId('settings-delete-all'));
+    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    await flush();
+    expect(memory.profile).not.toBeNull();
+    fireEvent.press(screen.getByTestId('settings-delete-local-only'));
+    await flush();
+    expect(memory.profile).toBeNull();
+    expect(server.calls.filter((c) => c === 'deleteMyAccount')).toHaveLength(1);
+  });
+
+  it('a student who turned 18 raises the band, which ends the parent link (K-22)', async () => {
+    memory.groupsAccount = true;
+    server.signedIn = true;
+    server.me = studentMe({ groupsDisabled: true, parentCount: 1 });
+    memory.profile = profile(adultYear);
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    expect(server.calls).toContain('saveProfile');
+    expect(server.me?.ageBand).toBe('18_plus');
+    await waitFor(() => expect(screen.getByTestId('groups-home')).toBeTruthy());
+  });
+
+  it('a refused band change (too early) leaves everything as it was', async () => {
+    memory.groupsAccount = true;
+    server.signedIn = true;
+    server.me = studentMe({ groupsDisabled: true });
+    memory.profile = profile(adultYear);
+    const { ApiError } = jest.requireActual('../sync/api');
+    const realSave = server.api.saveProfile;
+    server.api.saveProfile = async () => {
+      server.calls.push('saveProfile');
+      throw new ApiError('parent_locked');
+    };
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    expect(server.calls).toContain('saveProfile');
+    expect(screen.getByTestId('groups-locked')).toBeTruthy();
+    server.api.saveProfile = realSave;
   });
 
   it('deleting the group account also empties the upload queue', async () => {

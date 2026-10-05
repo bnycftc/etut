@@ -200,3 +200,15 @@ beyanı güncellenerek: "Data Not Collected" artık doğru değildir; `docs/huku
   ile doğrulanır (05 bunu yapar).
 - Radore kutusunun SFTP sunucusunun pgBackRest/restic ile uyumu (ilk `pgbackrest check`).
 - Apple ile Giriş belirteci iptali (hesap silmede Apple'a tek seferlik çağrı) henüz yok.
+- Resmî self-hosted compose dosyası (depoda değil, kurulumda klonlanır) `analytics` (Logflare) ve
+  `vector` servislerini içerebilir. `vector` tüm kapsayıcı günlüklerini (GoTrue / ağ geçidi erişim
+  satırları: istemci IP'si, yol) toplayıp ayrı bir şemaya yazar; bu kayıtların saklama süresi
+  yukarıdaki tabloda yok. İlk kurulumda `docker compose config --services` ile bak: varsa Studio
+  günlük ekranı gerekmediği için kapat (override'da `profiles: ["disabled"]`), ya da saklamayı
+  395 güne sabitleyip `docs/hukuk/kvkk/08` #14 ve 09 §7'ye ekle.
+- GoTrue `auth.sessions` tablosu her oturum için `ip` ve `user_agent` tutar (sürüme göre). Satır
+  hesapla birlikte silinir; anonim hesapta oturum hesap süresince yaşar. Gerçek yığında
+  `\d auth.sessions` ile bak; kvkk/08 #14'te "olası" olarak yazılı, kesinleşince güncelle.
+- `healthcheck.sh` açık `danger` raporunu ve 12 saatten eski raporu `FAIL` olarak yazar; bu yalnız
+  `journalctl`e düşer. Operatöre anında, yurt içi bir kanaldan (e-posta / SMS) uyarı gitmesi
+  bayrak açılmadan önce kurulmalı (K-28, K-29; `src/config/features.ts` GROUPS_LAUNCH_BLOCKERS).

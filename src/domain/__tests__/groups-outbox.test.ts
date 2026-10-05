@@ -88,11 +88,9 @@ describe('outbox', () => {
     source: 'timer',
   };
 
-  it('maps a finished session to the upload payload', () => {
-    expect(toPayload(session)).toEqual({
+  it('maps a finished session to the upload payload, without subject or topic (KVKK m.4)', () => {
+    expect(toPayload({ ...session, topicId: 'tyt.fizik.optik' })).toEqual({
       clientId: uuidFromLocalId(session.id),
-      subjectId: 'fizik',
-      topicId: null,
       startedAt: '2026-10-04T10:00:00.000Z',
       endedAt: '2026-10-04T11:00:00.000Z',
       durationS: 3000,

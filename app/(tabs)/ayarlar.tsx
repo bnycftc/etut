@@ -235,11 +235,30 @@ export default function SettingsScreen() {
               onPress={() => void deleteAll()}
             />
             {deleteError ? (
-              <Label variant="small" style={{ color: c.danger }}>
-                {tr.settings.deleteAllServerFailed}
-              </Label>
+              <>
+                <Label variant="small" style={{ color: c.danger }}>
+                  {tr.settings.deleteAllServerFailed}
+                </Label>
+                {/* Offline or the server is down: the device data can always be deleted (KVKK m.7). */}
+                <Button
+                  kind="secondary"
+                  testID="settings-delete-local-only"
+                  title={tr.settings.deleteAllLocalOnly}
+                  disabled={deleting}
+                  onPress={() => {
+                    setConfirming(false);
+                    setDeleteError(false);
+                    resetAll();
+                  }}
+                />
+              </>
             ) : null}
-            <Button kind="secondary" title={tr.common.cancel} onPress={() => setConfirming(false)} />
+            <Button
+              kind="secondary"
+              testID="settings-delete-all-cancel"
+              title={tr.common.cancel}
+              onPress={() => setConfirming(false)}
+            />
           </>
         ) : (
           <Button

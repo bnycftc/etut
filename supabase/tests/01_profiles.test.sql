@@ -112,6 +112,19 @@ select is(app.check_name('s ı k e r ı m', 'nickname'), 'name_banned', 'dotless
 select is(app.check_name('ı b n e', 'nickname'), 'name_banned', 'dotless ı, short root spaced');
 select is(app.check_name('Piç Kurusu', 'nickname'), 'name_banned', 'two-word profanity');
 select is(app.check_name('Yarrak', 'nickname'), 'name_banned', 'yarak is still refused as a word');
+-- Capitals typed on an English keyboard: ASCII I becomes ı, which is folded back to i.
+select is(app.check_name('AMCIK', 'nickname'), 'name_banned', 'ASCII capitals: AMCIK');
+select is(app.check_name('Amına', 'nickname'), 'name_banned', 'dotless ı, capitalised');
+select is(app.check_name('IBNE', 'nickname'), 'name_banned', 'ASCII capitals: IBNE');
+select is(app.check_name('Ibne', 'nickname'), 'name_banned', 'ASCII capital I: Ibne');
+select is(app.check_name('PIÇ', 'nickname'), 'name_banned', 'ASCII capitals: PIÇ');
+select is(app.check_name('SIKTIR GIT', 'group'), 'name_banned', 'ASCII capitals: SIKTIR GIT');
+select is(app.check_name('SEREFSIZ', 'group'), 'name_banned', 'ASCII capitals: SEREFSIZ');
+select is(app.check_name('FAHISE', 'group'), 'name_banned', 'ASCII capitals: FAHISE');
+select is(app.check_name('SIKERIM', 'group'), 'name_banned', 'ASCII capitals: SIKERIM');
+select is(app.check_name('Şerefsız', 'group'), 'name_banned', 'mixed ı/i spelling');
+select is(app.check_name('SIKI CALISAN', 'nickname'), null, 'no false positive in capitals: SIKI');
+select is(app.check_name('SIKINTI YOK', 'nickname'), null, 'no false positive in capitals: SIKINTI');
 -- K-27: school, province, real name, social media.
 select is(app.check_name('Kadıköy Anadolu Lisesi', 'group'), 'name_personal', 'school name');
 select is(app.check_name('Ankara Fen Lisesi 12A', 'group'), 'name_personal', 'school name with class');
@@ -123,14 +136,27 @@ select is(app.check_name('Elif Kaya Izmir', 'nickname'), 'name_personal', 'provi
 select is(app.check_name('Ahmet Yılmaz', 'nickname'), 'name_personal', 'first name + common surname');
 select is(app.check_name('ig ahmet.yilmaz', 'nickname'), 'name_personal', 'ig handle');
 select is(app.check_name('Tik Tok Ekibi', 'group'), 'name_personal', 'platform name across words');
+select is(app.check_name('kizilay dershane', 'group'), 'name_personal', 'a dershane');
+select is(app.check_name('Izmir Koleji YKS', 'group'), 'name_personal', 'college in capitals');
 
 call tests.act_as('11111111-0000-0000-0000-000000000001');
 select throws_ok($$ select public.save_profile('0r0spu', 'YKS', 'sayisal', '15_17') $$,
   'P0001', 'name_banned', 'save_profile applies the filter');
 select is((select nickname from public.get_me()), 'Gece Kuşu', 'refused change kept the old nickname');
+-- K-17: a 15-17 band declared this year cannot become 18+ this year (the earliest a 17-year-old
+-- is 18 is next year), with or without a parent.
+select throws_ok($$ select public.save_profile('Gece Kuşu', 'YKS', 'sayisal', '18_plus') $$,
+  'P0001', 'not_allowed', '15-17 cannot declare 18+ in the same year');
+select is((select age_band from public.get_me()), '15_17', 'the band stays');
+reset role;
+update app.profiles set band_year = band_year - 1 where user_id = '11111111-0000-0000-0000-000000000001';
+call tests.act_as('11111111-0000-0000-0000-000000000001');
 select lives_ok($$ select public.save_profile('  Gece   Kuşu  ', 'KPSS', null, '18_plus') $$,
-  'whitespace is normalised, band can be raised without a parent link');
-select is((select nickname from public.get_me()), 'Gece Kuşu', 'stored in canonical form');
+  'whitespace is normalised; a year later the band can be raised');
+select is((select nickname || '/' || age_band from public.get_me()), 'Gece Kuşu/18_plus', 'stored in canonical form, 18+');
+select lives_ok($$ select public.save_profile('Gece Kuşu', 'KPSS', null, '15_17') $$, 'lowering the band is always allowed');
+select throws_ok($$ select public.save_profile('Gece Kuşu', 'KPSS', null, '18_plus') $$,
+  'P0001', 'not_allowed', 'and a lowered band counts from this year again');
 -- LGS candidates are typically 13-14: not a group profile (K-17 lower age wins, K-45).
 select throws_ok($$ select public.save_profile('Sekizinci', 'LGS', null, '15_17') $$,
   'P0001', 'invalid_input', 'LGS is not accepted for a group profile');
