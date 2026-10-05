@@ -49,6 +49,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A release tag must not ship the legal texts with the data controller left as a placeholder
+      # (KVKK m.10/a, K-31, K-38). Manual runs (internal TestFlight testing) are not blocked.
+      - name: Legal placeholders filled (release tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if grep -n 'DOLDURULACAK' src/strings.ts; then
+            echo "::error file=src/strings.ts::DATA_CONTROLLER is still [DOLDURULACAK]. Fill the data controller and contact before tagging a release."
+            exit 1
+          fi
+
       - name: Toolchain
         run: |
           xcodebuild -version

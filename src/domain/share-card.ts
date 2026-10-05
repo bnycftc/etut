@@ -7,9 +7,18 @@
 import { dailyTotals, type SessionSpan } from './daily-totals';
 import { weeklySummary } from './compare';
 import { addDays, type DayKey } from './istanbul-day';
+import type { Profile } from './profile';
 import { goalMet, goalRatio } from './streak';
 
 export type CardPeriod = 'day' | 'week';
+
+/**
+ * K-09 / K-16 (docs/hukuk/adr/ADR-001-calisma-karti.md): until bny decides otherwise the card is
+ * offered only to 15+ profiles. Under 15 (solo) it is not shown and its screen does not open.
+ */
+export function canShareCard(profile: Profile | null): boolean {
+  return profile !== null && !profile.soloOnly;
+}
 
 /** Subjects listed one by one; the rest are summed into one "other subjects" row. */
 export const CARD_TOP_SUBJECTS = 4;

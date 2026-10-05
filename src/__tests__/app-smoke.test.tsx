@@ -330,6 +330,21 @@ describe('topic tracking', () => {
     expect(memory.active).toMatchObject({ subjectId: 'kimya', topicId: null });
   });
 
+  it('changing the area in settings drops a topic of the old subject (never saved under another subject)', () => {
+    memory.profile = { ...ADULT_SAYISAL, yksArea: 'esit_agirlik' };
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('subject-edebiyat'));
+    fireEvent.press(screen.getByTestId('topic-picker-toggle'));
+    fireEvent.press(screen.getByTestId('topic-ayt.edebiyat.anlam-bilgisi'));
+    act(() => router.push('/ayarlar'));
+    fireEvent.press(screen.getByTestId('settings-yks-area-sayisal'));
+    fireEvent.press(screen.getByTestId('settings-exam-save'));
+    act(() => router.push('/'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(memory.active?.subjectId).not.toBe('edebiyat');
+    expect(memory.active?.topicId).toBeNull();
+  });
+
   it('topics screen: "bitti" raises the progress, tapping again clears it', () => {
     memory.sessions = [
       {
@@ -768,8 +783,9 @@ describe('other screens render', () => {
 
   it('new exam form computes the net live', () => {
     renderRouter(APP_DIR, { initialUrl: '/deneme/yeni' });
-    fireEvent.changeText(screen.getAllByLabelText('Doğru')[0], '30');
-    fireEvent.changeText(screen.getAllByLabelText('Yanlış')[0], '5');
+    // Each box names its section for screen readers (18 boxes on a TYT paper).
+    fireEvent.changeText(screen.getByLabelText('Türkçe, Doğru'), '30');
+    fireEvent.changeText(screen.getByLabelText('Türkçe, Yanlış'), '5');
     expect(screen.getAllByText('28,75').length).toBeGreaterThan(0);
   });
 
@@ -909,6 +925,15 @@ describe('share card', () => {
     });
     expect(memory.sharedImages).toEqual(['/tmp/etut-card.png']);
   });
+
+  it('under 15 (solo) the card is not offered and its screen does not open (ADR-001)', () => {
+    memory.profile = { birthYear: new Date().getUTCFullYear() - 12, examType: 'LGS', yksArea: null, soloOnly: true, createdAt: 0 };
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.queryByTestId('open-share')).toBeNull();
+    renderRouter(APP_DIR, { initialUrl: '/paylas' });
+    expect(screen.queryByTestId('share-screen')).toBeNull();
+    expect(screen.getByTestId('timer-screen')).toBeTruthy();
+  });
 });
 
 describe('backup and restore', () => {
@@ -967,7 +992,7 @@ describe('backup and restore', () => {
       JSON.stringify({
         format: 'etut-yedek',
         schemaVersion: 1,
-        exportedAt: 1,
+        exportedAt: Date.parse('2026-10-02T00:00:00Z'),
         appVersion: '0.2.0',
         profile: { birthYear, examType: 'YKS', yksArea: 'sozel' },
         sessions: [],
@@ -1000,7 +1025,7 @@ describe('backup and restore', () => {
     memory.pickText = JSON.stringify({
       format: 'etut-yedek',
       schemaVersion: 1,
-      exportedAt: 1,
+      exportedAt: Date.parse('2026-10-02T00:00:00Z'),
       profile: { birthYear: 2000, examType: 'YKS', yksArea: 'sozel' },
       sessions: [session('x')],
       exams: [],
@@ -1062,5 +1087,18 @@ describe('about and legal texts', () => {
     fireEvent.press(screen.getByTestId('onboarding-privacy'));
     expect(screen.getByTestId('legal-aydinlatma')).toBeTruthy();
     expect(memory.profile).toBeNull();
+  });
+
+  it('licenses list npm packages and native libraries; a row shows its license text', () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/lisanslar' });
+    expect(screen.getByTestId('license-react-native')).toBeTruthy();
+    expect(screen.getByTestId('license-folly (RCT-Folly)')).toBeTruthy();
+    expect(screen.queryByTestId('license-text-react-native')).toBeNull();
+    fireEvent.press(screen.getByTestId('license-react-native'));
+    expect(screen.getByTestId('license-text-react-native')).toHaveTextContent(/Permission is hereby granted/);
+    fireEvent.press(screen.getByTestId('license-SQLite'));
+    expect(screen.getByTestId('license-text-SQLite')).toHaveTextContent(/disclaims copyright/);
+    expect(screen.queryByTestId('license-text-react-native')).toBeNull();
   });
 });

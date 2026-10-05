@@ -156,7 +156,7 @@ describe('backup storage (real SQL)', () => {
 
   it('export → file → import (merge) twice gives the same rows (no duplicates)', () => {
     writeBackupData(DATA);
-    const text = serializeBackup(buildBackupFile(readBackupData(), null, 1, 'test'));
+    const text = serializeBackup(buildBackupFile(readBackupData(), null, T0 + 86_400_000, 'test'));
     const result = parseBackup(text);
     if (!result.ok) throw new Error(result.error);
     for (let i = 0; i < 2; i++) writeBackupData(mergeBackup(readBackupData(), result.file, 'merge'));

@@ -13,9 +13,22 @@ import {
   serializeBackup,
 } from '../backup';
 import type { Profile } from '../profile';
-import type { CompletedSession } from '../timer';
+import {
+  type CompletedSession,
+  creditAway,
+  finishSession,
+  onAppBackground,
+  onAppForeground,
+  onAppLaunch,
+  pauseSession,
+  resumeSession,
+  skipBreak,
+  startSession,
+} from '../timer';
 
 const T0 = Date.parse('2026-10-01T07:00:00Z');
+const DAY_MS = 24 * 3_600_000;
+const EXPORTED = T0 + DAY_MS;
 
 function session(id: string, overrides: Partial<CompletedSession> = {}): CompletedSession {
   return {
@@ -68,7 +81,7 @@ const DATA: BackupData = {
 const PROFILE: Profile = { birthYear: 2008, examType: 'YKS', yksArea: 'esit_agirlik', soloOnly: false, createdAt: 1 };
 
 function fileText(overrides: Record<string, unknown> = {}): string {
-  return JSON.stringify({ ...buildBackupFile(DATA, PROFILE, 123, '0.2.0'), ...overrides });
+  return JSON.stringify({ ...buildBackupFile(DATA, PROFILE, EXPORTED, '0.2.0'), ...overrides });
 }
 
 function parsed(text: string) {
@@ -79,11 +92,76 @@ function parsed(text: string) {
 
 describe('backup file format', () => {
   it('round-trips every record and setting', () => {
-    const file = buildBackupFile(DATA, PROFILE, 123, '0.2.0');
-    expect(file).toMatchObject({ format: BACKUP_FORMAT, schemaVersion: BACKUP_SCHEMA_VERSION, exportedAt: 123 });
+    const file = buildBackupFile(DATA, PROFILE, EXPORTED, '0.2.0');
+    expect(file).toMatchObject({ format: BACKUP_FORMAT, schemaVersion: BACKUP_SCHEMA_VERSION, exportedAt: EXPORTED });
     expect(file.profile).toEqual({ birthYear: 2008, examType: 'YKS', yksArea: 'esit_agirlik' });
     const back = parsed(serializeBackup(file));
     expect(back).toEqual(file);
+  });
+
+  it('reads back what the timer itself records, even a session left paused for a week', () => {
+    const DAY = 24 * 3_600_000;
+    // Paused after an hour, finished 8 days later.
+    const paused = finishSession(pauseSession(startSession('long1', 'fizik', T0), T0 + 3_600_000), T0 + 8 * DAY);
+    // Sent to the background after an hour, back 8 days later.
+    const away = finishSession(
+      onAppForeground(onAppBackground(startSession('long2', 'kimya', T0), T0 + 3_600_000), T0 + 8 * DAY),
+      T0 + 8 * DAY + 60_000,
+    );
+    for (const s of [paused, away]) expect(s.endedAt - s.startedAt).toBeGreaterThan(7 * DAY);
+    const file = buildBackupFile({ ...DATA, sessions: [paused, away] }, PROFILE, T0 + 8 * DAY, '0.2.0');
+    expect(parsed(serializeBackup(file)).sessions).toEqual([paused, away]);
+  });
+
+  it('reads back any session the timer can finish (random pause, away and pomodoro runs)', () => {
+    // Small deterministic PRNG (mulberry32) so a failure is reproducible.
+    let seed = 0x5eed;
+    const rand = () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const step = () => Math.floor(rand() * (rand() < 0.1 ? 9 * DAY_MS : 2 * 3_600_000));
+    const sessions: CompletedSession[] = [];
+    let latest = T0;
+    for (let i = 0; i < 200; i++) {
+      const pomodoro = rand() < 0.5 ? { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 } : null;
+      let now = T0 + Math.floor(rand() * 30 * DAY_MS);
+      let s = startSession(`r${i}`, 'fizik', now, { pomodoro });
+      for (let k = Math.floor(rand() * 12); k > 0; k--) {
+        now += step();
+        const r = rand();
+        if (r < 0.2) s = pauseSession(s, now);
+        else if (r < 0.4) s = resumeSession(s, now);
+        else if (r < 0.55) s = onAppBackground(s, now);
+        else if (r < 0.7) s = onAppForeground(s, now);
+        else if (r < 0.8) s = creditAway(s);
+        else if (r < 0.9) s = skipBreak(s, now);
+        else s = onAppLaunch(s, now);
+      }
+      now += step();
+      sessions.push(finishSession(s, now));
+      latest = Math.max(latest, now);
+    }
+    const file = buildBackupFile({ ...DATA, sessions }, PROFILE, latest, '0.2.0');
+    expect(parsed(serializeBackup(file)).sessions).toEqual(sessions);
+  });
+
+  it('time bounds: far future ends, pre-2016 starts and odd file dates are rejected', () => {
+    const error = (overrides: Record<string, unknown>) => {
+      const result = parseBackup(fileText(overrides));
+      return result.ok ? null : result.error;
+    };
+    // An end up to a day after the file was written is a corrected clock, not an error.
+    expect(error({ sessions: [session('x', { endedAt: EXPORTED + DAY_MS })] })).toBeNull();
+    expect(error({ sessions: [session('x', { endedAt: EXPORTED + DAY_MS + 1 })] })).toBe('invalid');
+    // Year 11476: would make every daily total walk ~3.5 million days.
+    expect(error({ sessions: [session('x', { endedAt: 3e14 })] })).toBe('invalid');
+    expect(error({ sessions: [session('x', { startedAt: 1, pauses: [] })] })).toBe('invalid');
+    expect(error({ exportedAt: 9e15 })).toBe('invalid');
+    expect(error({ exportedAt: Date.UTC(2100, 0, 2) })).toBe('invalid');
+    expect(error({ exportedAt: 0 })).toBe('invalid');
   });
 
   it('file name carries the day', () => {
@@ -94,7 +172,7 @@ describe('backup file format', () => {
     const minimal = JSON.stringify({
       format: BACKUP_FORMAT,
       schemaVersion: 1,
-      exportedAt: 0,
+      exportedAt: T0,
       sessions: [],
       exams: [],
       topicProgress: [],
@@ -127,7 +205,6 @@ describe('backup validation', () => {
     ['duration longer than the session', { sessions: [session('x', { durationMs: 3_600_001 })] }],
     ['unknown source', { sessions: [{ ...session('x'), source: 'server' }] }],
     ['id with odd characters', { sessions: [session('x"; DROP TABLE')] }],
-    ['session longer than a week', { sessions: [session('x', { endedAt: T0 + 8 * 24 * 3_600_000 })] }],
     ['unknown paper', { exams: [{ ...exam('e'), kind: 'AYT_XYZ' }] }],
     ['wrong question count', { exams: [exam('e', { scores: [{ sectionId: 'matematik', questions: 41, correct: 1, wrong: 0 }] })] }],
     ['missing section of a general exam', { exams: [exam('e', { scores: exam('e').scores.slice(1) })] }],
@@ -243,6 +320,18 @@ describe('K-17: the age on import', () => {
     expect(next).toMatchObject({ birthYear: 2013, soloOnly: true });
     // Replace takes the exam and area (settings, not age data).
     expect(next).toMatchObject({ examType: 'YKS', yksArea: 'sozel' });
+  });
+
+  it('a birth year the picker can not offer (edited file) is ignored, it does not lock the age', () => {
+    for (const birthYear of [2200, 2025, year - 7]) {
+      const next = importedProfile(adult, { birthYear, examType: 'YKS', yksArea: 'sayisal' }, 'merge', year);
+      expect(next).toEqual(adult);
+    }
+    // The youngest year the picker offers still counts (lower age wins).
+    expect(importedProfile(adult, { birthYear: year - 8, examType: 'YKS', yksArea: 'sayisal' }, 'merge', year)).toMatchObject({
+      birthYear: year - 8,
+      soloOnly: true,
+    });
   });
 
   it('merge keeps the exam of this device; a file without a profile changes nothing', () => {

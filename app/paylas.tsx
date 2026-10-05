@@ -1,10 +1,11 @@
+import { Redirect } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Platform, useColorScheme, useWindowDimensions, View } from 'react-native';
 import { captureRef, releaseCapture } from 'react-native-view-shot';
 
 import { activeSpan, type SessionSpan } from '@/domain/daily-totals';
 import { DAY_MS, dayStartMs } from '@/domain/istanbul-day';
-import { type CardPeriod, dailyCard, weeklyCard } from '@/domain/share-card';
+import { canShareCard, type CardPeriod, dailyCard, weeklyCard } from '@/domain/share-card';
 import { weekStartOf } from '@/domain/streak';
 import { isPaused } from '@/domain/timer';
 import { useAppState, useNow, useStored } from '@/state/app-state';
@@ -19,7 +20,7 @@ import { space } from '@/ui/theme';
 
 /** Daily / weekly 9:16 study card, shared as a PNG through the system share sheet. */
 export default function ShareCardScreen() {
-  const { active, dataVersion } = useAppState();
+  const { active, dataVersion, profile } = useAppState();
   const now = useNow(active !== null && !isPaused(active), 30_000);
   const stats = useStudyStats(now);
   const system = useColorScheme();
@@ -63,6 +64,9 @@ export default function ShareCardScreen() {
       setBusy(false);
     }
   };
+
+  // Under 15 the card is not offered (ADR-001); a deep link to this screen goes back to the timer.
+  if (!canShareCard(profile)) return <Redirect href="/" />;
 
   return (
     <Screen testID="share-screen">

@@ -56,8 +56,10 @@ export default function ExamsScreen() {
     exams.map((e) => e.kind),
   );
   const chartKind = kinds.includes(pickedKind) ? pickedKind : 'TYT';
-  const history = useStored(`${chartKind}|${sectionId}|${dataVersion}`, () =>
-    sectionNetHistory(chartKind, sectionId),
+  // When the paper falls back (area changed, exams replaced), the picked section may not exist in it.
+  const section = EXAM_SECTIONS[chartKind].find((s) => s.id === sectionId) ?? EXAM_SECTIONS[chartKind][0];
+  const history = useStored(`${chartKind}|${section.id}|${dataVersion}`, () =>
+    sectionNetHistory(chartKind, section.id),
   );
   const pendingIds = new Set(pending.map((e) => e.id));
 
@@ -73,7 +75,6 @@ export default function ExamsScreen() {
     .slice(0, CHART_LIMIT)
     .reverse();
 
-  const section = EXAM_SECTIONS[chartKind].find((s) => s.id === sectionId) ?? EXAM_SECTIONS[chartKind][0];
   const key = targetKey(chartKind, section.id);
   const target = data.targets[key] ?? null;
   const sectionPoints = history.slice(-CHART_LIMIT);

@@ -1,4 +1,4 @@
-import { topicGroupsForSubject, topicsForSection } from '../curriculum';
+import { topicGroupsForSubject, topicOfSubject, topicsForSection } from '../curriculum';
 import { EXAM_SECTIONS, examKindsForArea, examKindsToShow } from '../net';
 import { changeExam, type Profile } from '../profile';
 import { defaultSubject, SUBJECTS_BY_EXAM, subjectsFor, TYT_SUBJECTS } from '../subjects';
@@ -103,5 +103,17 @@ describe('changing the exam in settings', () => {
 
   it('YKS without an area is incomplete', () => {
     expect(changeExam({ ...profile, examType: 'KPSS', yksArea: null }, 'YKS', null)).toBeNull();
+  });
+
+  it('a picked topic of the old subject or area is dropped, never paired with another subject', () => {
+    // EA student picked an AYT literature topic, then switched to Sayısal: subject falls back to maths.
+    expect(topicOfSubject('YKS', 'esit_agirlik', 'edebiyat', 'ayt.edebiyat.anlam-bilgisi')).toBe(
+      'ayt.edebiyat.anlam-bilgisi',
+    );
+    expect(topicOfSubject('YKS', 'sayisal', 'matematik', 'ayt.edebiyat.anlam-bilgisi')).toBeNull();
+    // SAY → SÖZ: AYT maths topics are no longer listed under maths (only TYT maths is).
+    expect(topicOfSubject('YKS', 'sayisal', 'matematik', 'ayt.matematik.fonksiyonlar')).toBe('ayt.matematik.fonksiyonlar');
+    expect(topicOfSubject('YKS', 'sozel', 'matematik', 'ayt.matematik.fonksiyonlar')).toBeNull();
+    expect(topicOfSubject('YKS', 'sozel', 'matematik', null)).toBeNull();
   });
 });

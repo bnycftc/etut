@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { topicName } from '@/domain/curriculum';
+import { topicName, topicOfSubject } from '@/domain/curriculum';
 import { addDays, istanbulDayKey, istanbulTimeOfDay } from '@/domain/istanbul-day';
 import {
   buildManualSession,
@@ -41,7 +41,8 @@ export default function ManualEntryScreen() {
   const subjects = subjectsFor(examType, yksArea);
   const [pickedSubject, setSubjectId] = useState(() => defaultSubject(examType, loadLastSubject(), yksArea));
   const subjectId = subjects.includes(pickedSubject) ? pickedSubject : (subjects[0] ?? pickedSubject);
-  const [topicId, setTopicId] = useState<string | null>(null);
+  const [pickedTopic, setTopicId] = useState<string | null>(null);
+  const topicId = topicOfSubject(examType, yksArea, subjectId, pickedTopic);
   const [day, setDay] = useState(today);
   const [startH, setStartH] = useState('');
   const [startM, setStartM] = useState('');

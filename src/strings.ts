@@ -20,7 +20,7 @@ export const DATA_CONTROLLER = {
 } as const;
 
 /** Date shown as "Son güncelleme" on the legal texts. */
-export const LEGAL_UPDATED = '4 Ekim 2026';
+export const LEGAL_UPDATED = '5 Ekim 2026';
 
 export interface LegalSection {
   heading: string;
@@ -60,14 +60,15 @@ const legalDocs = {
       {
         heading: 'Nerede duruyor, kim görüyor?',
         paragraphs: [
-          'Yalnız bu telefonda. Uygulamanın sunucusu ve hesabı yok, uygulama internete bağlanmaz. Bilgilerin bize ya da başka bir şirkete gönderilmez; yurt dışına aktarım da yoktur.',
-          'Yedek dosyası, CSV ya da çalışma kartı oluşturup paylaşırsan dosyanın nereye gideceğine sen karar verirsin.',
+          'Bu telefonda. Uygulamanın sunucusu ve hesabı yok, uygulama internete bağlanmaz. Bilgilerin bize ya da başka bir şirkete gönderilmez; biz yurt dışına aktarım yapmayız.',
+          'Telefonunun kendi yedeği (iCloud ya da bilgisayara yedekleme) açıksa iOS uygulama verilerini de bu yedeğe katar. Bu yedek senin Apple hesabında ya da bilgisayarında durur; bize gelmez.',
+          'Yedek dosyası, CSV ya da çalışma kartı oluşturup paylaşırsan dosyanın nereye gideceğine sen karar verirsin. Yedek dosyasında doğum yılın da bulunur.',
         ],
       },
       {
         heading: 'Ne kadar kalıyor?',
         paragraphs: [
-          'Sen silene kadar. Ayarlar → Tüm verileri sil her şeyi siler; uygulamayı kaldırmak da siler.',
+          'Sen silene kadar. Ayarlar → Tüm verileri sil her şeyi siler; uygulamayı kaldırmak da bu telefondakileri siler. Telefonunun kendi yedeğindeki kopya o yedekle birlikte silinir.',
           'Tek istisna: 15 yaş altı beyanında, beyan edilen doğum yılı yaş kuralı gereği 15 yaşına gelinceye kadar bu cihazda ayrıca saklanır (yaşın yeniden kayıtla yükseltilemesin diye).',
         ],
       },
@@ -92,7 +93,8 @@ const legalDocs = {
       {
         heading: '1. Kısaca',
         paragraphs: [
-          'Reklam yok, analitik yok, izleme yok. Hesap ve sunucu yok: uygulama internete bağlanmaz, bilgilerin yalnız bu telefonda tutulur.',
+          'Reklam yok, analitik yok, izleme yok. Hesap ve sunucu yok: uygulama internete bağlanmaz, bilgilerin bu telefonda tutulur ve bize gelmez.',
+          'Telefonunun kendi yedeği (iCloud ya da bilgisayara yedekleme) açıksa iOS uygulama verilerini de bu yedeğe katar; bu yedek senin Apple hesabında ya da bilgisayarında durur.',
         ],
       },
       {
@@ -106,7 +108,7 @@ const legalDocs = {
         heading: '3. Paylaşım',
         paragraphs: [
           'Bize hiçbir veri gelmediği için kimseyle paylaşmıyoruz ve satmıyoruz.',
-          'Yedek, CSV ya da çalışma kartı yalnız sen dokunduğunda, telefonunun paylaşım ekranıyla dışarı çıkar. Seçtiğin uygulama ya da servis (ör. Dosyalar, AirDrop, bir mesajlaşma uygulaması) kendi kurallarına tabidir. Çalışma kartında ad, yaş, okul gibi seni tanıtan bilgi yer almaz.',
+          'Yedek, CSV ya da çalışma kartı yalnız sen dokunduğunda, telefonunun paylaşım ekranıyla dışarı çıkar. Seçtiğin uygulama ya da servis (ör. Dosyalar, AirDrop, bir mesajlaşma uygulaması) kendi kurallarına tabidir. Yedek dosyasında doğum yılın da bulunur. Çalışma kartında ad, yaş, okul gibi seni tanıtan bilgi yer almaz.',
         ],
       },
       {
@@ -119,7 +121,7 @@ const legalDocs = {
       {
         heading: '5. Saklama ve silme',
         paragraphs: [
-          'Veriler sen silene kadar cihazda kalır. Ayarlar → Tüm verileri sil ya da uygulamayı kaldırmak hepsini siler. 15 yaş altı beyanında yalnız beyan edilen doğum yılı, 15 yaşına gelinceye kadar ayrıca saklanır.',
+          'Veriler sen silene kadar cihazda kalır. Ayarlar → Tüm verileri sil ya da uygulamayı kaldırmak bu telefondakilerin hepsini siler; telefonunun kendi yedeğindeki kopya o yedekle birlikte silinir. 15 yaş altı beyanında yalnız beyan edilen doğum yılı, 15 yaşına gelinceye kadar ayrıca saklanır.',
         ],
       },
       {
@@ -527,6 +529,8 @@ export const tr = {
     nextDay: 'Sonraki gün ›',
     correct: 'Doğru',
     wrong: 'Yanlış',
+    /** Screen-reader name of a count box: which section it belongs to. */
+    countLabel: (section: string, what: string) => `${section}, ${what}`,
     questions: (n: number) => `${n} soru`,
     correctWrongShort: (correct: number, wrong: number) => `${correct} D · ${wrong} Y`,
     fixErrors: 'Hatalı alanları düzelt.',
@@ -628,10 +632,11 @@ export const tr = {
     exportedOn: (date: string) => `Yedek tarihi: ${date}`,
     modeTitle: 'Nasıl yüklensin?',
     merge: 'Birleştir',
-    mergeInfo: 'Bu telefondaki kayıtlar kalır, yedekte olup burada olmayanlar eklenir. Aynı yedeği iki kez yüklemek kayıtları çoğaltmaz.',
+    mergeInfo:
+      'Bu telefondaki kayıtlar ve ayarlar kalır, yedekte olup burada olmayanlar eklenir. Burada boş olan ayarlar (ör. kaldırdığın günlük hedef, sınav tarihi) yedektekiyle doldurulur. Aynı yedeği iki kez yüklemek kayıtları çoğaltmaz.',
     replace: 'Değiştir',
     replaceInfo: 'Bu telefondaki çalışma kayıtları, denemeler, konu işaretleri ve ayarlar silinir; yerine yedektekiler gelir.',
-    ageNote: 'Doğum yılı yedekten alınmaz. Yedekteki yaş bu cihazdakinden küçükse küçük olan esas alınır.',
+    ageNote: 'Yaş yedekle yükseltilemez. Yedekteki yaş bu cihazdakinden küçükse küçük olan esas alınır.',
     confirm: 'Yükle',
     cancel: 'Vazgeç',
     done: (sessions: number, exams: number, topics: number) =>
@@ -701,8 +706,12 @@ export const tr = {
     title: 'Hakkında',
     legalTitle: 'Gizlilik ve şartlar',
     licenses: 'Açık kaynak lisansları',
-    licensesIntro: (n: number) =>
-      `Etüt aşağıdaki ${n} açık kaynak paketi kullanır. Her paketin tam lisans metni kendi deposunda ve uygulamayla gelen kaynak dosyalarındadır.`,
+    licensesIntro: (packages: number, native: number) =>
+      `Etüt aşağıdaki ${packages} açık kaynak paketi ve uygulamaya derlenen ${native} yerel kütüphaneyi kullanır. Lisans metnini görmek için bir satıra dokun.`,
+    nativeLicenses: 'Yerel kütüphaneler',
+    licenseHint: 'Lisans metnini gösterir ya da gizler',
+    licenseTextMissing: (license: string) =>
+      `${license} lisansı. Tam metin projenin kendi deposunda; bir sonraki sürümde buraya da eklenecek.`,
     controller: 'Veri sorumlusu',
     contact: 'İletişim',
     updated: (date: string) => `Son güncelleme: ${date}`,

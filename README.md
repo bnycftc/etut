@@ -71,17 +71,17 @@ app/                    Ekranlar (expo-router)
   yedek.tsx             Yedekle / geri yükle (JSON), CSV dışa aktarma
   hakkinda.tsx          Sürüm, yasal metinler, veri sorumlusu, lisanslar
   yasal/[doc].tsx       Kısa aydınlatma, gizlilik politikası, kullanım şartları (onboarding'den de açılır)
-  lisanslar.tsx         Açık kaynak lisans listesi
+  lisanslar.tsx         Açık kaynak lisansları: npm paketleri + yerel kütüphaneler, satıra dokununca metin
 src/domain/             Saf TypeScript iş kuralları + Jest testleri
 src/storage/            expo-sqlite veritabanı ve kv-store; file-io(.web).ts paylaşım/dosya seçici
 src/state/              Uygulama durumu (domain ile depolama arasındaki ince katman)
 src/ui/                 Tema (WCAG AA testli), ortak bileşenler, kart, ipucu, azaltılmış hareket
-src/legal/licenses.ts   Üretilen lisans listesi (npm run gen:licenses)
+src/legal/licenses.ts   Üretilen lisans listesi ve metinleri (npm run gen:licenses)
 src/strings.ts          Kullanıcıya görünen tüm metinler (yasal metinler ve DATA_CONTROLLER dahil)
 index.ts / index.web.ts Giriş noktası (web: SQLite worker'ını ısıtıp expo-router'ı başlatır)
 scripts/test-web.mjs    Web duman testi (npm run test:web)
 scripts/gen-icons.mjs   Simge ve açılış ekranı (SVG -> PNG, simge alfa kanalsız)
-scripts/gen-licenses.mjs Lisans listesi üretici
+scripts/gen-licenses.mjs Lisans listesi üretici; scripts/native-licenses/ yerel kütüphane metinleri (upstream, birebir)
 e2e/                    Maestro akışları (iOS simülatörü, e2e-ios.yml)
 ci/ExportOptions.plist  TestFlight ihracat ayarları
 .github/workflows/      ci.yml, testflight.yml, e2e-ios.yml
@@ -186,8 +186,12 @@ ağ isteği atmaz (`test:web` bunu denetler):
   (`format: "etut-yedek"`, `schemaVersion: 1`; oturumlar, denemeler + analizler, konu işaretleri,
   ayarlar, profil). İçe aktarma: tam şema doğrulaması (tek hatalı kayıt → hiçbir şey yazılmaz),
   daha yeni sürüm reddedilir, "Birleştir" (bu cihaz kazanır, eksikler eklenir) ya da "Değiştir";
-  kimliklere göre idempotent. K-17: doğum yılı yedekten alınmaz; yedekteki yaş daha küçükse küçük
-  olan esas alınır, 15 altı bayrağı içe aktarmayla kapanmaz. Dosya şifrelenmez (metinde yazıyor).
+  kimliklere göre idempotent; uygulamanın yazdığı her kayıt geri okunur (ör. bir hafta açık
+  kalmış oturum); süre sınırı yok, zaman sınırı var (2016 sonrası başlangıç, dosya tarihinden en
+  fazla 1 gün sonra bitiş). "Birleştir"de burada boş olan ayarlar (kaldırılmış hedef dahil) yedekten dolar.
+  K-17: yaş yedekle yükseltilemez; yedekteki yaş daha küçükse küçük olan esas alınır (seçicinin
+  sunmadığı bir yıl, ör. 2200, yok sayılır), 15 altı bayrağı içe aktarmayla kapanmaz. Dosya
+  şifrelenmez (metinde yazıyor).
 - **CSV** (KVKK taşınabilirlik): oturumlar ve denemeler; `;` ayraçlı, UTF-8 BOM, ondalık virgül,
   formül enjeksiyonuna karşı korumalı (`src/domain/csv.ts`).
 - **Çalışma kartı**: 1080×1920 PNG; yalnız süre, ders dağılımı, seri ve hedef (ad, yaş, okul,

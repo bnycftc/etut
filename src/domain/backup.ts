@@ -9,15 +9,17 @@
  * - All or nothing: one invalid record rejects the whole file (nothing is written).
  * - Idempotent: records are keyed by their ids, so importing the same file twice leaves the same
  *   data as importing it once (no duplicate sessions or exams).
- * - K-17: the declared age is never taken from the file. If the file's birth year is a younger
- *   age than the one on this device, the younger one (later year) is kept; never the older one.
+ * - K-17: the age can not be raised by a file. If the file's birth year is a younger age than the
+ *   one on this device, the younger one (later year) is kept; never the older one. A year the
+ *   birth-year picker could not offer (younger than its minimum age) is ignored.
+ * - Everything this app wrote reads back: the checks reject only what the app can not produce.
  */
 
 import { type TopicMark, validateSectionMarks } from './exam-analysis';
 import type { DayKey } from './istanbul-day';
 import { EXAM_KINDS, EXAM_SECTIONS, type ExamKind, type ExamScope, type SectionScore, validateScore, type YksArea } from './net';
 import { isPomodoroConfig, normalizePomodoroConfig, type PomodoroConfig } from './pomodoro';
-import { EXAM_TYPES, type ExamType, isSoloOnly, type Profile, YKS_AREAS } from './profile';
+import { birthYearOptions, EXAM_TYPES, type ExamType, isSoloOnly, type Profile, YKS_AREAS } from './profile';
 import { clampGoalMinutes } from './streak';
 import type { ClosedPause, CompletedSession, PauseKind } from './timer';
 import { isTopicStatus, type TopicStatus } from './topics';
@@ -30,8 +32,15 @@ export const BACKUP_MAX_BYTES = 20 * 1024 * 1024;
 
 const MAX_RECORDS = 200_000;
 const MAX_PAUSES = 5_000;
-/** A single study session can not be longer than this (timer left running for days). */
-const MAX_SESSION_MS = 7 * 24 * 3_600_000;
+/**
+ * Time bounds instead of a session-length limit. No record of this app is older than this (a
+ * device clock reset to 1970 aside), and no file was written after 2100. A session ends at most a
+ * day after the file was written (the tolerance covers a clock corrected between the two): a far
+ * future end would make every daily total walk day by day up to it.
+ */
+const MIN_TIME = Date.UTC(2016, 0, 1);
+const MAX_TIME = Date.UTC(2100, 0, 1);
+const END_TOLERANCE_MS = 24 * 3_600_000;
 
 export type TimerModeSetting = 'stopwatch' | 'pomodoro';
 
@@ -180,11 +189,13 @@ function unique<T>(items: T[], key: (item: T) => string): T[] {
   return items;
 }
 
-function parseSession(value: unknown): CompletedSession {
+function parseSession(value: unknown, exportedAt: number): CompletedSession {
   const v = obj(value);
-  const startedAt = int(v.startedAt, 1);
-  const endedAt = int(v.endedAt, startedAt);
-  if (endedAt - startedAt > MAX_SESSION_MS) fail();
+  const startedAt = int(v.startedAt, MIN_TIME);
+  // No limit on the span: a paused timer left for a week and then finished is a session of this
+  // app (`finishSession` does not cap it), so its own backup must read it back. The end is bounded
+  // by the time the file was written instead (`END_TOLERANCE_MS`).
+  const endedAt = int(v.endedAt, startedAt, exportedAt + END_TOLERANCE_MS);
   // Pauses only shorten a session, so out-of-range ones are clipped to it instead of rejected.
   const clip = (n: number, min: number) => Math.min(endedAt, Math.max(min, n));
   const pauses: ClosedPause[] = arr(v.pauses, MAX_PAUSES).map((p) => {
@@ -326,13 +337,14 @@ export function parseBackup(text: string): ParseResult {
   if (version > BACKUP_SCHEMA_VERSION) return { ok: false, error: 'too_new' };
   try {
     const v = upgrade(raw as Obj, version);
+    const exportedAt = int(v.exportedAt, MIN_TIME, MAX_TIME);
     const file: BackupFile = {
       format: BACKUP_FORMAT,
       schemaVersion: BACKUP_SCHEMA_VERSION,
-      exportedAt: int(v.exportedAt),
+      exportedAt,
       appVersion: typeof v.appVersion === 'string' ? v.appVersion.slice(0, 40) : '',
       profile: parseProfile(v.profile),
-      sessions: unique(arr(v.sessions).map(parseSession), (s) => s.id),
+      sessions: unique(arr(v.sessions).map((s) => parseSession(s, exportedAt)), (s) => s.id),
       exams: unique(arr(v.exams).map(parseExam), (e) => e.id),
       topicProgress: unique(arr(v.topicProgress).map(parseTopicProgress), (t) => t.topicId),
       settings: parseSettings(v.settings),
@@ -356,8 +368,10 @@ function byId<T>(current: T[], incoming: T[], key: (item: T) => string): T[] {
  * The data to keep after importing `incoming` into `current`.
  * - `replace`: exactly the file's data (this device's sessions, exams, topics and settings go).
  * - `merge`: this device wins wherever both have the same record (same id, same topic, a setting
- *   that is set here); records and settings only the file has are added. Topic progress keeps
- *   the newer mark. Applying the same file again changes nothing.
+ *   that is set here); records and settings only the file has are added. A setting that is empty
+ *   here (no daily goal, no own exam date) is filled from the file, the merge text says so
+ *   (`tr.backup.mergeInfo`). Topic progress keeps the newer mark. Applying the same file again
+ *   changes nothing.
  */
 export function mergeBackup(current: BackupData, incoming: BackupData, mode: ImportMode): BackupData {
   if (mode === 'replace') {
@@ -392,9 +406,11 @@ export function mergeBackup(current: BackupData, incoming: BackupData, mode: Imp
 
 /**
  * K-17. The profile after an import: the age declared on this device can only stay or become
- * younger. The file's birth year is used only when it is a younger age (a later year); the solo
- * flag (under 15 → no group features) is never switched off by an import. `replace` also takes
- * the file's exam and area (they are settings, not age data); `merge` keeps this device's.
+ * younger. The file's birth year is used only when it is a younger age (a later year) that the
+ * birth-year picker offers in `currentYear`; any other year in the file (e.g. 2200 in an edited
+ * file, which would lock the age guard for decades) is ignored. The solo flag (under 15 → no
+ * group features) is never switched off by an import. `replace` also takes the file's exam and
+ * area (they are settings, not age data); `merge` keeps this device's.
  */
 export function importedProfile(
   device: Profile,
@@ -402,7 +418,9 @@ export function importedProfile(
   mode: ImportMode,
   currentYear: number,
 ): Profile {
-  const birthYear = incoming === null ? device.birthYear : Math.max(device.birthYear, incoming.birthYear);
+  const fileYear =
+    incoming !== null && birthYearOptions(currentYear).includes(incoming.birthYear) ? incoming.birthYear : null;
+  const birthYear = fileYear === null ? device.birthYear : Math.max(device.birthYear, fileYear);
   const exam = mode === 'replace' && incoming !== null ? incoming : device;
   return {
     birthYear,

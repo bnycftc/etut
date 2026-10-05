@@ -6,6 +6,7 @@ import { hoursMinutes } from '@/domain/clock';
 import { weeklySummary } from '@/domain/compare';
 import { activeSpan, type SessionSpan } from '@/domain/daily-totals';
 import { addDays, DAY_MS, dayStartMs, istanbulDayKey, istanbulWeekday } from '@/domain/istanbul-day';
+import { canShareCard } from '@/domain/share-card';
 import { weekStartOf } from '@/domain/streak';
 import { isPaused } from '@/domain/timer';
 import { useAppState, useNow, useStored } from '@/state/app-state';
@@ -17,7 +18,7 @@ import { formatDay, formatDuration } from '@/ui/format';
 
 /** Weekly summary (Monday–Sunday, Istanbul): own numbers only, no comparison with others. */
 export default function WeeklyScreen() {
-  const { active, dataVersion } = useAppState();
+  const { active, dataVersion, profile } = useAppState();
   const now = useNow(active !== null && !isPaused(active), 30_000);
   const stats = useStudyStats(now);
   const thisWeek = weekStartOf(stats.today);
@@ -82,7 +83,7 @@ export default function WeeklyScreen() {
 
       {week.totalMs === 0 ? (
         <EmptyState testID="weekly-empty" title={tr.empty.weeklyTitle} body={tr.empty.weeklyBody} />
-      ) : offset === 0 ? (
+      ) : offset === 0 && canShareCard(profile) ? (
         <Button
           testID="weekly-share"
           kind="secondary"

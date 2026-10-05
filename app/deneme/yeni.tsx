@@ -173,12 +173,14 @@ export default function NewExamScreen() {
                 <CountInput
                   testID={`exam-correct-${s.id}`}
                   label={tr.exams.correct}
+                  a11yLabel={tr.exams.countLabel(tr.subject(s.id), tr.exams.correct)}
                   value={entries[s.id]?.correct ?? ''}
                   onChange={(v) => setEntry(s.id, 'correct', v)}
                 />
                 <CountInput
                   testID={`exam-wrong-${s.id}`}
                   label={tr.exams.wrong}
+                  a11yLabel={tr.exams.countLabel(tr.subject(s.id), tr.exams.wrong)}
                   value={entries[s.id]?.wrong ?? ''}
                   onChange={(v) => setEntry(s.id, 'wrong', v)}
                 />
@@ -217,11 +219,13 @@ export default function NewExamScreen() {
 
 function CountInput({
   label,
+  a11yLabel,
   value,
   onChange,
   testID,
 }: {
   label: string;
+  a11yLabel: string;
   value: string;
   onChange: (value: string) => void;
   testID?: string;
@@ -232,7 +236,7 @@ function CountInput({
       <Label variant="small">{label}</Label>
       <TextInput
         testID={testID}
-        accessibilityLabel={label}
+        accessibilityLabel={a11yLabel}
         value={value}
         onChangeText={onChange}
         keyboardType="number-pad"
@@ -240,7 +244,7 @@ function CountInput({
         maxLength={3}
         placeholder="0"
         placeholderTextColor={c.textMuted}
-        style={[styles.input, { color: c.text, borderColor: c.border, backgroundColor: c.background }]}
+        style={[styles.input, { color: c.text, borderColor: c.controlBorder, backgroundColor: c.background }]}
       />
     </View>
   );

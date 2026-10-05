@@ -3,9 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { formatClock } from '@/domain/clock';
-import { topicName } from '@/domain/curriculum';
+import { topicName, topicOfSubject } from '@/domain/curriculum';
 import { daysUntil, resolveExamDate } from '@/domain/exam-dates';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
+import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
 import { defaultSubject, subjectsFor } from '@/domain/subjects';
 import { elapsedMs, isPaused } from '@/domain/timer';
@@ -46,7 +47,8 @@ export default function TimerScreen() {
   const subjectId = subjects.includes(pickedSubject)
     ? pickedSubject
     : defaultSubject(examType, loadLastSubject(), yksArea);
-  const [topicId, setTopicId] = useState<string | null>(null);
+  const [pickedTopic, setTopicId] = useState<string | null>(null);
+  const topicId = topicOfSubject(examType, yksArea, subjectId, pickedTopic);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [mode, setModeState] = useState<TimerMode>(loadTimerMode);
   const setSubjectId = (id: string) => {
@@ -330,12 +332,14 @@ export default function TimerScreen() {
             title={tr.compare.weekly}
             onPress={() => router.push('/haftalik')}
           />
-          <Button
-            testID="open-share"
-            kind="secondary"
-            title={tr.share.open}
-            onPress={() => router.push('/paylas')}
-          />
+          {canShareCard(profile) ? (
+            <Button
+              testID="open-share"
+              kind="secondary"
+              title={tr.share.open}
+              onPress={() => router.push('/paylas')}
+            />
+          ) : null}
         </Row>
       </Card>
     </Screen>
