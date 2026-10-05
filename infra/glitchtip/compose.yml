@@ -1,0 +1,48 @@
+# GlitchTip (error reports) on the same server, its own Postgres, published on 127.0.0.1:8001 only
+# (Caddy serves it at ETUT_GLITCHTIP_HOST). Based on glitchtip.com/assets/compose.sample.yml.
+# Images use the release line tags of the sample; 06-glitchtip.sh records the exact digests after
+# the first pull and rewrites this file to `image@sha256:...` so later pulls cannot drift.
+# Every secret (database URL with its password, SECRET_KEY) comes from /opt/etut/glitchtip/.env,
+# generated on the server by 06-glitchtip.sh (chmod 600).
+x-environment: &default-environment
+  DATABASE_URL: ${GLITCHTIP_DATABASE_URL}
+  VALKEY_URL: ""                       # no Valkey: Postgres queue, less RAM (sample's low-RAM option)
+  SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+  EMAIL_URL: consolemail://
+  GLITCHTIP_DOMAIN: https://${ETUT_GLITCHTIP_HOST}
+  DEFAULT_FROM_EMAIL: ${ACME_EMAIL}
+  ENABLE_USER_REGISTRATION: "False"    # only the operator's account
+  ENABLE_ADMIN: "False"
+  ENABLE_OPENAPI: "False"
+  GLITCHTIP_ENABLE_MCP: "False"
+  GLITCHTIP_ENABLE_DUCKDB: "False"
+  GLITCHTIP_ENABLE_UPTIME: "False"
+  # hukuk/kvkk/09 §7: error records 90 days.
+  GLITCHTIP_MAX_EVENT_LIFE_DAYS: "90"
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: glitchtip
+      POSTGRES_PASSWORD: ${GLITCHTIP_DB_PASSWORD}
+      POSTGRES_DB: glitchtip
+    restart: unless-stopped
+    volumes:
+      - pg-data:/var/lib/postgresql
+  web:
+    image: glitchtip/glitchtip:6
+    depends_on:
+      - postgres
+    ports:
+      - "127.0.0.1:8001:8000"
+    environment:
+      <<: *default-environment
+      SERVER_ROLE: all_in_one
+    restart: unless-stopped
+    volumes:
+      - uploads:/code/uploads
+
+volumes:
+  pg-data:
+  uploads:

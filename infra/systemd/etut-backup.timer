@@ -1,0 +1,10 @@
+[Unit]
+Description=Etüt nightly backup at 01:15 UTC (04:15 Istanbul)
+
+[Timer]
+OnCalendar=*-*-* 01:15:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

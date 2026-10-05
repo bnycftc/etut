@@ -2,6 +2,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 
+import { GROUPS_ENABLED } from '@/config/features';
 import { AppStateProvider, useAppState } from '@/state/app-state';
 import { tr } from '@/strings';
 import { usePalette } from '@/ui/theme';
@@ -29,6 +30,12 @@ function RootStack() {
         <Stack.Screen name="elle-ekle" options={{ title: tr.manual.title }} />
         <Stack.Screen name="analiz/[id]" options={{ title: tr.analysis.title }} />
         <Stack.Screen name="haftalik" options={{ title: tr.weekly.title }} />
+      </Stack.Protected>
+      {/* Group module screens exist only while it is on, and never for under-15 profiles (K-16). */}
+      <Stack.Protected guard={GROUPS_ENABLED && profile !== null && !profile.soloOnly}>
+        <Stack.Screen name="grup/[id]" options={{ title: tr.group.title }} />
+        <Stack.Screen name="veli" options={{ title: tr.parent.title }} />
+        <Stack.Screen name="gizlilik" options={{ title: tr.privacy.title }} />
       </Stack.Protected>
       <Stack.Protected guard={profile === null}>
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />

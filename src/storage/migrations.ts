@@ -68,4 +68,17 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX IF NOT EXISTS mock_exam_marks_topic_id ON mock_exam_marks (topic_id);
   `,
+  // 5: outgoing queue of finished sessions for the (optional) group server. Used only when the
+  // group module is on and the student has a group account; empty otherwise.
+  `
+  CREATE TABLE IF NOT EXISTS sync_outbox (
+    local_id TEXT PRIMARY KEY NOT NULL,
+    payload TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at INTEGER NOT NULL,
+    last_error TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS sync_outbox_next_attempt_at ON sync_outbox (next_attempt_at);
+  `,
 ];

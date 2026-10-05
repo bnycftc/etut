@@ -1,0 +1,10 @@
+[Unit]
+Description=Etüt nightly encrypted backup (pgBackRest + restic)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/etut/bin/backup-run.sh
+Nice=10
+IOSchedulingClass=idle

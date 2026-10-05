@@ -1,0 +1,69 @@
+# Etüt overrides on top of the official self-hosted compose (supabase/supabase, tag pinned in
+# infra/scripts/03-supabase.sh). Copied next to docker-compose.yml as docker-compose.override.yml.
+# Needs Docker Compose >= 2.24 (!override).
+services:
+  # API gateway (Envoy): only on 127.0.0.1. Caddy forwards /rest/v1 and /auth/v1 to it; Studio
+  # (served by the gateway at /) is therefore never reachable from the internet, only through
+  # an SSH tunnel: ssh -L 8000:127.0.0.1:8000 etut@<server>, then http://localhost:8000
+  api-gw:
+    ports: !override
+      - "127.0.0.1:8000:8000/tcp"
+
+  # Postgres through the pooler: 127.0.0.1 only (SSH tunnel for migrations and admin).
+  supavisor:
+    ports: !override
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
+      - "127.0.0.1:${POOLER_PROXY_PORT_TRANSACTION}:6543"
+
+  auth:
+    environment:
+      # Anonymous start (hukuk/kvkk/00 §3.3; no e-mail, no SMS). Linking Apple / Google stays OFF
+      # until the app has the buttons AND a cleanup of the e-mail / name GoTrue copies into
+      # auth.users and auth.identities exists (kvkk/08 #11 says "e-posta saklanmaz"). Turn on
+      # with ETUT_LINKING_ENABLED=true in /etc/etut/etut.conf (03-supabase.sh) only then.
+      GOTRUE_SECURITY_MANUAL_LINKING_ENABLED: ${LINKING_ENABLED:-false}
+      GOTRUE_EXTERNAL_APPLE_ENABLED: ${APPLE_ENABLED:-false}
+      GOTRUE_EXTERNAL_APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED:-false}
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # Anonymous sign-ins per IP per hour (GoTrue default 30). GoTrue applies its IP limits
+      # only when it is told which header carries the client IP; without this every limit is
+      # silently off (internal/api/middleware.go performRateLimitingWithHeader). Caddy replaces
+      # any client-sent X-Forwarded-For, and GoTrue keys on its first value.
+      GOTRUE_RATE_LIMIT_ANONYMOUS_USERS: "30"
+      GOTRUE_RATE_LIMIT_HEADER: "X-Forwarded-For"
+      # Token refreshes per IP per 5 minutes (GoTrue default 150). Many students share one IP
+      # behind school Wi-Fi or carrier NAT. A refused refresh (429) with an expired access token
+      # makes the app drop its session (auth-js treats 429 as final), and an anonymous account
+      # cannot be signed into again: the student would lose the group account. So the limit is
+      # set well above what one NAT is expected to send. [KONTROL] infra/README.md, "Doğrulanamayanlar" → "Hız sınırları".
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: "3000"
+      # GoTrue's own audit table (auth.audit_log_entries: account id, IP, e-mail) would keep IPs
+      # outside our retention rules. The 5651 trail is audit.events / audit.ip_events (395
+      # days) and the Caddy access log (400 days). GoTrue still logs to stdout (docker logs,
+      # rotated by daemon.json in 02-docker.sh).
+      GOTRUE_AUDIT_LOG_DISABLE_POSTGRES: "true"
+
+  db:
+    # Official image + pgBackRest (infra/supabase/db/Dockerfile) for WAL archiving.
+    build:
+      context: ./etut/db
+      args:
+        SUPABASE_POSTGRES_TAG: 17.6.1.136
+    image: etut/postgres-pgbackrest:17.6.1.136
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - log_min_messages=fatal
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=pgbackrest --stanza=etut archive-push %p
+      - -c
+      - archive_timeout=300
+    volumes:
+      - /etc/etut/pgbackrest:/etc/pgbackrest:ro
+      - /var/lib/etut/pgbackrest-spool:/var/spool/pgbackrest
+      - /var/log/etut/pgbackrest:/var/log/pgbackrest

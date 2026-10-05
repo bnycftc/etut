@@ -1,0 +1,7 @@
+[Unit]
+Description=Etüt health check (results in the journal: journalctl -u etut-health)
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/etut/bin/healthcheck.sh

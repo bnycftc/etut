@@ -185,6 +185,45 @@ export function Field({
   );
 }
 
+/** Labelled free-text field (nickname, group name, codes). */
+export function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  maxLength,
+  code = false,
+  testID,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  maxLength: number;
+  /** Codes: upper case, no autocorrect. */
+  code?: boolean;
+  testID?: string;
+}) {
+  const c = usePalette();
+  return (
+    <View style={{ flex: 1, gap: 4 }}>
+      <Text style={[styles.small, { color: c.textMuted }]}>{label}</Text>
+      <TextInput
+        testID={testID}
+        accessibilityLabel={label}
+        value={value}
+        onChangeText={onChange}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        placeholderTextColor={c.textMuted}
+        autoCapitalize={code ? 'characters' : 'sentences'}
+        autoCorrect={false}
+        style={[styles.input, { color: c.text, borderColor: c.border, backgroundColor: c.background }]}
+      />
+    </View>
+  );
+}
+
 /** − value + control. */
 export function Stepper({
   label,

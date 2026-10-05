@@ -1,0 +1,404 @@
+/**
+ * Outbox and heartbeat against the in-memory fake server: offline sessions stay queued and are
+ * sent later, re-sending is idempotent, refusals leave the queue, beats only while a session is
+ * open (and stop for good when the account is gone), deletions reach the server, and nothing at
+ * all happens while the group module is off.
+ */
+
+import type { OutboxPayload, SessionPayload } from '../../domain/outbox';
+import { startSession, finishSession, pauseSession } from '../../domain/timer';
+import { ApiError, isAccountGone, setGroupApiForTests, toApiError } from '../api';
+import { flushOutbox, type OutboxStore } from '../outbox';
+import { createFakeServer } from '../testing/fake-api';
+
+const queue: { localId: string; payload: OutboxPayload; attempts: number; nextAt: number }[] = [];
+const flags = { account: true, enabled: true, member: true, parentLinked: false };
+
+jest.mock('../../config/features', () => ({
+  get GROUPS_ENABLED() {
+    return flags.enabled;
+  },
+}));
+jest.mock('../../storage/groups-kv', () => ({
+  loadGroupsAccount: () => flags.account,
+  storeGroupsAccount: (on: boolean) => {
+    flags.account = on;
+  },
+  loadGroupsMember: () => flags.member,
+  storeGroupsMember: (on: boolean) => {
+    flags.member = on;
+  },
+  loadParentLinked: () => flags.parentLinked,
+  storeParentLinked: (on: boolean) => {
+    flags.parentLinked = on;
+  },
+}));
+jest.mock('../../storage/outbox', () => ({
+  enqueueSession: (localId: string, payload: OutboxPayload, now: number) => {
+    if (!queue.some((q) => q.localId === localId)) queue.push({ localId, payload, attempts: 0, nextAt: now });
+  },
+  // Same selection as the real store (queue order, an upload waits behind a waiting deletion).
+  dueItems: (now: number, limit: number) =>
+    jest.requireActual('../../domain/outbox').selectDue(
+      queue.map((q) => ({ localId: q.localId, nextAt: q.nextAt, item: q })),
+      now,
+      limit,
+    ),
+  removeItem: (localId: string) => {
+    const i = queue.findIndex((q) => q.localId === localId);
+    if (i < 0) return null;
+    const [item] = queue.splice(i, 1);
+    return item.attempts;
+  },
+  scheduleRetry: (localId: string, attempts: number, nextAt: number) => {
+    const item = queue.find((q) => q.localId === localId);
+    if (item) Object.assign(item, { attempts, nextAt });
+  },
+  nextAttemptAt: () => (queue.length === 0 ? null : Math.min(...queue.map((q) => q.nextAt))),
+  clearOutbox: () => {
+    queue.length = 0;
+  },
+}));
+
+// Imported after the mocks.
+import * as outboxStore from '../../storage/outbox';
+import {
+  endGroupsAccount,
+  flushPending,
+  stopSync,
+  syncFinishedSession,
+  syncManualDeleted,
+  syncPresence,
+} from '../session-sync';
+
+const store = outboxStore as unknown as OutboxStore;
+const T0 = Date.UTC(2026, 9, 4, 9, 0, 0);
+
+function payload(id: string, durationS = 600): SessionPayload {
+  return {
+    clientId: id,
+    startedAt: new Date(T0).toISOString(),
+    endedAt: new Date(T0 + durationS * 1000).toISOString(),
+    durationS,
+    source: 'timer',
+  };
+}
+
+/** Lets queued promise callbacks run (also under fake timers). */
+async function settle() {
+  for (let i = 0; i < 50; i++) await Promise.resolve();
+}
+
+beforeEach(() => {
+  queue.length = 0;
+  flags.account = true;
+  flags.enabled = true;
+  flags.member = true;
+  flags.parentLinked = false;
+  syncPresence(null);
+});
+
+afterEach(() => {
+  stopSync();
+  setGroupApiForTests(null);
+  jest.useRealTimers();
+});
+
+describe('toApiError', () => {
+  it('a request without a valid session means the account is gone, not a server error', () => {
+    // anon may execute no function; PostgREST refuses an expired or unknown token.
+    expect(isAccountGone(toApiError({ code: '42501', message: 'permission denied for function delete_my_account' }))).toBe(true);
+    expect(isAccountGone(toApiError({ code: 'PGRST301', message: 'JWT expired' }))).toBe(true);
+    expect(isAccountGone(toApiError({ message: 'Invalid Refresh Token: Refresh Token Not Found' }))).toBe(true);
+    expect(isAccountGone(toApiError({ message: 'Failed to fetch' }))).toBe(false);
+    expect(toApiError({ message: 'parent_locked', code: 'P0001' }).code).toBe('parent_locked');
+  });
+});
+
+describe('flushOutbox', () => {
+  it('sends due items and removes them', async () => {
+    const server = createFakeServer();
+    store.removeItem('x');
+    queue.push({ localId: 'a', payload: payload('u-a'), attempts: 0, nextAt: T0 });
+    queue.push({ localId: 'b', payload: payload('u-b'), attempts: 0, nextAt: T0 });
+    const result = await flushOutbox(server.api, store, () => T0);
+    expect(result).toEqual({ stored: 2, deleted: 0, refused: [], retried: 0 });
+    expect(queue).toHaveLength(0);
+    expect(server.submitted.map((p) => p.clientId)).toEqual(['u-a', 'u-b']);
+  });
+
+  it('keeps items while offline and retries later with back-off; a resend is a duplicate', async () => {
+    const server = createFakeServer();
+    queue.push({ localId: 'a', payload: payload('u-a'), attempts: 0, nextAt: T0 });
+    queue.push({ localId: 'b', payload: payload('u-b'), attempts: 0, nextAt: T0 });
+    server.failNext = new ApiError('network');
+    const offline = await flushOutbox(server.api, store, () => T0);
+    expect(offline).toEqual({ stored: 0, deleted: 0, refused: [], retried: 1 });
+    expect(queue.map((q) => [q.localId, q.attempts, q.nextAt])).toEqual([
+      ['a', 1, T0 + 30_000],
+      ['b', 0, T0],
+    ]);
+    // Not due yet: only b goes out now.
+    await flushOutbox(server.api, store, () => T0 + 1_000);
+    expect(queue.map((q) => q.localId)).toEqual(['a']);
+    // The server stored "a" earlier but the answer was lost: resending is harmless.
+    server.submitted.push(payload('u-a'));
+    const later = await flushOutbox(server.api, store, () => T0 + 31_000);
+    expect(later.stored).toBe(1);
+    expect(queue).toHaveLength(0);
+    expect(server.submitted.filter((p) => p.clientId === 'u-a')).toHaveLength(1);
+  });
+
+  it('drops refused items instead of retrying them forever', async () => {
+    const server = createFakeServer();
+    queue.push({ localId: 'long', payload: payload('u-long', 36_001), attempts: 0, nextAt: T0 });
+    const result = await flushOutbox(server.api, store, () => T0);
+    expect(result.refused).toEqual(['too_long']);
+    expect(queue).toHaveLength(0);
+  });
+
+  it('permanent refusals of the server (overlap, too_old) end the item like too_long', async () => {
+    const server = createFakeServer();
+    queue.push({ localId: 'a', payload: payload('u-a'), attempts: 0, nextAt: T0 });
+    queue.push({ localId: 'b', payload: payload('u-b'), attempts: 0, nextAt: T0 });
+    server.submitStatusNext = 'overlap';
+    const result = await flushOutbox(server.api, store, () => T0);
+    expect(result).toEqual({ stored: 1, deleted: 0, refused: ['overlap'], retried: 0 });
+    expect(queue).toHaveLength(0);
+    expect(server.submitted.map((p) => p.clientId)).toEqual(['u-b']);
+  });
+
+  it('an item queued while a flush runs goes out in the same flush', async () => {
+    const server = createFakeServer();
+    queue.push({ localId: 'a', payload: payload('u-a'), attempts: 0, nextAt: T0 });
+    const first = flushOutbox(server.api, store, () => T0);
+    // Finished while the first send is on its way.
+    queue.push({ localId: 'b', payload: payload('u-b'), attempts: 0, nextAt: T0 });
+    const second = flushOutbox(server.api, store, () => T0);
+    expect(second).toBe(first);
+    expect((await first).stored).toBe(2);
+    expect(queue).toHaveLength(0);
+  });
+});
+
+describe('session sync', () => {
+  it('beats while a session is open and uploads it when finished', async () => {
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    const session = startSession('local-1', 'kimya', T0);
+    syncPresence(session);
+    syncPresence(session); // unchanged: no extra beat
+    syncPresence(pauseSession(session, T0 + 60_000));
+    await new Promise((r) => setImmediate(r));
+    expect(server.beats.map((b) => b.paused)).toEqual([false, true]);
+    expect(new Set(server.beats.map((b) => b.sessionId)).size).toBe(1);
+
+    syncFinishedSession(finishSession(session, T0 + 40 * 60_000), T0 + 40 * 60_000);
+    await Promise.resolve();
+    await new Promise((r) => setImmediate(r));
+    expect(server.submitted).toHaveLength(1);
+    // Same uuid as the heartbeat, so the server can verify the times.
+    expect(server.submitted[0].clientId).toBe(server.beats[0].sessionId);
+    // The upload ends the live status; no separate end call races it.
+    syncPresence(null);
+    expect(server.calls).not.toContain('endPresence');
+  });
+
+  it('no heartbeat at all once the group account is gone mid-session', () => {
+    jest.useFakeTimers();
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    const session = startSession('local-4', 'fizik', T0);
+    syncPresence(session);
+    expect(server.calls.filter((c) => c === 'beat')).toHaveLength(1);
+    // "Grup hesabını sil" / "Tüm verileri sil" while the timer runs.
+    flags.account = false;
+    syncFinishedSession(finishSession(session, T0 + 600_000), T0 + 600_000);
+    syncPresence(null);
+    jest.advanceTimersByTime(15 * 60_000);
+    expect(server.calls.filter((c) => c === 'beat')).toHaveLength(1);
+    expect(server.calls).toEqual(['beat']);
+  });
+
+  it('the interval itself stops when the account disappears without a session change', () => {
+    jest.useFakeTimers();
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    syncPresence(startSession('local-5', 'fizik', T0));
+    flags.account = false;
+    jest.advanceTimersByTime(30 * 60_000);
+    expect(server.calls.filter((c) => c === 'beat')).toHaveLength(1);
+  });
+
+  it('a session under a second clears the live status instead of leaving it for 7 minutes', async () => {
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    const session = startSession('local-6', 'fizik', T0);
+    syncPresence(session);
+    syncFinishedSession(finishSession(session, T0 + 600), T0 + 600);
+    syncPresence(null);
+    await settle();
+    expect(server.calls).toEqual(['beat', 'endPresence']);
+    expect(queue).toHaveLength(0);
+  });
+
+  it('sends no heartbeat while the student is in no group (KVKK m.4)', () => {
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    flags.member = false;
+    syncPresence(startSession('local-7', 'fizik', T0));
+    expect(server.calls).toEqual([]);
+  });
+
+  it('in no group a finished session stays on the device (KVKK m.4)', async () => {
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    flags.member = false;
+    const session = startSession('local-9', 'fizik', T0);
+    syncPresence(session);
+    syncFinishedSession(finishSession(session, T0 + 600_000), T0 + 600_000);
+    await settle();
+    expect(server.calls).toEqual([]);
+    expect(queue).toHaveLength(0);
+  });
+
+  it('a failed upload is retried by a timer when it is due', async () => {
+    jest.useFakeTimers({ now: T0 });
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    server.failNext = new ApiError('network');
+    const session = startSession('local-8', 'fizik', T0 - 600_000);
+    syncFinishedSession(finishSession(session, T0), T0);
+    await settle();
+    expect(queue).toHaveLength(1);
+    expect(server.submitted).toHaveLength(0);
+    jest.advanceTimersByTime(31_000);
+    await settle();
+    expect(server.submitted).toHaveLength(1);
+    expect(queue).toHaveLength(0);
+  });
+
+  it('a deleted session leaves the queue, or is deleted on the server once it was sent', async () => {
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    const now = Date.now();
+    // Still queued and never tried: just dropped, nothing reaches the server.
+    queue.push({ localId: 'm-1', payload: { ...payload('u-m1'), source: 'manual' }, attempts: 0, nextAt: now + 3_600_000 });
+    syncManualDeleted('m-1', now);
+    await settle();
+    expect(queue).toHaveLength(0);
+    expect(server.calls).not.toContain('deleteSession');
+
+    // Already on the server: a delete request goes out (queued, so it survives being offline).
+    const sent = finishSession(startSession('m-2', 'tarih', now - 3_600_000), now - 60_000);
+    syncFinishedSession(sent, now - 60_000);
+    await settle();
+    expect(server.submitted).toHaveLength(1);
+    syncManualDeleted('m-2', now);
+    await settle();
+    expect(server.calls).toContain('deleteSession');
+    expect(server.submitted).toHaveLength(0);
+    expect(queue).toHaveLength(0);
+  });
+
+  it('a deleted entry whose upload answer was lost is deleted on the server too (KVKK m.7)', async () => {
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    const now = Date.now();
+    // The server stores the entry, but the answer never arrives.
+    const realSubmit = server.api.submitSession;
+    server.api.submitSession = async (p) => {
+      await realSubmit(p);
+      throw new ApiError('network');
+    };
+    const entry = finishSession(startSession('m-lost', 'tarih', now - 3_600_000), now - 60_000);
+    syncFinishedSession(entry, now - 60_000);
+    await settle();
+    server.api.submitSession = realSubmit;
+    expect(queue.map((q) => [q.localId, q.attempts])).toEqual([['m-lost', 1]]);
+    expect(server.submitted).toHaveLength(1);
+    // Deleted on the device before the retry: the upload leaves the queue, a deletion goes out.
+    syncManualDeleted('m-lost', now);
+    await settle();
+    expect(server.calls).toContain('deleteSession');
+    expect(server.submitted).toHaveLength(0);
+    expect(queue).toHaveLength(0);
+  });
+
+  it('a corrected entry waits until the deletion of the old one went through', async () => {
+    const server = createFakeServer();
+    // Offline: the deletion of "a" fails and waits 30 s.
+    queue.push({ localId: 'delete:a', payload: { delete: true, clientId: 'u-a' }, attempts: 0, nextAt: T0 });
+    server.failNext = new ApiError('network');
+    await flushOutbox(server.api, store, () => T0);
+    // The corrected entry for the same time is queued after it and is due at once...
+    queue.push({ localId: 'a2', payload: payload('u-a2'), attempts: 0, nextAt: T0 + 5_000 });
+    await flushOutbox(server.api, store, () => T0 + 5_000);
+    // ...but is not sent before the deletion.
+    expect(server.calls).toEqual(['deleteSession']);
+    await flushOutbox(server.api, store, () => T0 + 31_000);
+    expect(server.calls).toEqual(['deleteSession', 'deleteSession', 'submitSession']);
+    expect(queue).toHaveLength(0);
+  });
+
+  it('in no group but with a linked parent a finished session is sent (weekly summary)', async () => {
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    flags.member = false;
+    flags.parentLinked = true;
+    syncFinishedSession(finishSession(startSession('local-p', 'fizik', T0), T0 + 600_000), T0 + 600_000);
+    await settle();
+    expect(server.submitted).toHaveLength(1);
+    expect(server.calls).not.toContain('beat');
+  });
+
+  it("the server's 'ignored' turns the upload flags off (stale device flag)", async () => {
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    flags.member = true; // removed from the group, Gruplar not opened since
+    flags.parentLinked = true;
+    server.submitStatusNext = 'ignored';
+    syncFinishedSession(finishSession(startSession('local-i', 'fizik', T0), T0 + 600_000), T0 + 600_000);
+    await settle();
+    expect(queue).toHaveLength(0);
+    expect(server.submitted).toHaveLength(0);
+    expect(flags.member).toBe(false);
+    expect(flags.parentLinked).toBe(false);
+  });
+
+  it('ending the account drops the queue, so nothing reaches a later account', async () => {
+    queue.push({ localId: 'old', payload: payload('u-old'), attempts: 2, nextAt: T0 });
+    endGroupsAccount();
+    expect(queue).toHaveLength(0);
+    expect(flags.account).toBe(false);
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    flags.account = true; // a new group account later
+    flushPending();
+    await settle();
+    expect(server.calls).toEqual([]);
+  });
+
+  it('does nothing without a group account', () => {
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    flags.account = false;
+    const session = startSession('local-2', 'fizik', T0);
+    syncPresence(session);
+    syncFinishedSession(finishSession(session, T0 + 600_000), T0 + 600_000);
+    syncManualDeleted('local-2', T0);
+    expect(server.calls).toEqual([]);
+    expect(queue).toHaveLength(0);
+  });
+
+  it('does nothing while the group module is off', () => {
+    const server = createFakeServer();
+    setGroupApiForTests(server.api);
+    flags.enabled = false;
+    const session = startSession('local-3', 'fizik', T0);
+    syncPresence(session);
+    syncFinishedSession(finishSession(session, T0 + 600_000), T0 + 600_000);
+    expect(server.calls).toEqual([]);
+    expect(queue).toHaveLength(0);
+  });
+});

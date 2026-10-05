@@ -55,10 +55,15 @@ describe('database migrations', () => {
     });
 
     // The wipe order of db.ts works with foreign keys on.
+    db.exec(`
+      INSERT INTO sync_outbox (local_id, payload, attempts, next_attempt_at, last_error, created_at)
+        VALUES ('s1', '{}', 0, 0, NULL, 1);
+    `);
     db.exec(
       'DELETE FROM mock_exam_marks; DELETE FROM mock_exam_scores; DELETE FROM mock_exams; ' +
-        'DELETE FROM sessions; DELETE FROM topic_progress;',
+        'DELETE FROM sessions; DELETE FROM topic_progress; DELETE FROM sync_outbox;',
     );
+    expect(db.prepare('SELECT COUNT(*) AS n FROM sync_outbox').get()).toEqual({ n: 0 });
     expect(db.prepare('SELECT COUNT(*) AS n FROM mock_exams').get()).toEqual({ n: 0 });
     db.close();
   });
@@ -69,7 +74,14 @@ describe('database migrations', () => {
     const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as {
       name: string;
     }[]).map((t) => t.name);
-    expect(tables).toEqual(['mock_exam_marks', 'mock_exam_scores', 'mock_exams', 'sessions', 'topic_progress']);
+    expect(tables).toEqual([
+      'mock_exam_marks',
+      'mock_exam_scores',
+      'mock_exams',
+      'sessions',
+      'sync_outbox',
+      'topic_progress',
+    ]);
     db.close();
   });
 });

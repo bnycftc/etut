@@ -1,0 +1,31 @@
+# /etc/etut/etut.conf — values the infra scripts read (copy, fill in, chmod 600).
+# No secret is committed to git: secrets are generated on the server by the scripts and stay in
+# /etc/etut (root only) and /opt/etut/supabase/.env.
+
+# Domain (.com.tr, DNS at the registrar, NO Cloudflare proxy — hukuk/arastirma 5-1).
+ETUT_DOMAIN=etut.example.com.tr
+# api.<domain> → Supabase API, hata.<domain> → GlitchTip
+ETUT_API_HOST=api.etut.example.com.tr
+ETUT_GLITCHTIP_HOST=hata.etut.example.com.tr
+# Let's Encrypt account e-mail (only the operator's address, no user data).
+ACME_EMAIL=ops@example.com.tr
+
+# Admin login on the server (created by 01-harden.sh). The SSH public key is pasted below.
+ADMIN_USER=etut
+ADMIN_SSH_PUBKEY="ssh-ed25519 AAAA... bny"
+
+# Second box in Turkey for encrypted backups (Radore Disk-Core, İstanbul): SFTP only.
+BACKUP_SFTP_HOST=backup.example.com.tr
+BACKUP_SFTP_USER=etutbackup
+BACKUP_SFTP_PORT=22
+# Paths on the backup box.
+BACKUP_PGBACKREST_PATH=/srv/backup/pgbackrest
+BACKUP_RESTIC_PATH=/srv/backup/restic
+
+# iOS bundle id = Apple "Sign in with Apple" client id for native id tokens.
+APPLE_CLIENT_ID=com.bnycftc.etut
+# Google OAuth client id(s) of the app (comma separated), when Google sign-in is added.
+GOOGLE_CLIENT_ID=
+# Linking Apple / Google to the anonymous account. Keep false until the app has the buttons and
+# the e-mail / name GoTrue stores on linking is cleaned up (docs/hukuk/kvkk/08 #11).
+ETUT_LINKING_ENABLED=false
