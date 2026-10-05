@@ -256,7 +256,7 @@ macOS 26 koşucusu:
     çalıştırmayın (biri diğerinin arşiv sertifikasını iptal edebilir).
 
 Sürüm numarası (`CFBundleShortVersionString`) `app.json` → `expo.version` alanından gelir
-(şu an `0.1.0`). Derleme numarası `<çalıştırma numarası>.<deneme numarası>` biçimindedir (ör. `12.1`); "Re-run jobs" deneme numarasını artırdığı için aynı numara iki kez yüklenmez.
+(şu an `0.3.0`). Derleme numarası `<çalıştırma numarası>.<deneme numarası>` biçimindedir (ör. `12.1`); "Re-run jobs" deneme numarasını artırdığı için aynı numara iki kez yüklenmez.
 
 ### GitHub gizli değişkenleri (Settings → Secrets and variables → Actions)
 

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Etüt",
     "slug": "etut",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "etut",
