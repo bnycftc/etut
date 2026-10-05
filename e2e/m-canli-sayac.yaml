@@ -40,6 +40,17 @@ tags:
     timeout: 2000
     optional: true
 - takeScreenshot: m-canli-sayac-02-kilit-ekrani
+# First Live Activity: iOS asks on the Lock Screen ("Canlı Etkinliklere İzin Verilsin mi?") and
+# draws nothing until it is allowed. Text is matched in full, so "İzin Ver" does not hit "İzin Verme".
+- tapOn:
+    text: "İzin Ver|Allow"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 2000
+    optional: true
+- takeScreenshot: m-canli-sayac-02b-izin-sonrasi
 # Best effort: Maestro may not see system (SpringBoard) content, so these checks are optional — a
 # miss is only a warning in the report. The screenshots are the evidence and must be looked at
 # (README, "m-canli-sayac").
