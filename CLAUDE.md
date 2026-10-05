@@ -26,7 +26,9 @@ expo-router. Kurulum, komutlar ve yayın hattı: `README.md`.
   kendi JS ortamında koşar: dosyadaki sabitlere, `strings.ts`'e, yardımcılara erişemez; metinler
   props'la gelir (`surface-props.ts`); nesne/dizi yayma, `for…of`, sınıf kullanma (Babel yardımcısı üretir).
 - Push yok: `plugins/with-etut-ios.js` `aps-environment`'ı kaldırır ve app.json `plugins` listesinde
-  **ilk sırada** kalmalı (Expo ilk eklentinin mod'larını en son çalıştırır). Uzantı kimliği
+  **ilk sırada** kalmalı (Expo ilk eklentinin mod'larını en son çalıştırır). App Store Connect'ten
+  ITMS-90078 (Missing Push Notification Entitlement) uyarısı gelirse beklenen durumdur: Push yeteneğini
+  açma, `aps-environment` ekleme (K-16). Uzantı kimliği
   `com.bnycftc.etut.ExpoWidgetsTarget`, App Group `group.com.bnycftc.etut`. Aynı eklenti uzantının
   `PrivacyInfo.xcprivacy`'sini yazar; uygulamanınki `app.json` → `ios.privacyManifests`. Uzantıya
   required-reason API kullanan kod/pod eklersen iki manifesti de güncelle.

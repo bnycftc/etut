@@ -15,7 +15,12 @@ import { AppState } from 'react-native';
 
 import { addDays, type DayKey, dayStartMs, istanbulDayKey, lastDays } from '../domain/istanbul-day';
 import { liveActivityAction, liveTimerView } from '../domain/live-timer';
-import { type PendingExam, planNotifications, type ReminderPrefs } from '../domain/reminders';
+import {
+  effectiveReminderPrefs,
+  type PendingExam,
+  planNotifications,
+  type ReminderPrefs,
+} from '../domain/reminders';
 import { STREAK_LOOKBACK_DAYS } from '../domain/streak';
 import type { ActiveSession } from '../domain/timer';
 import { savedTotalsLookup, widgetTimeline } from '../domain/widget-summary';
@@ -23,6 +28,7 @@ import {
   loadDailyGoal,
   loadLiveActivityRecord,
   loadReminderPrefs,
+  loadRemindersConfirmed,
   storeLiveActivityRecord,
 } from '../storage/kv';
 import { listExamsNeedingAnalysis } from '../storage/mock-exams';
@@ -51,7 +57,7 @@ function loadSurfaceData(today: DayKey): SurfaceData {
   return {
     savedTotal: savedTotalsLookup(sessions, days),
     goalMinutes: loadDailyGoal(),
-    prefs: loadReminderPrefs(),
+    prefs: effectiveReminderPrefs(loadReminderPrefs(), loadRemindersConfirmed()),
     pendingExams: listExamsNeedingAnalysis().map((e) => ({ id: e.id, createdAt: e.createdAt })),
   };
 }
@@ -91,12 +97,17 @@ let lastLiveKey: string | null = null;
 async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
   if (!liveActivity.supported) return;
   const now = Date.now();
+  const record = loadLiveActivityRecord();
   const action = liveActivityAction({
     sessionId: active?.id ?? null,
     instances: liveActivity.count(),
-    record: loadLiveActivityRecord(),
+    record,
     now,
   });
+  if (action === 'dismissed') {
+    if (record !== null) storeLiveActivityRecord({ ...record, dismissed: true });
+    return;
+  }
   // A start would be refused here, and a restart would end the old one and leave none: both wait
   // for the foreground.
   if (inBackground() && (action === 'start' || action === 'restart')) return;

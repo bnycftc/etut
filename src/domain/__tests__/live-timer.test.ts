@@ -152,7 +152,15 @@ describe('liveActivityAction', () => {
   });
 
   it('does not bring back one the student removed before the 8-hour limit', () => {
-    expect(liveActivityAction({ sessionId: 's1', instances: 0, record, now: T0 + 2 * HOUR })).toBe('none');
+    // Seen gone early: remembered as removed …
+    expect(liveActivityAction({ sessionId: 's1', instances: 0, record, now: T0 + 2 * HOUR })).toBe('dismissed');
+    // … and never started again for this session, also after the 8-hour limit.
+    const dismissed = { ...record, dismissed: true };
+    for (const h of [2, 7.99, 8, 9, 20]) {
+      expect(liveActivityAction({ sessionId: 's1', instances: 0, record: dismissed, now: T0 + h * HOUR })).toBe('none');
+    }
+    // A new session gets one again.
+    expect(liveActivityAction({ sessionId: 's2', instances: 0, record: dismissed, now: T0 + HOUR })).toBe('start');
   });
 
   it('starts a new one after the system ended it at the 8-hour limit', () => {

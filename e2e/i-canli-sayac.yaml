@@ -1,4 +1,6 @@
 # i. Canlı sayaç (Live Activity: Dynamic Island ve Bildirim Merkezi) + pomodoro geri sayımı
+# Bu akışın yeşil olması Live Activity'nin çizildiğini kanıtlamaz: i-canli-sayac-0x ekran
+# görüntüleri artifact'ta elle incelenmelidir (README).
 appId: com.bnycftc.etut
 tags:
   - e2e
@@ -38,6 +40,15 @@ tags:
     timeout: 2000
     optional: true
 - takeScreenshot: i-canli-sayac-02-kilit-ekrani
+# Best effort: Maestro may not see system (SpringBoard) content, so these checks are optional — a
+# miss is only a warning in the report. The screenshots are the evidence and must be looked at
+# (README, "i-canli-sayac").
+- assertVisible:
+    text: "Fizik"
+    optional: true
+- assertVisible:
+    text: "Çalışıyorsun"
+    optional: true
 - swipe:
     start: 50%, 99%
     end: 50%, 20%

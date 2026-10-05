@@ -3,20 +3,24 @@ import { Linking, View } from 'react-native';
 
 import {
   DAILY_MINUTE_STEP,
+  effectiveReminderPrefs,
   LONG_SESSION_HOURS,
   type ReminderKey,
   type ReminderPrefs,
 } from '@/domain/reminders';
 import { useAppState, useStored } from '@/state/app-state';
 import { useNotificationPermission } from '@/state/notification-permission';
-import { loadReminderPrefs, storeReminderPrefs } from '@/storage/kv';
+import { loadReminderPrefs, loadRemindersConfirmed, storeReminderPrefs } from '@/storage/kv';
 import { tr } from '@/strings';
 import { Button, Card, Chip, Label, Row, Screen, Stepper } from '@/ui/components';
 import { usePalette } from '@/ui/theme';
 
 export default function RemindersScreen() {
   const { dataVersion, notifyDataChanged } = useAppState();
-  const prefs = useStored(`reminders|${dataVersion}`, loadReminderPrefs);
+  const stored = useStored(`reminders|${dataVersion}`, loadReminderPrefs);
+  const confirmed = useStored(`reminders-confirmed|${dataVersion}`, loadRemindersConfirmed);
+  // Before the first confirmation every reminder is shown (and is) off.
+  const prefs = effectiveReminderPrefs(stored, confirmed);
   const permission = useNotificationPermission();
   const c = usePalette();
 
@@ -25,9 +29,10 @@ export default function RemindersScreen() {
     notifyDataChanged();
   };
   const setEnabled = (key: ReminderKey, enabled: boolean) => {
-    // The system prompt is only ever shown after the explanation screen, and only when the
-    // student turns a reminder on (`null` = not known yet: explain first to be safe).
-    if (enabled && (permission === 'undetermined' || permission === null)) {
+    // Turning a reminder on goes through the explanation screen the first time (also when the
+    // system permission is already granted: Android 12 and older, or after "Tüm verileri sil"),
+    // and whenever the system prompt has not been answered (`null` = not known yet: explain first).
+    if (enabled && (!confirmed || permission === 'undetermined' || permission === null)) {
       router.push({ pathname: '/bildirim-izni', params: { enable: key } });
       return;
     }

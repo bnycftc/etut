@@ -136,7 +136,7 @@ export function notificationText(n: PlannedNotification): NotificationText {
   const t = tr.notification;
   switch (n.kind) {
     case 'long_session':
-      return { title: t.longSessionTitle, body: t.longSessionBody(n.hours), url: '/' };
+      return { title: t.longSessionTitle, body: t.longSessionBody, url: '/' };
     case 'pomodoro':
       return n.ended === 'work'
         ? { title: t.workEndedTitle, body: n.next === 'long_break' ? t.longBreakBody : t.shortBreakBody, url: '/' }

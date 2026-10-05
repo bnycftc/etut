@@ -96,9 +96,14 @@ describe('notification texts (neutral for every age)', () => {
     expect(notificationText({ id: 'a', at: 0, kind: 'long_session', hours: 3 })).toEqual({
       title: 'Hâlâ çalışıyor musun?',
       // Pomodoro breaks do not pause the timer, so the text does not claim "without a break".
-      body: 'Sayaç 3 saattir duraklatılmadan açık. Ara verdiysen sayacı durdurabilirsin.',
+      // No study duration on the Lock Screen (hukuk/kvkk/08).
+      body: 'Sayaç uzun süredir duraklatılmadan açık. Ara verdiysen sayacı durdurabilirsin.',
       url: '/',
     });
+    // The exam may have been taken on any day: the text does not say "yesterday's".
+    expect(notificationText({ id: 'f', at: 0, kind: 'exam_analysis', count: 1 }).body).toBe(
+      'Kaydettiğin denemenin yanlış ve boş sorularının konularını işaretleyebilirsin.',
+    );
     expect(notificationText({ id: 'b', at: 0, kind: 'pomodoro', ended: 'work', next: 'long_break' }).body).toBe(
       'Uzun mola başladı.',
     );

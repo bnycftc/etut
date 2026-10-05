@@ -30,7 +30,8 @@ const memory: {
   examDates: Record<string, string>;
   netTargets: Record<string, number>;
   reminderPrefs: unknown;
-  liveActivityRecord: { sessionId: string; startedAt: number } | null;
+  remindersConfirmed: boolean;
+  liveActivityRecord: { sessionId: string; startedAt: number; dismissed?: boolean } | null;
   /** System surfaces (src/system adapters, replaced below). */
   permission: 'granted' | 'denied' | 'undetermined';
   grantOnRequest: boolean;
@@ -56,6 +57,7 @@ const memory: {
   examDates: {},
   netTargets: {},
   reminderPrefs: null,
+  remindersConfirmed: false,
   liveActivityRecord: null,
   permission: 'undetermined',
   grantOnRequest: true,
@@ -119,8 +121,12 @@ jest.mock('../storage/kv', () => ({
   storeReminderPrefs: (p: unknown) => {
     memory.reminderPrefs = p;
   },
+  loadRemindersConfirmed: () => memory.remindersConfirmed,
+  storeRemindersConfirmed: () => {
+    memory.remindersConfirmed = true;
+  },
   loadLiveActivityRecord: () => memory.liveActivityRecord,
-  storeLiveActivityRecord: (r: { sessionId: string; startedAt: number } | null) => {
+  storeLiveActivityRecord: (r: typeof memory.liveActivityRecord) => {
     memory.liveActivityRecord = r;
   },
   loadProfile: () => memory.profile,
@@ -162,6 +168,7 @@ jest.mock('../storage/kv', () => ({
     memory.examDates = {};
     memory.netTargets = {};
     memory.reminderPrefs = null;
+    memory.remindersConfirmed = false;
     memory.liveActivityRecord = null;
   },
 }));
@@ -253,6 +260,7 @@ beforeEach(() => {
   memory.examDates = {};
   memory.netTargets = {};
   memory.reminderPrefs = null;
+  memory.remindersConfirmed = false;
   memory.liveActivityRecord = null;
   memory.permission = 'undetermined';
   memory.grantOnRequest = true;
@@ -866,6 +874,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
 
   it('pomodoro, app left open: each phase change updates the Live Activity and moves the reminders on', async () => {
     memory.permission = 'granted';
+    memory.remindersConfirmed = true;
     renderRouter(APP_DIR, { initialUrl: '/' });
     fireEvent.press(screen.getByTestId('mode-pomodoro'));
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
@@ -906,6 +915,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
 
     it('syncs once more: the Live Activity is updated, the reminders start from now', async () => {
       memory.permission = 'granted';
+      memory.remindersConfirmed = true;
       const from = (AppState.addEventListener as jest.Mock).mock.calls.length;
       renderRouter(APP_DIR, { initialUrl: '/' });
       fireEvent.press(screen.getByTestId('mode-pomodoro'));
@@ -1025,6 +1035,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
 
   it('with permission: a running pomodoro schedules its phase ends, a pause cancels them', async () => {
     memory.permission = 'granted';
+    memory.remindersConfirmed = true;
     renderRouter(APP_DIR, { initialUrl: '/' });
     fireEvent.press(screen.getByTestId('mode-pomodoro'));
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
@@ -1035,5 +1046,65 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Mola' }));
     await settle();
     expect(memory.planned.filter((n) => n.kind === 'pomodoro' || n.kind === 'long_session')).toEqual([]);
+  });
+
+  it('permission granted without asking (Android 12 and older, or after "delete all"): nothing until the student confirms', async () => {
+    memory.permission = 'granted';
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('mode-pomodoro'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    await settle();
+    // Running pomodoro, permission granted, defaults on paper: still nothing scheduled.
+    expect(memory.planned).toEqual([]);
+
+    act(() => router.push('/hatirlaticilar'));
+    await settle();
+    // Shown as they are: off. Turning one on explains first, even with the permission granted.
+    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.selected).toBe(false);
+    fireEvent.press(screen.getByTestId('reminder-long-toggle'));
+    await settle();
+    expect(screen.getByTestId('notification-permission-item-longSession')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('notification-permission-allow'));
+    await settle();
+    expect(memory.remindersConfirmed).toBe(true);
+    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.selected).toBe(true);
+    const kinds = memory.planned.map((n) => n.kind);
+    expect(kinds).toContain('long_session');
+    expect(kinds).toContain('pomodoro');
+  });
+
+  it('"delete all" forgets the confirmation: the permission stays, the reminders do not', async () => {
+    memory.permission = 'granted';
+    memory.remindersConfirmed = true;
+    memory.reminderPrefs = { daily: { enabled: true, hour: 20, minute: 0 } };
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await settle();
+    expect(memory.planned.some((n) => n.kind === 'daily')).toBe(true);
+    fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    await settle();
+    expect(memory.remindersConfirmed).toBe(false);
+    expect(memory.planned).toEqual([]);
+  });
+
+  it('a Live Activity the student removed stays away for the rest of the session', async () => {
+    const from = (AppState.addEventListener as jest.Mock).mock.calls.length;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    await settle();
+    expect(memory.liveActivities).toHaveLength(1);
+    // Removed from the Lock Screen an hour in; the app comes back.
+    memory.liveActivities = [];
+    act(() => jest.setSystemTime(Date.now() + 3_600_000));
+    emitAppState('active', from);
+    await settle();
+    expect(memory.liveActivities).toHaveLength(0);
+    expect(memory.liveActivityRecord).toMatchObject({ sessionId: memory.active?.id, dismissed: true });
+    // Past the 8-hour limit it would look like the system's end: still not brought back.
+    act(() => jest.setSystemTime(Date.now() + 9 * 3_600_000));
+    emitAppState('active', from);
+    await settle();
+    expect(memory.liveActivities).toHaveLength(0);
   });
 });

@@ -1,4 +1,4 @@
-import { addDays, dayStartMs, type DayKey } from '../istanbul-day';
+import { addDays, dayStartMs, type DayKey, istanbulDayKey } from '../istanbul-day';
 import { DEFAULT_POMODORO, upcomingPhaseChanges } from '../pomodoro';
 import { type CompletedSession, elapsedMs, pauseSession, startSession } from '../timer';
 import { MAX_WIDGET_ENTRIES, PHASE_CHANGES_AHEAD, savedTotalsLookup, widgetTimeline } from '../widget-summary';
@@ -116,5 +116,28 @@ describe('widgetTimeline', () => {
     expect(shown(dayStartMs(TODAY) + 18 * HOUR)).toBe(elapsedMs(active, coveredUntil));
     // A new day starts from zero.
     expect(shown(midnight(TODAY, 1) + HOUR)).toBe(0);
+  });
+
+  it('long phases: every change before the last midnight fits, and the last entry still never over-counts', () => {
+    // 120/30/60 with a long break every 2 blocks: fewer than 34 changes until the second midnight.
+    const config = { workMin: 120, shortBreakMin: 30, longBreakMin: 60, longEvery: 2 };
+    const start = Date.parse('2026-10-05T00:00:00Z');
+    const active = startSession('p', 'fizik', start, { pomodoro: config });
+    const entries = widgetTimeline({ now: start, savedTotal: () => 0, active, goalMinutes: null });
+    const last = entries[entries.length - 1];
+    // The timeline ends at the second midnight, and a break follows later: the widget keeps that
+    // entry for good, so it must not count.
+    expect(upcomingPhaseChanges(active, start, PHASE_CHANGES_AHEAD).some((c) => c.at > last.at)).toBe(true);
+    expect(last.counting).toBe(false);
+    const shown = (t: number) => {
+      const e = [...entries].reverse().find((x) => x.at <= t)!;
+      return e.todayMs + (e.counting ? t - e.at : 0);
+    };
+    // Never more than the running session has on that day, hours after the timeline ends too.
+    for (let t = start; t < last.at + 12 * HOUR; t += 5 * MIN) {
+      const day = dayStartMs(istanbulDayKey(t));
+      const studiedToday = elapsedMs(active, t) - elapsedMs(active, Math.max(start, day));
+      expect(shown(t)).toBeLessThanOrEqual(studiedToday);
+    }
   });
 });

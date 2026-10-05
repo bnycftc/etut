@@ -15,6 +15,8 @@
  * - `daily`: the student's daily study reminder at a chosen Istanbul time; skipped today once
  *   the student has studied today or a session is running.
  * - `exam_analysis`: one reminder the day after a mock exam was saved with its analysis pending.
+ *
+ * Nothing is planned before the student has confirmed reminders once (`effectiveReminderPrefs`).
  */
 
 import { addDays, type DayKey, dayStartMs, istanbulDayKey } from './istanbul-day';
@@ -47,7 +49,10 @@ export interface ReminderPrefs {
   examAnalysis: { enabled: boolean };
 }
 
-/** The daily reminder is off until the student turns it on; the others start on. */
+/**
+ * What the explanation screen proposes: the daily reminder off, the others on. None of them is
+ * scheduled before the student has confirmed reminders once (`effectiveReminderPrefs`).
+ */
 export const DEFAULT_REMINDER_PREFS: ReminderPrefs = {
   longSession: { enabled: true, hours: LONG_SESSION_HOURS.default },
   pomodoro: { enabled: true },
@@ -56,6 +61,22 @@ export const DEFAULT_REMINDER_PREFS: ReminderPrefs = {
 };
 
 export type ReminderKey = keyof ReminderPrefs;
+
+/**
+ * The reminders actually in force. Until the student has turned reminders on through the
+ * explanation screen (`confirmed`), every reminder is off — even when the system permission is
+ * already granted: Android 12 and older grant it at install time, and the permission outlives
+ * "Tüm verileri sil".
+ */
+export function effectiveReminderPrefs(prefs: ReminderPrefs, confirmed: boolean): ReminderPrefs {
+  if (confirmed) return prefs;
+  return {
+    longSession: { ...prefs.longSession, enabled: false },
+    pomodoro: { enabled: false },
+    daily: { ...prefs.daily, enabled: false },
+    examAnalysis: { enabled: false },
+  };
+}
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;

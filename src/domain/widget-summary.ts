@@ -9,9 +9,14 @@
  * The app sends a new timeline whenever the data changes (start, pause, finish, goal, …) and at
  * every pomodoro phase change while it is open.
  *
- * A pomodoro has more phase changes before the last midnight than the timeline can hold. After the
- * last phase change it covers, the widget cannot know when the breaks come, so from that entry on
- * it stops counting: it may show less than was studied, never more.
+ * A pomodoro can have more phase changes before the last midnight than the timeline can hold, and
+ * it goes on after the last midnight. An entry that stays in effect past the first phase change the
+ * timeline leaves out cannot know when that break comes, so it does not count: the timeline may show
+ * less than the running session, never more.
+ * One exception lies outside the timeline: when the app comes back after a long time away, it may
+ * turn that time into an automatic "away" break (`timer.ts`). The widget counted that time while the
+ * app was away; unless the student answers "Çalışıyordum", it showed more than is then saved, until
+ * the sync that follows corrects it.
  */
 
 import { activeSpan, dailyTotals, type SessionSpan } from './daily-totals';
@@ -104,12 +109,14 @@ export function widgetTimeline(input: WidgetTimelineInput): WidgetEntry[] {
   const today = istanbulDayKey(now);
   for (let i = 1; i <= MIDNIGHTS_AHEAD; i++) points.add(dayStartMs(addDays(today, i)));
   const horizon = dayStartMs(addDays(today, MIDNIGHTS_AHEAD));
-  // From `knownUntil` on the breaks are not covered any more: the widget stops counting there.
-  let knownUntil = Number.POSITIVE_INFINITY;
+  // The first phase change the timeline leaves out (over budget or after the last midnight).
+  // An entry that stays in effect past it cannot know about that break: it does not count.
+  let firstUncovered = Number.POSITIVE_INFINITY;
   if (active !== null) {
-    const changes = upcomingPhaseChanges(active, now, PHASE_CHANGES_AHEAD + 1).filter((c) => c.at <= horizon);
-    for (const change of changes.slice(0, PHASE_CHANGES_AHEAD)) points.add(change.at);
-    if (changes.length > PHASE_CHANGES_AHEAD) knownUntil = changes[PHASE_CHANGES_AHEAD - 1].at;
+    const changes = upcomingPhaseChanges(active, now, PHASE_CHANGES_AHEAD + 1);
+    const covered = changes.filter((c) => c.at <= horizon).slice(0, PHASE_CHANGES_AHEAD);
+    for (const change of covered) points.add(change.at);
+    firstUncovered = changes[covered.length]?.at ?? Number.POSITIVE_INFINITY;
   }
   const times = [...points].filter((t) => t >= now && t <= horizon).sort((a, b) => a - b);
 
@@ -117,13 +124,16 @@ export function widgetTimeline(input: WidgetTimelineInput): WidgetEntry[] {
   const goalMs = goalMinutes === null ? null : goalMinutes * 60_000;
   const entries: WidgetEntry[] = [];
   for (let i = 0; i < times.length; i++) {
-    const entry = entryAt(input, times[i], times[i] < knownUntil);
+    // The last entry stays in effect for good.
+    const next = i + 1 < times.length ? times[i + 1] : Number.POSITIVE_INFINITY;
+    const known = next <= firstUncovered;
+    const entry = entryAt(input, times[i], known);
     const end = i + 1 < times.length ? times[i + 1] : times[i] + DAY_MS;
     if (goalMs !== null && entry.counting && !entry.goalMet) {
       const reachAt = entry.at + (goalMs - entry.todayMs);
       entry.goalReachedAt = reachAt;
       entries.push(entry);
-      if (reachAt < end) entries.push(entryAt(input, reachAt, reachAt < knownUntil));
+      if (reachAt < end) entries.push(entryAt(input, reachAt, known));
     } else {
       entries.push(entry);
     }

@@ -24,7 +24,7 @@ const HOUR_MS = 3_600_000;
 export const LIVE_ACTIVITY_MAX_MS = 8 * HOUR_MS;
 /** Opened after this age, the app replaces the Live Activity (a new 8-hour window). */
 export const LIVE_ACTIVITY_REFRESH_MS = 6 * HOUR_MS;
-/** A Live Activity gone before this age was removed by the student: not started again. */
+/** A Live Activity gone before this age was removed by the student: not started again for the session. */
 const SYSTEM_END_SLACK_MS = 60_000;
 /** Upper end of a count-up range; the clock would stop there (far beyond the 8-hour limit). */
 export const COUNT_UP_SPAN_MS = 24 * HOUR_MS;
@@ -109,13 +109,21 @@ export function liveTimerView(session: ActiveSession, now: number): LiveTimerVie
 export interface LiveActivityRecord {
   sessionId: string;
   startedAt: number;
+  /** The student removed it from the Lock Screen: never started again for this session. */
+  dismissed?: boolean;
 }
 
-export type LiveActivityAction = 'none' | 'start' | 'update' | 'restart' | 'end';
+/** `dismissed`: do nothing now, but remember that the student removed it (`record.dismissed`). */
+export type LiveActivityAction = 'none' | 'start' | 'update' | 'restart' | 'end' | 'dismissed';
 
 /**
- * What to do with the Live Activity, decided while the app is in the foreground.
+ * What to do with the Live Activity, decided at every sync (foreground or going to the background).
  * `instances` = Live Activities of ours that are still active (any session).
+ *
+ * A removal is only told apart from the system's 8-hour end if the app syncs before that limit;
+ * seen only later, it looks like the system's end and a new one starts. A Live Activity the system
+ * ended can stay on the Lock Screen for up to 4 more hours, and expo-widgets does not list ended
+ * ones, so the app can neither count nor remove it: next to the new one it may show for a while.
  */
 export function liveActivityAction(input: {
   sessionId: string | null;
@@ -128,8 +136,9 @@ export function liveActivityAction(input: {
   const ours = record !== null && record.sessionId === sessionId ? record : null;
   if (instances === 0) {
     // Gone before the 8-hour limit: the student removed it from the Lock Screen. Respect that
-    // for this session; otherwise (new session, or ended by the system) start one.
-    if (ours !== null && now - ours.startedAt < LIVE_ACTIVITY_MAX_MS - SYSTEM_END_SLACK_MS) return 'none';
+    // for the rest of this session; otherwise (new session, or ended by the system) start one.
+    if (ours?.dismissed === true) return 'none';
+    if (ours !== null && now - ours.startedAt < LIVE_ACTIVITY_MAX_MS - SYSTEM_END_SLACK_MS) return 'dismissed';
     return 'start';
   }
   if (instances > 1 || ours === null) return 'restart';

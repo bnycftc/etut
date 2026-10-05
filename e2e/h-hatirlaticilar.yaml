@@ -29,7 +29,7 @@ tags:
     visible:
       id: reminder-daily-toggle
     timeout: 10000
-# Defaults: the daily reminder is off, the others are on; no permission yet.
+# Before the student has confirmed reminders once, every reminder is off; no permission yet.
 - assertVisible:
     id: reminders-permission-missing
 - assertVisible:
@@ -37,7 +37,7 @@ tags:
     text: "Kapalı"
 - assertVisible:
     id: reminder-long-toggle
-    text: "Açık"
+    text: "Kapalı"
 - takeScreenshot: h-hatirlaticilar-02-liste
 # Turning a reminder on opens the explanation, never the system prompt directly.
 - tapOn:
@@ -48,6 +48,9 @@ tags:
     timeout: 10000
 - assertVisible:
     id: notification-permission-item-daily
+# The proposed defaults are listed too (they come on with the permission).
+- assertVisible:
+    id: notification-permission-item-longSession
 # Apple HIG: one button ("Devam et") that leads to the system prompt, no second way out.
 - assertNotVisible:
     id: notification-permission-later
@@ -80,10 +83,8 @@ tags:
     id: reminder-daily-toggle
     text: "Kapalı"
 - assertVisible:
-    id: reminders-permission-missing
-# Other settings work without the permission (long session threshold 3 → 4 hours).
-- tapOn:
-    id: reminder-long-hours-plus
+    id: reminder-long-toggle
+    text: "Kapalı"
 - assertVisible:
-    text: ".*4 saat.*"
+    id: reminders-permission-missing
 - takeScreenshot: h-hatirlaticilar-04-izinsiz

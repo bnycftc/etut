@@ -99,15 +99,22 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   Ders (ve konu) adı görünür. Apple sınırı: bir Live Activity en çok 8 saat etkin kalır,
   yalnız uygulama ön plandayken başlatılabilir ("Displaying live data with Live Activities"); güncelleme
   ve bitirme arka planda da olur. Bu yüzden uzun oturumda uygulama her açıldığında 6 saatten eski
-  etkinliği yenisiyle değiştirir, sistemin 8 saatte bitirdiğini yeniden başlatır; öğrencinin kendisi
-  kaldırdığını o oturumda geri getirmez.
+  etkinliği yenisiyle değiştirir, sistemin 8 saatte bitirdiğini yeniden başlatır. Öğrencinin kendisi
+  kaldırdığını uygulama 8 saat dolmadan bir kez görürse kaydeder (`dismissed`) ve o oturumda bir daha
+  başlatmaz; kaldırmayı ancak 8 saatten sonra görürse sistemin bitirmesinden ayıramaz ve yenisini
+  başlatır. Sistemin bitirdiği etkinlik kilit ekranında 4 saate kadar donmuş kalabilir; expo-widgets
+  57.0.x bitmiş etkinlikleri listelemediği için uygulama onu ne sayabilir ne kaldırabilir: o süre
+  içinde kilit ekranında yenisinin yanında eskisi de görünebilir, oturum bitince de bir süre kalabilir.
 - **Ana ekran widget'ı "Etüt: Bugün"** (küçük, orta, kilit ekranı dikdörtgen): bugünkü süre, seri,
   günlük hedef ilerlemesi. Uygulama zaman çizelgesini App Group'a (`group.com.bnycftc.etut`) yazar,
   widget yalnız okur. Çizelge gece yarısı (İstanbul), pomodoro aşama değişimleri ve hedefe
   ulaşılan an için girdi içerir; sayaç açıkken süre ve hedef çubuğu widget'ta kendiliğinden ilerler.
-  Çizelge en çok 40 girdi tutar: pomodoroda ilk 34 aşama değişimini (25/5/15 ile ≈ 9 saat) kapsar,
-  sonrasında widget saymayı bırakır (çalışılandan az gösterebilir, fazla göstermez). Uygulama
-  açıldıkça ve açıkken her aşama değişiminde çizelge yenilenir.
+  Çizelge en çok 40 girdi tutar ve ikinci gece yarısında biter: pomodoroda ilk 34 aşama değişimini
+  (25/5/15 ile ≈ 9 saat) kapsar; çizelgenin dışında kalan ilk aşama değişiminden sonrasına uzanan
+  girdi saymaz (açık sayaçtan az gösterebilir, fazla göstermez). Tek istisna uzakta kuralı: uygulama
+  uzun süre sonra dönünce o süreyi otomatik molaya çevirebilir; öğrenci "Çalışıyordum" demezse widget
+  o sürede kaydedilenden fazla saymış olur, sonraki eşitleme düzeltir. Uygulama açıldıkça ve açıkken
+  her aşama değişiminde çizelge yenilenir.
 - **Uzantı:** `com.bnycftc.etut.ExpoWidgetsTarget` (expo-widgets'ın ürettiği hedef; widget + Live
   Activity aynı uzantıda). Derleme numarası uygulamayla aynıdır (`plugins/with-etut-ios.js`).
 - **Gizlilik manifestleri (PrivacyInfo.xcprivacy):** uygulamanınki `app.json` →
@@ -122,19 +129,29 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   sayacı duraklatmaz); (b) pomodoro aşama sonu: sıradaki 40 aşama (25/5/15 ile ≈ 10 sa 50 dk)
   kurulur, plan uygulama açıkken her aşama değişiminde ve arka plana geçerken yenilenir;
   (c) günlük çalışma hatırlatıcısı (saat seçilir, varsayılan kapalı; o gün çalışıldıysa gelmez);
-  (d) analizi bekleyen deneme için ertesi gün 18:00'de tek hatırlatma. İzin yalnız öğrenci bir
-  hatırlatıcıyı açtığında, açıklama ekranından sonra istenir; reddedilirse uygulama aynen çalışır.
+  (d) analizi bekleyen deneme için, denemenin kaydedildiği günün ertesinde 18:00'de tek hatırlatma.
+  **Öğrenci hatırlatıcıları açıklama ekranından bir kez onaylamadan hiçbir bildirim kurulmaz**
+  (`etut.remindersConfirmed.v1`; o zamana kadar ekranda hepsi "Kapalı" görünür). Bu, sistem izni
+  zaten verilmiş olsa da geçerlidir: Android 12 ve öncesinde izin kurulumda verilir ve sistem izin
+  penceresi yoktur; "Tüm verileri sil" de işletim sistemindeki izni geri almaz, yalnız onayı siler.
+  İzin yalnız öğrenci bir hatırlatıcıyı açtığında, açıklama ekranından sonra istenir (izin zaten
+  verilmişse düğme yalnız onaylar); reddedilirse uygulama aynen çalışır. Açıklama ekranı açılacak
+  hatırlatıcıları listeler (önerilen: uzun oturum, pomodoro, deneme analizi; günlük kapalı).
   Açıklama ekranında Apple HIG'e göre tek düğme ("Devam et") vardır, sistem izin penceresini açar;
   ekran kaydırılarak kapatılmaz, izin verme ya da reddetme sistem penceresinde yapılır.
   Plan her değişiklikte yeniden hesaplanır ve sistemdekiyle karşılaştırılır (sabit kimlikler):
   aynı bildirim iki kez kurulmaz, biten oturumun bildirimleri iptal edilir. Uygulama açıkken
-  bildirim gösterilmez (pomodoro'da mevcut titreşim). Metinler her yaş için nötrdür.
+  bildirim gösterilmez (pomodoro'da mevcut titreşim). Metinler her yaş için nötrdür; kilit ekranında
+  göründükleri için ad, süre ve net içermez (deneme hatırlatıcısı yalnız bekleyen deneme sayısını söyler).
   iOS en çok 64 bekleyen bildirim tutar; plan en çok 60 (40 pomodoro + 10 günlük + 1 uzun oturum +
   en çok 2 deneme günü).
 - **Push yok:** expo-widgets 57.0.x `enablePushNotifications: false` olsa bile `aps-environment`
   ekliyor; expo-notifications da ekliyor. `plugins/with-etut-ios.js` bunu kaldırır ve **plugins
   listesinde ilk sırada kalmalıdır** (Expo ilk eklentinin mod'larını en son çalıştırır).
-  Her iki iOS iş akışı anahtar geri gelirse hata verir.
+  Her iki iOS iş akışı anahtar geri gelirse hata verir. expo-notifications'ın ikili dosyasında
+  `registerForRemoteNotifications` çağrısı bulunduğu için App Store Connect yüklemeden sonra
+  ITMS-90078 ("Missing Push Notification Entitlement") uyarısı gönderebilir: **bu beklenen
+  durumdur, yüklemeyi engellemez. Push yeteneği açılmaz, `aps-environment` eklenmez** (hukuk/03 K-16).
 - **Android:** iOS'a özgü kod `.ios.ts` dosyalarında; Android'de canlı sayaç ve widget yok,
   yerel hatırlatıcılar çalışır. Kronometreli kalıcı bildirim expo-notifications ile yapılamıyor
   (`setUsesChronometer` sunulmuyor; ayrı yerel modül gerekir), eklenmedi. Şablonun varsayılan
@@ -168,9 +185,14 @@ Akışlar (`e2e/`, yalnız `testID` seçicileri; ortak adımlar `e2e/subflows/`)
 `c-arka-plan` (15 sn ana ekran → "Çalışıyordum, süreye ekle"), `d-kapat-ac` (öldür-aç: sayaç sürer;
 20 sn kapalı: uzakta kuralı), `e-deneme` (TYT: 10D 4Y = 9 net, toplam 11,5), `f-kucuk-yas`
 (15 altı: Gruplar sekmesi yok), `g-tum-verileri-sil` (Ayarlar → sil → ilk açılış),
-`h-hatirlaticilar` (hatırlatıcı aç → tek düğmeli açıklama ekranı; sistem izin penceresi açılmaz,
-uygulama yeniden başlatılır ve hatırlatıcı kapalı kalır),
+`h-hatirlaticilar` (onaydan önce hepsi kapalı; hatırlatıcı aç → tek düğmeli açıklama ekranı;
+sistem izin penceresi açılmaz, uygulama yeniden başlatılır ve hatırlatıcılar kapalı kalır),
 `i-canli-sayac` (ana ekranda Dynamic Island, Bildirim Merkezi'nde kilit ekranı görünümü, mola, pomodoro, bitir).
+**`i-canli-sayac`'ın yeşil olması Live Activity'nin çizildiğini kanıtlamaz:** Maestro sistem
+(SpringBoard) içeriğini göremeyebilir, bu yüzden oradaki "Fizik"/"Çalışıyorsun" denetimleri isteğe
+bağlıdır (görülmezse yalnız uyarı). `i-canli-sayac-0x` ekran görüntüleri artifact'ta elle
+incelenmeden canlı sayaç doğrulanmış sayılmaz. Maestro'nun XCTest sürücüsü hiçbir akış başlamadan
+zaman aşımına uğrarsa (`IOSDriverTimeoutException`) akışlar bir kez daha çalıştırılır.
 Derleme adımı uzantının (`PlugIns/ExpoWidgetsTarget.appex`) gömüldüğünü, App Group'u,
 `aps-environment` olmadığını ve uygulama ile uzantıda `PrivacyInfo.xcprivacy` (`1C8F.1`) bulunduğunu da denetler.
 Yeni ekran öğesine test gerekiyorsa metni değil `testID`'yi hedefleyin; mevcut `testID`'leri

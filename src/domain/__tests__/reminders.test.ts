@@ -4,6 +4,7 @@ import {
   DAILY_DAYS_AHEAD,
   DEFAULT_REMINDER_PREFS,
   diffNotifications,
+  effectiveReminderPrefs,
   EXAM_REMINDER_HOUR,
   MAX_PLANNED,
   normalizeReminderPrefs,
@@ -52,6 +53,20 @@ describe('reminder preferences', () => {
       daily: { enabled: true, hour: 23, minute: 30 },
       examAnalysis: { enabled: true },
     });
+  });
+
+  it('nothing is in force before the student confirmed reminders once (permission granted or not)', () => {
+    // E.g. Android 12 grants the permission at install time; "Tüm verileri sil" keeps it.
+    const unconfirmed = effectiveReminderPrefs(DEFAULT_REMINDER_PREFS, false);
+    expect(unconfirmed).toEqual({ ...OFF, longSession: { enabled: false, hours: 3 } });
+    const active = startSession('s', 'fizik', NOW - 4 * HOUR, { pomodoro: DEFAULT_POMODORO });
+    expect(
+      planNotifications(
+        input({ prefs: unconfirmed, active, pendingExams: [{ id: 'e', createdAt: NOW - HOUR }] }),
+      ),
+    ).toEqual([]);
+    // Once confirmed, the stored choices apply unchanged.
+    expect(effectiveReminderPrefs(DEFAULT_REMINDER_PREFS, true)).toBe(DEFAULT_REMINDER_PREFS);
   });
 });
 

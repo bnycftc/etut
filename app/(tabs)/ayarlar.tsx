@@ -16,6 +16,7 @@ import {
   type PomodoroConfig,
   POMODORO_LIMITS,
 } from '@/domain/pomodoro';
+import { effectiveReminderPrefs } from '@/domain/reminders';
 import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '@/domain/streak';
 import { useAppState, useStored } from '@/state/app-state';
 import { useNotificationPermission } from '@/state/notification-permission';
@@ -24,6 +25,7 @@ import {
   loadDailyGoal,
   loadPomodoroConfig,
   loadReminderPrefs,
+  loadRemindersConfirmed,
   storeCustomExamDate,
   storeDailyGoal,
   storePomodoroConfig,
@@ -77,7 +79,9 @@ export default function SettingsScreen() {
     notifyDataChanged();
   };
   const permission = useNotificationPermission();
-  const reminderPrefs = useStored(`reminders|${dataVersion}`, loadReminderPrefs);
+  const reminderPrefs = useStored(`reminders|${dataVersion}`, () =>
+    effectiveReminderPrefs(loadReminderPrefs(), loadRemindersConfirmed()),
+  );
   const enabledReminders = Object.values(reminderPrefs).filter((r) => r.enabled).length;
   const version = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '–';
   const build = Application.nativeBuildVersion ?? '–';

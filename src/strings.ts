@@ -424,8 +424,8 @@ export const tr = {
   /** Texts of the local notifications. */
   notification: {
     longSessionTitle: 'Hâlâ çalışıyor musun?',
-    longSessionBody: (hours: number) =>
-      `Sayaç ${hours} saattir duraklatılmadan açık. Ara verdiysen sayacı durdurabilirsin.`,
+    /** No duration: the text shows on the Lock Screen (hukuk/kvkk/08). */
+    longSessionBody: 'Sayaç uzun süredir duraklatılmadan açık. Ara verdiysen sayacı durdurabilirsin.',
     workEndedTitle: 'Çalışma bloğu bitti',
     shortBreakBody: 'Kısa mola başladı.',
     longBreakBody: 'Uzun mola başladı.',
@@ -436,7 +436,7 @@ export const tr = {
     examTitle: 'Deneme analizi',
     examBody: (count: number) =>
       count === 1
-        ? 'Dünkü denemenin yanlış ve boş sorularının konularını işaretleyebilirsin.'
+        ? 'Kaydettiğin denemenin yanlış ve boş sorularının konularını işaretleyebilirsin.'
         : `Analizi bekleyen ${count} deneme var.`,
     channel: 'Hatırlatıcılar',
   },

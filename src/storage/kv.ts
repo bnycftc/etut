@@ -29,6 +29,7 @@ const KEYS = {
   examDate: 'etut.examDate.v1',
   netTargets: 'etut.netTargets.v1',
   reminderPrefs: 'etut.reminderPrefs.v1',
+  remindersConfirmed: 'etut.remindersConfirmed.v1',
   liveActivity: 'etut.liveActivity.v1',
 } as const;
 
@@ -141,14 +142,24 @@ export function storeReminderPrefs(prefs: ReminderPrefs): void {
   Storage.setItemSync(KEYS.reminderPrefs, JSON.stringify(normalizeReminderPrefs(prefs)));
 }
 
+/** The student turned reminders on through the explanation screen (cleared by "Tüm verileri sil"). */
+export function loadRemindersConfirmed(): boolean {
+  return readJson(KEYS.remindersConfirmed) === true;
+}
+
+export function storeRemindersConfirmed(): void {
+  Storage.setItemSync(KEYS.remindersConfirmed, 'true');
+}
+
 /** The Live Activity the app last started (iOS); `null` = none. */
 export function loadLiveActivityRecord(): LiveActivityRecord | null {
   const value = readJson(KEYS.liveActivity);
   if (typeof value !== 'object' || value === null) return null;
   const v = value as Record<string, unknown>;
-  return typeof v.sessionId === 'string' && typeof v.startedAt === 'number'
-    ? { sessionId: v.sessionId, startedAt: v.startedAt }
-    : null;
+  if (typeof v.sessionId !== 'string' || typeof v.startedAt !== 'number') return null;
+  return v.dismissed === true
+    ? { sessionId: v.sessionId, startedAt: v.startedAt, dismissed: true }
+    : { sessionId: v.sessionId, startedAt: v.startedAt };
 }
 
 export function storeLiveActivityRecord(record: LiveActivityRecord | null): void {
