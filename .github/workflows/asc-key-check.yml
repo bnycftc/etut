@@ -1,0 +1,39 @@
+# Checks the App Store Connect API key (the same secrets testflight.yml uses) on a cheap Linux
+# runner: signs a JWT and calls GET /v1/apps. Prints only HTTP status and Apple's error code.
+name: ASC key check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call App Store Connect API
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import base64, os, time, jwt, requests
+          raw = os.environ["ASC_PRIVATE_KEY"]
+          key = raw if "BEGIN PRIVATE KEY" in raw else base64.b64decode(raw).decode()
+          now = int(time.time())
+          token = jwt.encode(
+              {"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 600, "aud": "appstoreconnect-v1"},
+              key, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+          for path in ("/v1/apps?limit=1", "/v1/bundleIds?limit=200&fields[bundleIds]=identifier"):
+              r = requests.get("https://api.appstoreconnect.apple.com" + path,
+                               headers={"Authorization": "Bearer " + token}, timeout=30)
+              print(path.split("?")[0], "HTTP", r.status_code)
+              if r.ok and "bundleIds" in path:
+                  print("bundle ids:", sorted(d["attributes"]["identifier"] for d in r.json()["data"]))
+              elif not r.ok:
+                  print("errors:", [(e.get("code"), e.get("title")) for e in r.json().get("errors", [])])
+          PY
