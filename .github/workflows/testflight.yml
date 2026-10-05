@@ -337,17 +337,17 @@ jobs:
           mkdir -p build
           find "${TMPDIR:-/tmp}" -maxdepth 1 -name '*.xcdistributionlogs' -exec cp -R {} build/ \; || true
 
-      - name: Upload archive and logs
+      # The repository is public, so artifacts are downloadable by anyone signed in to GitHub:
+      # upload logs only, never the signed archive or IPA.
+      - name: Upload logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: testflight-failure-${{ github.run_number }}
           path: |
-            build/Etut.xcarchive
             build/archive.log
             build/export.log
             build/upload.log
-            build/export
             build/*.xcdistributionlogs
           if-no-files-found: ignore
           retention-days: 7

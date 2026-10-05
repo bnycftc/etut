@@ -53,3 +53,6 @@ example
 
 # Claude ajan worktreeleri
 /.claude/worktrees/
+
+# Plan, araştırma ve hukuk belgeleri ayrı özel depoda (bnycftc/etut-docs)
+/docs/

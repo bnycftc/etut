@@ -55,6 +55,8 @@ expo-router. Kurulum, komutlar ve yayın hattı: `README.md`.
 
 Uyulacak tasarım kuralları: `docs/hukuk/03-tasarim-kurallari.md`. Plan: `docs/PLAN.md`; araştırma: `docs/arastirma/`;
 KVKK belgeleri: `docs/hukuk/kvkk/`.
+`docs/` bu depoda DEĞİL: ayrı özel depo `bnycftc/etut-docs`, yerelde `docs/` altına klonlanır ve
+`.gitignore`'dadır (kod deposu herkese açık). Plan, araştırma ve hukuk belgelerini kod deposuna koyma.
 Bu iskelette özellikle:
 - K-01/K-02: ana ekran kişisel sayaç; gruplar ikincil ve isteğe bağlı sekme.
 - K-15: nötr doğum yılı seçimi, önceden seçili değer yok, yaş ipucu yok.
