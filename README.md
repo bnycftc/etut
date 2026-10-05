@@ -186,8 +186,11 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
 ### `ci.yml` (her push ve PR)
 ubuntu-latest: `npm ci` → `npx tsc --noEmit` → `npx jest --ci` → `npx expo-doctor`.
 
-### `e2e-ios.yml` (elle `workflow_dispatch` veya `main`'e push: `app/`, `src/`, `package*.json`, `app.json`, `e2e/`)
+### `e2e-ios.yml` (yalnız elle: `workflow_dispatch`)
 İnsan test edici olmadan iOS simülatöründe uçtan uca test. Gizli değer gerekmez.
+**Push ile tetiklenmez:** macOS koşucu dakikaları pahalı olduğundan yalnız Actions →
+"E2E iOS (simulator)" → "Run workflow" ile elle çalıştırılır (ör. iOS'a dokunan bir değişiklikten
+ya da TestFlight'a göndermeden önce).
 1. macOS 26 koşucusu, Xcode denetimi, Node + Java 17, `npm ci`.
 2. `expo prebuild --platform ios --clean --no-install` → `pod install`.
 3. `xcodebuild build` Release, `-sdk iphonesimulator`, `CODE_SIGNING_ALLOWED=NO`: JS paketi
