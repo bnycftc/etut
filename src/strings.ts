@@ -180,7 +180,7 @@ const legalDocs = {
       {
         heading: '4. Verilerin',
         paragraphs: [
-          'Verilerin yalnız bu telefondadır. Telefon değiştirirken ya da uygulamayı silmeden önce Ayarlar → Yedekle ile yedek al; yedeği saklamak senin elindedir.',
+          'Verilerin bu telefonda tutulur; Etüt onları hiçbir sunucuya göndermez. Telefonunun kendi yedeği (iCloud ya da bilgisayara yedekleme) açıksa iOS onları o yedeğe de katar. Bu yedek yoksa, telefon değiştirirken ya da uygulamayı silmeden önce Ayarlar → Yedekle ile yedek al; yedeği saklamak senin elindedir.',
         ],
       },
       {
@@ -327,7 +327,7 @@ export const tr = {
 
   onboarding: {
     title: 'Etüt’e hoş geldin',
-    intro: 'Birkaç soruyla başlayalım. Cevapların yalnız bu cihazda saklanır.',
+    intro: 'Birkaç soruyla başlayalım. Cevapların bu cihazda saklanır, bize gönderilmez.',
     birthYearTitle: 'Doğum yılın',
     birthYearHint: 'Yalnız yılı soruyoruz.',
     examTitle: 'Hazırlandığın sınav',
@@ -597,7 +597,7 @@ export const tr = {
     profile: 'Profil',
     exam: 'Sınav',
     dataTitle: 'Veriler',
-    dataInfo: 'Tüm verilerin yalnız bu cihazda tutulur. Hiçbir sunucuya gönderilmez.',
+    dataInfo: 'Tüm verilerin bu cihazda tutulur; Etüt hiçbir sunucuya göndermez. Telefonunun kendi yedeği (iCloud ya da bilgisayara yedekleme) açıksa iOS onları o yedeğe de katar.',
     deleteAll: 'Tüm verileri sil',
     deleteAllConfirm:
       'Çalışma kayıtların, denemelerin, hedeflerin ve profilin bu cihazdan silinecek. Bu işlem geri alınamaz.',
@@ -620,7 +620,7 @@ export const tr = {
 
   backup: {
     title: 'Yedekle ve geri yükle',
-    info: 'Sunucumuz olmadığı için verilerin yalnız bu telefonda. Telefon değiştirmeden önce yedek al; dosyayı güvendiğin bir yerde sakla (dosya şifrelenmez).',
+    info: 'Sunucumuz olmadığı için verilerin bu telefonda (telefonunun iCloud ya da bilgisayar yedeği açıksa o yedekte de). Telefon değiştirmeden önce yedek al; dosyayı güvendiğin bir yerde sakla (dosya şifrelenmez).',
     export: 'Yedek dosyası oluştur',
     exported: 'Yedek dosyası hazırlandı.',
     import: 'Yedekten geri yükle',
@@ -630,6 +630,11 @@ export const tr = {
     picked: (sessions: number, exams: number, topics: number) =>
       `Yedekte ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti var.`,
     exportedOn: (date: string) => `Yedek tarihi: ${date}`,
+    skipped: (n: number) =>
+      `Tarihi telefon saati yanlışken kaydedildiği belli olan ${n} çalışma kaydı (2016 öncesi, 2100 sonrası ya da bir yıldan uzun) yüklenmeyecek.`,
+    exportSkipped: (n: number) =>
+      `Yedek dosyası hazırlandı. Telefon saati yanlışken kaydedilmiş ${n} çalışma kaydı geri yüklemede alınmayacak; geri kalan her şey yedekte.`,
+    exportCheckFailed: 'Yedek dosyası doğrulanamadı, bu yüzden oluşturulmadı. Çalışma kayıtlarını aşağıdan CSV olarak dışa aktarabilirsin.',
     modeTitle: 'Nasıl yüklensin?',
     merge: 'Birleştir',
     mergeInfo:
@@ -753,7 +758,7 @@ export const tr = {
       },
       {
         title: 'Verilerin sende',
-        body: 'Her şey yalnız bu telefonda. Telefon değiştirmeden önce Ayarlar’dan yedek al.',
+        body: 'Her şey bu telefonda; Etüt hiçbir sunucuya göndermez. Telefon değiştirmeden önce Ayarlar’dan yedek al.',
       },
     ],
     step: (n: number, of: number) => `${n}/${of}`,

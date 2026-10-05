@@ -7,11 +7,12 @@
  * 1. npm packages: every package that contributes code to the iOS JavaScript bundle, read from the
  *    source map of `expo export --platform ios` (build-only tooling such as Babel or the Expo CLI
  *    is not in the bundle and so not listed). Their native iOS code ships from the same packages.
- *    The text is the package's own LICENSE / LICENCE / COPYING file.
+ *    The text is the package's own LICENSE / LICENCE / COPYING file; a package published without
+ *    one gets its repository's file from `scripts/package-licenses/<name>.txt` (copied verbatim).
  * 2. Native libraries that are not npm packages (`NATIVE` below): compiled into the iOS app by
  *    React Native and expo-sqlite. Versions are read from node_modules. Their license texts live
  *    in `scripts/native-licenses/<file>` and must be the upstream file of that version, copied
- *    verbatim; a missing file is reported and the entry shows the license name and source only.
+ *    verbatim. A missing text fails the script (exit code 1) after writing the file.
  *
  *   node scripts/gen-licenses.mjs            # runs the export into a temporary folder
  *   node scripts/gen-licenses.mjs dist       # uses an existing `expo export --source-maps` output
@@ -29,6 +30,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'src', 'legal', 'licenses.ts');
 const NM = path.join(ROOT, 'node_modules');
 const NATIVE_TEXTS = path.join(ROOT, 'scripts', 'native-licenses');
+const PACKAGE_TEXTS = path.join(ROOT, 'scripts', 'package-licenses');
 
 function findMaps(dir) {
   const out = [];
@@ -114,6 +116,12 @@ function monorepoText(pkg) {
   return host === undefined ? null : licenseText(path.join(NM, host));
 }
 
+/** Repository license of an npm package that is published without one. */
+function packageFallbackText(name) {
+  const file = path.join(PACKAGE_TEXTS, `${name.replace('/', '__')}.txt`);
+  return existsSync(file) ? clean(readFileSync(file, 'utf8')) : null;
+}
+
 const missing = [];
 const rows = [];
 for (const [name, mapDir] of packages) {
@@ -130,7 +138,7 @@ for (const [name, mapDir] of packages) {
     }
   }
   if (pkg.name === 'etut') continue;
-  const text = licenseText(dir) ?? monorepoText(pkg);
+  const text = licenseText(dir) ?? monorepoText(pkg) ?? packageFallbackText(name);
   if (text === null) missing.push(name);
   rows.push({ name, version: String(pkg.version ?? ''), license: licenseOf(pkg), source: null, text });
 }
@@ -297,5 +305,6 @@ console.log(
   `[gen-licenses] ${rows.length} packages + ${nativeRows.length} native libraries, ${texts.length} distinct texts → ${path.relative(ROOT, OUT)}`,
 );
 if (missing.length > 0) {
-  console.warn(`[gen-licenses] license text missing for ${missing.length}:\n  ${missing.join('\n  ')}`);
+  console.error(`[gen-licenses] license text missing for ${missing.length}:\n  ${missing.join('\n  ')}`);
+  process.exitCode = 1;
 }

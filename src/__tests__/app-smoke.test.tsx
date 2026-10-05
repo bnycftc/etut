@@ -986,6 +986,28 @@ describe('backup and restore', () => {
     );
   });
 
+  it('a session recorded with the clock reset to 2001 does not cost the backup: left out and told', async () => {
+    const old = { ...session('old'), startedAt: Date.UTC(2001, 0, 1), endedAt: Date.UTC(2001, 0, 1, 1) };
+    memory.profile = ADULT_SAYISAL;
+    memory.sessions = [session('a'), old];
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-export'));
+    });
+    expect(screen.getByTestId('backup-message').props.children).toContain('1 çalışma kaydı geri yüklemede alınmayacak');
+    memory.pickText = memory.shared[0].content;
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-import'));
+    });
+    expect(screen.getByTestId('backup-preview-counts').props.children).toBe(
+      'Yedekte 1 çalışma kaydı, 0 deneme ve 0 konu işareti var.',
+    );
+    expect(screen.getByTestId('backup-preview-skipped')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('backup-mode-replace'));
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
+  });
+
   it('K-17: an older age in the backup is ignored, a younger one wins and turns groups off', async () => {
     const year = new Date().getUTCFullYear();
     const file = (birthYear: number) =>

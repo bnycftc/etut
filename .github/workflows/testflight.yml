@@ -20,6 +20,11 @@ name: TestFlight
 
 on:
   workflow_dispatch:
+    inputs:
+      internal_only:
+        description: "Internal TestFlight testing only: allow the [DOLDURULACAK] legal placeholders. Such a build must never go to external testing or App Review."
+        type: boolean
+        default: false
   push:
     tags: ["v*"]
 
@@ -49,14 +54,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # A release tag must not ship the legal texts with the data controller left as a placeholder
-      # (KVKK m.10/a, K-31, K-38). Manual runs (internal TestFlight testing) are not blocked.
-      - name: Legal placeholders filled (release tags)
-        if: startsWith(github.ref, 'refs/tags/v')
+      # No build may reach App Store Connect with the data controller left as a placeholder
+      # (KVKK m.10/a, K-31, K-38): App Store Connect can send any uploaded build to external
+      # testing or App Review, whatever started it. Only a manual run with internal_only ticked
+      # passes with placeholders, and says so in the run summary.
+      - name: Legal placeholders filled
+        env:
+          INTERNAL_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.internal_only }}
         run: |
           if grep -n 'DOLDURULACAK' src/strings.ts; then
-            echo "::error file=src/strings.ts::DATA_CONTROLLER is still [DOLDURULACAK]. Fill the data controller and contact before tagging a release."
-            exit 1
+            if [ "$INTERNAL_ONLY" = "true" ]; then
+              echo "::warning file=src/strings.ts::DATA_CONTROLLER is still [DOLDURULACAK]. Internal TestFlight only: do NOT add build $BUILD_NUMBER to an external group or submit it for review."
+              echo "Build $BUILD_NUMBER: internal TestFlight only (legal placeholders). Never send it to external testing or App Review." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error file=src/strings.ts::DATA_CONTROLLER is still [DOLDURULACAK]. Fill the data controller and contact, or run manually with internal_only for internal testing."
+              exit 1
+            fi
           fi
 
       - name: Toolchain

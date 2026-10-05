@@ -81,7 +81,7 @@ src/strings.ts          Kullanıcıya görünen tüm metinler (yasal metinler ve
 index.ts / index.web.ts Giriş noktası (web: SQLite worker'ını ısıtıp expo-router'ı başlatır)
 scripts/test-web.mjs    Web duman testi (npm run test:web)
 scripts/gen-icons.mjs   Simge ve açılış ekranı (SVG -> PNG, simge alfa kanalsız)
-scripts/gen-licenses.mjs Lisans listesi üretici; scripts/native-licenses/ yerel kütüphane metinleri (upstream, birebir)
+scripts/gen-licenses.mjs Lisans listesi üretici; scripts/native-licenses/ yerel kütüphane metinleri, scripts/package-licenses/ LICENSE dosyasız yayımlanan npm paketlerinin depo metni (upstream, birebir; eksik metin betiği hatayla bitirir)
 e2e/                    Maestro akışları (iOS simülatörü, e2e-ios.yml)
 ci/ExportOptions.plist  TestFlight ihracat ayarları
 .github/workflows/      ci.yml, testflight.yml, e2e-ios.yml
@@ -118,6 +118,11 @@ Yeni ekran öğesine test gerekiyorsa metni değil `testID`'yi hedefleyin; mevcu
 değiştirmeyin (akışlar ve `scripts/test-web.mjs` bunlara bağlı).
 
 ### `testflight.yml` (elle `workflow_dispatch` veya `v*` etiketi)
+Yasal yer tutucu kapısı: `src/strings.ts` içinde `[DOLDURULACAK]` kaldıysa derleme yüklenmez.
+Tek istisna, elle başlatılan ve `internal_only` işaretli çalıştırmadır
+(`gh workflow run testflight.yml -R bnycftc/etut --ref <dal> -f internal_only=true`); böyle bir
+derleme **yalnız iç TestFlight** içindir, dış test grubuna ya da App Review'a gönderilmez
+(çalıştırma özetinde derleme numarası yazar). İncelemeye yalnız yer tutucusuz derleme gider.
 macOS 26 koşucusu:
 1. Xcode sürümünü yazdırır (SDK 57 için 26.4 altıysa uyarı verir).
 2. Node kurulur, `npm ci`.

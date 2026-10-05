@@ -4,6 +4,22 @@ const min = (n: number) => n * 60_000;
 const at = (iso: string) => Date.parse(iso);
 
 describe('dailyTotals', () => {
+  it('a session spanning decades (wrong device clock) costs no more than a short one', () => {
+    const days = ['2026-10-01', '2026-10-02'];
+    const started = Date.now();
+    const totals = dailyTotals(
+      Array.from({ length: 200 }, () => ({
+        subjectId: 'fizik',
+        startedAt: at('2016-01-02T00:00:00Z'),
+        endedAt: at('2099-11-30T00:00:00Z'),
+        pauses: [],
+      })),
+      days,
+    );
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(totals.map((t) => t.totalMs)).toEqual([200 * 24 * min(60), 200 * 24 * min(60)]);
+  });
+
   it('sums sessions per day and per subject, minus pauses', () => {
     const [day] = dailyTotals(
       [

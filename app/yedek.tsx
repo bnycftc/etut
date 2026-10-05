@@ -38,6 +38,7 @@ export default function BackupScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<BackupFile | null>(null);
+  const [skipped, setSkipped] = useState(0);
   const [mode, setMode] = useState<ImportMode>('merge');
   const [busy, setBusy] = useState(false);
   const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '';
@@ -65,13 +66,19 @@ export default function BackupScreen() {
     run(async () => {
       const today = istanbulDayKey(Date.now());
       const json = serializeBackup(createBackup(appVersion));
+      // The file must read back on the new phone; check it here, not after the old one is reset.
+      const check = parseBackup(json);
+      if (!check.ok) {
+        setError(tr.backup.exportCheckFailed);
+        return;
+      }
       report(
         await shareTextFile(backupFileName(today), json, {
           mimeType: 'application/json',
           uti: 'public.json',
           dialogTitle: tr.backup.shareTitle,
         }),
-        tr.backup.exported,
+        check.skippedSessions > 0 ? tr.backup.exportSkipped(check.skippedSessions) : tr.backup.exported,
       );
     });
 
@@ -90,6 +97,7 @@ export default function BackupScreen() {
         return;
       }
       setMode('merge');
+      setSkipped(parsed.skippedSessions);
       setPending(parsed.file);
     });
 
@@ -144,6 +152,11 @@ export default function BackupScreen() {
       {pending !== null && preview !== null ? (
         <Card testID="backup-preview">
           <Label testID="backup-preview-counts">{tr.backup.picked(preview.sessions, preview.exams, preview.topics)}</Label>
+          {skipped > 0 ? (
+            <Label testID="backup-preview-skipped" variant="small">
+              {tr.backup.skipped(skipped)}
+            </Label>
+          ) : null}
           <Label variant="small">{tr.backup.exportedOn(formatDay(istanbulDayKey(pending.exportedAt)))}</Label>
           <Label variant="heading">{tr.backup.modeTitle}</Label>
           <ChipRow>

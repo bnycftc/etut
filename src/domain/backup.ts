@@ -6,7 +6,9 @@
  * student shares it.
  *
  * Import guarantees:
- * - All or nothing: one invalid record rejects the whole file (nothing is written).
+ * - All or nothing: one malformed record rejects the whole file (nothing is written). A session
+ *   whose times can only come from a wrong device clock (see `sessionTimeOk`) is well formed: it
+ *   is left out and counted (`skippedSessions`) instead of costing the whole file.
  * - Idempotent: records are keyed by their ids, so importing the same file twice leaves the same
  *   data as importing it once (no duplicate sessions or exams).
  * - K-17: the age can not be raised by a file. If the file's birth year is a younger age than the
@@ -16,7 +18,7 @@
  */
 
 import { type TopicMark, validateSectionMarks } from './exam-analysis';
-import type { DayKey } from './istanbul-day';
+import { addDays, type DayKey } from './istanbul-day';
 import { EXAM_KINDS, EXAM_SECTIONS, type ExamKind, type ExamScope, type SectionScore, validateScore, type YksArea } from './net';
 import { isPomodoroConfig, normalizePomodoroConfig, type PomodoroConfig } from './pomodoro';
 import { birthYearOptions, EXAM_TYPES, type ExamType, isSoloOnly, type Profile, YKS_AREAS } from './profile';
@@ -33,14 +35,18 @@ export const BACKUP_MAX_BYTES = 20 * 1024 * 1024;
 const MAX_RECORDS = 200_000;
 const MAX_PAUSES = 5_000;
 /**
- * Time bounds instead of a session-length limit. No record of this app is older than this (a
- * device clock reset to 1970 aside), and no file was written after 2100. A session ends at most a
- * day after the file was written (the tolerance covers a clock corrected between the two): a far
- * future end would make every daily total walk day by day up to it.
+ * Sessions outside these bounds were recorded with a wrong device clock (reset to 2001, set
+ * decades ahead) or edited by hand. They are left out of an import, not rejected: the timer takes
+ * `Date.now()` as it is, so the app itself can write them. No bound depends on the file's own
+ * date (`exportedAt`): the clock may have been wrong when a session was recorded and right when
+ * the backup was made, or the other way round.
  */
 const MIN_TIME = Date.UTC(2016, 0, 1);
 const MAX_TIME = Date.UTC(2100, 0, 1);
-const END_TOLERANCE_MS = 24 * 3_600_000;
+/** A paused timer left for weeks is a real session; one longer than a year is a clock jump. */
+const MAX_SESSION_SPAN_MS = 366 * 24 * 3_600_000;
+/** Largest instant a JS `Date` can hold; `exportedAt` is only shown as a date. */
+const MAX_DATE_MS = 8.64e15;
 
 export type TimerModeSetting = 'stopwatch' | 'pomodoro';
 
@@ -99,7 +105,9 @@ export interface BackupFile extends BackupData {
 
 export type ImportMode = 'merge' | 'replace';
 export type BackupError = 'too_large' | 'not_json' | 'not_backup' | 'too_new' | 'invalid';
-export type ParseResult = { ok: true; file: BackupFile } | { ok: false; error: BackupError };
+export type ParseResult =
+  | { ok: true; file: BackupFile; /** Sessions left out for a wrong-clock time (`sessionTimeOk`). */ skippedSessions: number }
+  | { ok: false; error: BackupError };
 
 export const EMPTY_SETTINGS: BackupSettings = {
   dailyGoalMinutes: null,
@@ -179,6 +187,12 @@ const SUBJECT = /^[a-z0-9_]+$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const PAUSE_KINDS: readonly PauseKind[] = ['manual', 'away', 'break'];
 
+/** A calendar day `YYYY-MM-DD` that exists (no `2026-02-30`, `2026-99-99`). */
+function day(v: unknown): DayKey {
+  const d = str(v, DAY, 10);
+  return addDays(d, 0) === d ? d : fail();
+}
+
 function unique<T>(items: T[], key: (item: T) => string): T[] {
   const seen = new Set<string>();
   for (const item of items) {
@@ -189,13 +203,15 @@ function unique<T>(items: T[], key: (item: T) => string): T[] {
   return items;
 }
 
-function parseSession(value: unknown, exportedAt: number): CompletedSession {
+/** Whether a well-formed session's times can be kept (see `MIN_TIME`, `MAX_SESSION_SPAN_MS`). */
+function sessionTimeOk(s: CompletedSession): boolean {
+  return s.startedAt >= MIN_TIME && s.endedAt <= MAX_TIME && s.endedAt - s.startedAt <= MAX_SESSION_SPAN_MS;
+}
+
+function parseSession(value: unknown): CompletedSession {
   const v = obj(value);
-  const startedAt = int(v.startedAt, MIN_TIME);
-  // No limit on the span: a paused timer left for a week and then finished is a session of this
-  // app (`finishSession` does not cap it), so its own backup must read it back. The end is bounded
-  // by the time the file was written instead (`END_TOLERANCE_MS`).
-  const endedAt = int(v.endedAt, startedAt, exportedAt + END_TOLERANCE_MS);
+  const startedAt = int(v.startedAt);
+  const endedAt = int(v.endedAt, startedAt);
   // Pauses only shorten a session, so out-of-range ones are clipped to it instead of rejected.
   const clip = (n: number, min: number) => Math.min(endedAt, Math.max(min, n));
   const pauses: ClosedPause[] = arr(v.pauses, MAX_PAUSES).map((p) => {
@@ -252,7 +268,7 @@ function parseExam(value: unknown): BackupExam {
     kind,
     scope,
     bransSectionId,
-    takenOn: str(v.takenOn, DAY, 10),
+    takenOn: day(v.takenOn),
     createdAt: int(v.createdAt),
     analysisDoneAt: intOrNull(v.analysisDoneAt),
     scores,
@@ -283,8 +299,8 @@ function parseNetTargets(value: unknown): Record<string, number> {
 function parseSettings(value: unknown): BackupSettings {
   const v = obj(value ?? {});
   const examDates: Partial<Record<ExamType, DayKey>> = {};
-  for (const [type, day] of Object.entries(obj(v.examDates ?? {}))) {
-    examDates[oneOf(type, EXAM_TYPES)] = str(day, DAY, 10);
+  for (const [type, date] of Object.entries(obj(v.examDates ?? {}))) {
+    examDates[oneOf(type, EXAM_TYPES)] = day(date);
   }
   const goal = v.dailyGoalMinutes;
   return {
@@ -337,19 +353,21 @@ export function parseBackup(text: string): ParseResult {
   if (version > BACKUP_SCHEMA_VERSION) return { ok: false, error: 'too_new' };
   try {
     const v = upgrade(raw as Obj, version);
-    const exportedAt = int(v.exportedAt, MIN_TIME, MAX_TIME);
+    const exportedAt = int(v.exportedAt, 0, MAX_DATE_MS);
+    const sessions = unique(arr(v.sessions).map(parseSession), (s) => s.id);
+    const kept = sessions.filter(sessionTimeOk);
     const file: BackupFile = {
       format: BACKUP_FORMAT,
       schemaVersion: BACKUP_SCHEMA_VERSION,
       exportedAt,
       appVersion: typeof v.appVersion === 'string' ? v.appVersion.slice(0, 40) : '',
       profile: parseProfile(v.profile),
-      sessions: unique(arr(v.sessions).map((s) => parseSession(s, exportedAt)), (s) => s.id),
+      sessions: kept,
       exams: unique(arr(v.exams).map(parseExam), (e) => e.id),
       topicProgress: unique(arr(v.topicProgress).map(parseTopicProgress), (t) => t.topicId),
       settings: parseSettings(v.settings),
     };
-    return { ok: true, file };
+    return { ok: true, file, skippedSessions: sessions.length - kept.length };
   } catch (error) {
     if (error instanceof Invalid) return { ok: false, error: 'invalid' };
     throw error;

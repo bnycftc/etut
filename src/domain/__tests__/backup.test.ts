@@ -146,22 +146,49 @@ describe('backup file format', () => {
     }
     const file = buildBackupFile({ ...DATA, sessions }, PROFILE, latest, '0.2.0');
     expect(parsed(serializeBackup(file)).sessions).toEqual(sessions);
+    // The clock may be right when recording and behind when backing up (or the other way round).
+    const early = buildBackupFile({ ...DATA, sessions }, PROFILE, T0 - 30 * DAY_MS, '0.2.0');
+    expect(parsed(serializeBackup(early)).sessions).toEqual(sessions);
   });
 
-  it('time bounds: far future ends, pre-2016 starts and odd file dates are rejected', () => {
+  it('reads back a session recorded while the clock was days ahead, backed up after it was fixed', () => {
+    const ahead = finishSession(startSession('ahead', 'fizik', EXPORTED + 2 * DAY_MS), EXPORTED + 2 * DAY_MS + 1_000);
+    const file = buildBackupFile({ ...DATA, sessions: [ahead] }, PROFILE, EXPORTED, '0.2.0');
+    const result = parseBackup(serializeBackup(file));
+    expect(result).toMatchObject({ ok: true, skippedSessions: 0 });
+    expect(result.ok && result.file.sessions).toEqual([ahead]);
+  });
+
+  it('a wrong-clock session is left out and counted, the rest of the file still loads', () => {
+    const skip = (bad: CompletedSession) => {
+      const result = parseBackup(fileText({ sessions: [session('ok'), bad] }));
+      if (!result.ok) throw new Error(result.error);
+      return { kept: result.file.sessions.map((s) => s.id), skipped: result.skippedSessions };
+    };
+    const want = { kept: ['ok'], skipped: 1 };
+    // Clock reset to 2001 / 2015.
+    expect(skip(finishSession(startSession('old', 'fizik', Date.UTC(2001, 0, 1)), Date.UTC(2001, 0, 1, 1)))).toEqual(want);
+    expect(skip(session('old', { startedAt: Date.UTC(2015, 5, 1), endedAt: Date.UTC(2015, 5, 1, 1), pauses: [] }))).toEqual(want);
+    // Year 11476: would make a day-by-day walk run ~3.5 million days.
+    expect(skip(session('far', { endedAt: 3e14 }))).toEqual(want);
+    // Clock jumped decades ahead mid-session (2016 → 2099): longer than a year.
+    expect(skip(session('long', { startedAt: Date.UTC(2016, 0, 2), endedAt: Date.UTC(2099, 10, 30), pauses: [] }))).toEqual(want);
+    // A malformed session still rejects the whole file.
+    expect(parseBackup(fileText({ sessions: [session('ok'), session('bad', { endedAt: T0 - 1 })] }))).toEqual({
+      ok: false,
+      error: 'invalid',
+    });
+  });
+
+  it('the file date is only shown, any date a clock can show is accepted', () => {
     const error = (overrides: Record<string, unknown>) => {
       const result = parseBackup(fileText(overrides));
       return result.ok ? null : result.error;
     };
-    // An end up to a day after the file was written is a corrected clock, not an error.
-    expect(error({ sessions: [session('x', { endedAt: EXPORTED + DAY_MS })] })).toBeNull();
-    expect(error({ sessions: [session('x', { endedAt: EXPORTED + DAY_MS + 1 })] })).toBe('invalid');
-    // Year 11476: would make every daily total walk ~3.5 million days.
-    expect(error({ sessions: [session('x', { endedAt: 3e14 })] })).toBe('invalid');
-    expect(error({ sessions: [session('x', { startedAt: 1, pauses: [] })] })).toBe('invalid');
+    expect(error({ exportedAt: 0 })).toBeNull();
+    expect(error({ exportedAt: Date.UTC(2100, 0, 2) })).toBeNull();
     expect(error({ exportedAt: 9e15 })).toBe('invalid');
-    expect(error({ exportedAt: Date.UTC(2100, 0, 2) })).toBe('invalid');
-    expect(error({ exportedAt: 0 })).toBe('invalid');
+    expect(error({ exportedAt: -1 })).toBe('invalid');
   });
 
   it('file name carries the day', () => {
@@ -216,6 +243,9 @@ describe('backup validation', () => {
     ['net target above the question count', { settings: { netTargets: { 'TYT:fizik': 8 } } }],
     ['net target not a multiple of 0.25', { settings: { netTargets: { 'TYT:matematik': 10.1 } } }],
     ['bad exam date', { settings: { examDates: { YKS: '19.06.2027' } } }],
+    ['exam date not on the calendar', { settings: { examDates: { YKS: '2026-00-00' } } }],
+    ['exam taken on a day that does not exist', { exams: [exam('e', { takenOn: '2026-99-99' })] }],
+    ['exam taken on 30 February', { exams: [exam('e', { takenOn: '2026-02-30' })] }],
     ['bad birth year', { profile: { birthYear: 'iki bin', examType: 'YKS', yksArea: 'sayisal' } }],
     ['YKS profile without an area', { profile: { birthYear: 2008, examType: 'YKS', yksArea: null } }],
   ])('rejects the whole file: %s', (_name, overrides) => {
