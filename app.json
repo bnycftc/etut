@@ -17,11 +17,17 @@
       },
       "infoPlist": {
         "CFBundleDevelopmentRegion": "tr",
-        "CFBundleLocalizations": ["tr"]
+        "CFBundleLocalizations": ["tr"],
+        "NSPhotoLibraryAddUsageDescription": "Paylaşım ekranında “Görüntüyü Kaydet”i seçersen çalışma kartın Fotoğraflar’a eklenir. Etüt fotoğraflarını göremez."
       }
     },
     "android": {
-      "package": "com.bnycftc.etut"
+      "package": "com.bnycftc.etut",
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "output": "single",
@@ -33,9 +39,13 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#1F6FEB",
+          "backgroundColor": "#F6F7F9",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 160
+          "imageWidth": 160,
+          "dark": {
+            "backgroundColor": "#0D1117",
+            "image": "./assets/splash-icon-dark.png"
+          }
         }
       ]
     ],

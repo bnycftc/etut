@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, type TextStyle, View } from 'react-native';
 
+import { tr } from '../strings';
 import { space, usePalette } from './theme';
 
 export function Screen({ children, testID }: { children: ReactNode; testID?: string }) {
@@ -16,10 +17,10 @@ export function Screen({ children, testID }: { children: ReactNode; testID?: str
   );
 }
 
-export function Card({ children }: { children: ReactNode }) {
+export function Card({ children, testID }: { children: ReactNode; testID?: string }) {
   const c = usePalette();
   return (
-    <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+    <View testID={testID} style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
       {children}
     </View>
   );
@@ -27,21 +28,28 @@ export function Card({ children }: { children: ReactNode }) {
 
 type TextVariant = 'title' | 'heading' | 'body' | 'muted' | 'small';
 
+/** Titles and headings are announced as headers, so screen readers can jump between them. */
 export function Label({
   children,
   variant = 'body',
   style,
   testID,
+  maxFontSizeMultiplier,
 }: {
   children: ReactNode;
   variant?: TextVariant;
   style?: TextStyle;
   testID?: string;
+  maxFontSizeMultiplier?: number;
 }) {
   const c = usePalette();
   const color = variant === 'muted' || variant === 'small' ? c.textMuted : c.text;
   return (
-    <Text testID={testID} style={[styles[variant], { color }, style]}>
+    <Text
+      testID={testID}
+      accessibilityRole={variant === 'title' || variant === 'heading' ? 'header' : undefined}
+      maxFontSizeMultiplier={maxFontSizeMultiplier}
+      style={[styles[variant], { color }, style]}>
       {children}
     </Text>
   );
@@ -56,6 +64,8 @@ export function Button({
   disabled = false,
   large = false,
   testID,
+  accessibilityLabel,
+  accessibilityHint,
 }: {
   title: string;
   onPress: () => void;
@@ -63,6 +73,9 @@ export function Button({
   disabled?: boolean;
   large?: boolean;
   testID?: string;
+  /** Defaults to `title`. */
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }) {
   const c = usePalette();
   const background = kind === 'primary' ? c.accent : kind === 'danger' ? c.danger : c.surface;
@@ -71,6 +84,8 @@ export function Button({
     <Pressable
       testID={testID}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
@@ -79,7 +94,7 @@ export function Button({
         large && styles.buttonLarge,
         {
           backgroundColor: background,
-          borderColor: kind === 'secondary' ? c.border : background,
+          borderColor: kind === 'secondary' ? c.controlBorder : background,
           opacity: disabled ? 0.4 : pressed ? 0.8 : 1,
         },
       ]}>
@@ -88,29 +103,35 @@ export function Button({
   );
 }
 
+/** Selectable chip; announced as a button with its selected state. */
 export function Chip({
   title,
   selected,
   onPress,
   testID,
+  accessibilityLabel,
 }: {
   title: string;
   selected: boolean;
   onPress: () => void;
   testID?: string;
+  accessibilityLabel?: string;
 }) {
   const c = usePalette();
   return (
     <Pressable
       testID={testID}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ selected }}
       onPress={onPress}
+      // Same layout as before; the touch target grows to ≥ 44 pt (the row gap is 8).
+      hitSlop={4}
       style={[
         styles.chip,
         {
           backgroundColor: selected ? c.accent : c.surface,
-          borderColor: selected ? c.accent : c.border,
+          borderColor: selected ? c.accent : c.controlBorder,
         },
       ]}>
       <Text style={{ color: selected ? c.accentText : c.text, fontSize: 15 }}>{title}</Text>
@@ -130,19 +151,24 @@ export function Row({ children }: { children: ReactNode }) {
 export function Tag({ title }: { title: string }) {
   const c = usePalette();
   return (
-    <View style={[styles.tag, { borderColor: c.border, backgroundColor: c.background }]}>
+    <View style={[styles.tag, { borderColor: c.controlBorder, backgroundColor: c.background }]}>
       <Text style={{ color: c.textMuted, fontSize: 12 }}>{title}</Text>
     </View>
   );
 }
 
 /** Horizontal progress bar, `ratio` 0…1. */
-export function ProgressBar({ ratio }: { ratio: number }) {
+export function ProgressBar({ ratio, label = tr.a11y.progress }: { ratio: number; label?: string }) {
   const c = usePalette();
-  const width = `${Math.round(Math.min(1, Math.max(0, ratio)) * 100)}%` as const;
+  const percent = Math.round(Math.min(1, Math.max(0, ratio)) * 100);
   return (
-    <View style={[styles.progress, { backgroundColor: c.barMuted }]}>
-      <View style={{ width, height: '100%', borderRadius: 4, backgroundColor: c.accent }} />
+    <View
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={label}
+      accessibilityValue={{ min: 0, max: 100, now: percent, text: `%${percent}` }}
+      style={[styles.progress, { backgroundColor: c.barMuted }]}>
+      <View style={{ width: `${percent}%`, height: '100%', borderRadius: 4, backgroundColor: c.accent }} />
     </View>
   );
 }
@@ -168,7 +194,9 @@ export function Field({
   const c = usePalette();
   return (
     <View style={{ flex: 1, gap: 4 }}>
-      <Text style={[styles.small, { color: c.textMuted }]}>{label}</Text>
+      <Text style={[styles.small, { color: c.textMuted }]} importantForAccessibility="no" accessibilityElementsHidden>
+        {label}
+      </Text>
       <TextInput
         testID={testID}
         accessibilityLabel={label}
@@ -179,7 +207,7 @@ export function Field({
         maxLength={maxLength}
         placeholder={placeholder}
         placeholderTextColor={c.textMuted}
-        style={[styles.input, { color: c.text, borderColor: c.border, backgroundColor: c.background }]}
+        style={[styles.input, { color: c.text, borderColor: c.controlBorder, backgroundColor: c.background }]}
       />
     </View>
   );
@@ -207,7 +235,9 @@ export function TextField({
   const c = usePalette();
   return (
     <View style={{ flex: 1, gap: 4 }}>
-      <Text style={[styles.small, { color: c.textMuted }]}>{label}</Text>
+      <Text style={[styles.small, { color: c.textMuted }]} importantForAccessibility="no" accessibilityElementsHidden>
+        {label}
+      </Text>
       <TextInput
         testID={testID}
         accessibilityLabel={label}
@@ -218,13 +248,13 @@ export function TextField({
         placeholderTextColor={c.textMuted}
         autoCapitalize={code ? 'characters' : 'sentences'}
         autoCorrect={false}
-        style={[styles.input, { color: c.text, borderColor: c.border, backgroundColor: c.background }]}
+        style={[styles.input, { color: c.text, borderColor: c.controlBorder, backgroundColor: c.background }]}
       />
     </View>
   );
 }
 
-/** − value + control. */
+/** − value + control. Each button announces the current value. */
 export function Stepper({
   label,
   value,
@@ -243,25 +273,56 @@ export function Stepper({
   testID?: string;
 }) {
   const c = usePalette();
-  const button = (symbol: string, onPress: () => void, disabled: boolean, id: string) => (
+  const button = (symbol: string, a11yLabel: string, onPress: () => void, disabled: boolean, id: string) => (
     <Pressable
       testID={testID ? `${testID}-${id}` : undefined}
       accessibilityRole="button"
-      accessibilityLabel={`${label} ${symbol}`}
+      accessibilityLabel={a11yLabel}
+      accessibilityValue={{ text: value }}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[styles.stepButton, { borderColor: c.border, opacity: disabled ? 0.4 : 1 }]}>
-      <Text style={{ color: c.text, fontSize: 18, fontWeight: '600' }}>{symbol}</Text>
+      hitSlop={4}
+      style={[styles.stepButton, { borderColor: c.controlBorder, opacity: disabled ? 0.4 : 1 }]}>
+      <Text style={{ color: c.text, fontSize: 18, fontWeight: '600' }} maxFontSizeMultiplier={1.4}>
+        {symbol}
+      </Text>
     </Pressable>
   );
   return (
     <View style={styles.row}>
       <Text style={[styles.muted, { color: c.textMuted, flex: 1 }]}>{label}</Text>
-      {button('−', onMinus, minusDisabled, 'minus')}
+      {button('−', tr.a11y.decrease(label), onMinus, minusDisabled, 'minus')}
       <Text style={[styles.body, { color: c.text, minWidth: 64, textAlign: 'center' }]}>{value}</Text>
-      {button('+', onPlus, plusDisabled, 'plus')}
+      {button('+', tr.a11y.increase(label), onPlus, plusDisabled, 'plus')}
     </View>
+  );
+}
+
+/** Title, short explanation and an optional action, for screens without data yet. */
+export function EmptyState({
+  title,
+  body,
+  action,
+  onAction,
+  testID,
+}: {
+  title?: string;
+  body: string;
+  action?: string;
+  onAction?: () => void;
+  testID?: string;
+}) {
+  return (
+    <Card testID={testID}>
+      {title ? <Label variant="heading">{title}</Label> : null}
+      <Label variant="muted">{body}</Label>
+      {action && onAction ? (
+        <Row>
+          <Button testID={testID ? `${testID}-action` : undefined} kind="secondary" title={action} onPress={onAction} />
+        </Row>
+      ) : null}
+    </Card>
   );
 }
 
@@ -273,17 +334,25 @@ export interface Bar {
   highlight?: boolean;
 }
 
-/** Plain vertical bar chart built from Views (no chart library). */
+/**
+ * Plain vertical bar chart built from Views (no chart library). Screen readers get the values
+ * as one summary instead of every bar and label separately.
+ */
 export function BarChart({ bars, height = 140 }: { bars: Bar[]; height?: number }) {
   const c = usePalette();
   const max = Math.max(...bars.map((b) => b.value), 0);
+  const summary = tr.a11y.chart(bars.map((b) => tr.a11y.chartItem(b.label, b.valueLabel)).join(', '));
   return (
-    <View style={[styles.chart, { height: height + 44 }]}>
+    <View
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={summary}
+      style={[styles.chart, { height: height + 44 }]}>
       {bars.map((b) => {
         const h = max > 0 ? Math.max(2, (b.value / max) * height) : 2;
         return (
           <View key={b.key} style={styles.barColumn}>
-            <Text style={[styles.barValue, { color: c.textMuted }]} numberOfLines={1}>
+            <Text style={[styles.barValue, { color: c.textMuted }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
               {b.valueLabel}
             </Text>
             <View
@@ -292,12 +361,12 @@ export function BarChart({ bars, height = 140 }: { bars: Bar[]; height?: number 
                 width: '70%',
                 borderRadius: 4,
                 backgroundColor: b.value > 0 ? (b.highlight ? c.accent : c.bar) : c.barMuted,
-                opacity: b.highlight || b.value === 0 ? 1 : 0.7,
               }}
             />
             <Text
               style={[styles.barLabel, { color: b.highlight ? c.text : c.textMuted }]}
-              numberOfLines={1}>
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.3}>
               {b.label}
             </Text>
           </View>
@@ -318,6 +387,7 @@ const styles = StyleSheet.create({
   button: {
     minHeight: 48,
     paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
@@ -325,7 +395,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   buttonLarge: { minHeight: 72, borderRadius: 16 },
-  buttonText: { fontSize: 17, fontWeight: '600' },
+  buttonText: { fontSize: 17, fontWeight: '600', textAlign: 'center' },
   buttonTextLarge: { fontSize: 22 },
   chip: {
     paddingHorizontal: space.md,

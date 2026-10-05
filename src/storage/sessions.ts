@@ -69,6 +69,13 @@ export function sessionsOverlapping(fromMs: number, toMs: number): CompletedSess
     .map(toSession);
 }
 
+/** Every stored session, oldest first (backup and CSV export). */
+export function allSessions(): CompletedSession[] {
+  return getDb()
+    .getAllSync<SessionRow>(`SELECT ${COLUMNS} FROM sessions ORDER BY started_at, id`)
+    .map(toSession);
+}
+
 /** Most recent sessions added afterwards ("elle"), newest first. */
 export function recentManualSessions(limit: number): CompletedSession[] {
   return getDb()

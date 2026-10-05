@@ -1,0 +1,57 @@
+# h. Alan değiştirme (ders listesi alana göre; doğum yılı değişmez)
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+# Sayısal: Türk Dili ve Edebiyatı and Yabancı Dil are not offered.
+- assertVisible:
+    id: subject-fizik
+- assertNotVisible:
+    id: subject-edebiyat
+- assertNotVisible:
+    id: subject-yabanci_dil
+- takeScreenshot: h-alan-01-sayisal
+- tapOn:
+    id: tab-settings
+- extendedWaitUntil:
+    visible:
+      id: settings-yks-area-esit_agirlik
+    timeout: 10000
+- tapOn:
+    id: settings-yks-area-esit_agirlik
+- tapOn:
+    id: settings-exam-save
+- assertVisible:
+    id: settings-exam-saved
+- assertVisible:
+    id: settings-exam-current
+    text: "YKS · Eşit Ağırlık"
+- takeScreenshot: h-alan-02-ayarlar
+- tapOn:
+    id: tab-timer
+# Eşit Ağırlık: Türk Dili ve Edebiyatı is offered now.
+- extendedWaitUntil:
+    visible:
+      id: subject-edebiyat
+    timeout: 10000
+- assertNotVisible:
+    id: subject-yabanci_dil
+- takeScreenshot: h-alan-03-esit-agirlik
+# Mock exams: TYT and AYT Eşit Ağırlık only.
+- tapOn:
+    id: tab-exams
+- tapOn:
+    id: exams-add
+- extendedWaitUntil:
+    visible:
+      id: exam-kind-AYT_EA
+    timeout: 10000
+- assertNotVisible:
+    id: exam-kind-AYT_SAY
+- takeScreenshot: h-alan-04-deneme-turleri

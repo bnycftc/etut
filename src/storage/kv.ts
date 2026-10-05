@@ -26,6 +26,7 @@ const KEYS = {
   timerMode: 'etut.timerMode.v1',
   examDate: 'etut.examDate.v1',
   netTargets: 'etut.netTargets.v1',
+  tipsSeen: 'etut.tipsSeen.v1',
 } as const;
 
 export type TimerMode = 'stopwatch' | 'pomodoro';
@@ -127,6 +128,44 @@ export function storeNetTarget(key: string, target: number | null): void {
   if (target === null) delete next[key];
   else next[key] = target;
   Storage.setItemSync(KEYS.netTargets, JSON.stringify(next));
+}
+
+/** Replaces every target net (backup restore). */
+export function storeNetTargets(targets: Record<string, number>): void {
+  Storage.setItemSync(KEYS.netTargets, JSON.stringify(targets));
+}
+
+/** Pomodoro lengths as stored; `null` = never changed (the defaults apply). */
+export function loadStoredPomodoroConfig(): PomodoroConfig | null {
+  const value = readJson(KEYS.pomodoroConfig);
+  return isPomodoroConfig(value) ? normalizePomodoroConfig(value) : null;
+}
+
+/** Timer mode as stored; `null` = never chosen. */
+export function loadStoredTimerMode(): TimerMode | null {
+  const value = Storage.getItemSync(KEYS.timerMode);
+  return value === 'pomodoro' || value === 'stopwatch' ? value : null;
+}
+
+/** `null` removes the stored values (backup restore). */
+export function restoreTimerSettings(mode: TimerMode | null, pomodoro: PomodoroConfig | null): void {
+  if (mode === null) Storage.removeItemSync(KEYS.timerMode);
+  else Storage.setItemSync(KEYS.timerMode, mode);
+  if (pomodoro === null) Storage.removeItemSync(KEYS.pomodoroConfig);
+  else storePomodoroConfig(pomodoro);
+}
+
+export function clearLastSubject(): void {
+  Storage.removeItemSync(KEYS.lastSubject);
+}
+
+/** The short first-use tips were shown and closed. */
+export function loadTipsSeen(): boolean {
+  return Storage.getItemSync(KEYS.tipsSeen) === '1';
+}
+
+export function storeTipsSeen(): void {
+  Storage.setItemSync(KEYS.tipsSeen, '1');
 }
 
 /** expo-sqlite/kv-store keeps its rows in this database file (expo-sqlite src/Storage.ts). */

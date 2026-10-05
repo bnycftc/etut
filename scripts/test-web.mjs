@@ -6,9 +6,12 @@
  * stops the server again. Same app code, same SQLite schema and migrations as on iOS (expo-sqlite
  * web = wa-sqlite in a worker, stored in the browser's origin private file system).
  *
- * Checks: page is cross-origin isolated, no console errors / uncaught exceptions, onboarding →
- * timer (start, pause, resume, finish) → reload keeps the profile → mock exam with the right net →
- * reload keeps the exam → "delete all data" returns to onboarding.
+ * Checks: page is cross-origin isolated, no console errors / uncaught exceptions, no network
+ * request outside the dev server; onboarding (+ short notice) → first-use tips → timer (start,
+ * pause, resume, finish; Sayısal subjects only) → reload keeps the profile → share card (1080x1920
+ * PNG) → mock exam with the right net (area papers only) → reload keeps the exam → area change →
+ * backup + CSV download → about / legal / licenses → "delete all data" returns to onboarding →
+ * empty states → restore the backup twice (no duplicates) → dark theme with reduced motion.
  *
  * Environment:
  *   WEB_TEST_PORT     first port to try (default 8090; the next free port is used if busy)
@@ -19,7 +22,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -170,17 +173,41 @@ async function runScenario(page, baseUrl) {
   );
   await screenshot('onboarding');
 
+  // The short notice (aydınlatma) is readable before anything is saved.
+  await byId('onboarding-privacy').click();
+  await visible('legal-aydinlatma');
+  await screenshot('onboarding-aydinlatma');
+  await page.goBack();
+  await visible('onboarding-start');
+
   const birthYear = new Date().getFullYear() - 20;
-  await byId(`birth-year-${birthYear}`).click();
-  await byId('exam-type-YKS').click();
-  await visible('yks-area-sayisal');
-  await byId('yks-area-sayisal').click();
-  await byId('onboarding-start').click();
+  const onboard = async () => {
+    await byId(`birth-year-${birthYear}`).click();
+    await byId('exam-type-YKS').click();
+    await visible('yks-area-sayisal');
+    await byId('yks-area-sayisal').click();
+    await byId('onboarding-start').click();
+  };
+  await onboard();
+
+  // First-use tips: shown once, three steps.
+  log('step: first-use tips');
+  await visible('tips-card');
+  await delay(500); // let the fade-in finish before the screenshot
+  await screenshot('tips-1');
+  await byId('tips-next').click();
+  await byId('tips-next').click();
+  await screenshot('tips-3');
+  await byId('tips-done').click();
+  await byId('tips-card').waitFor({ state: 'detached', timeout: STEP_TIMEOUT_MS });
 
   // 2. Timer: start, runs, pause, resume, finish.
   log('step: timer');
   await visible('timer-start');
   check(await byId('tab-groups').isVisible(), 'a 15+ profile must see the groups tab');
+  // Sayısal: no literature and no foreign language among the subjects.
+  check((await byId('subject-edebiyat').count()) === 0, 'Sayısal must not offer Türk Dili ve Edebiyatı');
+  check((await byId('subject-yabanci_dil').count()) === 0, 'Sayısal must not offer Yabancı Dil');
   await screenshot('timer-idle');
   await byId('subject-fizik').click();
   await byId('timer-start').click();
@@ -214,12 +241,34 @@ async function runScenario(page, baseUrl) {
   await visible('timer-start', FIRST_SCREEN_TIMEOUT_MS);
   check(!(await byId('onboarding-start').isVisible()), 'onboarding shown again after reload');
 
+  // 3b. Share card: daily and weekly, light and dark, exported as a 1080x1920 PNG (download on web).
+  log('step: share card');
+  await byId('open-share').click();
+  await visible('share-card-preview');
+  await screenshot('share-day-light');
+  await byId('share-period-week').click();
+  await byId('share-theme-dark').click();
+  await screenshot('share-week-dark');
+  const [cardDownload] = await Promise.all([
+    page.waitForEvent('download', { timeout: STEP_TIMEOUT_MS }),
+    byId('share-card-share').click(),
+  ]);
+  const cardPath = path.join(OUT_DIR, 'shared-card.png');
+  await cardDownload.saveAs(cardPath);
+  const png = readFileSync(cardPath);
+  check(png.readUInt32BE(16) === 1080 && png.readUInt32BE(20) === 1920, 'card image must be 1080x1920');
+  await page.goBack();
+  await visible('timer-start');
+
   // 4. Mock exam: TYT, Türkçe 10 doğru 4 yanlış (= 9 net), Matematik 20 doğru 8 yanlış (= 18 net).
   log('step: mock exam');
   await byId('tab-exams').click();
   await visible('exams-add');
   await byId('exams-add').click();
   await visible('exam-correct-turkce');
+  // Sayısal: TYT and AYT Sayısal only.
+  check(await byId('exam-kind-AYT_SAY').isVisible(), 'AYT Sayısal must be offered');
+  check((await byId('exam-kind-AYT_EA').count()) === 0, 'AYT EA must not be offered to Sayısal');
   await byId('exam-correct-turkce').fill('10');
   await byId('exam-wrong-turkce').fill('4');
   await waitUntil(() => text('exam-net-turkce'), (v) => v === '9', 'Türkçe net 9');
@@ -239,6 +288,56 @@ async function runScenario(page, baseUrl) {
   await visible('exam-item-0-net', FIRST_SCREEN_TIMEOUT_MS);
   check((await text('exam-item-0-net')) === '27 net', 'exam lost after reload');
 
+  // 5b. Settings: change the area (Sayısal → Eşit Ağırlık); the timer subjects follow.
+  log('step: change area');
+  await byId('tab-settings').click();
+  await visible('settings-yks-area-esit_agirlik');
+  await byId('settings-yks-area-esit_agirlik').click();
+  await byId('settings-exam-save').click();
+  await visible('settings-exam-saved');
+  await screenshot('settings-area');
+  await byId('tab-timer').click();
+  await visible('subject-edebiyat');
+
+  // 5c. Backup and CSV (downloads on web; the share sheet on the phone).
+  log('step: backup export and CSV');
+  await byId('tab-settings').click();
+  await byId('settings-open-backup').click();
+  await visible('backup-export');
+  await screenshot('backup');
+  const [backupDownload] = await Promise.all([
+    page.waitForEvent('download', { timeout: STEP_TIMEOUT_MS }),
+    byId('backup-export').click(),
+  ]);
+  const backupPath = path.join(OUT_DIR, backupDownload.suggestedFilename());
+  await backupDownload.saveAs(backupPath);
+  const backup = JSON.parse(readFileSync(backupPath, 'utf8'));
+  check(backup.format === 'etut-yedek' && backup.schemaVersion === 1, 'backup file has the wrong format');
+  check(backup.sessions.length === 1 && backup.exams.length === 1, 'backup must hold the session and the exam');
+  const [csvDownload] = await Promise.all([
+    page.waitForEvent('download', { timeout: STEP_TIMEOUT_MS }),
+    byId('csv-sessions').click(),
+  ]);
+  const csvPath = path.join(OUT_DIR, csvDownload.suggestedFilename());
+  await csvDownload.saveAs(csvPath);
+  const csv = readFileSync(csvPath, 'utf8');
+  check(csv.startsWith('﻿Gün;Başlangıç;') && csv.includes(';Fizik;'), 'sessions CSV is wrong');
+
+  // 5d. About and legal texts, licenses.
+  log('step: about');
+  await page.goBack();
+  await byId('settings-open-about').click();
+  await visible('about-controller');
+  await screenshot('about');
+  await byId('about-doc-gizlilik').click();
+  await visible('legal-gizlilik');
+  await screenshot('legal-gizlilik');
+  await page.goBack();
+  await byId('about-licenses').click();
+  await visible('licenses-screen');
+  await page.goBack();
+  await page.goBack();
+
   // 6. Settings → delete all data → onboarding.
   log('step: delete all data');
   await byId('tab-settings').click();
@@ -249,6 +348,64 @@ async function runScenario(page, baseUrl) {
   await screenshot('after-delete-all');
   await page.reload();
   await visible('onboarding-start', FIRST_SCREEN_TIMEOUT_MS);
+
+  // 7. "New phone": onboard again, empty states, then restore the backup (twice: no duplicates).
+  log('step: empty states and restore');
+  await onboard();
+  await visible('tips-card');
+  await byId('tips-skip').click();
+  await byId('open-history').click();
+  await visible('history-empty');
+  await screenshot('empty-history');
+  await page.goBack();
+  await byId('open-topics').click();
+  await visible('topics-empty');
+  await page.goBack();
+  await byId('open-weekly').click();
+  await visible('weekly-empty');
+  await page.goBack();
+  await byId('tab-exams').click();
+  await visible('exams-empty');
+  await screenshot('empty-exams');
+
+  for (let round = 1; round <= 2; round++) {
+    await byId('tab-settings').click();
+    await byId('settings-open-backup').click();
+    await visible('backup-import');
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser', { timeout: STEP_TIMEOUT_MS }),
+      byId('backup-import').click(),
+    ]);
+    await chooser.setFiles(backupPath);
+    await visible('backup-preview');
+    if (round === 1) await screenshot('backup-preview');
+    await byId('backup-confirm').click();
+    await visible('backup-message');
+    check(
+      (await text('backup-message')) === 'Yüklendi. Şu an 1 çalışma kaydı, 1 deneme ve 0 konu işareti var.',
+      `restore round ${round}: ${await text('backup-message')}`,
+    );
+    await page.goBack();
+  }
+  await byId('tab-exams').click();
+  await visible('exam-item-0-net');
+  check((await text('exam-item-0-net')) === '27 net', 'restored exam should show 27 net');
+  check((await byId('exam-item-1').count()) === 0, 'restoring twice must not duplicate the exam');
+}
+
+/** Dark theme and reduced motion: the main screens render without errors. */
+async function runDarkScenario(page, baseUrl) {
+  const byId = (id) => page.getByTestId(id, { exact: true });
+  await page.goto(baseUrl);
+  await byId('timer-start').waitFor({ state: 'visible', timeout: FIRST_SCREEN_TIMEOUT_MS });
+  await page.screenshot({ path: path.join(OUT_DIR, '90-dark-timer.png') });
+  await byId('open-share').click();
+  await byId('share-card-preview').waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS });
+  await page.screenshot({ path: path.join(OUT_DIR, '91-dark-share.png') });
+  await page.goBack();
+  await byId('tab-settings').click();
+  await byId('settings-open-backup').waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS });
+  await page.screenshot({ path: path.join(OUT_DIR, '92-dark-settings.png'), fullPage: true });
 }
 
 async function main() {
@@ -272,20 +429,25 @@ async function main() {
       viewport: { width: 430, height: 932 },
     });
     const page = await context.newPage();
-    page.on('console', (message) => {
-      if (message.type() === 'error') problems.push(`console.error: ${message.text()}`);
-    });
-    page.on('pageerror', (error) => problems.push(`uncaught: ${error.stack ?? error}`));
-    // No network access besides the dev server itself (v0: data stays on the device).
-    const devHost = new URL(baseUrl).host;
-    const external = new Set();
-    page.on('request', (request) => {
-      const url = new URL(request.url());
-      if (['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol) && url.host !== devHost) external.add(url.origin);
-    });
+    const watch = (p) => {
+      p.on('console', (message) => {
+        if (message.type() === 'error') problems.push(`console.error: ${message.text()}`);
+      });
+      p.on('pageerror', (error) => problems.push(`uncaught: ${error.stack ?? error}`));
+      // The app itself never talks to the network: only the local dev server, data: and blob:.
+      p.on('request', (request) => {
+        const url = new URL(request.url());
+        if (!['data:', 'blob:'].includes(url.protocol) && url.hostname !== 'localhost') {
+          problems.push(`network request outside the dev server: ${request.url()}`);
+        }
+      });
+    };
+    watch(page);
 
     await runScenario(page, baseUrl);
-    if (external.size > 0) problems.push(`requests outside the dev server: ${[...external].join(', ')}`);
+    // Same browser profile (OPFS data stays), now dark and with reduced motion.
+    await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+    await runDarkScenario(page, baseUrl);
     await context.close();
   } catch (error) {
     problems.unshift(`scenario failed: ${error instanceof Error ? error.message : error}`);

@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { formatClock } from '@/domain/clock';
-import { topicName } from '@/domain/curriculum';
+import { topicName, topicOfSubject } from '@/domain/curriculum';
 import { daysUntil, resolveExamDate } from '@/domain/exam-dates';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
+import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
-import { defaultSubject, SUBJECTS_BY_EXAM } from '@/domain/subjects';
+import { defaultSubject, subjectsFor } from '@/domain/subjects';
 import { elapsedMs, isPaused } from '@/domain/timer';
 import { useAppState, useNow, useStored } from '@/state/app-state';
 import { useStudyStats } from '@/state/study-stats';
@@ -22,7 +23,8 @@ import {
 import { tr } from '@/strings';
 import { Button, Card, Chip, ChipRow, Label, ProgressBar, Row, Screen, Tag } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
-import { usePalette } from '@/ui/theme';
+import { MAX_FONT_SCALE, usePalette } from '@/ui/theme';
+import { FirstUseTips } from '@/ui/tips';
 import { TopicPicker } from '@/ui/topic-picker';
 
 /** A phase change seen within this time of the previous render tick happened on screen. */
@@ -37,8 +39,16 @@ export default function TimerScreen() {
 
   const examType = profile?.examType ?? 'DIGER';
   const yksArea = profile?.yksArea ?? null;
-  const [subjectId, setSubjectIdState] = useState(() => defaultSubject(examType, loadLastSubject()));
-  const [topicId, setTopicId] = useState<string | null>(null);
+  const [pickedSubject, setSubjectIdState] = useState(() =>
+    defaultSubject(examType, loadLastSubject(), yksArea),
+  );
+  // The exam or area can change in Settings while this tab stays mounted.
+  const subjects = subjectsFor(examType, yksArea);
+  const subjectId = subjects.includes(pickedSubject)
+    ? pickedSubject
+    : defaultSubject(examType, loadLastSubject(), yksArea);
+  const [pickedTopic, setTopicId] = useState<string | null>(null);
+  const topicId = topicOfSubject(examType, yksArea, subjectId, pickedTopic);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [mode, setModeState] = useState<TimerMode>(loadTimerMode);
   const setSubjectId = (id: string) => {
@@ -62,6 +72,7 @@ export default function TimerScreen() {
   const shownNow = Math.max(now, lastSkipAt);
   const pomodoro = active === null ? null : pomodoroStatus(active, shownNow);
   const onBreak = pomodoro !== null && pomodoro.phase !== 'work';
+  const clockMs = active === null ? 0 : pomodoro !== null ? pomodoro.remainingMs : elapsedMs(active, shownNow);
 
   // A short vibration when a pomodoro phase ends while the student is looking at the app
   // (no notifications). Not after returning from the background (big time jump) and not for a
@@ -100,6 +111,7 @@ export default function TimerScreen() {
 
   return (
     <Screen testID="timer-screen">
+      <FirstUseTips />
       <Card>
         {examDate !== null && daysLeft !== null && daysLeft >= 0 ? (
           <Row>
@@ -120,7 +132,12 @@ export default function TimerScreen() {
             ) : null}
           </View>
           <View>
-            <Button kind="secondary" title={tr.timer.history} onPress={() => router.push('/gecmis')} />
+            <Button
+              testID="open-history"
+              kind="secondary"
+              title={tr.timer.history}
+              onPress={() => router.push('/gecmis')}
+            />
           </View>
         </Row>
         {goal !== null && streak !== null ? (
@@ -167,7 +184,7 @@ export default function TimerScreen() {
           <Card>
             <Label variant="heading">{tr.timer.pickSubject}</Label>
             <ChipRow>
-              {SUBJECTS_BY_EXAM[examType].map((id) => (
+              {subjects.map((id) => (
                 <Chip
                   key={id}
                   testID={`subject-${id}`}
@@ -253,10 +270,11 @@ export default function TimerScreen() {
           <Text
             testID="timer-clock"
             accessibilityRole="timer"
+            maxFontSizeMultiplier={MAX_FONT_SCALE.clock}
             style={[styles.clock, { color: running && !onBreak ? c.text : c.textMuted }]}
             numberOfLines={1}
             adjustsFontSizeToFit>
-            {formatClock(pomodoro !== null ? pomodoro.remainingMs : elapsedMs(active, shownNow))}
+            {formatClock(clockMs)}
           </Text>
           <Label variant="muted" testID="timer-status" style={{ textAlign: 'center' }}>
             {pomodoro !== null
@@ -307,12 +325,22 @@ export default function TimerScreen() {
           label={tr.compare.lastWeek}
           value={comparison.lastWeekSameTime}
         />
-        <Button
-          testID="open-weekly"
-          kind="secondary"
-          title={tr.compare.weekly}
-          onPress={() => router.push('/haftalik')}
-        />
+        <Row>
+          <Button
+            testID="open-weekly"
+            kind="secondary"
+            title={tr.compare.weekly}
+            onPress={() => router.push('/haftalik')}
+          />
+          {canShareCard(profile) ? (
+            <Button
+              testID="open-share"
+              kind="secondary"
+              title={tr.share.open}
+              onPress={() => router.push('/paylas')}
+            />
+          ) : null}
+        </Row>
       </Card>
     </Screen>
   );

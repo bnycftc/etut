@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { topicName } from '@/domain/curriculum';
+import { topicName, topicOfSubject } from '@/domain/curriculum';
 import { addDays, istanbulDayKey, istanbulTimeOfDay } from '@/domain/istanbul-day';
 import {
   buildManualSession,
@@ -12,7 +12,7 @@ import {
   type TimeSpan,
   validateManualEntry,
 } from '@/domain/manual-entry';
-import { defaultSubject, SUBJECTS_BY_EXAM } from '@/domain/subjects';
+import { defaultSubject, subjectsFor } from '@/domain/subjects';
 import { useAppState, useStored } from '@/state/app-state';
 import { newId } from '@/storage/db';
 import { loadLastSubject } from '@/storage/kv';
@@ -39,8 +39,11 @@ export default function ManualEntryScreen() {
   const yksArea = profile?.yksArea ?? null;
   const today = istanbulDayKey(Date.now());
 
-  const [subjectId, setSubjectId] = useState(() => defaultSubject(examType, loadLastSubject()));
-  const [topicId, setTopicId] = useState<string | null>(null);
+  const subjects = subjectsFor(examType, yksArea);
+  const [pickedSubject, setSubjectId] = useState(() => defaultSubject(examType, loadLastSubject(), yksArea));
+  const subjectId = subjects.includes(pickedSubject) ? pickedSubject : (subjects[0] ?? pickedSubject);
+  const [pickedTopic, setTopicId] = useState<string | null>(null);
+  const topicId = topicOfSubject(examType, yksArea, subjectId, pickedTopic);
   const [day, setDay] = useState(today);
   const [startH, setStartH] = useState('');
   const [startM, setStartM] = useState('');
@@ -85,7 +88,7 @@ export default function ManualEntryScreen() {
       <Card>
         <Label variant="heading">{tr.manual.subject}</Label>
         <ChipRow>
-          {SUBJECTS_BY_EXAM[examType].map((id) => (
+          {subjects.map((id) => (
             <Chip
               key={id}
               testID={`manual-subject-${id}`}

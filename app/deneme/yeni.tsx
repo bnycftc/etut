@@ -6,7 +6,7 @@ import { addDays, istanbulDayKey } from '@/domain/istanbul-day';
 import {
   EXAM_SECTIONS,
   type ExamKind,
-  examKindsInOrder,
+  examKindsForArea,
   type ExamScope,
   formatNet,
   net,
@@ -52,7 +52,8 @@ export default function NewExamScreen() {
   }));
   const errors = scores.map(validateScore);
   const hasErrors = errors.some((e) => e !== null);
-  const kinds = examKindsInOrder(profile?.yksArea ?? null);
+  // TYT and the AYT/YDT paper of the student's YKS area only.
+  const kinds = examKindsForArea(profile?.yksArea ?? null);
 
   const chooseKind = (k: ExamKind) => {
     setKind(k);
@@ -108,8 +109,18 @@ export default function NewExamScreen() {
 
         <Label variant="heading">{tr.exams.scope}</Label>
         <ChipRow>
-          <Chip title={tr.exams.scopeGenel} selected={scope === 'genel'} onPress={() => setScope('genel')} />
-          <Chip title={tr.exams.scopeBrans} selected={scope === 'brans'} onPress={() => setScope('brans')} />
+          <Chip
+            testID="exam-scope-genel"
+            title={tr.exams.scopeGenel}
+            selected={scope === 'genel'}
+            onPress={() => setScope('genel')}
+          />
+          <Chip
+            testID="exam-scope-brans"
+            title={tr.exams.scopeBrans}
+            selected={scope === 'brans'}
+            onPress={() => setScope('brans')}
+          />
         </ChipRow>
 
         {scope === 'brans' ? (
@@ -119,6 +130,7 @@ export default function NewExamScreen() {
               {EXAM_SECTIONS[kind].map((s) => (
                 <Chip
                   key={s.id}
+                  testID={`exam-brans-${s.id}`}
                   title={tr.subject(s.id)}
                   selected={s.id === bransId}
                   onPress={() => setBransId(s.id)}
@@ -130,8 +142,14 @@ export default function NewExamScreen() {
 
         <Label variant="heading">{tr.exams.date}</Label>
         <Row>
-          <Button kind="secondary" title={tr.exams.prevDay} onPress={() => setDay(addDays(day, -1))} />
           <Button
+            testID="exam-prev-day"
+            kind="secondary"
+            title={tr.exams.prevDay}
+            onPress={() => setDay(addDays(day, -1))}
+          />
+          <Button
+            testID="exam-next-day"
             kind="secondary"
             title={tr.exams.nextDay}
             disabled={day >= today}
@@ -155,12 +173,14 @@ export default function NewExamScreen() {
                 <CountInput
                   testID={`exam-correct-${s.id}`}
                   label={tr.exams.correct}
+                  a11yLabel={tr.exams.countLabel(tr.subject(s.id), tr.exams.correct)}
                   value={entries[s.id]?.correct ?? ''}
                   onChange={(v) => setEntry(s.id, 'correct', v)}
                 />
                 <CountInput
                   testID={`exam-wrong-${s.id}`}
                   label={tr.exams.wrong}
+                  a11yLabel={tr.exams.countLabel(tr.subject(s.id), tr.exams.wrong)}
                   value={entries[s.id]?.wrong ?? ''}
                   onChange={(v) => setEntry(s.id, 'wrong', v)}
                 />
@@ -199,11 +219,13 @@ export default function NewExamScreen() {
 
 function CountInput({
   label,
+  a11yLabel,
   value,
   onChange,
   testID,
 }: {
   label: string;
+  a11yLabel: string;
   value: string;
   onChange: (value: string) => void;
   testID?: string;
@@ -214,7 +236,7 @@ function CountInput({
       <Label variant="small">{label}</Label>
       <TextInput
         testID={testID}
-        accessibilityLabel={label}
+        accessibilityLabel={a11yLabel}
         value={value}
         onChangeText={onChange}
         keyboardType="number-pad"
@@ -222,7 +244,7 @@ function CountInput({
         maxLength={3}
         placeholder="0"
         placeholderTextColor={c.textMuted}
-        style={[styles.input, { color: c.text, borderColor: c.border, backgroundColor: c.background }]}
+        style={[styles.input, { color: c.text, borderColor: c.controlBorder, backgroundColor: c.background }]}
       />
     </View>
   );

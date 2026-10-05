@@ -30,6 +30,8 @@ npm ci
 | `npm run test:db` | Arka uç SQL testleri (pgTAP, `npx supabase test db`; Docker + `npx supabase start` gerekir) |
 | `npm run test:db:pglite` | Aynı pgTAP testleri Docker olmadan, PGlite (WebAssembly Postgres) üzerinde |
 | `npm run test:backend` | supabase-js ile yerel yığına karşı uçtan uca test; Docker/yığın yoksa **ATLANDI** yazar |
+| `npm run gen:icons` | Simge, açılış ekranı işaretleri ve favicon'u SVG'den üretir (`assets/`; `-- --preview` 60/120/180 px önizlemeleri `test-results/icons/`'a yazar) |
+| `npm run gen:licenses` | Uygulama paketine giren açık kaynak paketlerin listesini üretir (`src/legal/licenses.ts`; bağımlılık değişince yeniden çalıştırın) |
 | `npx expo install <paket>` | SDK ile uyumlu sürümle paket ekler (npm install yerine bunu kullanın) |
 
 **Windows notu:** iOS projesi (`ios/`) Windows'ta üretilemez ve derlenemez
@@ -62,7 +64,7 @@ app/                    Ekranlar (expo-router)
   (tabs)/gruplar.tsx    Bayrak kapalı: "Yakında"; açık: grup ana ekranı (yalnız 15+ profillerde görünür)
   grup/[id].tsx         Grup: şu an çalışanlar, sıralama, hazır tepkiler, bildir/engelle, kurucu araçları
   veli.tsx              Veli modu (velinin kendi cihazında, yetişkin profille)
-  (tabs)/ayarlar.tsx    Günlük hedef, pomodoro, sınav tarihi, tüm verileri sil, sürüm
+  (tabs)/ayarlar.tsx    Sınav/alan değiştirme, günlük hedef, pomodoro, sınav tarihi, yedek, tüm verileri sil, hakkında
   gecmis.tsx            Günlük toplamlar, ders dağılımı, son 7 gün ("elle" kısmı)
   haftalik.tsx          Haftalık özet (toplam, ders dağılımı, en uzun oturum, seri)
   konular.tsx           Konu takibi: konu bazlı süre, "bitti / tekrar lazım", ilerleme
@@ -70,17 +72,25 @@ app/                    Ekranlar (expo-router)
   deneme/yeni.tsx       Deneme girişi
   deneme/[id].tsx       Deneme ayrıntısı / silme / işaretlenen konular
   analiz/[id].tsx       Deneme analizi: yanlış/boş soruların konuları (2. aşama)
+  paylas.tsx            Paylaşılabilir 9:16 günlük/haftalık çalışma kartı (açık/koyu)
+  yedek.tsx             Yedekle / geri yükle (JSON), CSV dışa aktarma
+  hakkinda.tsx          Sürüm, yasal metinler, veri sorumlusu, lisanslar
+  yasal/[doc].tsx       Kısa aydınlatma, gizlilik politikası, kullanım şartları (onboarding'den de açılır)
+  lisanslar.tsx         Açık kaynak lisansları: npm paketleri + yerel kütüphaneler, satıra dokununca metin
 src/domain/             Saf TypeScript iş kuralları + Jest testleri
-src/storage/            expo-sqlite veritabanı ve kv-store
+src/storage/            expo-sqlite veritabanı ve kv-store; file-io(.web).ts paylaşım/dosya seçici
 src/state/              Uygulama durumu (domain ile depolama arasındaki ince katman)
-src/ui/                 Tema, ortak bileşenler, biçimlendirme
-src/strings.ts          Kullanıcıya görünen tüm metinler
+src/ui/                 Tema (WCAG AA testli), ortak bileşenler, kart, ipucu, azaltılmış hareket
+src/legal/licenses.ts   Üretilen lisans listesi ve metinleri (npm run gen:licenses)
+src/strings.ts          Kullanıcıya görünen tüm metinler (yasal metinler ve DATA_CONTROLLER dahil)
 src/config/features.ts  Özellik bayrakları (GROUPS_ENABLED=false)
 src/sync/               Grup sunucusu: tipli RPC API'si, çıkış kuyruğu, nabız (bayrak kapalıyken hiç çalışmaz)
 supabase/               Arka uç: migrations/ (SQL, RLS, RPC), tests/ (pgTAP), tests-ts/ (supabase-js), config.toml
 infra/                  Üretim sunucusu runbook'u ve betikleri (İlkbyte VPS, yalnız dosya)
 index.ts / index.web.ts Giriş noktası (web: SQLite worker'ını ısıtıp expo-router'ı başlatır)
 scripts/test-web.mjs    Web duman testi (npm run test:web)
+scripts/gen-icons.mjs   Simge ve açılış ekranı (SVG -> PNG, simge alfa kanalsız)
+scripts/gen-licenses.mjs Lisans listesi üretici; scripts/native-licenses/ yerel kütüphane metinleri, scripts/package-licenses/ LICENSE dosyasız yayımlanan npm paketlerinin depo metni (upstream, birebir; eksik metin betiği hatayla bitirir)
 e2e/                    Maestro akışları (iOS simülatörü, e2e-ios.yml)
 ci/ExportOptions.plist  TestFlight ihracat ayarları
 .github/workflows/      ci.yml, testflight.yml, e2e-ios.yml
@@ -108,11 +118,20 @@ Akışlar (`e2e/`, yalnız `testID` seçicileri; ortak adımlar `e2e/subflows/`)
 `a-ilk-acilis` (15+ YKS Sayısal → sayaç), `b-sayac` (başla/mola/devam/bitir, bugünkü toplam > 0),
 `c-arka-plan` (15 sn ana ekran → "Çalışıyordum, süreye ekle"), `d-kapat-ac` (öldür-aç: sayaç sürer;
 20 sn kapalı: uzakta kuralı), `e-deneme` (TYT: 10D 4Y = 9 net, toplam 11,5), `f-kucuk-yas`
-(15 altı: Gruplar sekmesi yok), `g-tum-verileri-sil` (Ayarlar → sil → ilk açılış).
+(15 altı: Gruplar sekmesi yok), `g-tum-verileri-sil` (Ayarlar → sil → ilk açılış),
+`h-alan-degistir` (Sayısal → EA: ders ve deneme türleri değişir), `i-yedek` (yedek dosyası →
+paylaşım sayfası), `j-kart-paylas` (çalışma kartı, paylaşım sayfası), `k-hakkinda-bos-durum`
+(aydınlatma ilk açılıştan, boş durumlar, hakkında, gizlilik). İlk açılıştan sonraki tek seferlik
+ipucu `subflows/ipucu-gec.yaml` ile kapatılır.
 Yeni ekran öğesine test gerekiyorsa metni değil `testID`'yi hedefleyin; mevcut `testID`'leri
 değiştirmeyin (akışlar ve `scripts/test-web.mjs` bunlara bağlı).
 
 ### `testflight.yml` (elle `workflow_dispatch` veya `v*` etiketi)
+Yasal yer tutucu kapısı: `src/strings.ts` içinde `[DOLDURULACAK]` kaldıysa derleme yüklenmez.
+Tek istisna, elle başlatılan ve `internal_only` işaretli çalıştırmadır
+(`gh workflow run testflight.yml -R bnycftc/etut --ref <dal> -f internal_only=true`); böyle bir
+derleme **yalnız iç TestFlight** içindir, dış test grubuna ya da App Review'a gönderilmez
+(çalıştırma özetinde derleme numarası yazar). İncelemeye yalnız yer tutucusuz derleme gider.
 macOS 26 koşucusu:
 1. Xcode sürümünü yazdırır (SDK 57 için 26.4 altıysa uyarı verir).
 2. Node kurulur, `npm ci`.
@@ -202,3 +221,24 @@ tarihi sorulmaz. Ayarlar → "Tüm verileri sil" veritabanını ve anahtar-değe
 İstisna (hukuk/03 K-17): yalnız 15 yaş altı beyanında, beyan edilen doğum yılı 15 yaşına
 gelene kadar ayrı bir dosyada (`EtutAgeGuard`, `src/storage/age-guard.ts`) kalır; silme sonrası
 15+ beyanına geçişi engellemek için. Süresi dolunca açılışta, uygulama kaldırılınca da silinir.
+
+Veri cihazdan yalnız öğrenci dokunduğunda, sistemin paylaşım sayfasıyla çıkar; uygulama hiçbir
+ağ isteği atmaz (`test:web` bunu denetler):
+- **Yedek** (`Ayarlar → Yedekle ve geri yükle`): `etut-yedek-<gün>.json`, biçim `src/domain/backup.ts`
+  (`format: "etut-yedek"`, `schemaVersion: 1`; oturumlar, denemeler + analizler, konu işaretleri,
+  ayarlar, profil). İçe aktarma: tam şema doğrulaması (tek hatalı kayıt → hiçbir şey yazılmaz),
+  daha yeni sürüm reddedilir, "Birleştir" (bu cihaz kazanır, eksikler eklenir) ya da "Değiştir";
+  kimliklere göre idempotent; uygulamanın yazdığı her kayıt geri okunur (ör. bir hafta açık
+  kalmış oturum); süre sınırı yok, zaman sınırı var (2016 sonrası başlangıç, dosya tarihinden en
+  fazla 1 gün sonra bitiş). "Birleştir"de burada boş olan ayarlar (kaldırılmış hedef dahil) yedekten dolar.
+  K-17: yaş yedekle yükseltilemez; yedekteki yaş daha küçükse küçük olan esas alınır (seçicinin
+  sunmadığı bir yıl, ör. 2200, yok sayılır), 15 altı bayrağı içe aktarmayla kapanmaz. Dosya
+  şifrelenmez (metinde yazıyor).
+- **CSV** (KVKK taşınabilirlik): oturumlar ve denemeler; `;` ayraçlı, UTF-8 BOM, ondalık virgül,
+  formül enjeksiyonuna karşı korumalı (`src/domain/csv.ts`).
+- **Çalışma kartı**: 1080×1920 PNG; yalnız süre, ders dağılımı, seri ve hedef (ad, yaş, okul,
+  sınav türü yok).
+
+Yasal metinler (`src/strings.ts` → `legalDocs`) şu anki sunucusuz davranışa göre yazıldı. Veri
+sorumlusu adı ve iletişim bilgisi `DATA_CONTROLLER` sabitinde **`[DOLDURULACAK]`**; yayından önce
+doldurulmalı.

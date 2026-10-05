@@ -6,7 +6,16 @@ import { tr } from '@/strings';
 import { usePalette } from '@/ui/theme';
 
 function Glyph({ symbol, color }: { symbol: string; color: ColorValue }) {
-  return <Text style={{ color, fontSize: 20, lineHeight: 24 }}>{symbol}</Text>;
+  // Decorative: the tab button is announced by its title.
+  return (
+    <Text
+      accessible={false}
+      importantForAccessibility="no"
+      maxFontSizeMultiplier={1.3}
+      style={{ color, fontSize: 20, lineHeight: 24 }}>
+      {symbol}
+    </Text>
+  );
 }
 
 export default function TabsLayout() {

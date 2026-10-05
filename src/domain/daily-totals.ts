@@ -1,6 +1,6 @@
 /** Per-day study totals, split at Istanbul midnight. */
 
-import { type DayKey, splitByIstanbulDay } from './istanbul-day';
+import { DAY_MS, type DayKey, dayStartMs, splitByIstanbulDay } from './istanbul-day';
 import {
   type ActiveSession,
   effectivePauses,
@@ -75,15 +75,25 @@ export interface DayTotal {
 
 /**
  * Totals for each day in `days` (keeps the given order; days without study are 0).
- * A session that crosses midnight counts towards both days.
+ * A session that crosses midnight counts towards both days. Each interval is first cut to the
+ * asked days, so a session spanning years (a wrong device clock) costs no more than a short one.
  */
 export function dailyTotals(sessions: SessionSpan[], days: DayKey[]): DayTotal[] {
   const byDay = new Map<DayKey, DayTotal>();
-  for (const day of days) byDay.set(day, { day, totalMs: 0, bySubject: {} });
+  let from = Infinity;
+  let to = -Infinity;
+  for (const day of days) {
+    byDay.set(day, { day, totalMs: 0, bySubject: {} });
+    from = Math.min(from, dayStartMs(day));
+    to = Math.max(to, dayStartMs(day) + DAY_MS);
+  }
 
   for (const s of sessions) {
     for (const interval of workIntervals(s.startedAt, s.pauses, s.endedAt)) {
-      for (const part of splitByIstanbulDay(interval)) {
+      const start = Math.max(interval.start, from);
+      const end = Math.min(interval.end, to);
+      if (end <= start) continue;
+      for (const part of splitByIstanbulDay({ start, end })) {
         const total = byDay.get(part.day);
         if (!total) continue;
         total.totalMs += part.ms;

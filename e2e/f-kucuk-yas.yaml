@@ -19,10 +19,8 @@ tags:
     end: 50%, 40%
 - tapOn:
     id: onboarding-start
-- extendedWaitUntil:
-    visible:
-      id: timer-start
-    timeout: 15000
+- runFlow:
+    file: subflows/ipucu-gec.yaml
 - assertVisible:
     id: tab-timer
 - assertVisible:
@@ -34,6 +32,17 @@ tags:
 - assertNotVisible:
     text: "Gruplar"
 - takeScreenshot: f-kucuk-yas-01-sekmeler
+# ADR-001: no study card under 15 (the weekly button next to it is still there).
+- scrollUntilVisible:
+    element:
+      id: open-weekly
+    direction: DOWN
+    timeout: 20000
+- assertNotVisible:
+    id: open-share
+- swipe:
+    start: 50%, 30%
+    end: 50%, 85%
 # Still absent after a cold start.
 - stopApp
 - launchApp:

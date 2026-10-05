@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -99,6 +100,13 @@ export default function OnboardingScreen() {
           onPress={() => {
             if (profile !== null) setBlocked(saveProfile(profile) === 'age_blocked');
           }}
+        />
+        {/* Aydınlatma before anything is saved; below the start button so the layout above stays. */}
+        <Button
+          testID="onboarding-privacy"
+          kind="secondary"
+          title={tr.onboarding.privacyLink}
+          onPress={() => router.push({ pathname: '/yasal/[doc]', params: { doc: 'aydinlatma' } })}
         />
       </ScrollView>
     </SafeAreaView>

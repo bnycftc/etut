@@ -28,10 +28,24 @@ tags:
 - takeScreenshot: a-ilk-acilis-02-secimler
 - tapOn:
     id: onboarding-start
+# One-time tips: three steps, then the timer.
+- extendedWaitUntil:
+    visible:
+      id: tips-card
+    timeout: 15000
+- takeScreenshot: a-ilk-acilis-03a-ipucu
+- tapOn:
+    id: tips-next
+- tapOn:
+    id: tips-next
+- tapOn:
+    id: tips-done
 - extendedWaitUntil:
     visible:
       id: timer-start
     timeout: 15000
+- assertNotVisible:
+    id: tips-card
 - assertVisible:
     id: today-total
 - assertVisible:

@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { topicGroupsForSubject } from '@/domain/curriculum';
-import { SUBJECTS_BY_EXAM } from '@/domain/subjects';
+import { subjectsFor } from '@/domain/subjects';
 import { toggleStatus, topicProgress, type TopicStatus } from '@/domain/topics';
 import { useAppState, useStored } from '@/state/app-state';
 import { loadLastSubject } from '@/storage/kv';
 import { topicTotals } from '@/storage/sessions';
 import { loadTopicStatuses, setTopicStatus } from '@/storage/topics';
 import { tr } from '@/strings';
-import { Card, Chip, ChipRow, Label, ProgressBar, Row, Screen } from '@/ui/components';
+import { Card, Chip, ChipRow, EmptyState, Label, ProgressBar, Row, Screen } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
 
 /** Topic tracking: time per topic, "bitti / tekrar lazım" and progress per subject. */
@@ -17,13 +17,16 @@ export default function TopicsScreen() {
   const { profile, dataVersion, notifyDataChanged } = useAppState();
   const examType = profile?.examType ?? 'DIGER';
   const yksArea = profile?.yksArea ?? null;
-  const subjects = SUBJECTS_BY_EXAM[examType].filter(
+  const subjects = subjectsFor(examType, yksArea).filter(
     (id) => topicGroupsForSubject(examType, yksArea, id).length > 0,
   );
-  const [subjectId, setSubjectId] = useState<string | null>(() => {
+  const [pickedSubject, setSubjectId] = useState<string | null>(() => {
     const last = loadLastSubject();
     return last !== null && subjects.includes(last) ? last : (subjects[0] ?? null);
   });
+  // The exam or area may have changed in Settings since the pick.
+  const subjectId =
+    pickedSubject !== null && subjects.includes(pickedSubject) ? pickedSubject : (subjects[0] ?? null);
 
   const data = useStored(String(dataVersion), () => ({
     statuses: loadTopicStatuses(),
@@ -33,10 +36,11 @@ export default function TopicsScreen() {
   if (subjectId === null) {
     return (
       <Screen>
-        <Label variant="muted">{tr.topics.unsupported}</Label>
+        <EmptyState testID="topics-unsupported" body={tr.topics.unsupported} />
       </Screen>
     );
   }
+  const firstUse = Object.keys(data.statuses).length === 0 && Object.keys(data.totals).length === 0;
 
   const groups = topicGroupsForSubject(examType, yksArea, subjectId);
   const all = groups.flatMap((g) => g.topics);
@@ -48,7 +52,8 @@ export default function TopicsScreen() {
   };
 
   return (
-    <Screen>
+    <Screen testID="topics-screen">
+      {firstUse ? <EmptyState testID="topics-empty" body={tr.empty.topicsBody} /> : null}
       <Card>
         <Label variant="heading">{tr.topics.pickSubject}</Label>
         <ChipRow>

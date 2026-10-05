@@ -119,3 +119,22 @@ export function examKindsInOrder(area: YksArea | null): ExamKind[] {
     ...EXAM_KINDS.filter((k) => k !== 'TYT' && k !== preferred),
   ];
 }
+
+/**
+ * Papers a student can enter a mock exam for: TYT and the AYT/YDT paper of the YKS area
+ * (ÖSYM puan türleri: SAY, EA, SÖZ use one AYT paper each, DİL uses YDT). Without an area
+ * (not a YKS profile) every paper stays available.
+ */
+export function examKindsForArea(area: YksArea | null): ExamKind[] {
+  return area === null ? examKindsInOrder(null) : ['TYT', aytKindForArea(area)];
+}
+
+/**
+ * Papers shown in charts and analysis: the area's papers, plus any other paper the student
+ * already has exams of (e.g. after changing the area), so stored data never disappears.
+ */
+export function examKindsToShow(area: YksArea | null, kindsInUse: Iterable<ExamKind>): ExamKind[] {
+  const own = examKindsForArea(area);
+  const used = new Set(kindsInUse);
+  return [...own, ...examKindsInOrder(area).filter((k) => !own.includes(k) && used.has(k))];
+}

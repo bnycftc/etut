@@ -6,9 +6,21 @@
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
+import {
+  type BackupCounts,
+  backupCounts,
+  type BackupFile,
+  buildBackupFile,
+  type ImportMode,
+  importedProfile,
+  mergeBackup,
+} from '../domain/backup';
 import { istanbulYear } from '../domain/istanbul-day';
+import type { YksArea } from '../domain/net';
 import {
   canDeclareBirthYear,
+  changeExam,
+  type ExamType,
   guardRecordAfter,
   type Profile,
   refreshSoloFlag,
@@ -31,6 +43,7 @@ import {
   startSession,
 } from '../domain/timer';
 import { loadYoungestDeclaredBirthYear, storeYoungestDeclaredBirthYear } from '../storage/age-guard';
+import { readBackupData, writeBackupData } from '../storage/backup';
 import { newId } from '../storage/db';
 import {
   loadActiveSession,
@@ -49,6 +62,8 @@ interface AppStateValue {
   profile: Profile | null;
   /** Refuses a declaration that would raise the age above the K-17 record. */
   saveProfile: (profile: Profile) => SaveProfileResult;
+  /** Changes only the exam and YKS area (never the declared birth year). `false` = incomplete. */
+  updateExam: (examType: ExamType, yksArea: YksArea | null) => boolean;
   active: ActiveSession | null;
   start: (subjectId: string, options?: StartOptions) => void;
   pause: () => void;
@@ -61,6 +76,10 @@ interface AppStateValue {
   dataVersion: number;
   notifyDataChanged: () => void;
   resetAll: () => void;
+  /** Everything on this device as a backup file (nothing is written or sent). */
+  createBackup: (appVersion: string) => BackupFile;
+  /** Writes the merged/replaced data and applies the K-17 profile rule. */
+  importBackup: (file: BackupFile, mode: ImportMode) => BackupCounts;
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null);
@@ -171,6 +190,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setProfile(p);
       return 'ok';
     },
+    updateExam: (examType, yksArea) => {
+      const next = profile === null ? null : changeExam(profile, examType, yksArea);
+      if (next === null) return false;
+      storeProfile(next);
+      setProfile(next);
+      notifyDataChanged();
+      return true;
+    },
     active,
     start: (subjectId, options) => {
       if (activeRef.current !== null) return;
@@ -205,6 +232,21 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setActiveState(null);
       setProfile(null);
       notifyDataChanged();
+    },
+    createBackup: (appVersion) => buildBackupFile(readBackupData(), profile, Date.now(), appVersion),
+    importBackup: (file, mode) => {
+      const merged = mergeBackup(readBackupData(), file, mode);
+      writeBackupData(merged);
+      if (profile !== null) {
+        // K-17: the declared age can only stay or get younger; the record follows it.
+        const year = istanbulYear(Date.now());
+        const next = importedProfile(profile, file.profile, mode, year);
+        recordDeclaration(next.birthYear, year);
+        storeProfile(next);
+        setProfile(next);
+      }
+      notifyDataChanged();
+      return backupCounts(merged);
     },
   };
 

@@ -20,10 +20,20 @@ expo-router. Kurulum, komutlar ve yayın hattı: `README.md`.
   - `daily-totals.ts`: günlük/ders toplamları, gece yarısını aşan oturumu böler.
   - `net.ts`: net = doğru − yanlış/4; TYT/AYT/YDT bölüm ve soru sayıları.
   - `profile.ts`: yaş kuralı (yalnız doğum yılı; belirsizlikte düşük yaş → 15 altı "solo").
+    `changeExam`: Ayarlar'dan yalnız sınav/alan değişir, doğum yılı asla (K-17).
+  - `subjects.ts` / `net.ts`: ders listesi ve deneme türleri YKS alanına göre (`subjectsFor`,
+    `examKindsForArea`; ÖSYM puan türleri). Sayaç, elle ekleme, konular ve denemeler bunları kullanır.
+  - `backup.ts`: sürümlü yedek biçimi, doğrulama (hep ya da hiç), birleştir/değiştir, idempotentlik,
+    K-17 (`importedProfile`: yaş yedekten yükselmez). `csv.ts`: CSV ve formül kaçışı.
+    `share-card.ts`: paylaşım kartı (yalnız çalışma sayıları). `contrast.ts`: WCAG oranı.
 - `src/domain/groups.ts`, `outbox.ts`: yaş bandı (sunucuya doğum yılı gitmez), ad ön denetimi,
   çıkış kuyruğu kuralları (sabit uuid, geri çekilme).
 - `src/storage/` — `db.ts` (expo-sqlite, `PRAGMA user_version` göçleri; yeni göçü listenin
-  sonuna ekle, eskisini değiştirme), `kv.ts` (expo-sqlite/kv-store, senkron: profil ve aktif oturum).
+  sonuna ekle, eskisini değiştirme), `kv.ts` (expo-sqlite/kv-store, senkron: profil ve aktif oturum),
+  `backup.ts` (tüm veriyi okur / tek işlemde yazar), `file-io.ts` (expo-file-system + expo-sharing +
+  expo-document-picker; web önizlemede `file-io.web.ts` indirme yapar).
+- `src/ui/theme.ts` renkleri `src/domain/__tests__/contrast.test.ts` ile WCAG AA'ya karşı denetlenir;
+  renk değiştirince test geçmeli.
 - `src/state/app-state.tsx` — domain ile depolama arasında ince yapıştırıcı; iş kuralı yazma.
 - `app/` — ekranlar. Profil yoksa yalnız `onboarding` erişilebilir (`Stack.Protected`).
 - `src/strings.ts` — kullanıcıya görünen **tüm** metinler burada; ekranlara metin gömme.

@@ -70,6 +70,20 @@ export function topicsForSubject(
   return topicGroupsForSubject(examType, yksArea, subjectId).flatMap((g) => g.topics);
 }
 
+/**
+ * `topicId` if it is one of the subject's topics for this exam and area, otherwise `null`. A
+ * picked topic can go stale when the subject falls back after an exam or area change.
+ */
+export function topicOfSubject(
+  examType: ExamType,
+  yksArea: YksArea | null,
+  subjectId: string,
+  topicId: string | null,
+): string | null {
+  if (topicId === null) return null;
+  return topicsForSubject(examType, yksArea, subjectId).some((t) => t.id === topicId) ? topicId : null;
+}
+
 /** Topics a wrong/blank question of a mock-exam section can be tagged with. */
 export function topicsForSection(kind: ExamKind, sectionId: string): Topic[] {
   const source = kind === 'TYT' ? TYT_TOPICS : AYT_TOPICS;
