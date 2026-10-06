@@ -253,6 +253,9 @@ jobs:
         env:
           # Passed by simctl to the app Maestro launches (in addition to the host time zone above).
           SIMCTL_CHILD_TZ: ${{ env.SIM_TIMEZONE }}
+          # The XCTest driver often needs longer than Maestro's default to come up on a CI runner
+          # ("iOS driver not ready in time"); milliseconds.
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: "180000"
         run: |
           mkdir -p "$RESULTS"
           run_maestro() {
