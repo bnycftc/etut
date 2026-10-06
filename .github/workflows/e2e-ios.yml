@@ -256,16 +256,18 @@ jobs:
         run: |
           mkdir -p "$RESULTS"
           run_maestro() {
-            maestro --device "$SIM_UDID" test e2e/ \
+            local tag="$1"; shift
+            maestro --device "$SIM_UDID" test "${@:-e2e/}" \
               --format junit \
-              --output "$RESULTS/report.xml" \
+              --output "$RESULTS/report-$tag.xml" \
               --test-output-dir "$RESULTS/output" \
-              --debug-output "$RESULTS/debug" 2>&1 | tee "$RESULTS/maestro-$1.log"
+              --debug-output "$RESULTS/debug" 2>&1 | tee "$RESULTS/maestro-$tag.log"
             return "${PIPESTATUS[0]}"
           }
           set +e
           run_maestro 1
           status=$?
+          cp "$RESULTS/report-1.xml" "$RESULTS/report.xml" 2>/dev/null
           # Maestro's XCTest driver sometimes does not come up on a cold CI simulator
           # (IOSDriverTimeoutException before any flow ran). That is no test result: try once more.
           if [ "$status" -ne 0 ] && grep -q 'IOSDriverTimeoutException' "$RESULTS/maestro-1.log" \
@@ -273,6 +275,39 @@ jobs:
             echo "::warning::Maestro driver did not start; running the flows once more"
             run_maestro 2
             status=$?
+            cp "$RESULTS/report-2.xml" "$RESULTS/report.xml" 2>/dev/null
+          fi
+          # The driver can also exit mid-run (DeviceUnreachableException): every later flow then
+          # fails within seconds without touching the app. Run only those flows once more, in a new
+          # driver session, and keep their second result. Real assertion failures are not retried.
+          if [ "$status" -ne 0 ] && [ -f "$RESULTS/report.xml" ]; then
+            mapfile -t lost < <(python3 - <<'PY'
+          import os, xml.etree.ElementTree as ET
+          for case in ET.parse(os.path.join(os.environ["RESULTS"], "report.xml")).getroot().iter("testcase"):
+              bad = case.find("failure") if case.find("failure") is not None else case.find("error")
+              if bad is not None and "DeviceUnreachableException" in ((bad.get("message") or "") + (bad.text or "")):
+                  print(f"e2e/{case.get('name')}.yaml")
+          PY
+            )
+            if [ "${#lost[@]}" -gt 0 ]; then
+              echo "::warning::Maestro driver was lost during ${#lost[@]} flow(s); running them once more: ${lost[*]}"
+              run_maestro retry "${lost[@]}"
+              python3 - <<'PY'
+          import os, xml.etree.ElementTree as ET
+          path = os.path.join(os.environ["RESULTS"], "report.xml")
+          tree = ET.parse(path)
+          retry = {c.get("name"): c for c in ET.parse(os.path.join(os.environ["RESULTS"], "report-retry.xml")).getroot().iter("testcase")}
+          for suite in tree.getroot().iter("testsuite"):
+              for i, case in enumerate(list(suite)):
+                  if case.tag == "testcase" and case.get("name") in retry:
+                      suite.remove(case); suite.insert(i, retry[case.get("name")])
+          tree.write(path, encoding="utf-8", xml_declaration=True)
+          failed = sum(1 for c in tree.getroot().iter("testcase") if c.find("failure") is not None or c.find("error") is not None)
+          print(f"After retry: {failed} failed flow(s)")
+          raise SystemExit(1 if failed else 0)
+          PY
+              status=$?
+            fi
           fi
           exit "$status"
 
