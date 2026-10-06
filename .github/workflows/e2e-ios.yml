@@ -114,8 +114,10 @@ jobs:
           [ -d "../$WORKSPACE" ] || { echo "::error::pod install did not create $WORKSPACE"; exit 1; }
 
       # Release: the JS bundle is compiled to Hermes bytecode and embedded in the .app, so no Metro
-      # server is needed. Simulator builds need no signing at all.
-      - name: Build app for the simulator (Release, unsigned)
+      # server is needed. Simulator builds need no certificate or profile, but they are ad-hoc
+      # signed ("-"): an unsigned build drops the entitlements, and without the App Group the widget
+      # extension cannot read the layouts expo-widgets stores there (blank Live Activity).
+      - name: Build app for the simulator (Release, ad-hoc signed)
         run: |
           set -o pipefail
           mkdir -p build
@@ -128,11 +130,18 @@ jobs:
             -derivedDataPath build/DerivedData \
             ARCHS="$(uname -m)" \
             ONLY_ACTIVE_ARCH=NO \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER= \
             CODE_SIGNING_REQUIRED=NO \
             2>&1 | tee build/xcodebuild-simulator.log | xcbeautify
           app="$(ls -d build/DerivedData/Build/Products/Release-iphonesimulator/*.app | head -1)"
           [ -n "$app" ] || { echo "::error::No .app was built"; exit 1; }
+          for bin in "$app" "$app/PlugIns/ExpoWidgetsTarget.appex"; do
+            codesign -d --entitlements - "$bin" 2>/dev/null | grep -q 'group.com.bnycftc.etut' \
+              || { echo "::error::$bin has no App Group entitlement (Live Activity would render blank)"; exit 1; }
+          done
           [ -f "$app/main.jsbundle" ] || { echo "::error::$app has no embedded main.jsbundle"; exit 1; }
           bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
           [ "$bundle_id" = "com.bnycftc.etut" ] || { echo "::error::Unexpected bundle id $bundle_id"; exit 1; }
