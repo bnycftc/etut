@@ -16,7 +16,8 @@ tags:
 - extendedWaitUntil:
     visible:
       id: timer-clock
-      text: "0:0[2-9]"
+      # At least 2 s; a slow CI simulator may poll the clock late.
+      text: "0:(0[2-9]|[1-5][0-9])"
     timeout: 15000
 - takeScreenshot: c-arka-plan-01-calisiyor
 # Leave the app (home screen) for longer than the 10 s tolerance.

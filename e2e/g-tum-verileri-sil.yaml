@@ -15,7 +15,7 @@ tags:
 - extendedWaitUntil:
     visible:
       id: timer-clock
-      text: "0:0[2-9]"
+      text: "0:(0[2-9]|[1-5][0-9])"
     timeout: 15000
 - tapOn:
     id: timer-finish

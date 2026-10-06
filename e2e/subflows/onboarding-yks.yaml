@@ -17,7 +17,9 @@ appId: com.bnycftc.etut
     end: 50%, 40%
 - tapOn:
     id: yks-area-sayisal
+# A slow CI simulator can drop this tap (the screen stays on onboarding): tap again if nothing changes.
 - tapOn:
     id: onboarding-start
+    retryTapIfNoChange: true
 - runFlow:
     file: ipucu-gec.yaml

@@ -16,7 +16,7 @@ tags:
 - extendedWaitUntil:
     visible:
       id: timer-clock
-      text: "0:0[6-9]"
+      text: "0:(0[6-9]|[1-5][0-9])"
     timeout: 20000
 - copyTextFrom:
     id: timer-clock

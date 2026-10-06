@@ -27,7 +27,7 @@ tags:
 - extendedWaitUntil:
     visible:
       id: timer-clock
-      text: "0:0[3-9]"
+      text: "0:(0[3-9]|[1-5][0-9])"
     timeout: 15000
 - takeScreenshot: b-sayac-02-calisiyor
 - tapOn:
@@ -59,13 +59,17 @@ tags:
 - extendedWaitUntil:
     visible:
       id: timer-clock
-      text: "1:0[0-9]"
+      # Past one minute; a slow CI simulator may poll the clock late (still "1 dk" below 2:00).
+      text: "1:[0-5][0-9]"
     timeout: 90000
 - tapOn:
     id: timer-finish
-- assertVisible:
-    id: timer-saved
-    text: "Kaydedildi: 1 dk"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: timer-saved
+      text: "Kaydedildi: 1 dk"
+    timeout: 10000
 - assertVisible:
     id: today-total
     text: "[1-9][0-9]* dk"
