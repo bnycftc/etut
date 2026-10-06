@@ -138,8 +138,12 @@ jobs:
             2>&1 | tee build/xcodebuild-simulator.log | xcbeautify
           app="$(ls -d build/DerivedData/Build/Products/Release-iphonesimulator/*.app | head -1)"
           [ -n "$app" ] || { echo "::error::No .app was built"; exit 1; }
-          for bin in "$app" "$app/PlugIns/ExpoWidgetsTarget.appex"; do
-            codesign -d --entitlements - "$bin" 2>/dev/null | grep -q 'group.com.bnycftc.etut' \
+          # Simulator entitlements live in the binary's __TEXT,__entitlements section, not the signature.
+          for bin in "$app/$(basename "$app" .app)" "$app/PlugIns/ExpoWidgetsTarget.appex/ExpoWidgetsTarget"; do
+            [ -f "$bin" ] || { echo "::error::Binary not found: $bin"; exit 1; }
+            rm -f "$RUNNER_TEMP/ents.plist"
+            segedit "$bin" -extract __TEXT __entitlements "$RUNNER_TEMP/ents.plist" 2>/dev/null
+            grep -q 'group.com.bnycftc.etut' "$RUNNER_TEMP/ents.plist" 2>/dev/null \
               || { echo "::error::$bin has no App Group entitlement (Live Activity would render blank)"; exit 1; }
           done
           [ -f "$app/main.jsbundle" ] || { echo "::error::$app has no embedded main.jsbundle"; exit 1; }
