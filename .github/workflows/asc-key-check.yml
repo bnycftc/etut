@@ -36,4 +36,20 @@ jobs:
                   print("bundle ids:", sorted(d["attributes"]["identifier"] for d in r.json()["data"]))
               elif not r.ok:
                   print("errors:", [(e.get("code"), e.get("title")) for e in r.json().get("errors", [])])
+          # Capabilities of the app's own App ID (expo-widgets needs APP_GROUPS on it and on the extension).
+          base = "https://api.appstoreconnect.apple.com/v1/bundleIds"
+          auth = {"Authorization": "Bearer " + token}
+          r = requests.get(base, params={"filter[identifier]": "com.bnycftc.etut"}, headers=auth, timeout=30)
+          for d in r.json().get("data", []):
+              if d["attributes"]["identifier"] != "com.bnycftc.etut":
+                  continue
+              c = requests.get(f"{base}/{d['id']}/bundleIdCapabilities", headers=auth, timeout=30)
+              print("com.bnycftc.etut capabilities HTTP", c.status_code,
+                    sorted(x["attributes"]["capabilityType"] for x in c.json().get("data", [])))
+          for path in ("/v1/certificates?limit=50", "/v1/profiles?limit=50", "/v1/devices?limit=5"):
+              r = requests.get("https://api.appstoreconnect.apple.com" + path, headers=auth, timeout=30)
+              data = r.json().get("data", [])
+              kinds = [x["attributes"].get("certificateType") or x["attributes"].get("profileType")
+                       or x["attributes"].get("platform") for x in data]
+              print(path.split("?")[0], "HTTP", r.status_code, "count", len(data), sorted(kinds))
           PY
