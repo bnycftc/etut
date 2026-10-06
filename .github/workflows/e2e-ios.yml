@@ -292,6 +292,9 @@ jobs:
           if [ "$status" -ne 0 ] && grep -q 'IOSDriverTimeoutException' "$RESULTS/maestro-1.log" \
             && ! grep -qE '\[(Passed|Failed)\]' "$RESULTS/maestro-1.log"; then
             echo "::warning::Maestro driver did not start; running the flows once more"
+            # Maestro exits without stopping the xcodebuild that launches its runner; left alive, it
+            # competes with the second attempt's runner for the same simulator.
+            pkill -f 'xcodebuild test-without-building' || true
             run_maestro 2
             status=$?
             cp "$RESULTS/report-2.xml" "$RESULTS/report.xml" 2>/dev/null
