@@ -79,9 +79,14 @@ reset role;
 do $$ begin perform app.refresh_leaderboards(); end $$;
 select ok(array_length(tests.traces('99999999-0000-0000-0000-00000000000a'), 1) >= 10, 'U has data in many tables before deletion');
 -- GoTrue's own audit table (off in production, GOTRUE_AUDIT_LOG_DISABLE_POSTGRES). Created here
--- when the test database has no auth service (PGlite); same columns as GoTrue's.
-create table if not exists auth.audit_log_entries (
-  instance_id uuid, id uuid primary key, payload json, created_at timestamptz, ip_address varchar(64) not null default '');
+-- when the test database has no auth service (PGlite); same columns as GoTrue's. Not "create table
+-- if not exists": on the Supabase stack that still needs CREATE on schema auth, which postgres lacks.
+do $$ begin
+  if to_regclass('auth.audit_log_entries') is null then
+    create table auth.audit_log_entries (
+      instance_id uuid, id uuid primary key, payload json, created_at timestamptz, ip_address varchar(64) not null default '');
+  end if;
+end $$;
 insert into auth.audit_log_entries (id, payload, created_at, ip_address) values
   (gen_random_uuid(), json_build_object('actor_id', '99999999-0000-0000-0000-00000000000a', 'action', 'token_refreshed'), now(), '203.0.113.7'),
   (gen_random_uuid(), json_build_object('actor_id', '99999999-0000-0000-0000-00000000000b', 'action', 'token_refreshed'), now(), '203.0.113.8'),
