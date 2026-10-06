@@ -39,13 +39,14 @@ jobs:
           # Capabilities of the app's own App ID (expo-widgets needs APP_GROUPS on it and on the extension).
           base = "https://api.appstoreconnect.apple.com/v1/bundleIds"
           auth = {"Authorization": "Bearer " + token}
-          r = requests.get(base, params={"filter[identifier]": "com.bnycftc.etut"}, headers=auth, timeout=30)
-          for d in r.json().get("data", []):
-              if d["attributes"]["identifier"] != "com.bnycftc.etut":
-                  continue
-              c = requests.get(f"{base}/{d['id']}/bundleIdCapabilities", headers=auth, timeout=30)
-              print("com.bnycftc.etut capabilities HTTP", c.status_code,
-                    sorted(x["attributes"]["capabilityType"] for x in c.json().get("data", [])))
+          for ident in ("com.bnycftc.etut", "com.bnycftc.etut.ExpoWidgetsTarget"):
+              r = requests.get(base, params={"filter[identifier]": ident}, headers=auth, timeout=30)
+              for d in r.json().get("data", []):
+                  if d["attributes"]["identifier"] != ident:
+                      continue
+                  c = requests.get(f"{base}/{d['id']}/bundleIdCapabilities", headers=auth, timeout=30)
+                  print(ident, "capabilities HTTP", c.status_code,
+                        sorted(x["attributes"]["capabilityType"] for x in c.json().get("data", [])))
           for path in ("/v1/certificates?limit=50", "/v1/profiles?limit=50", "/v1/devices?limit=5"):
               r = requests.get("https://api.appstoreconnect.apple.com" + path, headers=auth, timeout=30)
               data = r.json().get("data", [])
