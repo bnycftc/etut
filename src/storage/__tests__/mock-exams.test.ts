@@ -7,8 +7,10 @@
  */
 
 import {
+  deleteMockExam,
   getExamMarks,
   getMockExam,
+  listAllMarks,
   listExamsNeedingAnalysis,
   listMockExams,
   saveExamAnalysis,
@@ -121,5 +123,37 @@ describe('editing a saved exam', () => {
       false,
     );
     expect(listMockExams()).toEqual([]);
+  });
+});
+
+describe('deleting a saved exam', () => {
+  it('removes the exam with its scores and topic marks; other exams stay as they are', () => {
+    saveTyt('e1');
+    saveTyt('e2');
+    saveExamAnalysis('e1', [{ sectionId: 'turkce', topicId: 'tyt.turkce.paragraf', wrong: 3, blank: 1 }], 50);
+    saveExamAnalysis('e2', [{ sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 2, blank: 0 }], 50);
+
+    deleteMockExam('e1');
+
+    expect(getMockExam('e1')).toBeNull();
+    expect(getExamMarks('e1')).toEqual([]);
+    expect(listMockExams().map((e) => e.id)).toEqual(['e2']);
+    expect(getMockExam('e2')?.scores).toEqual(tyt);
+    expect(listAllMarks()).toEqual([{ sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 2, blank: 0 }]);
+    // The net charts no longer show it either.
+    expect(sectionNetHistory('TYT', 'turkce').map((p) => p.examId)).toEqual(['e2']);
+  });
+
+  it('deleting an exam that is already gone changes nothing', () => {
+    saveTyt('e1');
+    deleteMockExam('gone');
+    expect(listMockExams().map((e) => e.id)).toEqual(['e1']);
+  });
+
+  it('an exam with a pending analysis leaves the reminder list when deleted', () => {
+    saveTyt('e1');
+    expect(listExamsNeedingAnalysis().map((e) => e.id)).toEqual(['e1']);
+    deleteMockExam('e1');
+    expect(listExamsNeedingAnalysis()).toEqual([]);
   });
 });
