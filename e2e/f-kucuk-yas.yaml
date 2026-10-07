@@ -14,11 +14,15 @@ tags:
     id: "birth-year-${new Date().getFullYear() - 12}"
 - tapOn:
     id: exam-type-LGS
-- swipe:
-    start: 50%, 85%
-    end: 50%, 40%
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
 - tapOn:
     id: onboarding-start
+    retryTapIfNoChange: true
 - runFlow:
     file: subflows/ipucu-gec.yaml
 - assertVisible:

@@ -9,11 +9,13 @@ tags:
     visible:
       id: onboarding-start
     timeout: 60000
-# The short notice is reachable before anything is saved. Scroll the outer screen (starting
-# below the year list, which scrolls on its own).
-- swipe:
-    start: 50%, 85%
-    end: 50%, 30%
+# The short notice is reachable before anything is saved; it sits below the start button.
+- scrollUntilVisible:
+    element:
+      id: onboarding-privacy
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
 - tapOn:
     id: onboarding-privacy
 - extendedWaitUntil:

@@ -19,15 +19,24 @@ tags:
     id: "birth-year-${new Date().getFullYear() - 20}"
 - tapOn:
     id: exam-type-YKS
-# Scroll the outer screen (starting below the year list, which scrolls on its own).
-- swipe:
-    start: 50%, 85%
-    end: 50%, 40%
+# The screen is taller than the viewport: scroll to each target instead of a fixed swipe.
+- scrollUntilVisible:
+    element:
+      id: yks-area-sayisal
+    direction: DOWN
+    timeout: 20000
 - tapOn:
     id: yks-area-sayisal
 - takeScreenshot: a-ilk-acilis-02-secimler
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
 - tapOn:
     id: onboarding-start
+    retryTapIfNoChange: true
 # One-time tips: three steps, then the timer.
 - extendedWaitUntil:
     visible:

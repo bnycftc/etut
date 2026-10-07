@@ -10,13 +10,21 @@ appId: com.bnycftc.etut
     id: "birth-year-${new Date().getFullYear() - Number(AGE)}"
 - tapOn:
     id: exam-type-YKS
-# Scroll the outer screen (starting below the year list, which scrolls on its own) so the area
-# chips and the start button are on screen.
-- swipe:
-    start: 50%, 85%
-    end: 50%, 40%
+# The screen is taller than the viewport (year list, exam, area, optional goal, start): scroll to
+# each target instead of a fixed swipe, which stops reaching the start button as cards are added.
+- scrollUntilVisible:
+    element:
+      id: yks-area-sayisal
+    direction: DOWN
+    timeout: 20000
 - tapOn:
     id: yks-area-sayisal
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
 # A slow CI simulator can drop this tap (the screen stays on onboarding): tap again if nothing changes.
 - tapOn:
     id: onboarding-start
