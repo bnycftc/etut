@@ -124,7 +124,9 @@ export function isPaused(session: ActiveSession): boolean {
 
 export function pauseSession(session: ActiveSession, now: number): ActiveSession {
   if (isPaused(session)) return session;
-  const start = Math.max(now, session.startedAt);
+  // A clock set back before the start: the break begins after what was recorded, not at the start
+  // (which would turn the whole session into a break).
+  const start = now >= session.startedAt ? now : lastRecordedAt(session);
   return { ...session, pauses: [...session.pauses, { start, end: null, kind: 'manual' }] };
 }
 
@@ -270,7 +272,11 @@ export function onAppForeground(session: ActiveSession, now: number, rule: AwayR
     ...cleared,
     pauses: [...cleared.pauses, { start: awayStart, end: now, kind: 'away' }],
     // Still unanswered from before: one prompt (and one answer) for both absences.
-    pendingAway: { start: session.pendingAway?.start ?? awayStart, end: now },
+    // (min/max: with a clock that was set back the new absence can lie before the first one.)
+    pendingAway:
+      session.pendingAway === null
+        ? { start: awayStart, end: now }
+        : { start: Math.min(session.pendingAway.start, awayStart), end: Math.max(session.pendingAway.end, now) },
   };
 }
 

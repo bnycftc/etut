@@ -16,6 +16,7 @@ import {
   importedProfile,
   mergeBackup,
   parseBackup,
+  replaceUndoExpired,
   serializeBackup,
 } from '../domain/backup';
 import { istanbulYear } from '../domain/istanbul-day';
@@ -174,6 +175,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         : { ...v, [kind]: v[kind] + 1 },
     );
 
+  // The copy kept for "Geri al" holds a full copy of the data: drop it once its day is over,
+  // whether or not the backup screen is opened again.
+  useEffect(() => {
+    const undo = loadReplaceUndo();
+    if (undo !== null && replaceUndoExpired(undo.createdAt, Date.now())) storeReplaceUndo(null);
+  }, []);
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (status) => {
       // 'inactive' (Control Center, notification shade, app switcher peek) is not "leaving".
@@ -282,7 +290,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (undo === null) return null;
       // Our own copy: read back exactly, sessions with a wrong-clock time included.
       const parsed = parseBackup(undo.text, { keepWrongClockSessions: true });
-      const counts = parsed.ok ? importData(readBackupData(), parsed.file, 'replace') : null;
+      // An unreadable copy is kept (it may still be all there is); a used one is not.
+      if (!parsed.ok) return null;
+      const counts = importData(readBackupData(), parsed.file, 'replace');
       storeReplaceUndo(null);
       return counts;
     },

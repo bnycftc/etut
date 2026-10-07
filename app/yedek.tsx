@@ -11,7 +11,7 @@ import {
   canUndoReplace,
   type ImportMode,
   parseBackup,
-  REPLACE_UNDO_MS,
+  replaceUndoExpired,
   serializeBackup,
 } from '@/domain/backup';
 import { topicName } from '@/domain/curriculum';
@@ -61,7 +61,9 @@ export default function BackupScreen() {
   const undo = useStored(`undo|${dataVersion}`, loadReplaceUndo);
   const undoable = undo !== null && canUndoReplace(undo.createdAt, Date.now());
   // A copy too old to offer is not kept either (it holds a full copy of the data).
-  const expired = undo !== null && Date.now() - undo.createdAt >= REPLACE_UNDO_MS;
+  const expired = undo !== null && replaceUndoExpired(undo.createdAt, Date.now());
+  // "Geri al" is a replace too: it asks first, with what will go.
+  const [undoSure, setUndoSure] = useState<BackupCounts | null>(null);
   useEffect(() => {
     if (expired) storeReplaceUndo(null);
   }, [expired]);
@@ -146,6 +148,7 @@ export default function BackupScreen() {
   const restoreUndo = () => {
     setMessage(null);
     setError(null);
+    setUndoSure(null);
     try {
       const counts = undoReplace();
       if (counts === null) setError(tr.backupSafety.undoFailed);
@@ -196,8 +199,34 @@ export default function BackupScreen() {
         <Card testID="backup-undo-card">
           <Label variant="heading">{tr.backupSafety.undoTitle}</Label>
           <Label variant="muted">{tr.backupSafety.undoInfo(formatMoment(undo.createdAt))}</Label>
-          <Button testID="backup-undo" title={tr.backupSafety.undo} onPress={restoreUndo} />
-          <Button testID="backup-undo-discard" kind="secondary" title={tr.backupSafety.undoDiscard} onPress={discardUndo} />
+          {undoSure === null ? (
+            <>
+              <Button
+                testID="backup-undo"
+                title={tr.backupSafety.undo}
+                onPress={() => setUndoSure(backupCounts(readBackupData()))}
+              />
+              <Button
+                testID="backup-undo-discard"
+                kind="secondary"
+                title={tr.backupSafety.undoDiscard}
+                onPress={discardUndo}
+              />
+            </>
+          ) : (
+            <>
+              <Label testID="backup-undo-sure" style={{ color: c.danger }}>
+                {tr.backupSafety.undoSure(undoSure.sessions, undoSure.exams, undoSure.topics)}
+              </Label>
+              <Button testID="backup-undo-yes" kind="danger" title={tr.backupSafety.undoYes} onPress={restoreUndo} />
+              <Button
+                testID="backup-undo-no"
+                kind="secondary"
+                title={tr.backupSafety.replaceNo}
+                onPress={() => setUndoSure(null)}
+              />
+            </>
+          )}
         </Card>
       ) : null}
 

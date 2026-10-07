@@ -96,8 +96,14 @@ export function useFinishCheck(onFinish: (options?: FinishOptions) => void): {
     onFinish(all ? undefined : { maxStudyMs: LONG_SESSION_MS });
   };
 
-  // Nothing to ask about once the session is gone, or when the absence was answered on the card.
-  const shown = active === null || (step === 'away' && active.pendingAway === null) ? null : step;
+  // What to ask comes from the session as it is now: an absence that is still open is asked
+  // about first (also when it began while the "long" question was open); one answered on the
+  // card above closes the question for good, so a later absence does not reopen it unasked.
+  const pending = active?.pendingAway ?? null;
+  const shown = active === null || step === null ? null : pending !== null ? 'away' : step === 'away' ? null : step;
+  useEffect(() => {
+    if (step !== null && (active === null || (step === 'away' && pending === null))) setStep(null);
+  }, [step, active, pending]);
   const prompt =
     shown === null || active === null ? null : (
       <View testID="finish-check" style={{ gap: 12 }}>

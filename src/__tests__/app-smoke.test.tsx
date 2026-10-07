@@ -1682,6 +1682,41 @@ describe('timer and data safety', () => {
     expect(memory.sessions[0].durationMs).toBe(5 * MIN);
   });
 
+  it('an absence answered on the card closes the question: a later absence does not reopen it', () => {
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    const startedAt = memory.active!.startedAt;
+    away(from, startedAt + MIN, startedAt + 31 * MIN);
+    finish();
+    expect(screen.getByTestId('finish-check')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('away-dismiss'));
+    expect(screen.queryByTestId('finish-check')).toBeNull();
+    away(from, startedAt + 32 * MIN, startedAt + 62 * MIN);
+    expect(screen.getByTestId('away-title')).toBeTruthy();
+    expect(screen.queryByTestId('finish-check')).toBeNull();
+    expect(memory.active).not.toBeNull();
+  });
+
+  it('an absence that starts while the 10-hour question is open is asked about first', () => {
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    const startedAt = memory.active!.startedAt;
+    act(() => jest.setSystemTime(startedAt + 11 * HOUR));
+    finish();
+    expect(screen.getByTestId('finish-check-title').props.children).toBe('Bu oturum 11 sa 0 dk sürmüş görünüyor.');
+    away(from, startedAt + 11 * HOUR, startedAt + 11 * HOUR + 30 * MIN);
+    expect(screen.getByTestId('finish-check-title').props.children).toBe(
+      'Bitirmeden önce: 30 dk uygulamanın dışındaydın.',
+    );
+    fireEvent.press(screen.getByTestId('finish-away-break'));
+    // Then the 10-hour question again, for what is left.
+    expect(screen.getByTestId('finish-check-title').props.children).toBe('Bu oturum 11 sa 0 dk sürmüş görünüyor.');
+    fireEvent.press(screen.getByTestId('finish-long-all'));
+    expect(memory.sessions[0].durationMs).toBe(11 * HOUR);
+  });
+
   it('a second absence before answering joins the first: one card, one answer for both', () => {
     const from = listenersFrom();
     renderRouter(APP_DIR, { initialUrl: '/' });
@@ -1782,7 +1817,13 @@ describe('timer and data safety', () => {
     expect(memory.profile?.yksArea).toBe('sozel');
     expect(memory.replaceUndo).not.toBeNull();
 
+    // "Geri al" replaces too: it asks first, and nothing changes until "Evet".
     fireEvent.press(screen.getByTestId('backup-undo'));
+    expect(screen.getByTestId('backup-undo-sure').props.children).toContain(
+      'Şu an bu telefondaki 1 çalışma kaydı, 0 deneme ve 0 konu işareti silinip',
+    );
+    expect(memory.sessions.map((s) => s.id)).toEqual(['x']);
+    fireEvent.press(screen.getByTestId('backup-undo-yes'));
     expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
     expect(memory.topicStatuses).toEqual({ 'tyt.fizik.basinc': 'done' });
     expect(memory.profile?.yksArea).toBe('sayisal');
@@ -1807,6 +1848,24 @@ describe('timer and data safety', () => {
     renderRouter(APP_DIR, { initialUrl: '/yedek' });
     expect(screen.queryByTestId('backup-undo-card')).toBeNull();
     expect(memory.replaceUndo).toBeNull();
+  });
+
+  it('an expired copy is removed at app start too, without opening the backup screen', () => {
+    memory.replaceUndo = { createdAt: Date.now() - 25 * HOUR, text: backupText({}) };
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(memory.replaceUndo).toBeNull();
+  });
+
+  it('a copy that can not be read is kept and the data is left alone', () => {
+    memory.sessions = [sessionAt('a')];
+    const broken = { createdAt: Date.now() - HOUR, text: '{"format":"etut-yedek"' };
+    memory.replaceUndo = broken;
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    fireEvent.press(screen.getByTestId('backup-undo'));
+    fireEvent.press(screen.getByTestId('backup-undo-yes'));
+    expect(screen.getByTestId('backup-error').props.children).toBe('Kopya okunamadı, geri alınamadı.');
+    expect(memory.replaceUndo).toEqual(broken);
+    expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
   });
 
   it('an old backup with an exam that no longer fits loads the rest and says what was left out', async () => {

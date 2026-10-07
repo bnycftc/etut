@@ -12,6 +12,7 @@ import {
   mergeBackup,
   parseBackup,
   REPLACE_UNDO_MS,
+  replaceUndoExpired,
   serializeBackup,
 } from '../backup';
 import type { Profile } from '../profile';
@@ -299,6 +300,10 @@ describe('backup validation', () => {
     expect(canUndoReplace(T0, T0 + REPLACE_UNDO_MS)).toBe(false);
     // A clock set back before the copy: not offered (it may be from another day).
     expect(canUndoReplace(T0, T0 - 1)).toBe(false);
+    // Deleted only when the day is over, not for a clock that is behind.
+    expect(replaceUndoExpired(T0, T0 + REPLACE_UNDO_MS)).toBe(true);
+    expect(replaceUndoExpired(T0, T0 + REPLACE_UNDO_MS - 1)).toBe(false);
+    expect(replaceUndoExpired(T0, T0 - 1)).toBe(false);
   });
 
   it('a branch exam has exactly its section', () => {

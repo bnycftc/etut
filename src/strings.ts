@@ -1137,6 +1137,9 @@ export const tr = {
     undoInfo: (when: string) =>
       `“Değiştir”den önce (${when}) alınan kopya bu telefonda duruyor. Geri alırsan veriler o ana döner; sonradan eklediklerin gider. Kopya bir gün sonra gösterilmez.`,
     undo: 'Geri al',
+    undoSure: (sessions: number, exams: number, topics: number) =>
+      `Emin misin? Şu an bu telefondaki ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti silinip yerine kopyadakiler gelecek.`,
+    undoYes: 'Evet, geri al',
     undoDiscard: 'Kopyayı sil',
     undone: (sessions: number, exams: number, topics: number) =>
       `Geri alındı. Şu an ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti var.`,

@@ -298,6 +298,22 @@ describe('clock set back before the start', () => {
     expect(done.durationMs).toBe(min(20));
   });
 
+  it('a break taken after the change does not swallow the session', () => {
+    let s = markSeen(started(), T0 + min(40));
+    s = pauseSession(s, T0 - min(100)); // "Mola" with the clock behind the start
+    expect(s.pauses).toEqual([{ start: T0 + min(40), end: null, kind: 'manual' }]);
+    const done = finishSession(s, T0 - min(90));
+    expect(done.durationMs).toBe(min(40));
+  });
+
+  it('two absences on both sides of the change are one span: one answer credits both', () => {
+    let s = onAppForeground(onAppBackground(started(), T0 + min(60)), T0 + min(70));
+    s = onAppForeground(onAppBackground(s, T0 + min(30)), T0 + min(40)); // clock set back meanwhile
+    expect(s.pendingAway).toEqual({ start: T0 + min(30), end: T0 + min(70) });
+    expect(pendingAwayMs(s)).toBe(min(20));
+    expect(creditAway(s).pauses).toEqual([]);
+  });
+
   it('a clock set back but still after the start behaves as before', () => {
     const s = markSeen(started(), T0 + min(40));
     expect(finishSession(s, T0 + min(20)).durationMs).toBe(min(20));

@@ -136,6 +136,11 @@ export function canUndoReplace(createdAt: number, now: number): boolean {
   return now >= createdAt && now - createdAt < REPLACE_UNDO_MS;
 }
 
+/** The copy is past its day and is deleted (it holds a full copy of the data). */
+export function replaceUndoExpired(createdAt: number, now: number): boolean {
+  return now - createdAt >= REPLACE_UNDO_MS;
+}
+
 export const EMPTY_SETTINGS: BackupSettings = {
   dailyGoalMinutes: null,
   pomodoro: null,
