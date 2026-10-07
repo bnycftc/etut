@@ -29,22 +29,56 @@ import {
 import { endGroupsAccount } from '@/sync/session-sync';
 import { Button, Card, Chip, ChipRow, Label, Row, Screen, Tag, TextField } from '@/ui/components';
 import { errorText, Message, minutesLeft, ToggleRow } from '@/ui/group-ui';
+import { Icon } from '@/ui/icon';
 import { usePalette } from '@/ui/theme';
 
 /** Shown solely to 15+ profiles (see (tabs)/_layout.tsx). */
 export default function GroupsScreen() {
-  if (!GROUPS_ENABLED) {
-    // The module is off: no network request is ever made (src/config/features.ts).
-    return (
-      <Screen>
-        <Card>
-          <Label variant="title">{tr.groups.soon}</Label>
-          <Label variant="muted">{tr.groups.body}</Label>
-        </Card>
-      </Screen>
-    );
-  }
+  if (!GROUPS_ENABLED) return <GroupsOff />;
   return <GroupsHome />;
+}
+
+/**
+ * The module is off: no network request is ever made (src/config/features.ts). An honest
+ * explanation only — what is planned, why it is not here yet, what already works — and no
+ * pretend group UI or sign-up.
+ */
+function GroupsOff() {
+  const { profile } = useAppState();
+  const c = usePalette();
+  return (
+    <Screen testID="groups-off">
+      <Card tone="accent">
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Icon name="groups" color={c.accent} />
+          <Label variant="title" style={{ flexShrink: 1 }}>
+            {tr.groups.introTitle}
+          </Label>
+        </View>
+        <Row>
+          <Tag title={tr.groups.soon} />
+        </Row>
+        <Label variant="heading">{tr.groupsOff.planTitle}</Label>
+        <Label>{tr.groupsOff.plan}</Label>
+      </Card>
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Icon name="server" color={c.textMuted} />
+          <Label variant="heading" style={{ flexShrink: 1 }}>
+            {tr.groupsOff.whyTitle}
+          </Label>
+        </View>
+        <Label variant="muted">{tr.groupsOff.why}</Label>
+      </Card>
+      <Card>
+        <Label variant="heading">{tr.groupsOff.nowTitle}</Label>
+        <Label variant="muted">{tr.groupsOff.now}</Label>
+        {profile !== null && !groupsAllowedForExam(profile.examType) ? (
+          <Label variant="small">{tr.groups.unavailableLgs}</Label>
+        ) : null}
+      </Card>
+    </Screen>
+  );
 }
 
 function GroupsHome() {

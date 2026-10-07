@@ -4,8 +4,9 @@
  * flag OFF the tab stays "Yakında" and nothing reaches the network.
  */
 
-import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
+import { TextInput } from 'react-native';
 
 import type { Profile } from '../domain/profile';
 import type { ActiveSession } from '../domain/timer';
@@ -672,6 +673,12 @@ describe('group module OFF', () => {
       renderRouter(APP_DIR, { initialUrl: '/gruplar' });
       await flush();
       expect(screen.getByText('Yakında')).toBeTruthy();
+      // An honest card: what is planned and why it needs a server; no inputs or pretend group UI.
+      expect(screen.getByText('Neden henüz yok?')).toBeTruthy();
+      expect(screen.getByText(/Türkiye’de bir sunucu gerekiyor/)).toBeTruthy();
+      const card = within(screen.getByTestId('groups-off'));
+      expect(card.queryAllByRole('button')).toHaveLength(0);
+      expect(card.UNSAFE_queryAllByType(TextInput)).toHaveLength(0);
       expect(screen.queryByTestId('groups-intro')).toBeNull();
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(server.calls).toEqual([]);

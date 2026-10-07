@@ -1,21 +1,18 @@
+import { router } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
-import { type ColorValue, Text } from 'react-native';
+import type { ColorValue } from 'react-native';
 
 import { useAppState } from '@/state/app-state';
 import { tr } from '@/strings';
+import { HeaderButton } from '@/ui/components';
+import { Icon, type IconName } from '@/ui/icon';
 import { usePalette } from '@/ui/theme';
 
-function Glyph({ symbol, color }: { symbol: string; color: ColorValue }) {
-  // Decorative: the tab button is announced by its title.
-  return (
-    <Text
-      accessible={false}
-      importantForAccessibility="no"
-      maxFontSizeMultiplier={1.3}
-      style={{ color, fontSize: 20, lineHeight: 24 }}>
-      {symbol}
-    </Text>
-  );
+/** Outline symbol, filled when the tab is selected (iOS convention). Decorative: the tab is announced by its title. */
+function tabIcon(outline: IconName, filled: IconName) {
+  return function TabIcon({ color, focused }: { color: ColorValue; focused: boolean }) {
+    return <Icon name={focused ? filled : outline} color={color} size={24} />;
+  };
 }
 
 export default function TabsLayout() {
@@ -30,15 +27,26 @@ export default function TabsLayout() {
         tabBarActiveTintColor: c.accent,
         tabBarInactiveTintColor: c.textMuted,
         tabBarStyle: { backgroundColor: c.surface, borderTopColor: c.border },
+        tabBarLabelStyle: { fontWeight: '600' },
         headerStyle: { backgroundColor: c.surface },
         headerTintColor: c.text,
+        headerTitleStyle: { fontWeight: '700' },
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: tr.tabs.timer,
           tabBarButtonTestID: 'tab-timer',
-          tabBarIcon: ({ color }) => <Glyph symbol="◷" color={color} />,
+          tabBarIcon: tabIcon('timer', 'timerFill'),
+          // Geçmiş sits in the header: always one tap away, out of the way of the core loop.
+          headerRight: () => (
+            <HeaderButton
+              testID="open-history"
+              icon="history"
+              title={tr.timer.history}
+              onPress={() => router.push('/gecmis')}
+            />
+          ),
         }}
       />
       <Tabs.Screen
@@ -46,7 +54,7 @@ export default function TabsLayout() {
         options={{
           title: tr.tabs.exams,
           tabBarButtonTestID: 'tab-exams',
-          tabBarIcon: ({ color }) => <Glyph symbol="✎" color={color} />,
+          tabBarIcon: tabIcon('exams', 'examsFill'),
         }}
       />
       <Tabs.Protected guard={showGroups}>
@@ -55,7 +63,7 @@ export default function TabsLayout() {
           options={{
             title: tr.tabs.groups,
             tabBarButtonTestID: 'tab-groups',
-            tabBarIcon: ({ color }) => <Glyph symbol="◎" color={color} />,
+            tabBarIcon: tabIcon('groups', 'groupsFill'),
           }}
         />
       </Tabs.Protected>
@@ -64,7 +72,7 @@ export default function TabsLayout() {
         options={{
           title: tr.tabs.settings,
           tabBarButtonTestID: 'tab-settings',
-          tabBarIcon: ({ color }) => <Glyph symbol={'⚙︎'}color={color} />,
+          tabBarIcon: tabIcon('settings', 'settingsFill'),
         }}
       />
     </Tabs>

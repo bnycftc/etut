@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, type TextStyle, View } from 'react-native';
 
 import { tr } from '../strings';
-import { space, usePalette } from './theme';
+import { Icon, type IconName } from './icon';
+import { MAX_FONT_SCALE, space, useLargeText, usePalette } from './theme';
 
 export function Screen({ children, testID }: { children: ReactNode; testID?: string }) {
   const c = usePalette();
@@ -17,13 +18,55 @@ export function Screen({ children, testID }: { children: ReactNode; testID?: str
   );
 }
 
-export function Card({ children, testID }: { children: ReactNode; testID?: string }) {
+export function Card({
+  children,
+  testID,
+  tone = 'default',
+  outline,
+}: {
+  children: ReactNode;
+  testID?: string;
+  /** `accent`: soft brand tint (the "today" card). */
+  tone?: 'default' | 'accent';
+  /** A 2 pt coloured outline (e.g. the running subject). */
+  outline?: string;
+}) {
   const c = usePalette();
   return (
-    <View testID={testID} style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+    <View
+      testID={testID}
+      style={[
+        styles.card,
+        { backgroundColor: tone === 'accent' ? c.accentSoft : c.surface, borderColor: c.border },
+        outline ? { borderColor: outline, borderWidth: 2 } : null,
+      ]}>
       {children}
     </View>
   );
+}
+
+/** Small round colour mark (subject colour) next to a name. Decorative. */
+export function Dot({ color, size = 10, ring }: { color: string; size?: number; ring?: string }) {
+  return (
+    <View
+      accessible={false}
+      importantForAccessibility="no"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: color,
+        borderWidth: ring ? 1.5 : 0,
+        borderColor: ring,
+      }}
+    />
+  );
+}
+
+/** A `Row` that stacks its children at accessibility text sizes, so side-by-side controls never clip. */
+export function ResponsiveRow({ children }: { children: ReactNode }) {
+  const large = useLargeText();
+  return <View style={large ? styles.stack : styles.row}>{children}</View>;
 }
 
 type TextVariant = 'title' | 'heading' | 'body' | 'muted' | 'small';
@@ -63,6 +106,7 @@ export function Button({
   kind = 'primary',
   disabled = false,
   large = false,
+  compact = false,
   testID,
   accessibilityLabel,
   accessibilityHint,
@@ -72,14 +116,30 @@ export function Button({
   kind?: ButtonKind;
   disabled?: boolean;
   large?: boolean;
+  /** Smaller (44 pt) button that does not stretch, for actions inside a card row. */
+  compact?: boolean;
   testID?: string;
   /** Defaults to `title`. */
   accessibilityLabel?: string;
   accessibilityHint?: string;
 }) {
   const c = usePalette();
-  const background = kind === 'primary' ? c.accent : kind === 'danger' ? c.danger : c.surface;
-  const color = kind === 'secondary' ? c.text : c.accentText;
+  // Disabled: a grey fill with a muted label instead of a faded colour (readable, clearly off).
+  const background = disabled
+    ? c.disabled
+    : kind === 'primary'
+      ? c.primary
+      : kind === 'danger'
+        ? c.dangerFill
+        : c.surface;
+  const color = disabled
+    ? c.textMuted
+    : kind === 'secondary'
+      ? c.text
+      : kind === 'danger'
+        ? c.onDanger
+        : c.onPrimary;
+  const borderColor = disabled ? c.disabled : kind === 'secondary' ? c.controlBorder : background;
   return (
     <Pressable
       testID={testID}
@@ -92,13 +152,71 @@ export function Button({
       style={({ pressed }) => [
         styles.button,
         large && styles.buttonLarge,
-        {
-          backgroundColor: background,
-          borderColor: kind === 'secondary' ? c.controlBorder : background,
-          opacity: disabled ? 0.4 : pressed ? 0.8 : 1,
-        },
+        compact && styles.buttonCompact,
+        { backgroundColor: background, borderColor, opacity: pressed ? 0.8 : 1 },
       ]}>
-      <Text style={[styles.buttonText, large && styles.buttonTextLarge, { color }]}>{title}</Text>
+      <Text style={[styles.buttonText, large && styles.buttonTextLarge, compact && styles.buttonTextCompact, { color }]}>
+        {title}
+      </Text>
+    </Pressable>
+  );
+}
+
+/**
+ * Full-width list row with an icon, a title and a chevron (secondary navigation, e.g. the
+ * shortcuts on the timer screen). Announced as a button with its title.
+ */
+export function ListRow({
+  icon,
+  title,
+  onPress,
+  testID,
+}: {
+  icon: IconName;
+  title: string;
+  onPress: () => void;
+  testID?: string;
+}) {
+  const c = usePalette();
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      onPress={onPress}
+      style={({ pressed }) => [styles.listRow, { opacity: pressed ? 0.6 : 1 }]}>
+      <Icon name={icon} color={c.accent} />
+      <Text style={[styles.body, { color: c.text, flex: 1 }]}>{title}</Text>
+      <Icon name="chevron" color={c.textMuted} size={16} />
+    </Pressable>
+  );
+}
+
+/** Text button with an icon for a navigation header ("Geçmiş"). */
+export function HeaderButton({
+  icon,
+  title,
+  onPress,
+  testID,
+}: {
+  icon: IconName;
+  title: string;
+  onPress: () => void;
+  testID?: string;
+}) {
+  const c = usePalette();
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      onPress={onPress}
+      hitSlop={8}
+      style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}>
+      <Icon name={icon} color={c.accent} size={20} />
+      <Text style={{ color: c.accent, fontSize: 17 }} maxFontSizeMultiplier={MAX_FONT_SCALE.header}>
+        {title}
+      </Text>
     </Pressable>
   );
 }
@@ -110,12 +228,15 @@ export function Chip({
   onPress,
   testID,
   accessibilityLabel,
+  color,
 }: {
   title: string;
   selected: boolean;
   onPress: () => void;
   testID?: string;
   accessibilityLabel?: string;
+  /** Leading colour dot (the subject colour). */
+  color?: string;
 }) {
   const c = usePalette();
   return (
@@ -129,12 +250,14 @@ export function Chip({
       hitSlop={4}
       style={[
         styles.chip,
+        color ? styles.chipWithDot : null,
         {
-          backgroundColor: selected ? c.accent : c.surface,
-          borderColor: selected ? c.accent : c.controlBorder,
+          backgroundColor: selected ? c.primary : c.surface,
+          borderColor: selected ? c.primary : c.controlBorder,
         },
       ]}>
-      <Text style={{ color: selected ? c.accentText : c.text, fontSize: 15 }}>{title}</Text>
+      {color ? <Dot color={color} ring={selected ? c.onPrimary : undefined} /> : null}
+      <Text style={{ color: selected ? c.onPrimary : c.text, fontSize: 15 }}>{title}</Text>
     </Pressable>
   );
 }
@@ -158,11 +281,20 @@ export function Tag({ title }: { title: string }) {
 }
 
 /** Horizontal progress bar, `ratio` 0…1. */
-export function ProgressBar({ ratio, label = tr.a11y.progress }: { ratio: number; label?: string }) {
+export function ProgressBar({
+  ratio,
+  label = tr.a11y.progress,
+  testID,
+}: {
+  ratio: number;
+  label?: string;
+  testID?: string;
+}) {
   const c = usePalette();
   const percent = Math.round(Math.min(1, Math.max(0, ratio)) * 100);
   return (
     <View
+      testID={testID}
       accessible
       accessibilityRole="progressbar"
       accessibilityLabel={label}
@@ -398,16 +530,22 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   buttonLarge: { minHeight: 72, borderRadius: 16 },
+  buttonCompact: { minHeight: 44, paddingHorizontal: space.md, flexGrow: 0, borderRadius: 10 },
   buttonText: { fontSize: 17, fontWeight: '600', textAlign: 'center' },
   buttonTextLarge: { fontSize: 22 },
+  buttonTextCompact: { fontSize: 15 },
   chip: {
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
     borderRadius: 999,
     borderWidth: 1,
   },
+  chipWithDot: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   row: { flexDirection: 'row', gap: space.md, alignItems: 'center' },
+  stack: { flexDirection: 'column', gap: space.sm, alignItems: 'stretch' },
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 44 },
+  headerButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: space.lg, minHeight: 44 },
   tag: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 6,

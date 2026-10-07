@@ -5,6 +5,7 @@ import { AppState, StyleSheet, Text, Vibration, View } from 'react-native';
 import { formatClock } from '@/domain/clock';
 import { topicName, topicOfSubject } from '@/domain/curriculum';
 import { daysUntil, resolveExamDate } from '@/domain/exam-dates';
+import { goalStep, UNDO_FINISH_MS } from '@/domain/finish';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
@@ -17,18 +18,50 @@ import {
   loadLastSubject,
   loadPomodoroConfig,
   loadTimerMode,
+  storeDailyGoal,
   storeTimerMode,
   type TimerMode,
 } from '@/storage/kv';
 import { tr } from '@/strings';
-import { Button, Card, Chip, ChipRow, Label, ProgressBar, Row, Screen, Tag } from '@/ui/components';
+import { isSyncActive } from '@/sync/session-sync';
+import {
+  Button,
+  Card,
+  Chip,
+  ChipRow,
+  Dot,
+  Label,
+  ListRow,
+  ProgressBar,
+  ResponsiveRow,
+  Row,
+  Screen,
+  Tag,
+} from '@/ui/components';
+import { announce, hapticSuccess, hapticTap } from '@/ui/feedback';
 import { formatDuration } from '@/ui/format';
-import { MAX_FONT_SCALE, usePalette } from '@/ui/theme';
+import { GoalSheet } from '@/ui/goal-sheet';
+import { Icon } from '@/ui/icon';
+import { subjectColor } from '@/ui/subject-colors';
+import { MAX_FONT_SCALE, space, usePalette } from '@/ui/theme';
 import { FirstUseTips } from '@/ui/tips';
 import { TopicPicker } from '@/ui/topic-picker';
 
 /** A phase change seen within this time of the previous render tick happened on screen. */
 const PHASE_SIGNAL_MAX_GAP_MS = 3_000;
+
+/** What the summary after "Bitir" shows; frozen at that moment. */
+interface Finished {
+  /** "Kaydedildi: 45 dk" (E2E reads this text). */
+  saved: string;
+  subjectId: string;
+  topicId: string | null;
+  durationMs: number;
+  /** Today's total including the session. */
+  todayAfterMs: number;
+  at: number;
+  undoable: boolean;
+}
 
 export default function TimerScreen() {
   const app = useAppState();
@@ -49,7 +82,8 @@ export default function TimerScreen() {
     : defaultSubject(examType, loadLastSubject(), yksArea);
   const [pickedTopic, setTopicId] = useState<string | null>(null);
   const topicId = topicOfSubject(examType, yksArea, subjectId, pickedTopic);
-  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [finished, setFinished] = useState<Finished | null>(null);
+  const [goalOpen, setGoalOpen] = useState(false);
   const [mode, setModeState] = useState<TimerMode>(loadTimerMode);
   const setSubjectId = (id: string) => {
     if (id !== subjectId) setTopicId(null);
@@ -76,20 +110,20 @@ export default function TimerScreen() {
 
   // A short vibration when a pomodoro phase ends while the student is looking at the app (the
   // scheduled phase notification is not shown in the foreground). Not after returning from the
-  // background (big time jump) and not for a change the student made ("Molayı geç").
+  // background (big time jump) and not for a change the student made ("Molayı geç"). The new
+  // phase is read out by VoiceOver in both cases.
   const phaseKey = pomodoro === null ? null : `${pomodoro.block}|${pomodoro.phase}`;
   const lastPhase = useRef({ key: phaseKey, at: shownNow });
   const skipped = useRef(false);
   useEffect(() => {
     const prev = lastPhase.current;
     const changed = phaseKey !== null && prev.key !== null && phaseKey !== prev.key;
-    if (
-      changed &&
-      !skipped.current &&
-      shownNow - prev.at <= PHASE_SIGNAL_MAX_GAP_MS &&
-      AppState.currentState !== 'background'
-    ) {
+    const foreground = AppState.currentState !== 'background';
+    if (changed && !skipped.current && shownNow - prev.at <= PHASE_SIGNAL_MAX_GAP_MS && foreground) {
       Vibration.vibrate();
+    }
+    if (changed && foreground && pomodoro !== null) {
+      announce(tr.announce.phase(pomodoroPhaseLabel(pomodoro, active?.pomodoro?.config.longEvery ?? 4)));
     }
     if (changed) skipped.current = false;
     lastPhase.current = { key: phaseKey, at: shownNow };
@@ -99,68 +133,164 @@ export default function TimerScreen() {
     app.skipBreak();
   };
 
+  // The "you were away" card appears without any tap: tell screen reader users what happened.
+  const awayStart = active?.pendingAway?.start ?? null;
+  useEffect(() => {
+    const away = active?.pendingAway;
+    if (away) announce(tr.announce.away(tr.timer.awayTitle(formatAway(away.end - away.start)), tr.timer.awayBody));
+  }, [awayStart]);
+
+  // "Geri al" disappears when its window closes.
+  useEffect(() => {
+    if (finished === null || !finished.undoable) return;
+    const id = setTimeout(
+      () => setFinished((f) => (f === null ? f : { ...f, undoable: false })),
+      Math.max(0, finished.at + UNDO_FINISH_MS - Date.now()),
+    );
+    return () => clearTimeout(id);
+  }, [finished?.at, finished?.undoable]);
+
   const finish = () => {
     const done = app.finish();
     if (done !== null) {
-      setSavedMessage(
-        tr.timer.saved(done.durationMs < 60_000 ? tr.timer.lessThanMinute : formatDuration(done.durationMs)),
+      const saved = tr.timer.saved(
+        done.durationMs < 60_000 ? tr.timer.lessThanMinute : formatDuration(done.durationMs),
       );
+      setFinished({
+        saved,
+        subjectId: done.subjectId,
+        topicId: done.topicId,
+        durationMs: done.durationMs,
+        // The running session was already part of today's total on this render.
+        todayAfterMs: todayTotal,
+        at: Date.now(),
+        undoable: done.durationMs > 0 && !isSyncActive(),
+      });
       setSubjectId(done.subjectId);
+      hapticSuccess();
+      announce(tr.finish.announce(saved, formatDuration(todayTotal)));
     }
   };
+
+  const undo = () => {
+    if (app.undoFinish()) {
+      setFinished(null);
+      hapticTap();
+      announce(tr.finish.undone);
+    } else {
+      setFinished((f) => (f === null ? f : { ...f, undoable: false }));
+    }
+  };
+
+  const setGoal = (minutes: number | null) => {
+    storeDailyGoal(minutes);
+    app.notifyDataChanged();
+  };
+
+  const goalStreak = goal !== null && streak !== null ? { goal, streak } : null;
+  const step = finished !== null && goal !== null ? goalStep(finished.todayAfterMs, finished.durationMs, goal) : null;
 
   return (
     <Screen testID="timer-screen">
       <FirstUseTips />
-      <Card>
+      <GoalSheet visible={goalOpen} goal={goal} onChange={setGoal} onClose={() => setGoalOpen(false)} />
+
+      {/* Today: exam countdown, today's total, goal and streak; the summary after Bitir lives here too. */}
+      <Card tone="accent">
         {examDate !== null && daysLeft !== null && daysLeft >= 0 ? (
           <Row>
-            <Label testID="countdown" style={{ fontWeight: '600', flex: 1 }}>
+            <Label testID="countdown" style={{ fontWeight: '700', flex: 1, color: c.accent }}>
               {daysLeft === 0 ? tr.countdown.today : tr.countdown.days(examType, daysLeft)}
             </Label>
             {examDate.estimated ? <Tag title={tr.countdown.estimated} /> : null}
           </Row>
         ) : null}
-        <Row>
-          <View style={{ flex: 1 }}>
+
+        {finished !== null ? (
+          <View testID="finish-summary" style={{ gap: space.xs }}>
+            <ResponsiveRow>
+              <View style={[styles.inline, styles.grow]}>
+                <Icon name="saved" color={c.success} />
+                <Label variant="heading" testID="timer-saved" style={{ color: c.success, flexShrink: 1 }}>
+                  {finished.saved}
+                </Label>
+              </View>
+              {finished.undoable ? (
+                <Button
+                  compact
+                  testID="finish-undo"
+                  kind="secondary"
+                  title={tr.finish.undo}
+                  accessibilityHint={tr.finish.undoHint}
+                  onPress={undo}
+                />
+              ) : null}
+            </ResponsiveRow>
+            <Label variant="small" testID="finish-detail">
+              {(topicName(finished.topicId)
+                ? tr.finish.studiedTopic(tr.subject(finished.subjectId), topicName(finished.topicId) ?? '')
+                : tr.finish.studied(tr.subject(finished.subjectId))) +
+                (step !== null && !step.reached ? ` · ${tr.finish.goalStep(step.beforePercent, step.afterPercent)}` : '')}
+            </Label>
+            {step?.reached ? (
+              <Label variant="small" testID="finish-goal-reached" style={{ color: c.success, fontWeight: '600' }}>
+                {tr.finish.goalReached}
+                {streak !== null && streak.current > 0 ? ` ${tr.finish.streak(streak.current)}` : ''}
+              </Label>
+            ) : null}
+          </View>
+        ) : null}
+
+        <ResponsiveRow>
+          <View style={styles.grow}>
             <Label variant="muted">{tr.timer.today}</Label>
-            <Label variant="heading" testID="today-total">
+            <Label variant="title" testID="today-total">
               {formatDuration(todayTotal)}
             </Label>
             {todayManual > 0 ? (
               <Label variant="small">{tr.timer.manualPart(formatDuration(todayManual))}</Label>
             ) : null}
           </View>
-          <View>
+          {goalStreak !== null ? (
+            <View style={styles.inline}>
+              <Icon name="streak" color={c.streak} size={20} />
+              <Label testID="streak" style={{ color: c.streak, fontWeight: '700' }}>
+                {tr.goal.streak(goalStreak.streak.current)}
+              </Label>
+            </View>
+          ) : (
             <Button
-              testID="open-history"
-              kind="secondary"
-              title={tr.timer.history}
-              onPress={() => router.push('/gecmis')}
-            />
-          </View>
-        </Row>
-        {goal !== null && streak !== null ? (
-          <>
-            <ProgressBar ratio={goalRatio(todayTotal, goal)} />
-            <Label testID="goal-progress" variant="small">
-              {streak.todayMet
-                ? tr.goal.met
-                : tr.goal.progress(formatDuration(goal * 60_000), Math.floor(goalRatio(todayTotal, goal) * 100))}
-            </Label>
-            <Label testID="streak">{tr.goal.streak(streak.current)}</Label>
-            <Label variant="small">{streak.restUsedThisWeek ? tr.goal.restUsed : tr.goal.restFree}</Label>
-          </>
-        ) : (
-          <Row>
-            <Button
+              compact
               testID="goal-set"
               kind="secondary"
               title={tr.goal.set}
-              onPress={() => router.push('/ayarlar')}
+              onPress={() => setGoalOpen(true)}
             />
-          </Row>
-        )}
+          )}
+        </ResponsiveRow>
+        {goalStreak !== null ? (
+          <>
+            <ProgressBar ratio={goalRatio(todayTotal, goalStreak.goal)} label={tr.goal.title} />
+            <ResponsiveRow>
+              <Label testID="goal-progress" variant="small" style={styles.grow}>
+                {goalStreak.streak.todayMet
+                  ? tr.goal.met
+                  : tr.goal.progress(
+                      formatDuration(goalStreak.goal * 60_000),
+                      Math.floor(goalRatio(todayTotal, goalStreak.goal) * 100),
+                    )}
+              </Label>
+              <Button
+                compact
+                testID="goal-edit"
+                kind="secondary"
+                title={tr.home.goalEdit}
+                accessibilityLabel={tr.home.goalEditA11y}
+                onPress={() => setGoalOpen(true)}
+              />
+            </ResponsiveRow>
+          </>
+        ) : null}
       </Card>
 
       {active?.pendingAway ? (
@@ -181,6 +311,7 @@ export default function TimerScreen() {
 
       {active === null ? (
         <>
+          {/* Core loop: pick a subject (last one is pre-selected), tap Başla. Topic and mode are optional. */}
           <Card>
             <Label variant="heading">{tr.timer.pickSubject}</Label>
             <ChipRow>
@@ -189,6 +320,7 @@ export default function TimerScreen() {
                   key={id}
                   testID={`subject-${id}`}
                   title={tr.subject(id)}
+                  color={subjectColor(id, c)}
                   selected={id === subjectId}
                   onPress={() => setSubjectId(id)}
                 />
@@ -201,8 +333,8 @@ export default function TimerScreen() {
               topicId={topicId}
               onChange={setTopicId}
             />
-            <Label variant="heading">{tr.pomodoro.mode}</Label>
-            <ChipRow>
+            <View style={styles.modeRow}>
+              <Label variant="small">{tr.pomodoro.mode}</Label>
               <Chip
                 testID="mode-stopwatch"
                 title={tr.pomodoro.stopwatch}
@@ -215,7 +347,7 @@ export default function TimerScreen() {
                 selected={mode === 'pomodoro'}
                 onPress={() => setMode('pomodoro')}
               />
-            </ChipRow>
+            </View>
             {mode === 'pomodoro' ? (
               <Label variant="small">
                 {tr.pomodoro.summary(
@@ -232,36 +364,21 @@ export default function TimerScreen() {
             testID="timer-start"
             title={tr.timer.start}
             onPress={() => {
-              setSavedMessage(null);
+              setFinished(null);
+              hapticTap();
               app.start(subjectId, { topicId, pomodoro: mode === 'pomodoro' ? pomodoroConfig : null });
             }}
           />
-          {savedMessage ? (
-            <Label variant="muted" testID="timer-saved">
-              {savedMessage}
-            </Label>
-          ) : null}
-          <Row>
-            <Button
-              testID="open-manual"
-              kind="secondary"
-              title={tr.timer.addManual}
-              onPress={() => router.push('/elle-ekle')}
-            />
-            <Button
-              testID="open-topics"
-              kind="secondary"
-              title={tr.timer.topics}
-              onPress={() => router.push('/konular')}
-            />
-          </Row>
         </>
       ) : (
-        <Card>
-          <Label variant="muted" testID="timer-subject" style={{ textAlign: 'center' }}>
-            {tr.subject(active.subjectId)}
-            {topicName(active.topicId) ? ` · ${topicName(active.topicId)}` : ''}
-          </Label>
+        <Card outline={running && !onBreak ? subjectColor(active.subjectId, c) : c.controlBorder}>
+          <View style={[styles.inline, { justifyContent: 'center' }]}>
+            <Dot color={subjectColor(active.subjectId, c)} />
+            <Label variant="muted" testID="timer-subject" style={{ textAlign: 'center', flexShrink: 1 }}>
+              {tr.subject(active.subjectId)}
+              {topicName(active.topicId) ? ` · ${topicName(active.topicId)}` : ''}
+            </Label>
+          </View>
           {pomodoro !== null ? (
             <Label testID="pomodoro-phase" variant="heading" style={{ textAlign: 'center' }}>
               {pomodoroPhaseLabel(pomodoro, active.pomodoro?.config.longEvery ?? 4)}
@@ -276,15 +393,27 @@ export default function TimerScreen() {
             adjustsFontSizeToFit>
             {formatClock(clockMs)}
           </Text>
-          <Label variant="muted" testID="timer-status" style={{ textAlign: 'center' }}>
-            {pomodoro !== null
-              ? running
-                ? tr.pomodoro.studied(formatClock(elapsedMs(active, shownNow)))
-                : tr.pomodoro.paused
-              : running
-                ? tr.timer.running
-                : tr.timer.paused}
-          </Label>
+          <View
+            style={[
+              styles.pill,
+              { backgroundColor: running && !onBreak ? c.successSoft : 'transparent' },
+            ]}>
+            <Label
+              testID="timer-status"
+              style={{
+                textAlign: 'center',
+                fontWeight: '600',
+                color: !running ? c.warning : onBreak ? c.textMuted : c.success,
+              }}>
+              {pomodoro !== null
+                ? running
+                  ? tr.pomodoro.studied(formatClock(elapsedMs(active, shownNow)))
+                  : tr.pomodoro.paused
+                : running
+                  ? tr.timer.running
+                  : tr.timer.paused}
+            </Label>
+          </View>
           {pomodoro !== null && pomodoro.phase !== 'work' ? (
             <>
               <Label variant="small" style={{ textAlign: 'center' }}>
@@ -295,7 +424,7 @@ export default function TimerScreen() {
               ) : null}
             </>
           ) : null}
-          <Row>
+          <ResponsiveRow>
             {running ? (
               <Button
                 large
@@ -305,12 +434,40 @@ export default function TimerScreen() {
                 onPress={app.pause}
               />
             ) : (
-              <Button large testID="timer-resume" title={tr.timer.resume} onPress={app.resume} />
+              <Button
+                large
+                testID="timer-resume"
+                title={tr.timer.resume}
+                onPress={() => {
+                  hapticTap();
+                  app.resume();
+                }}
+              />
             )}
             <Button large testID="timer-finish" kind="danger" title={tr.timer.finish} onPress={finish} />
-          </Row>
+          </ResponsiveRow>
         </Card>
       )}
+
+      {/* Secondary: everything that is not "pick a subject and start". Geçmiş is in the header. */}
+      <Card>
+        <Label variant="heading">{tr.home.shortcuts}</Label>
+        {active === null ? (
+          <>
+            <ListRow
+              icon="manual"
+              testID="open-manual"
+              title={tr.timer.addManual}
+              onPress={() => router.push('/elle-ekle')}
+            />
+            <ListRow icon="topics" testID="open-topics" title={tr.timer.topics} onPress={() => router.push('/konular')} />
+          </>
+        ) : null}
+        <ListRow icon="weekly" testID="open-weekly" title={tr.compare.weekly} onPress={() => router.push('/haftalik')} />
+        {canShareCard(profile) ? (
+          <ListRow icon="share" testID="open-share" title={tr.share.open} onPress={() => router.push('/paylas')} />
+        ) : null}
+      </Card>
 
       <Card>
         <Label variant="heading">{tr.compare.title}</Label>
@@ -325,22 +482,6 @@ export default function TimerScreen() {
           label={tr.compare.lastWeek}
           value={comparison.lastWeekSameTime}
         />
-        <Row>
-          <Button
-            testID="open-weekly"
-            kind="secondary"
-            title={tr.compare.weekly}
-            onPress={() => router.push('/haftalik')}
-          />
-          {canShareCard(profile) ? (
-            <Button
-              testID="open-share"
-              kind="secondary"
-              title={tr.share.open}
-              onPress={() => router.push('/paylas')}
-            />
-          ) : null}
-        </Row>
       </Card>
     </Screen>
   );
@@ -354,12 +495,12 @@ function pomodoroPhaseLabel(status: PomodoroStatus, longEvery: number): string {
 
 function CompareRow({ label, value, testID }: { label: string; value: number; testID?: string }) {
   return (
-    <Row>
-      <Label variant="muted" style={{ flex: 1 }}>
+    <ResponsiveRow>
+      <Label variant="muted" style={styles.grow}>
         {label}
       </Label>
       <Label testID={testID}>{formatDuration(value)}</Label>
-    </Row>
+    </ResponsiveRow>
   );
 }
 
@@ -374,4 +515,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontVariant: ['tabular-nums'],
   },
+  grow: { flexGrow: 1, flexShrink: 1 },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  modeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
+  pill: { alignSelf: 'center', borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 2 },
 });

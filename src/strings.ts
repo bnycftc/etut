@@ -1132,4 +1132,57 @@ export const tr = {
     done: 'Anladım',
     skip: 'Geç',
   },
+
+  /** Timer screen layout (shortcuts, goal on the home card). */
+  home: {
+    shortcuts: 'Kısayollar',
+    goalEdit: 'Değiştir',
+    goalEditA11y: 'Günlük hedefi değiştir',
+  },
+
+  /** The short summary after "Bitir". */
+  finish: {
+    studied: (subject: string) => `${subject} çalıştın`,
+    studiedTopic: (subject: string, topic: string) => `${subject} · ${topic}`,
+    goalStep: (before: number, after: number) => `Hedef: %${before} → %${after}`,
+    goalReached: 'Bugünkü hedefe ulaştın, tebrikler!',
+    streak: (days: number) => `Serin ${days} gün oldu.`,
+    undo: 'Geri al',
+    undoHint: 'Kaydı siler, sayaç kaldığı yerden devam eder.',
+    undone: 'Geri alındı. Sayaç kaldığı yerden devam ediyor.',
+    announce: (saved: string, today: string) => `${saved}. Bugün toplam ${today}.`,
+  },
+
+  /** Daily goal sheet on the timer screen and the optional onboarding step. */
+  goalSheet: {
+    title: 'Günlük hedefin',
+    hours: (h: number) => `${h} saat`,
+    presetA11y: (h: number) => `Günde ${h} saat`,
+    fineTune: 'İnce ayar (15 dk)',
+    done: 'Tamam',
+    onboardingTitle: 'Günlük hedefin (isteğe bağlı)',
+    onboardingHint: 'Seçmezsen sonra Sayaç ekranından da koyabilirsin.',
+  },
+
+  onboardingMissing: {
+    birthYear: 'Başlamak için önce doğduğun yılı seç.',
+    exam: 'Başlamak için sınavını seç.',
+    area: 'Başlamak için alanını seç.',
+  },
+
+  /** Screen reader announcements on the timer screen. */
+  announce: {
+    phase: (phase: string) => `${phase} başladı`,
+    away: (title: string, body: string) => `${title} ${body}`,
+  },
+
+  /** Groups tab while the module is off (GROUPS_ENABLED = false). No "soon" word here: tr.groups.soon is the badge. */
+  groupsOff: {
+    planTitle: 'Planladığımız',
+    plan: 'Davet koduyla kurulan, en fazla 30 kişilik küçük çalışma grupları: kimin şu an çalıştığını ve günlük, haftalık süreleri görürsün. Sohbet ve mesaj olmayacak; yalnız hazır tepkiler.',
+    whyTitle: 'Neden henüz yok?',
+    why: 'Gruplar için Türkiye’de bir sunucu gerekiyor. O hazır olana kadar Etüt internete hiç bağlanmaz; bu sekme de hiçbir yere bir şey göndermez.',
+    nowTitle: 'Şimdi neler çalışıyor?',
+    now: 'Sayaç, günlük hedef ve seri, denemeler ve analiz gruplar olmadan tam çalışır. Gruplar açılınca katılmak isteğe bağlı olacak.',
+  },
 } as const;

@@ -5,7 +5,7 @@ import { topicGroupsForSubject, topicName } from '../domain/curriculum';
 import type { YksArea } from '../domain/net';
 import type { ExamType } from '../domain/profile';
 import { tr } from '../strings';
-import { Button, Chip, ChipRow, Label, Row } from './components';
+import { Button, Chip, ChipRow, Label, ResponsiveRow } from './components';
 
 /** Optional topic choice for a subject. Renders nothing when the subject has no topic list. */
 export function TopicPicker({
@@ -28,20 +28,20 @@ export function TopicPicker({
 
   return (
     <View style={{ gap: 8 }}>
-      <Label variant="heading">{tr.topicPicker.title}</Label>
-      <Row>
-        <Label variant="muted" style={{ flex: 1 }}>
-          {topicName(topicId) ?? tr.topicPicker.none}
-        </Label>
-        <View>
-          <Button
-            testID="topic-picker-toggle"
-            kind="secondary"
-            title={open ? tr.topicPicker.close : topicId ? tr.topicPicker.change : tr.topicPicker.pick}
-            onPress={() => setOpen(!open)}
-          />
+      {/* One compact row: the topic is optional, the subject and Başla stay the main path. */}
+      <ResponsiveRow>
+        <View style={{ flexGrow: 1, flexShrink: 1 }}>
+          <Label variant="small">{tr.topicPicker.title}</Label>
+          <Label variant="muted">{topicName(topicId) ?? tr.topicPicker.none}</Label>
         </View>
-      </Row>
+        <Button
+          compact
+          testID="topic-picker-toggle"
+          kind="secondary"
+          title={open ? tr.topicPicker.close : topicId ? tr.topicPicker.change : tr.topicPicker.pick}
+          onPress={() => setOpen(!open)}
+        />
+      </ResponsiveRow>
       {open ? (
         <>
           {topicId !== null ? (
