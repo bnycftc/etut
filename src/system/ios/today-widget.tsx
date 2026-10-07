@@ -1,6 +1,7 @@
 /**
  * Home Screen / Lock Screen widget "Etüt: Bugün" (expo-widgets): today's study time, the daily
- * goal and the streak.
+ * goal, the streak and the exam countdown ("YKS’ye 255 gün"; the small widget shows it in the line
+ * the "Sayaç açık" note uses while the timer runs).
  *
  * Same rules as `timer-activity.tsx`: the `'widget'` function runs in the widget extension's own
  * runtime and sees only its props, its environment and @expo/ui/swift-ui. Texts arrive formatted
@@ -62,7 +63,7 @@ export const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironm
       <VStack alignment="leading" spacing={1} modifiers={[background]}>
         <Text modifiers={[font({ size: 13, weight: 'semibold' }), lineLimit(1)]}>{props.title}</Text>
         {total(20)}
-        {small(props.streakLine !== null ? props.streakLine : props.goalLine)}
+        {small(props.streakLine !== null ? props.streakLine : props.goalLine !== null ? props.goalLine : props.countdownLine)}
       </VStack>
     );
   }
@@ -81,6 +82,7 @@ export const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironm
           {small(props.goalLine)}
           {goalBar}
           {small(props.streakLine)}
+          {small(props.countdownLine)}
           <Spacer />
         </VStack>
       </HStack>
@@ -91,7 +93,7 @@ export const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironm
     <VStack alignment="leading" spacing={4} modifiers={[background]}>
       <Text modifiers={[font({ size: 15, weight: 'semibold' }), foregroundStyle(accent)]}>{props.title}</Text>
       {total(26)}
-      {small(props.runningNote)}
+      {small(props.runningNote !== null ? props.runningNote : props.countdownLine)}
       <Spacer />
       {small(props.goalLine)}
       {goalBar}

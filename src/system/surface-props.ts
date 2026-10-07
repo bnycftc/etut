@@ -58,6 +58,8 @@ export interface TodayWidgetProps {
   goalFrom: number | null;
   goalTo: number | null;
   streakLine: string | null;
+  /** "YKS’ye 255 gün"; `null` = no exam date, passed, or not certain for this entry. */
+  countdownLine: string | null;
 }
 
 function phaseLabel(phase: PomodoroPhase, blockInSet: number, longEvery: number): string {
@@ -128,6 +130,11 @@ export function todayWidgetProps(entry: WidgetEntry): TodayWidgetProps {
     goalFrom: live ? entry.at - entry.todayMs : null,
     goalTo: live ? entry.goalReachedAt : null,
     streakLine: entry.streakDays === null ? null : tr.widget.streak(entry.streakDays),
+    countdownLine: !entry.countdown
+      ? null
+      : entry.countdown.daysLeft === 0
+        ? tr.widgetCountdown.today
+        : tr.countdown.days(entry.countdown.examType, entry.countdown.daysLeft),
   };
 }
 
@@ -160,5 +167,6 @@ export function emptyWidgetProps(): TodayWidgetProps {
     goalFrom: null,
     goalTo: null,
     streakLine: null,
+    countdownLine: null,
   };
 }

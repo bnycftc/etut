@@ -17,11 +17,19 @@
  * turn that time into an automatic "away" break (`timer.ts`). The widget counted that time while the
  * app was away; unless the student answers "Çalışıyordum", it showed more than is then saved, until
  * the sync that follows corrects it.
+ *
+ * Exam countdown ("YKS'ye 255 gün"): the number of days left changes at every Istanbul midnight,
+ * which the timeline already has entries for. With nothing running the timeline then goes on for
+ * `COUNTDOWN_MIDNIGHTS` midnights instead of `SETTLED_MIDNIGHT`. An entry that stays in effect past
+ * the next midnight (the last one, or one cut off by the budget) shows no countdown at all rather
+ * than a number that would be a day off.
  */
 
 import { activeSpan, dailyTotals, type SessionSpan } from './daily-totals';
+import { daysUntil } from './exam-dates';
 import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey, splitByIstanbulDay } from './istanbul-day';
 import { pomodoroStatus, upcomingPhaseChanges } from './pomodoro';
+import type { ExamType } from './profile';
 import { computeStreak, goalMet, goalRatio } from './streak';
 import { type ActiveSession, isPaused, workIntervals } from './timer';
 
@@ -37,6 +45,12 @@ const MIDNIGHTS_AHEAD = 2;
 const SETTLED_MIDNIGHT = 4;
 /** WidgetKit keeps the timeline small; later entries are dropped. */
 export const MAX_WIDGET_ENTRIES = 40;
+/**
+ * Midnights covered while nothing runs and an exam date is set: the countdown stays right for a
+ * month with the app closed. Below the budget: now + these midnights, and an idle session has no
+ * goal or phase entries.
+ */
+export const COUNTDOWN_MIDNIGHTS = 30;
 /**
  * Pomodoro phase changes covered: what is left of `MAX_WIDGET_ENTRIES` after "now", the midnights
  * and the moments the goal is reached (at most one per day shown). 34 changes ≈ 9 hours with the
@@ -60,6 +74,14 @@ export interface WidgetEntry {
   goalReachedAt: number | null;
   /** `null` without a goal. */
   streakDays: number | null;
+  /** Days left to the exam on `day` (0 = exam day); missing/`null` = no date, passed, or not known for sure. */
+  countdown?: { examType: ExamType; daysLeft: number } | null;
+}
+
+export interface WidgetExam {
+  examType: ExamType;
+  /** First day of the exam (Istanbul). */
+  day: DayKey;
 }
 
 export interface WidgetTimelineInput {
@@ -69,6 +91,8 @@ export interface WidgetTimelineInput {
   active: ActiveSession | null;
   /** Daily goal in minutes; `null` = none. */
   goalMinutes: number | null;
+  /** Exam date for the countdown line; missing/`null` = none. */
+  exam?: WidgetExam | null;
 }
 
 /** Study time per day of the running session if it ran unchanged until `at`. */
@@ -91,8 +115,9 @@ function isCounting(active: ActiveSession | null, at: number): boolean {
 
 /** `known`: the timeline still knows what happens after `at` (see the cut in `widgetTimeline`). */
 function entryAt(input: WidgetTimelineInput, at: number, known: boolean): WidgetEntry {
-  const { savedTotal, active, goalMinutes } = input;
+  const { savedTotal, active, goalMinutes, exam } = input;
   const day = istanbulDayKey(at);
+  const daysLeft = exam ? daysUntil(exam.day, day) : null;
   const running = active === null ? null : runningByDay(active, at);
   const total = (d: DayKey) => savedTotal(d) + (running?.get(d) ?? 0);
   const todayMs = total(day);
@@ -108,6 +133,7 @@ function entryAt(input: WidgetTimelineInput, at: number, known: boolean): Widget
     goalRatio: goalMinutes === null ? 0 : goalRatio(todayMs, goalMinutes),
     goalReachedAt: null,
     streakDays: goalMinutes === null ? null : computeStreak(total, day, goalMinutes).current,
+    countdown: exam && daysLeft !== null && daysLeft >= 0 ? { examType: exam.examType, daysLeft } : null,
   };
 }
 
@@ -117,7 +143,8 @@ export function widgetTimeline(input: WidgetTimelineInput): WidgetEntry[] {
   const today = istanbulDayKey(now);
   // A running session goes on counting in the timeline; only an idle one settles (see SETTLED_MIDNIGHT).
   const idle = active === null || isPaused(active);
-  const midnights = idle ? SETTLED_MIDNIGHT : MIDNIGHTS_AHEAD;
+  const examAhead = input.exam ? daysUntil(input.exam.day, today) >= 0 : false;
+  const midnights = !idle ? MIDNIGHTS_AHEAD : examAhead ? COUNTDOWN_MIDNIGHTS : SETTLED_MIDNIGHT;
   for (let i = 1; i <= midnights; i++) points.add(dayStartMs(addDays(today, i)));
   const horizon = dayStartMs(addDays(today, midnights));
   // The first phase change the timeline leaves out (over budget or after the last midnight).
@@ -149,7 +176,13 @@ export function widgetTimeline(input: WidgetTimelineInput): WidgetEntry[] {
       entries.push(entry);
     }
   }
-  return entries.slice(0, MAX_WIDGET_ENTRIES);
+  const kept = entries.slice(0, MAX_WIDGET_ENTRIES);
+  // The countdown only while the next entry comes by the next midnight (it changes there).
+  for (let i = 0; i < kept.length; i++) {
+    const nextAt = i + 1 < kept.length ? kept[i + 1].at : Number.POSITIVE_INFINITY;
+    if (nextAt > dayStartMs(addDays(kept[i].day, 1))) kept[i].countdown = null;
+  }
+  return kept;
 }
 
 /** Per-day totals of saved sessions, as the `savedTotal` lookup of `widgetTimeline`. */
