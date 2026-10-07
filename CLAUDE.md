@@ -18,7 +18,10 @@ expo-router. Kurulum, komutlar ve yayın hattı: `README.md`.
     `lastSeenAt` kalp atışından (5 sn'de bir) sonrası aynı kurala girer (`onAppLaunch`).
   - `istanbul-day.ts`: gün sınırı Europe/Istanbul gece yarısı (sabit UTC+3, DST yok).
   - `daily-totals.ts`: günlük/ders toplamları, gece yarısını aşan oturumu böler.
-  - `net.ts`: net = doğru − yanlış/4; TYT/AYT/YDT bölüm ve soru sayıları.
+  - `net.ts`: net = doğru − yanlış/4 (LGS'de /3, `wrongsPerCorrect`); TYT/AYT/YDT, LGS ve KPSS GY-GK
+    bölüm ve soru sayıları (kaynaklar dosyada). `examKindsFor`: "Diğer" sınavda deneme formu yok.
+  - `exam-analysis.ts`: iki aşamalı analiz, en çok yanlış konular, hedef net; `analysisAfterEdit`
+    (deneme düzenlenince uymayan konu işaretleri düşer, analiz yeniden bekler), grafik ölçeği.
   - `profile.ts`: yaş kuralı (yalnız doğum yılı; belirsizlikte düşük yaş → 15 altı "solo").
     `changeExam`: Ayarlar'dan yalnız sınav/alan değişir, doğum yılı asla (K-17).
   - `subjects.ts` / `net.ts`: ders listesi ve deneme türleri YKS alanına göre (`subjectsFor`,
