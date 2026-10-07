@@ -317,7 +317,6 @@ export const tr = {
     cancel: 'Vazgeç',
     save: 'Kaydet',
     delete: 'Sil',
-    continue: 'Devam',
   },
 
   tabs: {
@@ -340,7 +339,6 @@ export const tr = {
   },
 
   timer: {
-    title: 'Sayaç',
     today: 'Bugün',
     history: 'Geçmiş',
     pickSubject: 'Ders seç',
@@ -405,7 +403,6 @@ export const tr = {
     streak: (days: number) => `Seri: ${days} gün`,
     restUsed: 'Bu haftaki dinlenme günün kullanıldı.',
     restFree: 'Bu hafta 1 dinlenme günü hakkın var.',
-    off: 'Kapalı',
     turnOff: 'Hedefi kapat',
     turnOn: 'Hedef koy',
     info: 'Hedefini tutturduğun ardışık günler seriyi oluşturur. Haftada 1 gün hedefin altında kalırsan seri bozulmaz; o gün dinlenme günü sayılır.',
@@ -494,7 +491,6 @@ export const tr = {
     done: 'Bitti',
     review: 'Tekrar lazım',
     noTime: 'Henüz süre yok',
-    noTopics: 'Bu ders için konu listesi yok.',
     unsupported: 'Konu listeleri YKS, LGS ve KPSS için var.',
   },
 
@@ -510,7 +506,6 @@ export const tr = {
   },
 
   exams: {
-    title: 'Denemeler',
     add: 'Deneme ekle',
     chartTitle: (kind: string) => `${kind} genel deneme netleri`,
     chartEmpty: 'Bu tür için henüz genel deneme yok.',
@@ -636,7 +631,6 @@ export const tr = {
     /** The only button: it opens the system prompt, where the student allows or refuses (HIG). */
     allow: 'Devam et',
     denied: 'İzin verilmedi. Hatırlatıcılar kapalı kalır; uygulamanın geri kalanı aynen çalışır.',
-    granted: 'İzin verildi. Hatırlatıcılar açık.',
     close: 'Kapat',
   },
 
@@ -675,12 +669,10 @@ export const tr = {
     streak: (days: number) => `Seri: ${days} gün`,
     goal: (goal: string) => `Hedef ${goal}`,
     goalMet: 'Hedef tamam',
-    noGoal: 'Hedef koymadın',
     running: 'Sayaç açık',
   },
 
   groups: {
-    title: 'Gruplar',
     soon: 'Yakında',
     body: 'Davetle kurulan küçük çalışma grupları üzerinde çalışıyoruz. Sayaç ve denemeler gruplardan bağımsız çalışır.',
     // Group module (GROUPS_ENABLED). Wording: "çalışma grubu", never "sosyal ağ / topluluk" (K-13).
@@ -766,7 +758,6 @@ export const tr = {
     paused: 'molada',
     notStudying: 'çalışmıyor',
     you: 'sen',
-    invisibleSelf: 'görünmezsin',
     ranking: 'Sıralama',
     today: 'Bugün',
     week: 'Bu hafta',
@@ -923,7 +914,6 @@ export const tr = {
   },
 
   settings: {
-    title: 'Ayarlar',
     profile: 'Profil',
     exam: 'Sınav',
     dataTitle: 'Veriler',
@@ -1077,7 +1067,6 @@ export const tr = {
     weeklyTitle: 'Bu hafta kayıtlı çalışma yok',
     weeklyBody: 'Haftanın her günü (Pazartesi–Pazar) çalıştığın süre burada toplanır. Önceki haftalara oklarla bakabilirsin.',
     startTimer: 'Sayaca git',
-    addExam: 'Deneme ekle',
   },
 
   tips: {

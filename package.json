@@ -62,7 +62,13 @@
     ],
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"
-    }
+    },
+    "collectCoverageFrom": [
+      "src/**/*.{ts,tsx}",
+      "app/**/*.tsx",
+      "!**/__tests__/**",
+      "!src/sync/testing/**"
+    ]
   },
   "private": true
 }

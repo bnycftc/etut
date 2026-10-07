@@ -3,7 +3,6 @@
 import type { Topic } from './curriculum/types';
 
 export type TopicStatus = 'done' | 'review';
-export const TOPIC_STATUSES: readonly TopicStatus[] = ['done', 'review'];
 
 export function isTopicStatus(value: unknown): value is TopicStatus {
   return value === 'done' || value === 'review';
