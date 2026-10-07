@@ -4,9 +4,12 @@
  */
 
 import { act, fireEvent, screen } from '@testing-library/react-native';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
-import { AppState, type AppStateStatus, Vibration } from 'react-native';
+import { AccessibilityInfo, AppState, type AppStateStatus, Vibration } from 'react-native';
+
+import { UNDO_FINISH_MS } from '../domain/finish';
 
 import type { TopicMark } from '../domain/exam-analysis';
 import type { Profile } from '../domain/profile';
@@ -242,6 +245,13 @@ jest.mock('../storage/file-io', () => ({
     memory.pickText === null ? { kind: 'canceled' } : { kind: 'picked', text: memory.pickText },
 }));
 
+jest.mock('expo-haptics', () => ({
+  notificationAsync: jest.fn(async () => {}),
+  impactAsync: jest.fn(async () => {}),
+  NotificationFeedbackType: { Success: 'success' },
+  ImpactFeedbackStyle: { Light: 'light' },
+}));
+
 jest.mock('react-native-view-shot', () => ({
   captureRef: async () => '/tmp/etut-card.png',
   releaseCapture: () => {},
@@ -264,6 +274,9 @@ jest.mock('../storage/sessions', () => ({
   recentManualSessions: () => memory.sessions.filter((s) => s.source === 'manual').reverse(),
   deleteManualSession: (id: string) => {
     memory.sessions = memory.sessions.filter((s) => !(s.id === id && s.source === 'manual'));
+  },
+  deleteSessionForUndo: (id: string) => {
+    memory.sessions = memory.sessions.filter((s) => !(s.id === id && s.source === 'timer'));
   },
   topicTotals: () => {
     const out: Record<string, number> = {};
@@ -365,8 +378,107 @@ it('completing onboarding opens the timer; an under-15 profile has no groups tab
   fireEvent.press(screen.getByText('LGS'));
   fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
   expect(memory.profile?.soloOnly).toBe(true);
+  // The daily goal was skipped (nothing is pre-selected).
+  expect(memory.dailyGoal).toBeNull();
   expect(screen.getByText('Ders seç')).toBeTruthy();
   expect(screen.queryByText('Gruplar')).toBeNull();
+});
+
+it('onboarding: a daily goal can be picked (optional) and Başla says what is missing', () => {
+  const year = new Date().getUTCFullYear() - 20;
+  renderRouter(APP_DIR, { initialUrl: '/' });
+  expect(screen.getByTestId('onboarding-missing').props.children).toBe('Başlamak için önce doğduğun yılı seç.');
+  fireEvent.press(screen.getByText(String(year)));
+  expect(screen.getByTestId('onboarding-missing').props.children).toBe('Başlamak için sınavını seç.');
+  fireEvent.press(screen.getByText('YKS'));
+  expect(screen.getByTestId('onboarding-missing').props.children).toBe('Başlamak için alanını seç.');
+  fireEvent.press(screen.getByTestId('yks-area-sayisal'));
+  expect(screen.queryByTestId('onboarding-missing')).toBeNull();
+  // Tapping the chosen goal again clears it.
+  fireEvent.press(screen.getByTestId('onboarding-goal-120'));
+  fireEvent.press(screen.getByTestId('onboarding-goal-120'));
+  fireEvent.press(screen.getByTestId('onboarding-goal-240'));
+  fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+  expect(memory.dailyGoal).toBe(240);
+  expect(screen.getByTestId('goal-progress').props.children).toBe('Hedef 4 sa 0 dk · %0');
+});
+
+describe('the moment after Bitir', () => {
+  /** Jumps the clock and lets the 1 s render interval fire once. */
+  function jump(ms: number) {
+    act(() => {
+      jest.setSystemTime(Date.now() + ms);
+      jest.advanceTimersByTime(1000);
+    });
+  }
+
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // 12:00 Istanbul
+    jest.mocked(Haptics.notificationAsync).mockClear();
+  });
+
+  it('shows time, subject and the goal step, with a success haptic and a VoiceOver announcement', () => {
+    memory.dailyGoal = 60;
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    jump(30 * 60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 30 dk');
+    expect(screen.getByTestId('finish-detail').props.children).toBe('Fizik çalıştın · Hedef: %0 → %50');
+    expect(screen.getByTestId('today-total').props.children).toBe('30 dk');
+    expect(Haptics.notificationAsync).toHaveBeenCalledWith('success');
+    expect(announce).toHaveBeenCalledWith('Kaydedildi: 30 dk. Bugün toplam 30 dk.');
+    // The core loop is right there again: the subject stays picked, one tap starts.
+    expect(screen.getByTestId('timer-start')).toBeTruthy();
+    announce.mockRestore();
+  });
+
+  it('a session that reaches the goal says so', () => {
+    memory.dailyGoal = 30;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    jump(31 * 60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(screen.getByTestId('finish-goal-reached')).toBeTruthy();
+    expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
+  });
+
+  it('"Geri al" right after an accidental Bitir brings the session back and removes the record', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    jump(2 * 60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(memory.sessions).toHaveLength(1);
+    fireEvent.press(screen.getByTestId('finish-undo'));
+    expect(memory.sessions).toHaveLength(0);
+    expect(memory.active?.subjectId).toBe('fizik');
+    expect(screen.getByTestId('timer-status').props.children).toBe('Çalışıyorsun');
+    expect(screen.queryByTestId('timer-saved')).toBeNull();
+    // Finishing again saves it once, with the whole time.
+    jump(60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(memory.sessions).toHaveLength(1);
+    expect(memory.sessions[0].durationMs).toBeGreaterThanOrEqual(3 * 60_000);
+  });
+
+  it('after the undo window the button is gone and the record stays', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    jump(2 * 60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(screen.getByTestId('finish-undo')).toBeTruthy();
+    act(() => jest.advanceTimersByTime(UNDO_FINISH_MS + 1000));
+    expect(screen.queryByTestId('finish-undo')).toBeNull();
+    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 2 dk');
+    expect(memory.sessions).toHaveLength(1);
+    // A new session clears the summary.
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(screen.queryByTestId('timer-saved')).toBeNull();
+  });
 });
 
 it('a 15+ profile sees the groups tab; start, pause, finish saves a session', () => {
@@ -661,10 +773,29 @@ describe('goal, streak and "dünkü sen"', () => {
     expect(screen.getByText('1 sa 0 dk elle eklendi')).toBeTruthy();
   });
 
-  it('without a goal, the home screen offers to set one in settings', () => {
+  it('without a goal, the home card sets one in place (presets, 15 min steps, off)', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     expect(screen.queryByTestId('streak')).toBeNull();
     fireEvent.press(screen.getByTestId('goal-set'));
+    fireEvent.press(screen.getByTestId('goal-preset-180'));
+    expect(memory.dailyGoal).toBe(180);
+    fireEvent.press(screen.getByTestId('goal-sheet-plus'));
+    expect(memory.dailyGoal).toBe(195);
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    expect(screen.queryByTestId('goal-sheet')).toBeNull();
+    // Still on the timer screen, now with progress and streak.
+    expect(screen.getByTestId('timer-start')).toBeTruthy();
+    expect(screen.getByTestId('goal-progress').props.children).toBe('Hedef 3 sa 15 dk · %30');
+    expect(screen.getByTestId('streak')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('goal-edit'));
+    fireEvent.press(screen.getByTestId('goal-sheet-off'));
+    expect(memory.dailyGoal).toBeNull();
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    expect(screen.getByTestId('goal-set')).toBeTruthy();
+  });
+
+  it('settings still turn the goal on, change and off', () => {
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
     fireEvent.press(screen.getByTestId('settings-goal-on'));
     expect(memory.dailyGoal).toBe(120);
     fireEvent.press(screen.getByTestId('settings-goal-plus'));

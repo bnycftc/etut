@@ -91,6 +91,14 @@ export function deleteManualSession(id: string): void {
   getDb().runSync(`DELETE FROM sessions WHERE id = ? AND source = 'manual'`, id);
 }
 
+/**
+ * "Geri al" right after Bitir (domain/finish.ts): the session goes back to running, so its
+ * just-saved record is removed. Not for editing history: timer sessions are otherwise kept.
+ */
+export function deleteSessionForUndo(id: string): void {
+  getDb().runSync(`DELETE FROM sessions WHERE id = ? AND source = 'timer'`, id);
+}
+
 /** Total study time per topic (all time). */
 export function topicTotals(): Record<string, number> {
   const rows = getDb().getAllSync<{ topic_id: string; total: number }>(

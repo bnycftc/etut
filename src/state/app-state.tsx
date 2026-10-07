@@ -15,6 +15,7 @@ import {
   importedProfile,
   mergeBackup,
 } from '../domain/backup';
+import { canUndoFinish } from '../domain/finish';
 import { istanbulYear } from '../domain/istanbul-day';
 import type { YksArea } from '../domain/net';
 import {
@@ -52,9 +53,9 @@ import {
   storeLastSubject,
   storeProfile,
 } from '../storage/kv';
-import { saveSession } from '../storage/sessions';
+import { deleteSessionForUndo, saveSession } from '../storage/sessions';
 import { wipeAllData } from '../storage/wipe';
-import { flushPending, stopSync, syncFinishedSession, syncPresence } from '../sync/session-sync';
+import { flushPending, isSyncActive, stopSync, syncFinishedSession, syncPresence } from '../sync/session-sync';
 
 export type SaveProfileResult = 'ok' | 'age_blocked';
 
@@ -70,6 +71,11 @@ interface AppStateValue {
   resume: () => void;
   skipBreak: () => void;
   finish: () => CompletedSession | null;
+  /**
+   * Takes back the last Bitir within the undo window (domain/finish.ts): the record is removed
+   * and the session continues as it was. `false` = too late, or nothing to undo.
+   */
+  undoFinish: () => boolean;
   creditAway: () => void;
   dismissAway: () => void;
   /** Increases whenever stored sessions or mock exams change; screens reload on change. */
@@ -127,6 +133,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [active, setActiveState] = useState<ActiveSession | null>(initialActive);
   const [dataVersion, setDataVersion] = useState(0);
   const activeRef = useRef(active);
+  const lastFinish = useRef<{ previous: ActiveSession; completed: CompletedSession; at: number } | null>(null);
 
   function setActive(next: ActiveSession | null) {
     if (next === activeRef.current) return;
@@ -217,8 +224,20 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         syncFinishedSession(completed, now);
       }
       setActive(null);
+      // Undo only while nothing left the device (group module off or no account).
+      lastFinish.current = isSyncActive() ? null : { previous: current, completed, at: now };
       notifyDataChanged();
       return completed;
+    },
+    undoFinish: () => {
+      const last = lastFinish.current;
+      lastFinish.current = null;
+      if (last === null || activeRef.current !== null || !canUndoFinish(last.at, Date.now())) return false;
+      if (last.completed.durationMs > 0) deleteSessionForUndo(last.completed.id);
+      // Fresh heartbeat: the seconds the summary was shown are not mistaken for time away.
+      setActive(markSeen(last.previous, Date.now()));
+      notifyDataChanged();
+      return true;
     },
     creditAway: () => update(creditAway),
     dismissAway: () => update(dismissAway),
@@ -228,6 +247,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       // No heartbeat or retry may outlive the data (and the group account) it belongs to.
       stopSync();
       wipeAllData();
+      lastFinish.current = null;
       activeRef.current = null;
       setActiveState(null);
       setProfile(null);
