@@ -17,7 +17,7 @@ import {
 import { type ExamType, isProfile, type Profile } from '../domain/profile';
 import { normalizeReminderPrefs, type ReminderPrefs } from '../domain/reminders';
 import { clampGoalMinutes } from '../domain/streak';
-import { type ActiveSession, toActiveSession } from '../domain/timer';
+import { type ActiveSession, type AwayRule, toActiveSession } from '../domain/timer';
 
 const KEYS = {
   profile: 'etut.profile.v1',
@@ -32,6 +32,9 @@ const KEYS = {
   reminderPrefs: 'etut.reminderPrefs.v1',
   remindersConfirmed: 'etut.remindersConfirmed.v1',
   liveActivity: 'etut.liveActivity.v1',
+  keepAwake: 'etut.keepAwake.v1',
+  awayRule: 'etut.awayRule.v1',
+  replaceUndo: 'etut.replaceUndo.v1',
 } as const;
 
 export type TimerMode = 'stopwatch' | 'pomodoro';
@@ -204,6 +207,43 @@ export function loadLiveActivityRecord(): LiveActivityRecord | null {
 export function storeLiveActivityRecord(record: LiveActivityRecord | null): void {
   if (record === null) Storage.removeItemSync(KEYS.liveActivity);
   else Storage.setItemSync(KEYS.liveActivity, JSON.stringify(record));
+}
+
+/** Keep the screen on while the timer runs on the timer screen (default on). */
+export function loadKeepAwake(): boolean {
+  return Storage.getItemSync(KEYS.keepAwake) !== '0';
+}
+
+export function storeKeepAwake(on: boolean): void {
+  Storage.setItemSync(KEYS.keepAwake, on ? '1' : '0');
+}
+
+/** What leaving the app while the timer runs means; default 'ask'. */
+export function loadAwayRule(): AwayRule {
+  return Storage.getItemSync(KEYS.awayRule) === 'count' ? 'count' : 'ask';
+}
+
+export function storeAwayRule(rule: AwayRule): void {
+  Storage.setItemSync(KEYS.awayRule, rule);
+}
+
+/** Copy of this device's data taken right before a "Değiştir" restore (for "Geri al"). */
+export interface ReplaceUndo {
+  createdAt: number;
+  /** The data as a backup file (`serializeBackup`). */
+  text: string;
+}
+
+export function loadReplaceUndo(): ReplaceUndo | null {
+  const value = readJson(KEYS.replaceUndo);
+  if (typeof value !== 'object' || value === null) return null;
+  const v = value as Record<string, unknown>;
+  return typeof v.createdAt === 'number' && typeof v.text === 'string' ? { createdAt: v.createdAt, text: v.text } : null;
+}
+
+export function storeReplaceUndo(undo: ReplaceUndo | null): void {
+  if (undo === null) Storage.removeItemSync(KEYS.replaceUndo);
+  else Storage.setItemSync(KEYS.replaceUndo, JSON.stringify(undo));
 }
 
 /** expo-sqlite/kv-store keeps its rows in this database file (expo-sqlite src/Storage.ts). */

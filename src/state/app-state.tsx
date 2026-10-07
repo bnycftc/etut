@@ -27,6 +27,7 @@ import {
 } from '../domain/profile';
 import {
   type ActiveSession,
+  capStudyTime,
   type CompletedSession,
   creditAway,
   dismissAway,
@@ -47,6 +48,7 @@ import { readBackupData, writeBackupData } from '../storage/backup';
 import { newId } from '../storage/db';
 import {
   loadActiveSession,
+  loadAwayRule,
   loadProfile,
   storeActiveSession,
   storeLastSubject,
@@ -57,6 +59,15 @@ import { wipeAllData } from '../storage/wipe';
 import { flushPending, stopSync, syncFinishedSession, syncPresence } from '../sync/session-sync';
 
 export type SaveProfileResult = 'ok' | 'age_blocked';
+
+/** What a `notifyDataChanged` call changed; screens that do not read it skip the reload. */
+export type DataKind = 'sessions' | 'exams' | 'topics' | 'settings';
+export type DataVersions = Record<DataKind, number>;
+
+export interface FinishOptions {
+  /** Save only this much study time (the student said a very long session was not all study). */
+  maxStudyMs?: number;
+}
 
 interface AppStateValue {
   profile: Profile | null;
@@ -69,12 +80,15 @@ interface AppStateValue {
   pause: () => void;
   resume: () => void;
   skipBreak: () => void;
-  finish: () => CompletedSession | null;
+  finish: (options?: FinishOptions) => CompletedSession | null;
   creditAway: () => void;
   dismissAway: () => void;
   /** Increases whenever stored sessions or mock exams change; screens reload on change. */
   dataVersion: number;
-  notifyDataChanged: () => void;
+  /** The same per kind of data, for screens that read only some of it. */
+  dataVersions: DataVersions;
+  /** No `kind` = anything may have changed. */
+  notifyDataChanged: (kind?: DataKind) => void;
   resetAll: () => void;
   /** Everything on this device as a backup file (nothing is written or sent). */
   createBackup: (appVersion: string) => BackupFile;
@@ -110,6 +124,8 @@ function initialProfile(): Profile | null {
   return refreshed;
 }
 
+const NO_CHANGES: DataVersions = { sessions: 0, exams: 0, topics: 0, settings: 0 };
+
 /** How often a running timer records `lastSeenAt` (must stay below the 10 s tolerance). */
 const HEARTBEAT_MS = 5_000;
 
@@ -117,7 +133,7 @@ const HEARTBEAT_MS = 5_000;
 function initialActive(): ActiveSession | null {
   const stored = loadActiveSession();
   if (stored === null) return null;
-  const next = onAppLaunch(stored, Date.now());
+  const next = onAppLaunch(stored, Date.now(), loadAwayRule());
   if (next !== stored) storeActiveSession(next);
   return next;
 }
@@ -125,7 +141,8 @@ function initialActive(): ActiveSession | null {
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(initialProfile);
   const [active, setActiveState] = useState<ActiveSession | null>(initialActive);
-  const [dataVersion, setDataVersion] = useState(0);
+  const [dataVersions, setDataVersions] = useState<DataVersions>(NO_CHANGES);
+  const dataVersion = dataVersions.sessions + dataVersions.exams + dataVersions.topics + dataVersions.settings;
   const activeRef = useRef(active);
 
   function setActive(next: ActiveSession | null) {
@@ -140,14 +157,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     if (current !== null) setActive(fn(current));
   }
 
-  const notifyDataChanged = () => setDataVersion((v) => v + 1);
+  const notifyDataChanged = (kind?: DataKind) =>
+    setDataVersions((v) =>
+      kind === undefined
+        ? { sessions: v.sessions + 1, exams: v.exams + 1, topics: v.topics + 1, settings: v.settings + 1 }
+        : { ...v, [kind]: v[kind] + 1 },
+    );
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (status) => {
       // 'inactive' (Control Center, notification shade, app switcher peek) is not "leaving".
       if (status === 'background') update((s) => onAppBackground(s, Date.now()));
       else if (status === 'active') {
-        update((s) => onAppForeground(s, Date.now()));
+        update((s) => onAppForeground(s, Date.now(), loadAwayRule()));
         flushPending();
       }
     });
@@ -195,7 +217,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (next === null) return false;
       storeProfile(next);
       setProfile(next);
-      notifyDataChanged();
+      notifyDataChanged('settings');
       return true;
     },
     active,
@@ -207,22 +229,24 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     pause: () => update((s) => pauseSession(s, Date.now())),
     resume: () => update((s) => resumeSession(s, Date.now())),
     skipBreak: () => update((s) => skipBreak(s, Date.now())),
-    finish: () => {
+    finish: (options) => {
       const current = activeRef.current;
       if (current === null) return null;
       const now = Date.now();
-      const completed = finishSession(current, now);
+      const finished = finishSession(current, now);
+      const completed = options?.maxStudyMs === undefined ? finished : capStudyTime(finished, options.maxStudyMs);
       if (completed.durationMs > 0) {
         saveSession(completed, now);
         syncFinishedSession(completed, now);
       }
       setActive(null);
-      notifyDataChanged();
+      notifyDataChanged('sessions');
       return completed;
     },
     creditAway: () => update(creditAway),
     dismissAway: () => update(dismissAway),
     dataVersion,
+    dataVersions,
     notifyDataChanged,
     resetAll: () => {
       // No heartbeat or retry may outlive the data (and the group account) it belongs to.

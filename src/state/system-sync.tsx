@@ -190,11 +190,13 @@ function usePhaseEnds(session: ActiveSession | null, foreground: number): number
 }
 
 export function SystemSync(): null {
-  const { active, profile, dataVersion } = useAppState();
+  const { active, profile, dataVersions } = useAppState();
   // Minute ticks only matter for the day key (a new day reloads the data).
   const today = istanbulDayKey(useNow(false));
   const [foreground, setForeground] = useState(0);
-  const data = useStored(`${today}|${dataVersion}|${profile === null ? 'none' : 'profile'}`, () =>
+  // Sessions, goal/reminder settings and exams awaiting analysis; topic marks are not read here.
+  const version = `${dataVersions.sessions}|${dataVersions.settings}|${dataVersions.exams}`;
+  const data = useStored(`${today}|${version}|${profile === null ? 'none' : 'profile'}`, () =>
     profile === null ? null : loadSurfaceData(today),
   );
   const session = profile === null ? null : active;

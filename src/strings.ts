@@ -1101,4 +1101,56 @@ export const tr = {
     done: 'Anladım',
     skip: 'Geç',
   },
+
+  /** Ayarlar → "Sayaç çalışırken": screen kept on, what leaving the app means. */
+  timerSettings: {
+    title: 'Sayaç çalışırken',
+    keepAwake: 'Ekranı açık tut',
+    keepAwakeInfo:
+      'Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez, böylece süren molaya dönmez. Pili biraz daha çok kullanır.',
+    on: 'Açık',
+    off: 'Kapalı',
+    awayTitle: 'Uygulamadan çıkınca',
+    awayAsk: 'Sor',
+    awayCount: 'Çalışmaya devam say',
+    awayAskInfo:
+      '10 saniyeden uzun çıkarsan ya da telefon kilitlenirse o süre mola sayılır; dönünce “Çalışıyordum” diyerek ekleyebilirsin.',
+    awayCountInfo:
+      'Uygulamadan çıktığın ya da telefonu kilitlediğin süre çalışma sayılır, sorulmaz. Mola verirken “Mola”ya dokunmayı unutma.',
+  },
+
+  /** Questions "Bitir" asks before saving. */
+  finishCheck: {
+    awayTitle: (duration: string) => `Bitirmeden önce: ${duration} uygulamanın dışındaydın.`,
+    awayBody: 'Bu süre çalışma mıydı?',
+    awayCredit: 'Çalışıyordum, ekle ve bitir',
+    awayBreak: 'Molaydı, öyle bitir',
+    longTitle: (duration: string) => `Bu oturum ${duration} sürmüş görünüyor.`,
+    longBody: 'Hepsinde çalıştın mı? Sayaç açık kaldıysa yalnız ilk 10 saati kaydedebilirsin.',
+    longAll: 'Evet, hepsini kaydet',
+    longCap: 'İlk 10 saati kaydet',
+    cancel: 'Vazgeç, sayaç sürsün',
+  },
+
+  countdownPassed: 'Sınav tarihi geçti. Yeni tarihi Ayarlar’dan gir.',
+
+  /** Yedek: old files, the second confirmation and "Geri al" for "Değiştir". */
+  backupSafety: {
+    skipped: (exams: number, targets: number) =>
+      `Uygulamanın şimdiki sınav biçimine (soru sayıları, dersler) uymayan ${
+        exams > 0 && targets > 0 ? `${exams} deneme ve ${targets} net hedefi` : exams > 0 ? `${exams} deneme` : `${targets} net hedefi`
+      } yüklenmeyecek; geri kalan her şey yüklenecek.`,
+    replaceSure: (sessions: number, exams: number, topics: number) =>
+      `Emin misin? Bu telefondaki ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti silinip yerine yedektekiler gelecek. Önce otomatik bir kopya alınır; istersen hemen geri alabilirsin.`,
+    replaceYes: 'Evet, değiştir',
+    replaceNo: 'Vazgeç',
+    undoTitle: 'Değiştirmeden önceki verilerin',
+    undoInfo: (when: string) =>
+      `“Değiştir”den önce (${when}) alınan kopya bu telefonda duruyor. Geri alırsan veriler o ana döner; sonradan eklediklerin gider. Kopya bir gün sonra gösterilmez.`,
+    undo: 'Geri al',
+    undoDiscard: 'Kopyayı sil',
+    undone: (sessions: number, exams: number, topics: number) =>
+      `Geri alındı. Şu an ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti var.`,
+    undoFailed: 'Kopya okunamadı, geri alınamadı.',
+  },
 } as const;

@@ -10,6 +10,13 @@
  * - The timer keeps running after the student returns.
  * - If the app dies without a background event, the gap after the last foreground heartbeat
  *   (`lastSeenAt`) is handled the same way on the next launch.
+ * - A second absence before the student answered joins the first one: one prompt, one answer
+ *   for both (`pendingAway` spans them, `pendingAwayMs` is the time actually away).
+ * - The student can choose in Settings that leaving the app counts as study (`AwayRule` 'count');
+ *   then no break is made and nothing is asked. The default stays 'ask'.
+ *
+ * A clock set back before the start (e.g. corrected by the network) never loses the session:
+ * it is saved up to the last moment the app recorded (`finishSession`).
  */
 
 import type { Interval } from './istanbul-day';
@@ -22,6 +29,18 @@ import {
 } from './pomodoro';
 
 export const BACKGROUND_TOLERANCE_MS = 10_000;
+
+/**
+ * What leaving the app while the timer runs means: 'ask' (default) = automatic break plus
+ * "Çalışıyordum"; 'count' = the time away counts as study, nothing is asked.
+ */
+export type AwayRule = 'ask' | 'count';
+
+/**
+ * Study time of one session above which finishing asks first ("did you really study that long?").
+ * Same 10 hours as the limit of one manual entry (`MANUAL_MAX_MS`) and the server's `too_long`.
+ */
+export const LONG_SESSION_MS = 10 * 3_600_000;
 
 /** `break` = a pomodoro break (stored on finished sessions only; derived while running). */
 export type PauseKind = 'manual' | 'away' | 'break';
@@ -49,7 +68,10 @@ export interface ActiveSession {
   pauses: Pause[];
   /** When the app went to the background while the timer was running; `null` otherwise. */
   backgroundedAt: number | null;
-  /** Last automatic break that the student has not answered yet. */
+  /**
+   * Automatic breaks the student has not answered yet: from the start of the first unanswered
+   * one to the end of the last (in-app time between them was never a break).
+   */
   pendingAway: Interval | null;
   /**
    * Heartbeat written while the timer runs in the foreground. If the app dies without a
@@ -111,7 +133,23 @@ export function resumeSession(session: ActiveSession, now: number): ActiveSessio
   const pauses = session.pauses.map((p, i) =>
     i === session.pauses.length - 1 ? { ...p, end: Math.max(now, p.start) } : p,
   );
-  return { ...session, pauses, lastSeenAt: now };
+  return { ...session, pauses, lastSeenAt: seenAt(session, now) };
+}
+
+/**
+ * `lastSeenAt` for a look at the clock at `now`. A clock that went back before the start keeps
+ * the last reading from before (so `finishSession` can still save what was studied).
+ */
+function seenAt(session: ActiveSession, now: number): number {
+  return now < session.startedAt && session.lastSeenAt !== null ? Math.max(now, session.lastSeenAt) : now;
+}
+
+/** Latest moment this session recorded (heartbeat, background event, breaks, pomodoro skips). */
+function lastRecordedAt(session: ActiveSession): number {
+  let latest = Math.max(session.startedAt, session.lastSeenAt ?? 0, session.backgroundedAt ?? 0);
+  for (const p of session.pauses) latest = Math.max(latest, p.start, p.end ?? 0);
+  for (const s of session.pomodoro?.skips ?? []) latest = Math.max(latest, s.at);
+  return latest;
 }
 
 /** Pauses with any open break closed at `endAt`, clipped to `[startedAt, endAt]`. */
@@ -159,7 +197,8 @@ export function elapsedMs(session: ActiveSession, now: number): number {
 }
 
 export function finishSession(session: ActiveSession, now: number): CompletedSession {
-  const endedAt = Math.max(now, session.startedAt);
+  // A clock set back before the start would leave nothing: end at the last recorded moment.
+  const endedAt = now >= session.startedAt ? now : lastRecordedAt(session);
   return {
     id: session.id,
     subjectId: session.subjectId,
@@ -174,6 +213,34 @@ export function finishSession(session: ActiveSession, now: number): CompletedSes
   };
 }
 
+/**
+ * Keeps only the first `maxMs` of study time of a finished session (the student said a very long
+ * session was not all study): it then ends at the moment that much study time was reached.
+ */
+export function capStudyTime(done: CompletedSession, maxMs: number): CompletedSession {
+  if (done.durationMs <= maxMs) return done;
+  let left = maxMs;
+  let endedAt = done.startedAt;
+  for (const interval of workIntervals(done.startedAt, done.pauses, done.endedAt)) {
+    const length = interval.end - interval.start;
+    if (length >= left) {
+      endedAt = interval.start + left;
+      break;
+    }
+    left -= length;
+  }
+  return { ...done, endedAt, pauses: closePauses(done.startedAt, done.pauses, endedAt), durationMs: maxMs };
+}
+
+/**
+ * What "Bitir" must ask before saving, in this order: an absence the student has not answered
+ * (never dropped silently), then a session longer than `LONG_SESSION_MS`. `null` = save at once.
+ */
+export function finishQuestion(session: ActiveSession, now: number): 'away' | 'long' | null {
+  if (session.pendingAway !== null) return 'away';
+  return finishSession(session, now).durationMs > LONG_SESSION_MS ? 'long' : null;
+}
+
 /** "Molayı geç" in pomodoro mode (no effect otherwise). */
 export function skipBreak(session: ActiveSession, now: number): ActiveSession {
   return skipPomodoroBreak(session, now, isPaused(session));
@@ -185,13 +252,15 @@ export function onAppBackground(session: ActiveSession, now: number): ActiveSess
   return { ...session, backgroundedAt: now };
 }
 
-/** The app is active again. */
-export function onAppForeground(session: ActiveSession, now: number): ActiveSession {
+/** The app is active again. `rule` = the student's choice for time away (default 'ask'). */
+export function onAppForeground(session: ActiveSession, now: number, rule: AwayRule = 'ask'): ActiveSession {
   const awayStart = session.backgroundedAt;
   if (awayStart === null) return session;
-  const cleared: ActiveSession = { ...session, backgroundedAt: null, lastSeenAt: now };
+  const cleared: ActiveSession = { ...session, backgroundedAt: null, lastSeenAt: seenAt(session, now) };
   // A clock that went backwards is treated as "no time away".
   if (now - awayStart <= BACKGROUND_TOLERANCE_MS) return cleared;
+  // The student chose that time away counts as study: no break, nothing to ask.
+  if (rule === 'count') return cleared;
   // Pomodoro: being away only during a break loses no study time, so there is nothing to ask.
   if (session.pomodoro !== null) {
     const breaks = pomodoroBreaks(session, now).map((b): Pause => ({ ...b, kind: 'break' }));
@@ -200,34 +269,45 @@ export function onAppForeground(session: ActiveSession, now: number): ActiveSess
   return {
     ...cleared,
     pauses: [...cleared.pauses, { start: awayStart, end: now, kind: 'away' }],
-    pendingAway: { start: awayStart, end: now },
+    // Still unanswered from before: one prompt (and one answer) for both absences.
+    pendingAway: { start: session.pendingAway?.start ?? awayStart, end: now },
   };
 }
 
 /** Foreground heartbeat (see `lastSeenAt`). Only a running, foreground timer is marked. */
 export function markSeen(session: ActiveSession, now: number): ActiveSession {
   if (isPaused(session) || session.backgroundedAt !== null) return session;
-  return { ...session, lastSeenAt: now };
+  return { ...session, lastSeenAt: seenAt(session, now) };
 }
 
 /**
  * Cold start with a persisted session. If the background event was recorded, the normal rule
  * applies; if the app died in the foreground, the time since the last heartbeat is the absence.
  */
-export function onAppLaunch(session: ActiveSession, now: number): ActiveSession {
+export function onAppLaunch(session: ActiveSession, now: number, rule: AwayRule = 'ask'): ActiveSession {
   if (session.backgroundedAt === null && !isPaused(session) && session.lastSeenAt !== null) {
-    return onAppForeground({ ...session, backgroundedAt: session.lastSeenAt }, now);
+    return onAppForeground({ ...session, backgroundedAt: session.lastSeenAt }, now, rule);
   }
-  return onAppForeground(session, now);
+  return onAppForeground(session, now, rule);
 }
 
-/** "Çalışıyordum, süreye ekle": remove the automatic break so the interval counts as study. */
+/** The automatic breaks inside `pendingAway`. */
+function isPendingAway(p: Pause, away: Interval): boolean {
+  return p.kind === 'away' && p.end !== null && p.start >= away.start && p.end <= away.end;
+}
+
+/** Time actually spent away in the unanswered absences (0 when nothing is pending). */
+export function pendingAwayMs(session: ActiveSession): number {
+  const away = session.pendingAway;
+  if (away === null) return 0;
+  return session.pauses.reduce((sum, p) => (isPendingAway(p, away) ? sum + ((p.end ?? p.start) - p.start) : sum), 0);
+}
+
+/** "Çalışıyordum, süreye ekle": remove the automatic breaks so the time away counts as study. */
 export function creditAway(session: ActiveSession): ActiveSession {
   const away = session.pendingAway;
   if (away === null) return session;
-  const pauses = session.pauses.filter(
-    (p) => !(p.kind === 'away' && p.start === away.start && p.end === away.end),
-  );
+  const pauses = session.pauses.filter((p) => !isPendingAway(p, away));
   return { ...session, pauses, pendingAway: null };
 }
 

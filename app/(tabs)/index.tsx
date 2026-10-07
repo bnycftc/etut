@@ -9,8 +9,8 @@ import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
 import { defaultSubject, subjectsFor } from '@/domain/subjects';
-import { elapsedMs, isPaused } from '@/domain/timer';
-import { useAppState, useNow, useStored } from '@/state/app-state';
+import { elapsedMs, isPaused, pendingAwayMs } from '@/domain/timer';
+import { type FinishOptions, useAppState, useNow, useStored } from '@/state/app-state';
 import { useStudyStats } from '@/state/study-stats';
 import {
   loadCustomExamDate,
@@ -24,6 +24,7 @@ import { tr } from '@/strings';
 import { Button, Card, Chip, ChipRow, Label, ProgressBar, Row, Screen, Tag } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
 import { MAX_FONT_SCALE, usePalette } from '@/ui/theme';
+import { TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
 import { FirstUseTips } from '@/ui/tips';
 import { TopicPicker } from '@/ui/topic-picker';
 
@@ -99,8 +100,8 @@ export default function TimerScreen() {
     app.skipBreak();
   };
 
-  const finish = () => {
-    const done = app.finish();
+  const finish = (options?: FinishOptions) => {
+    const done = app.finish(options);
     if (done !== null) {
       setSavedMessage(
         tr.timer.saved(done.durationMs < 60_000 ? tr.timer.lessThanMinute : formatDuration(done.durationMs)),
@@ -108,9 +109,11 @@ export default function TimerScreen() {
       setSubjectId(done.subjectId);
     }
   };
+  const finishCheck = useFinishCheck(finish);
 
   return (
     <Screen testID="timer-screen">
+      <TimerKeepAwake running={running} />
       <FirstUseTips />
       <Card>
         {examDate !== null && daysLeft !== null && daysLeft >= 0 ? (
@@ -166,7 +169,7 @@ export default function TimerScreen() {
       {active?.pendingAway ? (
         <Card>
           <Label testID="away-title" style={{ color: c.warning, fontWeight: '600' }}>
-            {tr.timer.awayTitle(formatAway(active.pendingAway.end - active.pendingAway.start))}
+            {tr.timer.awayTitle(formatAway(pendingAwayMs(active)))}
           </Label>
           <Label variant="muted">{tr.timer.awayBody}</Label>
           <Button testID="away-credit" title={tr.timer.awayCredit} onPress={app.creditAway} />
@@ -307,8 +310,9 @@ export default function TimerScreen() {
             ) : (
               <Button large testID="timer-resume" title={tr.timer.resume} onPress={app.resume} />
             )}
-            <Button large testID="timer-finish" kind="danger" title={tr.timer.finish} onPress={finish} />
+            <Button large testID="timer-finish" kind="danger" title={tr.timer.finish} onPress={finishCheck.request} />
           </Row>
+          {finishCheck.prompt}
         </Card>
       )}
 

@@ -13,7 +13,9 @@ expo-router. Kurulum, komutlar ve yayın hattı: `README.md`.
   (`npm run test:db`, Docker yoksa `npm run test:db:pglite`).
 - `src/domain/` — saf TypeScript, React/Expo importu yok. Tüm iş kuralları burada ve testli:
   - `timer.ts`: süre = zaman damgası − duraklatmalar (asla sayaç tıklamasıyla toplanmaz);
-    arka plan kuralı: ≤10 sn tolerans, daha uzunu otomatik "away" molası + "Çalışıyordum" ile geri ekleme.
+    arka plan kuralı: ≤10 sn tolerans, daha uzunu otomatik "away" molası + "Çalışıyordum" ile geri ekleme
+    (Ayarlar'da "Çalışmaya devam say" seçilebilir, varsayılan "Sor"; sayaç ekranı açıkken ekran açık
+    tutulur, `src/ui/timer-safety.tsx`). "Bitir" yanıtsız uzakta molasını ve 10 saati aşan oturumu sorar.
     Uygulama arka plan olayı olmadan ölürse (zorla kapatma, çökme) soğuk açılışta son
     `lastSeenAt` kalp atışından (5 sn'de bir) sonrası aynı kurala girer (`onAppLaunch`).
   - `istanbul-day.ts`: gün sınırı Europe/Istanbul gece yarısı (sabit UTC+3, DST yok).
