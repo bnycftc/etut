@@ -163,6 +163,19 @@ describe('liveActivityAction', () => {
     expect(liveActivityAction({ sessionId: 's2', instances: 0, record: dismissed, now: T0 + HOUR })).toBe('start');
   });
 
+  it('after a phone restart (gone before this launch saw it) it is started once more', () => {
+    const fresh = { sessionId: 's1', instances: 0, record, now: T0 + 2 * HOUR, seenThisLaunch: false };
+    expect(liveActivityAction(fresh)).toBe('retry');
+    // The one started then is marked: gone again (a second restart or a removal) = removed.
+    expect(liveActivityAction({ ...fresh, record: { ...record, retried: true } })).toBe('dismissed');
+    // Seen alive in this launch, then gone: the student removed it.
+    expect(liveActivityAction({ ...fresh, seenThisLaunch: true })).toBe('dismissed');
+    // Removed earlier stays removed after a restart too.
+    expect(liveActivityAction({ ...fresh, record: { ...record, dismissed: true } })).toBe('none');
+    // After the 8-hour limit a new one starts as before.
+    expect(liveActivityAction({ ...fresh, now: T0 + LIVE_ACTIVITY_MAX_MS })).toBe('start');
+  });
+
   it('starts a new one after the system ended it at the 8-hour limit', () => {
     expect(
       liveActivityAction({ sessionId: 's1', instances: 0, record, now: T0 + LIVE_ACTIVITY_MAX_MS }),

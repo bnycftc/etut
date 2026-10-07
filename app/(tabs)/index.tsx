@@ -123,6 +123,11 @@ export default function TimerScreen() {
             </Label>
             {examDate.estimated ? <Tag title={tr.countdown.estimated} /> : null}
           </Row>
+        ) : daysLeft !== null ? (
+          // The date (built-in estimate or the student's) is behind us: say so instead of hiding it.
+          <Label testID="countdown-passed" variant="muted">
+            {tr.countdownPassed}
+          </Label>
         ) : null}
         <Row>
           <View style={{ flex: 1 }}>

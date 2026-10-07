@@ -27,6 +27,14 @@ import { type ActiveSession, isPaused, workIntervals } from './timer';
 
 /** Midnights ahead covered by the timeline (the widget shows a fresh day even if the app stays closed). */
 const MIDNIGHTS_AHEAD = 2;
+/**
+ * With nothing running, the timeline goes on to this midnight so that its last entry is right for
+ * good, however long the app stays closed: by then the three days before it were missed, two of
+ * them in the same week, which no rest day bridges, so the streak is 0 from there on and nothing
+ * else changes either (nothing studied, goal not met). Up to that midnight a rest day can still
+ * carry the streak (a missed Sunday and Monday), so every midnight in between gets its entry.
+ */
+const SETTLED_MIDNIGHT = 4;
 /** WidgetKit keeps the timeline small; later entries are dropped. */
 export const MAX_WIDGET_ENTRIES = 40;
 /**
@@ -107,8 +115,11 @@ export function widgetTimeline(input: WidgetTimelineInput): WidgetEntry[] {
   const { now, active, goalMinutes } = input;
   const points = new Set<number>([now]);
   const today = istanbulDayKey(now);
-  for (let i = 1; i <= MIDNIGHTS_AHEAD; i++) points.add(dayStartMs(addDays(today, i)));
-  const horizon = dayStartMs(addDays(today, MIDNIGHTS_AHEAD));
+  // A running session goes on counting in the timeline; only an idle one settles (see SETTLED_MIDNIGHT).
+  const idle = active === null || isPaused(active);
+  const midnights = idle ? SETTLED_MIDNIGHT : MIDNIGHTS_AHEAD;
+  for (let i = 1; i <= midnights; i++) points.add(dayStartMs(addDays(today, i)));
+  const horizon = dayStartMs(addDays(today, midnights));
   // The first phase change the timeline leaves out (over budget or after the last midnight).
   // An entry that stays in effect past it cannot know about that break: it does not count.
   let firstUncovered = Number.POSITIVE_INFINITY;

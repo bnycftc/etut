@@ -1841,6 +1841,36 @@ describe('timer and data safety', () => {
     expect(memory.netTargets).toEqual({ 'TYT:matematik': 30 });
   });
 
+  it('an exam date that has passed is not hidden: the home screen says to enter the new one', () => {
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z'));
+    memory.examDates = { YKS: '2026-06-20' };
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.queryByTestId('countdown')).toBeNull();
+    expect(screen.getByTestId('countdown-passed').props.children).toBe(
+      'Sınav tarihi geçti. Yeni tarihi Ayarlar’dan gir.',
+    );
+  });
+
+  it('Live Activity: after a phone restart it comes back once; removed again, it stays away', async () => {
+    const from = listenersFrom();
+    const { startSession } = jest.requireActual('../domain/timer');
+    const now = Date.now();
+    memory.active = { ...startSession('after-restart', 'fizik', now - 2 * HOUR), lastSeenAt: now - 1_000 };
+    memory.liveActivityRecord = { sessionId: 'after-restart', startedAt: now - 2 * HOUR };
+    memory.liveActivities = [];
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    await settle();
+    expect(memory.liveActivities).toHaveLength(1);
+    expect(memory.liveActivityRecord).toMatchObject({ sessionId: 'after-restart', retried: true });
+    // Now the student removes it with the app alive: respected.
+    memory.liveActivities = [];
+    act(() => jest.setSystemTime(Date.now() + 1_000));
+    emitAppState('active', from);
+    await settle();
+    expect(memory.liveActivities).toHaveLength(0);
+    expect(memory.liveActivityRecord).toMatchObject({ dismissed: true });
+  });
+
   it('marking a topic does not reload the stored sessions for the timer and the system surfaces', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     act(() => router.push('/konular'));

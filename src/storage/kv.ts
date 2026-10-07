@@ -199,9 +199,10 @@ export function loadLiveActivityRecord(): LiveActivityRecord | null {
   if (typeof value !== 'object' || value === null) return null;
   const v = value as Record<string, unknown>;
   if (typeof v.sessionId !== 'string' || typeof v.startedAt !== 'number') return null;
-  return v.dismissed === true
-    ? { sessionId: v.sessionId, startedAt: v.startedAt, dismissed: true }
-    : { sessionId: v.sessionId, startedAt: v.startedAt };
+  const record: LiveActivityRecord = { sessionId: v.sessionId, startedAt: v.startedAt };
+  if (v.dismissed === true) record.dismissed = true;
+  if (v.retried === true) record.retried = true;
+  return record;
 }
 
 export function storeLiveActivityRecord(record: LiveActivityRecord | null): void {
