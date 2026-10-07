@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { addDays, type DayKey, dayStartMs, istanbulDayKey, lastDays } from '../domain/istanbul-day';
-import { liveActivityAction, liveTimerView } from '../domain/live-timer';
+import { liveActivityAction, type LiveActivityRecord, liveTimerView } from '../domain/live-timer';
 import {
   effectiveReminderPrefs,
   type PendingExam,
@@ -89,6 +89,9 @@ const inBackground = () => AppState.currentState === 'background';
 
 const runLiveActivity = serial();
 let lastLiveKey: string | null = null;
+/** The recorded Live Activity this app process has seen alive or started (see `liveActivityAction`). */
+let seenLive: string | null = null;
+const recordKey = (record: LiveActivityRecord) => `${record.sessionId}|${record.startedAt}`;
 
 /**
  * Starts, updates, refreshes or ends the Live Activity. ActivityKit starts one only while the app
@@ -98,11 +101,14 @@ async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
   if (!liveActivity.supported) return;
   const now = Date.now();
   const record = loadLiveActivityRecord();
+  const instances = liveActivity.count();
+  if (record !== null && instances > 0 && record.sessionId === active?.id) seenLive = recordKey(record);
   const action = liveActivityAction({
     sessionId: active?.id ?? null,
-    instances: liveActivity.count(),
+    instances,
     record,
     now,
+    seenThisLaunch: record !== null && seenLive === recordKey(record),
   });
   if (action === 'dismissed') {
     if (record !== null) storeLiveActivityRecord({ ...record, dismissed: true });
@@ -110,7 +116,7 @@ async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
   }
   // A start would be refused here, and a restart would end the old one and leave none: both wait
   // for the foreground.
-  if (inBackground() && (action === 'start' || action === 'restart')) return;
+  if (inBackground() && (action === 'start' || action === 'retry' || action === 'restart')) return;
   if (action === 'end' || action === 'restart') {
     await liveActivity.endAll();
     lastLiveKey = null;
@@ -127,7 +133,10 @@ async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
     return;
   }
   if (liveActivity.start(props, view.staleAt)) {
-    storeLiveActivityRecord({ sessionId: active.id, startedAt: now });
+    const started: LiveActivityRecord =
+      action === 'retry' ? { sessionId: active.id, startedAt: now, retried: true } : { sessionId: active.id, startedAt: now };
+    storeLiveActivityRecord(started);
+    seenLive = recordKey(started);
     lastLiveKey = key;
   }
 }
@@ -190,11 +199,13 @@ function usePhaseEnds(session: ActiveSession | null, foreground: number): number
 }
 
 export function SystemSync(): null {
-  const { active, profile, dataVersion } = useAppState();
+  const { active, profile, dataVersions } = useAppState();
   // Minute ticks only matter for the day key (a new day reloads the data).
   const today = istanbulDayKey(useNow(false));
   const [foreground, setForeground] = useState(0);
-  const data = useStored(`${today}|${dataVersion}|${profile === null ? 'none' : 'profile'}`, () =>
+  // Sessions, goal/reminder settings and exams awaiting analysis; topic marks are not read here.
+  const version = `${dataVersions.sessions}|${dataVersions.settings}|${dataVersions.exams}`;
+  const data = useStored(`${today}|${version}|${profile === null ? 'none' : 'profile'}`, () =>
     profile === null ? null : loadSurfaceData(today),
   );
   const session = profile === null ? null : active;

@@ -54,7 +54,7 @@ export default function NotificationPermissionScreen() {
     if (answer === 'granted') {
       storeReminderPrefs(prefs);
       storeRemindersConfirmed();
-      notifyDataChanged();
+      notifyDataChanged('settings');
       router.back();
     }
   };

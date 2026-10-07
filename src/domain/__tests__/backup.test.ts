@@ -6,10 +6,13 @@ import {
   type BackupExam,
   backupFileName,
   buildBackupFile,
+  canUndoReplace,
   EMPTY_SETTINGS,
   importedProfile,
   mergeBackup,
   parseBackup,
+  REPLACE_UNDO_MS,
+  replaceUndoExpired,
   serializeBackup,
 } from '../backup';
 import type { Profile } from '../profile';
@@ -232,15 +235,16 @@ describe('backup validation', () => {
     ['duration longer than the session', { sessions: [session('x', { durationMs: 3_600_001 })] }],
     ['unknown source', { sessions: [{ ...session('x'), source: 'server' }] }],
     ['id with odd characters', { sessions: [session('x"; DROP TABLE')] }],
-    ['unknown paper', { exams: [{ ...exam('e'), kind: 'AYT_XYZ' }] }],
-    ['wrong question count', { exams: [exam('e', { scores: [{ sectionId: 'matematik', questions: 41, correct: 1, wrong: 0 }] })] }],
-    ['missing section of a general exam', { exams: [exam('e', { scores: exam('e').scores.slice(1) })] }],
+    ['paper that is not text', { exams: [{ ...exam('e'), kind: 42 }] }],
+    ['question count that is not a number', { exams: [exam('e', { scores: [{ sectionId: 'matematik', questions: '40', correct: 1, wrong: 0 } as never] })] }],
+    ['duplicate section in an exam', { exams: [exam('e', { scores: [exam('e').scores[0], exam('e').scores[0]] })] }],
     ['correct + wrong above the questions', { exams: [exam('e', { scores: [...exam('e').scores.slice(1), { sectionId: 'matematik', questions: 40, correct: 35, wrong: 6 }] })] }],
     ['more tagged wrong answers than wrong answers', { exams: [exam('e', { marks: [{ sectionId: 'matematik', topicId: 't', wrong: 7, blank: 0 }] })] }],
     ['mark on a section the exam does not have', { exams: [exam('e', { marks: [{ sectionId: 'fizik', topicId: 't', wrong: 1, blank: 0 }] })] }],
     ['branch exam without its section', { exams: [exam('e', { scope: 'brans', bransSectionId: null })] }],
     ['unknown topic status', { topicProgress: [{ topicId: 't', status: 'maybe', updatedAt: 1 }] }],
-    ['net target above the question count', { settings: { netTargets: { 'TYT:fizik': 8 } } }],
+    ['net target that is not a number', { settings: { netTargets: { 'TYT:fizik': '5' } } }],
+    ['net target key without a section', { settings: { netTargets: { TYT: 5 } } }],
     ['net target not a multiple of 0.25', { settings: { netTargets: { 'TYT:matematik': 10.1 } } }],
     ['bad exam date', { settings: { examDates: { YKS: '19.06.2027' } } }],
     ['exam date not on the calendar', { settings: { examDates: { YKS: '2026-00-00' } } }],
@@ -250,6 +254,56 @@ describe('backup validation', () => {
     ['YKS profile without an area', { profile: { birthYear: 2008, examType: 'YKS', yksArea: null } }],
   ])('rejects the whole file: %s', (_name, overrides) => {
     expect(error(fileText(overrides))).toBe('invalid');
+  });
+
+  it('an old file whose exams no longer fit the exam tables still loads; only those exams are left out', () => {
+    // E.g. ÖSYM changed a question count after the file was made, or a paper/section was dropped.
+    const result = parseBackup(
+      fileText({
+        exams: [
+          exam('ok'),
+          exam('count', { scores: [{ sectionId: 'matematik', questions: 41, correct: 1, wrong: 0 }, ...exam('e').scores.slice(1)] }),
+          exam('missing', { scores: exam('e').scores.slice(1), marks: [] }),
+          { ...exam('paper'), kind: 'AYT_XYZ' },
+          exam('gone', { scope: 'brans', bransSectionId: 'astronomi', scores: [{ sectionId: 'astronomi', questions: 10, correct: 5, wrong: 0 }], marks: [] }),
+        ],
+        settings: { ...DATA.settings, netTargets: { 'TYT:matematik': 30, 'TYT:fizik': 8, 'XYZ:matematik': 5, 'TYT:astronomi': 2 } },
+      }),
+    );
+    if (!result.ok) throw new Error(result.error);
+    expect(result.file.exams.map((e) => e.id)).toEqual(['ok']);
+    expect(result.skippedExams).toBe(4);
+    expect(result.file.settings.netTargets).toEqual({ 'TYT:matematik': 30 });
+    expect(result.skippedTargets).toBe(3);
+    // Sessions, topics and the other settings are all there.
+    expect(result.file.sessions).toHaveLength(DATA.sessions.length);
+    expect(result.file.topicProgress).toEqual(DATA.topicProgress);
+    expect(result.file.settings.dailyGoalMinutes).toBe(120);
+    expect(result.skippedSessions).toBe(0);
+  });
+
+  it('a current file skips nothing', () => {
+    expect(parseBackup(fileText())).toMatchObject({ ok: true, skippedSessions: 0, skippedExams: 0, skippedTargets: 0 });
+  });
+
+  it('"Geri al" copy: wrong-clock sessions are kept when asked', () => {
+    const old = session('old', { startedAt: Date.UTC(2001, 0, 1), endedAt: Date.UTC(2001, 0, 1, 1), pauses: [], durationMs: 3_600_000 });
+    const text = fileText({ sessions: [session('ok'), old] });
+    expect(parseBackup(text)).toMatchObject({ ok: true, skippedSessions: 1 });
+    const kept = parseBackup(text, { keepWrongClockSessions: true });
+    expect(kept.ok && kept.file.sessions.map((s) => s.id)).toEqual(['ok', 'old']);
+  });
+
+  it('"Geri al" is offered for a day after the replace', () => {
+    expect(canUndoReplace(T0, T0)).toBe(true);
+    expect(canUndoReplace(T0, T0 + REPLACE_UNDO_MS - 1)).toBe(true);
+    expect(canUndoReplace(T0, T0 + REPLACE_UNDO_MS)).toBe(false);
+    // A clock set back before the copy: not offered (it may be from another day).
+    expect(canUndoReplace(T0, T0 - 1)).toBe(false);
+    // Deleted only when the day is over, not for a clock that is behind.
+    expect(replaceUndoExpired(T0, T0 + REPLACE_UNDO_MS)).toBe(true);
+    expect(replaceUndoExpired(T0, T0 + REPLACE_UNDO_MS - 1)).toBe(false);
+    expect(replaceUndoExpired(T0, T0 - 1)).toBe(false);
   });
 
   it('a branch exam has exactly its section', () => {

@@ -43,6 +43,7 @@ import { Button, Card, Chip, ChipRow, Field, Label, Row, Screen, Stepper, Tag } 
 import { formatDay, formatDuration } from '@/ui/format';
 import { useReducedMotion } from '@/ui/motion';
 import { usePalette } from '@/ui/theme';
+import { TimerSettingsCard } from '@/ui/timer-safety';
 
 const DEFAULT_GOAL_MINUTES = 120;
 const GOAL_STEP_MINUTES = 15;
@@ -82,12 +83,12 @@ export default function SettingsScreen() {
   const goal = useStored(`goal|${dataVersion}`, loadDailyGoal);
   const setGoal = (minutes: number | null) => {
     storeDailyGoal(minutes);
-    notifyDataChanged();
+    notifyDataChanged('settings');
   };
   const pomodoro = useStored(`pomodoro|${dataVersion}`, loadPomodoroConfig);
   const setPomodoro = (config: PomodoroConfig) => {
     storePomodoroConfig(normalizePomodoroConfig(config));
-    notifyDataChanged();
+    notifyDataChanged('settings');
   };
   const c = usePalette();
   const reduceMotion = useReducedMotion();
@@ -103,7 +104,7 @@ export default function SettingsScreen() {
     if (!ok) return;
     storeCustomExamDate(examType, day);
     setDateText('');
-    notifyDataChanged();
+    notifyDataChanged('settings');
   };
   const permission = useNotificationPermission();
   const reminderPrefs = useStored(`reminders|${dataVersion}`, () =>
@@ -241,7 +242,7 @@ export default function SettingsScreen() {
                 title={tr.countdown.reset}
                 onPress={() => {
                   storeCustomExamDate(profile.examType, null);
-                  notifyDataChanged();
+                  notifyDataChanged('settings');
                 }}
               />
             ) : null}
@@ -302,6 +303,8 @@ export default function SettingsScreen() {
           onPress={() => setPomodoro(DEFAULT_POMODORO)}
         />
       </Card>
+
+      <TimerSettingsCard />
 
       <Card>
         <Label variant="heading">{tr.reminders.title}</Label>

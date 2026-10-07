@@ -319,7 +319,6 @@ export const tr = {
     cancel: 'Vazgeç',
     save: 'Kaydet',
     delete: 'Sil',
-    continue: 'Devam',
   },
 
   tabs: {
@@ -342,7 +341,6 @@ export const tr = {
   },
 
   timer: {
-    title: 'Sayaç',
     today: 'Bugün',
     history: 'Geçmiş',
     pickSubject: 'Ders seç',
@@ -407,7 +405,6 @@ export const tr = {
     streak: (days: number) => `Seri: ${days} gün`,
     restUsed: 'Bu haftaki dinlenme günün kullanıldı.',
     restFree: 'Bu hafta 1 dinlenme günü hakkın var.',
-    off: 'Kapalı',
     turnOff: 'Hedefi kapat',
     turnOn: 'Hedef koy',
     info: 'Hedefini tutturduğun ardışık günler seriyi oluşturur. Haftada 1 gün hedefin altında kalırsan seri bozulmaz; o gün dinlenme günü sayılır.',
@@ -496,7 +493,6 @@ export const tr = {
     done: 'Bitti',
     review: 'Tekrar lazım',
     noTime: 'Henüz süre yok',
-    noTopics: 'Bu ders için konu listesi yok.',
     unsupported: 'Konu listeleri YKS, LGS ve KPSS için var.',
   },
 
@@ -512,7 +508,6 @@ export const tr = {
   },
 
   exams: {
-    title: 'Denemeler',
     add: 'Deneme ekle',
     chartTitle: (kind: string) => `${kind} genel deneme netleri`,
     chartEmpty: 'Bu tür için henüz genel deneme yok.',
@@ -667,7 +662,6 @@ export const tr = {
     /** The only button: it opens the system prompt, where the student allows or refuses (HIG). */
     allow: 'Devam et',
     denied: 'İzin verilmedi. Hatırlatıcılar kapalı kalır; uygulamanın geri kalanı aynen çalışır.',
-    granted: 'İzin verildi. Hatırlatıcılar açık.',
     close: 'Kapat',
   },
 
@@ -706,12 +700,10 @@ export const tr = {
     streak: (days: number) => `Seri: ${days} gün`,
     goal: (goal: string) => `Hedef ${goal}`,
     goalMet: 'Hedef tamam',
-    noGoal: 'Hedef koymadın',
     running: 'Sayaç açık',
   },
 
   groups: {
-    title: 'Gruplar',
     soon: 'Yakında',
     body: 'Davetle kurulan küçük çalışma grupları üzerinde çalışıyoruz. Sayaç ve denemeler gruplardan bağımsız çalışır.',
     // Group module (GROUPS_ENABLED). Wording: "çalışma grubu", never "sosyal ağ / topluluk" (K-13).
@@ -797,7 +789,6 @@ export const tr = {
     paused: 'molada',
     notStudying: 'çalışmıyor',
     you: 'sen',
-    invisibleSelf: 'görünmezsin',
     ranking: 'Sıralama',
     today: 'Bugün',
     week: 'Bu hafta',
@@ -954,7 +945,6 @@ export const tr = {
   },
 
   settings: {
-    title: 'Ayarlar',
     profile: 'Profil',
     exam: 'Sınav',
     dataTitle: 'Veriler',
@@ -1108,7 +1098,6 @@ export const tr = {
     weeklyTitle: 'Bu hafta kayıtlı çalışma yok',
     weeklyBody: 'Haftanın her günü (Pazartesi–Pazar) çalıştığın süre burada toplanır. Önceki haftalara oklarla bakabilirsin.',
     startTimer: 'Sayaca git',
-    addExam: 'Deneme ekle',
   },
 
   tips: {
@@ -1184,5 +1173,60 @@ export const tr = {
     why: 'Gruplar için Türkiye’de bir sunucu gerekiyor. O hazır olana kadar Etüt internete hiç bağlanmaz; bu sekme de hiçbir yere bir şey göndermez.',
     nowTitle: 'Şimdi neler çalışıyor?',
     now: 'Sayaç, günlük hedef ve seri, denemeler ve analiz gruplar olmadan tam çalışır. Gruplar açılınca katılmak isteğe bağlı olacak.',
+  },
+
+  /** Ayarlar → "Sayaç çalışırken": screen kept on, what leaving the app means. */
+  timerSettings: {
+    title: 'Sayaç çalışırken',
+    keepAwake: 'Ekranı açık tut',
+    keepAwakeInfo:
+      'Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez, böylece süren molaya dönmez. Pili biraz daha çok kullanır.',
+    on: 'Açık',
+    off: 'Kapalı',
+    awayTitle: 'Uygulamadan çıkınca',
+    awayAsk: 'Sor',
+    awayCount: 'Çalışmaya devam say',
+    awayAskInfo:
+      '10 saniyeden uzun çıkarsan ya da telefon kilitlenirse o süre mola sayılır; dönünce “Çalışıyordum” diyerek ekleyebilirsin.',
+    awayCountInfo:
+      'Uygulamadan çıktığın ya da telefonu kilitlediğin süre çalışma sayılır, sorulmaz. Mola verirken “Mola”ya dokunmayı unutma.',
+  },
+
+  /** Questions "Bitir" asks before saving. */
+  finishCheck: {
+    awayTitle: (duration: string) => `Bitirmeden önce: ${duration} uygulamanın dışındaydın.`,
+    awayBody: 'Bu süre çalışma mıydı?',
+    awayCredit: 'Çalışıyordum, ekle ve bitir',
+    awayBreak: 'Molaydı, öyle bitir',
+    longTitle: (duration: string) => `Bu oturum ${duration} sürmüş görünüyor.`,
+    longBody: 'Hepsinde çalıştın mı? Sayaç açık kaldıysa yalnız ilk 10 saati kaydedebilirsin.',
+    longAll: 'Evet, hepsini kaydet',
+    longCap: 'İlk 10 saati kaydet',
+    cancel: 'Vazgeç, sayaç sürsün',
+  },
+
+  countdownPassed: 'Sınav tarihi geçti. Yeni tarihi Ayarlar’dan gir.',
+
+  /** Yedek: old files, the second confirmation and "Geri al" for "Değiştir". */
+  backupSafety: {
+    skipped: (exams: number, targets: number) =>
+      `Uygulamanın şimdiki sınav biçimine (soru sayıları, dersler) uymayan ${
+        exams > 0 && targets > 0 ? `${exams} deneme ve ${targets} net hedefi` : exams > 0 ? `${exams} deneme` : `${targets} net hedefi`
+      } yüklenmeyecek; geri kalan her şey yüklenecek.`,
+    replaceSure: (sessions: number, exams: number, topics: number) =>
+      `Emin misin? Bu telefondaki ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti silinip yerine yedektekiler gelecek. Önce otomatik bir kopya alınır; istersen hemen geri alabilirsin.`,
+    replaceYes: 'Evet, değiştir',
+    replaceNo: 'Vazgeç',
+    undoTitle: 'Değiştirmeden önceki verilerin',
+    undoInfo: (when: string) =>
+      `“Değiştir”den önce (${when}) alınan kopya bu telefonda duruyor. Geri alırsan veriler o ana döner; sonradan eklediklerin gider. Kopya bir gün sonra gösterilmez.`,
+    undo: 'Geri al',
+    undoSure: (sessions: number, exams: number, topics: number) =>
+      `Emin misin? Şu an bu telefondaki ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti silinip yerine kopyadakiler gelecek.`,
+    undoYes: 'Evet, geri al',
+    undoDiscard: 'Kopyayı sil',
+    undone: (sessions: number, exams: number, topics: number) =>
+      `Geri alındı. Şu an ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti var.`,
+    undoFailed: 'Kopya okunamadı, geri alınamadı.',
   },
 } as const;

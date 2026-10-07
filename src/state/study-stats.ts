@@ -3,10 +3,12 @@
  * the domain rules (totals, "dünkü sen" comparison, streak). Glue only: no rules here.
  */
 
+import { useRef } from 'react';
+
 import { compareWithPast, type SelfComparison } from '../domain/compare';
 import { activeSpan, dailyTotals, pastDayTotals, type SessionSpan } from '../domain/daily-totals';
 import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey, lastDays } from '../domain/istanbul-day';
-import { computeStreak, STREAK_LOOKBACK_DAYS, type StreakResult, weekStartOf } from '../domain/streak';
+import { computeStreak, goalMet, STREAK_LOOKBACK_DAYS, type StreakResult, weekStartOf } from '../domain/streak';
 import { loadDailyGoal } from '../storage/kv';
 import { sessionsOverlapping } from '../storage/sessions';
 import { useAppState, useStored } from './app-state';
@@ -22,9 +24,10 @@ export interface StudyStats {
 }
 
 export function useStudyStats(now: number): StudyStats {
-  const { active, dataVersion } = useAppState();
+  const { active, dataVersions } = useAppState();
   const today = istanbulDayKey(now);
-  const stored = useStored(`${today}|${dataVersion}`, () => {
+  // Only sessions and the goal are read here: a topic mark or a mock exam needs no reload.
+  const stored = useStored(`${today}|${dataVersions.sessions}|${dataVersions.settings}`, () => {
     const todayStart = dayStartMs(today);
     const sessions = sessionsOverlapping(
       dayStartMs(addDays(today, -STREAK_LOOKBACK_DAYS)),
@@ -49,17 +52,29 @@ export function useStudyStats(now: number): StudyStats {
   // A running session that crossed one or more midnights also counts towards those days.
   const runningPast = running === null ? null : pastDayTotals([running], today);
   const goal = stored.goal;
-  const streak =
-    goal === null
-      ? null
-      : computeStreak(
-          (day) =>
-            day === today
-              ? todayTotal
-              : (stored.past.get(day) ?? 0) + (runningPast?.get(day) ?? 0),
-          today,
-          goal,
-        );
+  // The streak walks 400 days back. While the clock ticks only today's total changes, and the
+  // streak depends on it only through "goal met today": recompute when that (or the data) changes.
+  const todayMet = goal !== null && goalMet(todayTotal, goal);
+  const runningPastKey = runningPast === null ? '' : JSON.stringify([...runningPast]);
+  const streakKey = `${today}|${goal}|${todayMet}|${runningPastKey}`;
+  const streakCache = useRef<{ stored: unknown; key: string; value: StreakResult | null } | null>(null);
+  let streak: StreakResult | null;
+  if (streakCache.current?.stored === stored && streakCache.current.key === streakKey) {
+    streak = streakCache.current.value;
+  } else {
+    streak =
+      goal === null
+        ? null
+        : computeStreak(
+            (day) =>
+              day === today
+                ? todayTotal
+                : (stored.past.get(day) ?? 0) + (runningPast?.get(day) ?? 0),
+            today,
+            goal,
+          );
+    streakCache.current = { stored, key: streakKey, value: streak };
+  }
 
   return { today, todayTotal, todayManual, comparison: compareWithPast(spans, now), goal, streak };
 }

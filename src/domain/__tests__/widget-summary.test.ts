@@ -1,5 +1,6 @@
 import { addDays, dayStartMs, type DayKey, istanbulDayKey } from '../istanbul-day';
 import { DEFAULT_POMODORO, upcomingPhaseChanges } from '../pomodoro';
+import { computeStreak } from '../streak';
 import { type CompletedSession, elapsedMs, pauseSession, startSession } from '../timer';
 import { MAX_WIDGET_ENTRIES, PHASE_CHANGES_AHEAD, savedTotalsLookup, widgetTimeline } from '../widget-summary';
 
@@ -27,13 +28,19 @@ function saved(day: DayKey, hour: number, minutes: number): CompletedSession {
 const DAYS = ['2026-10-04', '2026-10-05', '2026-10-06', TODAY, '2026-10-08', '2026-10-09'];
 
 describe('widgetTimeline', () => {
-  it('idle: today now, then a fresh day at each of the next two midnights', () => {
+  it('idle: today now, then a fresh day at each of the next four midnights', () => {
     const lookup = savedTotalsLookup(
       [saved('2026-10-05', 10, 60), saved('2026-10-06', 10, 60), saved(TODAY, 8, 30)],
       DAYS,
     );
     const entries = widgetTimeline({ now: NOW, savedTotal: lookup, active: null, goalMinutes: 60 });
-    expect(entries.map((e) => e.at)).toEqual([NOW, midnight(TODAY, 1), midnight(TODAY, 2)]);
+    expect(entries.map((e) => e.at)).toEqual([
+      NOW,
+      midnight(TODAY, 1),
+      midnight(TODAY, 2),
+      midnight(TODAY, 3),
+      midnight(TODAY, 4),
+    ]);
     expect(entries[0]).toMatchObject({
       day: TODAY,
       todayMs: 30 * MIN,
@@ -46,6 +53,34 @@ describe('widgetTimeline', () => {
     });
     // Thursday 00:00: Wednesday was missed — the week's rest day keeps the streak.
     expect(entries[1]).toMatchObject({ day: '2026-10-08', todayMs: 0, streakDays: 2 });
+  });
+
+  it('app not opened for days: the widget never shows a stale streak, its last entry is right for good', () => {
+    // Every weekday as "today" (the rest day rule depends on where the week starts), with a long
+    // streak and today either met or still open.
+    for (let offset = 0; offset < 7; offset++) {
+      for (const todayMinutes of [0, 30, 90]) {
+        const today = addDays(TODAY, offset);
+        const now = dayStartMs(today) + 12 * HOUR;
+        const sessions = [...Array(12).keys()].map((i) => saved(addDays(today, -1 - i), 10, 90));
+        if (todayMinutes > 0) sessions.push(saved(today, 8, todayMinutes));
+        const days = [...Array(60).keys()].map((i) => addDays(today, i - 20));
+        const lookup = savedTotalsLookup(sessions, days);
+        const entries = widgetTimeline({ now, savedTotal: lookup, active: null, goalMinutes: 60 });
+        expect(entries.length).toBeLessThanOrEqual(MAX_WIDGET_ENTRIES);
+        // The student does nothing for 30 days: at every moment the entry in effect shows the real streak.
+        for (let t = now; t < now + 30 * 24 * HOUR; t += 6 * HOUR) {
+          const shown = [...entries].reverse().find((e) => e.at <= t)!;
+          const day = istanbulDayKey(t);
+          expect({ t: day, streak: shown.streakDays }).toEqual({
+            t: day,
+            streak: computeStreak(lookup, day, 60).current,
+          });
+          expect(shown.day === day || shown === entries[entries.length - 1]).toBe(true);
+        }
+        expect(entries[entries.length - 1]).toMatchObject({ streakDays: 0, todayMs: 0, goalMet: false, counting: false });
+      }
+    }
   });
 
   it('without a goal there is no streak or ratio', () => {

@@ -73,7 +73,7 @@ export default function ManualEntryScreen() {
     const session = buildManualSession(newId(), input);
     saveSession(session, now);
     syncFinishedSession(session, now);
-    notifyDataChanged();
+    notifyDataChanged('sessions');
     setMessage(tr.manual.added(formatDuration(durationMs)));
     setStartH('');
     setStartM('');
@@ -212,7 +212,7 @@ export default function ManualEntryScreen() {
                       deleteManualSession(s.id);
                       syncManualDeleted(s.id);
                       setConfirmingId(null);
-                      notifyDataChanged();
+                      notifyDataChanged('sessions');
                     }}
                   />
                   <Button kind="secondary" title={tr.common.cancel} onPress={() => setConfirmingId(null)} />

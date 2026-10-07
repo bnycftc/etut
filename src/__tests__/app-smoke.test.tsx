@@ -42,7 +42,12 @@ const memory: {
   pickText: string | null;
   reminderPrefs: unknown;
   remindersConfirmed: boolean;
-  liveActivityRecord: { sessionId: string; startedAt: number; dismissed?: boolean } | null;
+  liveActivityRecord: { sessionId: string; startedAt: number; dismissed?: boolean; retried?: boolean } | null;
+  keepAwakeSetting: boolean;
+  awayRule: 'ask' | 'count';
+  replaceUndo: { createdAt: number; text: string } | null;
+  /** Calls of `sessionsOverlapping` (how often the stored sessions are read). */
+  sessionLoads: number;
   /** System surfaces (src/system adapters, replaced below). */
   permission: 'granted' | 'denied' | 'undetermined';
   grantOnRequest: boolean;
@@ -75,6 +80,10 @@ const memory: {
   reminderPrefs: null,
   remindersConfirmed: false,
   liveActivityRecord: null,
+  keepAwakeSetting: true,
+  awayRule: 'ask',
+  replaceUndo: null,
+  sessionLoads: 0,
   permission: 'undetermined',
   grantOnRequest: true,
   permissionRequests: 0,
@@ -84,6 +93,17 @@ const memory: {
   liveActivityStaleAt: null,
   widget: [],
 };
+
+/** Tags currently holding the screen on (expo-keep-awake, replaced below). */
+const mockKeepAwake = new Set<string>();
+jest.mock('expo-keep-awake', () => ({
+  activateKeepAwakeAsync: async (tag: string) => {
+    mockKeepAwake.add(tag);
+  },
+  deactivateKeepAwake: async (tag: string) => {
+    mockKeepAwake.delete(tag);
+  },
+}));
 
 jest.mock('../system/notifications', () => ({
   notifications: {
@@ -188,7 +208,22 @@ jest.mock('../storage/kv', () => ({
   storeTipsSeen: () => {
     memory.tipsSeen = true;
   },
+  loadKeepAwake: () => memory.keepAwakeSetting,
+  storeKeepAwake: (on: boolean) => {
+    memory.keepAwakeSetting = on;
+  },
+  loadAwayRule: () => memory.awayRule,
+  storeAwayRule: (rule: 'ask' | 'count') => {
+    memory.awayRule = rule;
+  },
+  loadReplaceUndo: () => memory.replaceUndo,
+  storeReplaceUndo: (undo: typeof memory.replaceUndo) => {
+    memory.replaceUndo = undo;
+  },
   wipeKeyValueStore: () => {
+    memory.replaceUndo = null;
+    memory.keepAwakeSetting = true;
+    memory.awayRule = 'ask';
     memory.profile = null;
     memory.active = null;
     memory.dailyGoal = null;
@@ -271,8 +306,10 @@ jest.mock('../storage/sessions', () => ({
   saveSession: (s: CompletedSession) => {
     memory.sessions = [...memory.sessions.filter((x) => x.id !== s.id), s];
   },
-  sessionsOverlapping: (from: number, to: number) =>
-    memory.sessions.filter((s) => s.endedAt > from && s.startedAt < to),
+  sessionsOverlapping: (from: number, to: number) => {
+    memory.sessionLoads += 1;
+    return memory.sessions.filter((s) => s.endedAt > from && s.startedAt < to);
+  },
   allSessions: () => memory.sessions,
   recentManualSessions: () => memory.sessions.filter((s) => s.source === 'manual').reverse(),
   deleteManualSession: (id: string) => {
@@ -394,6 +431,11 @@ beforeEach(() => {
   memory.reminderPrefs = null;
   memory.remindersConfirmed = false;
   memory.liveActivityRecord = null;
+  memory.keepAwakeSetting = true;
+  memory.awayRule = 'ask';
+  memory.replaceUndo = null;
+  mockKeepAwake.clear();
+  memory.sessionLoads = 0;
   memory.permission = 'undetermined';
   memory.grantOnRequest = true;
   memory.permissionRequests = 0;
@@ -1422,6 +1464,7 @@ describe('backup and restore', () => {
     expect(screen.getByTestId('backup-preview-skipped')).toBeTruthy();
     fireEvent.press(screen.getByTestId('backup-mode-replace'));
     fireEvent.press(screen.getByTestId('backup-confirm'));
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
     expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
   });
 
@@ -1448,6 +1491,7 @@ describe('backup and restore', () => {
     });
     fireEvent.press(screen.getByTestId('backup-mode-replace'));
     fireEvent.press(screen.getByTestId('backup-confirm'));
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
     expect(memory.profile).toMatchObject({ birthYear: year - 20, soloOnly: false, yksArea: 'sozel' });
 
     memory.pickText = file(year - 12);
@@ -1477,6 +1521,7 @@ describe('backup and restore', () => {
     });
     fireEvent.press(screen.getByTestId('backup-mode-replace'));
     fireEvent.press(screen.getByTestId('backup-confirm'));
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
     expect(memory.sessions.map((s) => s.id)).toEqual(['x']);
     act(() => router.back());
     expect(screen.getByTestId('settings-exam-current').props.children).toEqual(['YKS', ' · Sözel']);
@@ -1845,5 +1890,370 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     emitAppState('active', from);
     await settle();
     expect(memory.liveActivities).toHaveLength(0);
+  });
+});
+
+describe('timer and data safety', () => {
+  const MIN = 60_000;
+  const HOUR = 3_600_000;
+  const original = AppState.currentState;
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+  });
+  afterEach(() => {
+    Object.defineProperty(AppState, 'currentState', { value: original, configurable: true, writable: true });
+  });
+
+  const listenersFrom = () => (AppState.addEventListener as jest.Mock).mock.calls.length;
+  function emitAppState(status: AppStateStatus, from: number) {
+    Object.defineProperty(AppState, 'currentState', { value: status, configurable: true, writable: true });
+    const calls = (AppState.addEventListener as jest.Mock).mock.calls.slice(from);
+    act(() => {
+      for (const [type, listener] of calls) if (type === 'change') listener(status);
+    });
+  }
+  /** Leaves the app at `leaveAt` and comes back at `backAt`. */
+  function away(from: number, leaveAt: number, backAt: number) {
+    act(() => jest.setSystemTime(leaveAt));
+    emitAppState('background', from);
+    act(() => jest.setSystemTime(backAt));
+    emitAppState('active', from);
+  }
+  async function settle() {
+    await act(async () => {
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+  }
+  const start = () => fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+  const finish = () => fireEvent.press(screen.getByTestId('timer-finish'));
+
+  it('keeps the screen on while the timer runs on the timer screen, unless turned off', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(mockKeepAwake.size).toBe(0);
+    start();
+    expect(mockKeepAwake.size).toBe(1);
+    fireEvent.press(screen.getByRole('button', { name: 'Mola' }));
+    expect(mockKeepAwake.size).toBe(0);
+    fireEvent.press(screen.getByRole('button', { name: 'Devam' }));
+    expect(mockKeepAwake.size).toBe(1);
+    // On another tab the phone may lock as usual.
+    act(() => router.push('/ayarlar'));
+    expect(mockKeepAwake.size).toBe(0);
+    fireEvent.press(screen.getByTestId('settings-keep-awake-off'));
+    expect(memory.keepAwakeSetting).toBe(false);
+    act(() => router.push('/'));
+    expect(mockKeepAwake.size).toBe(0);
+    finish();
+    expect(mockKeepAwake.size).toBe(0);
+  });
+
+  it('"Çalışmaya devam say": time away counts as study and nothing is asked', () => {
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    expect(screen.getByTestId('settings-away-ask').props.accessibilityState.selected).toBe(true);
+    fireEvent.press(screen.getByTestId('settings-away-count'));
+    expect(memory.awayRule).toBe('count');
+    expect(screen.getByTestId('settings-away-info').props.children).toContain('çalışma sayılır');
+    act(() => router.push('/'));
+    start();
+    const startedAt = memory.active!.startedAt;
+    away(from, startedAt + MIN, startedAt + 31 * MIN);
+    expect(screen.queryByTestId('away-title')).toBeNull();
+    expect(memory.active?.pauses).toEqual([]);
+    finish();
+    expect(memory.sessions[0].durationMs).toBeGreaterThanOrEqual(31 * MIN);
+  });
+
+  it('"Bitir" with an unanswered absence asks first; "Çalışıyordum" saves it as study', () => {
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    const startedAt = memory.active!.startedAt;
+    away(from, startedAt + MIN, startedAt + 61 * MIN);
+    expect(screen.getByTestId('away-title')).toBeTruthy();
+    finish();
+    // Nothing saved yet: the question is on screen.
+    expect(memory.active).not.toBeNull();
+    expect(screen.getByTestId('finish-check-title').props.children).toBe(
+      'Bitirmeden önce: 1 sa 0 dk uygulamanın dışındaydın.',
+    );
+    fireEvent.press(screen.getByTestId('finish-away-credit'));
+    expect(memory.active).toBeNull();
+    expect(memory.sessions[0].durationMs).toBe(61 * MIN);
+    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 1 sa 1 dk');
+  });
+
+  it('… "Molaydı" saves it without the time away; "Vazgeç" keeps the timer running', () => {
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    const startedAt = memory.active!.startedAt;
+    away(from, startedAt + 5 * MIN, startedAt + 65 * MIN);
+    finish();
+    fireEvent.press(screen.getByTestId('finish-check-cancel'));
+    expect(screen.queryByTestId('finish-check')).toBeNull();
+    expect(memory.active).not.toBeNull();
+    finish();
+    fireEvent.press(screen.getByTestId('finish-away-break'));
+    expect(memory.active).toBeNull();
+    expect(memory.sessions[0].durationMs).toBe(5 * MIN);
+  });
+
+  it('an absence answered on the card closes the question: a later absence does not reopen it', () => {
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    const startedAt = memory.active!.startedAt;
+    away(from, startedAt + MIN, startedAt + 31 * MIN);
+    finish();
+    expect(screen.getByTestId('finish-check')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('away-dismiss'));
+    expect(screen.queryByTestId('finish-check')).toBeNull();
+    away(from, startedAt + 32 * MIN, startedAt + 62 * MIN);
+    expect(screen.getByTestId('away-title')).toBeTruthy();
+    expect(screen.queryByTestId('finish-check')).toBeNull();
+    expect(memory.active).not.toBeNull();
+  });
+
+  it('an absence that starts while the 10-hour question is open is asked about first', () => {
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    const startedAt = memory.active!.startedAt;
+    act(() => jest.setSystemTime(startedAt + 11 * HOUR));
+    finish();
+    expect(screen.getByTestId('finish-check-title').props.children).toBe('Bu oturum 11 sa 0 dk sürmüş görünüyor.');
+    away(from, startedAt + 11 * HOUR, startedAt + 11 * HOUR + 30 * MIN);
+    expect(screen.getByTestId('finish-check-title').props.children).toBe(
+      'Bitirmeden önce: 30 dk uygulamanın dışındaydın.',
+    );
+    fireEvent.press(screen.getByTestId('finish-away-break'));
+    // Then the 10-hour question again, for what is left.
+    expect(screen.getByTestId('finish-check-title').props.children).toBe('Bu oturum 11 sa 0 dk sürmüş görünüyor.');
+    fireEvent.press(screen.getByTestId('finish-long-all'));
+    expect(memory.sessions[0].durationMs).toBe(11 * HOUR);
+  });
+
+  it('a second absence before answering joins the first: one card, one answer for both', () => {
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    const startedAt = memory.active!.startedAt;
+    away(from, startedAt + MIN, startedAt + 31 * MIN);
+    away(from, startedAt + 32 * MIN, startedAt + 62 * MIN);
+    expect(screen.getByTestId('away-title').props.children).toBe('1 sa 0 dk uygulamanın dışındaydın.');
+    fireEvent.press(screen.getByTestId('away-credit'));
+    finish();
+    expect(memory.sessions[0].durationMs).toBe(62 * MIN);
+  });
+
+  it('a session over 10 hours asks; "İlk 10 saati kaydet" keeps 10 hours', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    const startedAt = memory.active!.startedAt;
+    act(() => jest.setSystemTime(startedAt + 11 * HOUR));
+    finish();
+    expect(screen.getByTestId('finish-check-title').props.children).toBe('Bu oturum 11 sa 0 dk sürmüş görünüyor.');
+    expect(memory.active).not.toBeNull();
+    fireEvent.press(screen.getByTestId('finish-long-cap'));
+    expect(memory.sessions[0]).toMatchObject({ durationMs: 10 * HOUR, endedAt: startedAt + 10 * HOUR });
+  });
+
+  it('… or all of it when the student says so', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    const startedAt = memory.active!.startedAt;
+    act(() => jest.setSystemTime(startedAt + 11 * HOUR));
+    finish();
+    fireEvent.press(screen.getByTestId('finish-long-all'));
+    expect(memory.sessions[0].durationMs).toBe(11 * HOUR);
+  });
+
+  it('a clock set back before the start does not lose the session', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    const startedAt = memory.active!.startedAt;
+    // 20 minutes of study (heartbeats run), then the network sets the clock 2 hours back.
+    act(() => {
+      jest.setSystemTime(startedAt + 20 * MIN);
+      jest.advanceTimersByTime(5_000);
+    });
+    act(() => {
+      jest.setSystemTime(startedAt - 2 * HOUR);
+      jest.advanceTimersByTime(5_000);
+    });
+    finish();
+    expect(memory.sessions).toHaveLength(1);
+    expect(memory.sessions[0].durationMs).toBeGreaterThanOrEqual(20 * MIN);
+    expect(memory.sessions[0].durationMs).toBeLessThan(21 * MIN);
+  });
+
+  const sessionAt = (id: string): CompletedSession => ({
+    id,
+    subjectId: 'kimya',
+    topicId: null,
+    startedAt: Date.parse('2026-10-01T07:00:00Z'),
+    endedAt: Date.parse('2026-10-01T08:00:00Z'),
+    pauses: [],
+    durationMs: HOUR,
+    source: 'timer',
+  });
+  const backupText = (extra: Record<string, unknown>) =>
+    JSON.stringify({
+      format: 'etut-yedek',
+      schemaVersion: 1,
+      exportedAt: Date.parse('2026-10-02T00:00:00Z'),
+      profile: { birthYear: 2000, examType: 'YKS', yksArea: 'sozel' },
+      sessions: [sessionAt('x')],
+      exams: [],
+      topicProgress: [],
+      ...extra,
+    });
+
+  it('"Değiştir" asks a second time, keeps a copy, and "Geri al" brings the old data back', async () => {
+    memory.sessions = [sessionAt('a')];
+    memory.topicStatuses = { 'tyt.fizik.basinc': 'done' };
+    memory.pickText = backupText({});
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-import'));
+    });
+    fireEvent.press(screen.getByTestId('backup-mode-replace'));
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    // Second question, with what will go; nothing has changed yet.
+    expect(screen.getByTestId('backup-replace-sure').props.children).toContain(
+      'Bu telefondaki 1 çalışma kaydı, 0 deneme ve 1 konu işareti silinip',
+    );
+    expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
+    fireEvent.press(screen.getByTestId('backup-replace-no'));
+    expect(screen.queryByTestId('backup-replace-sure')).toBeNull();
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
+    expect(memory.sessions.map((s) => s.id)).toEqual(['x']);
+    expect(memory.topicStatuses).toEqual({});
+    expect(memory.profile?.yksArea).toBe('sozel');
+    expect(memory.replaceUndo).not.toBeNull();
+
+    // "Geri al" replaces too: it asks first, and nothing changes until "Evet".
+    fireEvent.press(screen.getByTestId('backup-undo'));
+    expect(screen.getByTestId('backup-undo-sure').props.children).toContain(
+      'Şu an bu telefondaki 1 çalışma kaydı, 0 deneme ve 0 konu işareti silinip',
+    );
+    expect(memory.sessions.map((s) => s.id)).toEqual(['x']);
+    fireEvent.press(screen.getByTestId('backup-undo-yes'));
+    expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
+    expect(memory.topicStatuses).toEqual({ 'tyt.fizik.basinc': 'done' });
+    expect(memory.profile?.yksArea).toBe('sayisal');
+    expect(screen.getByTestId('backup-message').props.children).toBe(
+      'Geri alındı. Şu an 1 çalışma kaydı, 0 deneme ve 1 konu işareti var.',
+    );
+    expect(memory.replaceUndo).toBeNull();
+    expect(screen.queryByTestId('backup-undo-card')).toBeNull();
+  });
+
+  it('the copy can be deleted; one older than a day is neither offered nor kept', async () => {
+    memory.replaceUndo = { createdAt: Date.now() - HOUR, text: backupText({}) };
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    expect(screen.getByTestId('backup-undo-card')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('backup-undo-discard'));
+    expect(memory.replaceUndo).toBeNull();
+    expect(screen.queryByTestId('backup-undo-card')).toBeNull();
+  });
+
+  it('an expired copy is removed', () => {
+    memory.replaceUndo = { createdAt: Date.now() - 25 * HOUR, text: backupText({}) };
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    expect(screen.queryByTestId('backup-undo-card')).toBeNull();
+    expect(memory.replaceUndo).toBeNull();
+  });
+
+  it('an expired copy is removed at app start too, without opening the backup screen', () => {
+    memory.replaceUndo = { createdAt: Date.now() - 25 * HOUR, text: backupText({}) };
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(memory.replaceUndo).toBeNull();
+  });
+
+  it('a copy that can not be read is kept and the data is left alone', () => {
+    memory.sessions = [sessionAt('a')];
+    const broken = { createdAt: Date.now() - HOUR, text: '{"format":"etut-yedek"' };
+    memory.replaceUndo = broken;
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    fireEvent.press(screen.getByTestId('backup-undo'));
+    fireEvent.press(screen.getByTestId('backup-undo-yes'));
+    expect(screen.getByTestId('backup-error').props.children).toBe('Kopya okunamadı, geri alınamadı.');
+    expect(memory.replaceUndo).toEqual(broken);
+    expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
+  });
+
+  it('an old backup with an exam that no longer fits loads the rest and says what was left out', async () => {
+    memory.pickText = backupText({
+      exams: [
+        {
+          id: 'old',
+          kind: 'AYT_XYZ',
+          scope: 'genel',
+          bransSectionId: null,
+          takenOn: '2026-09-01',
+          createdAt: 1,
+          analysisDoneAt: null,
+          scores: [{ sectionId: 'matematik', questions: 40, correct: 10, wrong: 0 }],
+          marks: [],
+        },
+      ],
+      settings: { netTargets: { 'TYT:fizik': 8, 'TYT:matematik': 30 } },
+    });
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-import'));
+    });
+    expect(screen.getByTestId('backup-preview-counts').props.children).toBe(
+      'Yedekte 1 çalışma kaydı, 0 deneme ve 0 konu işareti var.',
+    );
+    expect(screen.getByTestId('backup-preview-skipped-exams').props.children).toBe(
+      'Uygulamanın şimdiki sınav biçimine (soru sayıları, dersler) uymayan 1 deneme ve 1 net hedefi yüklenmeyecek; geri kalan her şey yüklenecek.',
+    );
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    expect(memory.sessions.map((s) => s.id)).toEqual(['x']);
+    expect(memory.netTargets).toEqual({ 'TYT:matematik': 30 });
+  });
+
+  it('an exam date that has passed is not hidden: the home screen says to enter the new one', () => {
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z'));
+    memory.examDates = { YKS: '2026-06-20' };
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.queryByTestId('countdown')).toBeNull();
+    expect(screen.getByTestId('countdown-passed').props.children).toBe(
+      'Sınav tarihi geçti. Yeni tarihi Ayarlar’dan gir.',
+    );
+  });
+
+  it('Live Activity: after a phone restart it comes back once; removed again, it stays away', async () => {
+    const from = listenersFrom();
+    const { startSession } = jest.requireActual('../domain/timer');
+    const now = Date.now();
+    memory.active = { ...startSession('after-restart', 'fizik', now - 2 * HOUR), lastSeenAt: now - 1_000 };
+    memory.liveActivityRecord = { sessionId: 'after-restart', startedAt: now - 2 * HOUR };
+    memory.liveActivities = [];
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    await settle();
+    expect(memory.liveActivities).toHaveLength(1);
+    expect(memory.liveActivityRecord).toMatchObject({ sessionId: 'after-restart', retried: true });
+    // Now the student removes it with the app alive: respected.
+    memory.liveActivities = [];
+    act(() => jest.setSystemTime(Date.now() + 1_000));
+    emitAppState('active', from);
+    await settle();
+    expect(memory.liveActivities).toHaveLength(0);
+    expect(memory.liveActivityRecord).toMatchObject({ dismissed: true });
+  });
+
+  it('marking a topic does not reload the stored sessions for the timer and the system surfaces', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    act(() => router.push('/konular'));
+    fireEvent.press(screen.getByTestId('topics-subject-fizik'));
+    const before = memory.sessionLoads;
+    fireEvent.press(screen.getByTestId('topic-done-tyt.fizik.basinc'));
+    expect(memory.topicStatuses['tyt.fizik.basinc']).toBe('done');
+    expect(memory.sessionLoads).toBe(before);
   });
 });

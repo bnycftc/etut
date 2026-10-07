@@ -111,10 +111,15 @@ export interface LiveActivityRecord {
   startedAt: number;
   /** The student removed it from the Lock Screen: never started again for this session. */
   dismissed?: boolean;
+  /** Started again once after it was found gone at a launch (`retry`); a second loss is a removal. */
+  retried?: boolean;
 }
 
-/** `dismissed`: do nothing now, but remember that the student removed it (`record.dismissed`). */
-export type LiveActivityAction = 'none' | 'start' | 'update' | 'restart' | 'end' | 'dismissed';
+/**
+ * `dismissed`: do nothing now, but remember that the student removed it (`record.dismissed`).
+ * `retry`: like `start`, for one that vanished before this launch (record it as `retried`).
+ */
+export type LiveActivityAction = 'none' | 'start' | 'retry' | 'update' | 'restart' | 'end' | 'dismissed';
 
 /**
  * What to do with the Live Activity, decided at every sync (foreground or going to the background).
@@ -124,21 +129,31 @@ export type LiveActivityAction = 'none' | 'start' | 'update' | 'restart' | 'end'
  * seen only later, it looks like the system's end and a new one starts. A Live Activity the system
  * ended can stay on the Lock Screen for up to 4 more hours, and expo-widgets does not list ended
  * ones, so the app can neither count nor remove it: next to the new one it may show for a while.
+ *
+ * A restart of the phone also removes every Live Activity, and it can not be told apart from the
+ * student's removal either. But a restart always restarts the app too, while a removal usually
+ * happens with the app still alive. `seenThisLaunch` = this app process has seen (or started)
+ * this Live Activity. Gone after being seen in this launch: the student removed it. Gone before
+ * this launch could see it: maybe a restart, so it is started once more (`retry`); if that one
+ * goes too, it counts as removed.
  */
 export function liveActivityAction(input: {
   sessionId: string | null;
   instances: number;
   record: LiveActivityRecord | null;
   now: number;
+  seenThisLaunch?: boolean;
 }): LiveActivityAction {
-  const { sessionId, instances, record, now } = input;
+  const { sessionId, instances, record, now, seenThisLaunch = true } = input;
   if (sessionId === null) return instances > 0 ? 'end' : 'none';
   const ours = record !== null && record.sessionId === sessionId ? record : null;
   if (instances === 0) {
     // Gone before the 8-hour limit: the student removed it from the Lock Screen. Respect that
     // for the rest of this session; otherwise (new session, or ended by the system) start one.
     if (ours?.dismissed === true) return 'none';
-    if (ours !== null && now - ours.startedAt < LIVE_ACTIVITY_MAX_MS - SYSTEM_END_SLACK_MS) return 'dismissed';
+    if (ours !== null && now - ours.startedAt < LIVE_ACTIVITY_MAX_MS - SYSTEM_END_SLACK_MS) {
+      return seenThisLaunch || ours.retried === true ? 'dismissed' : 'retry';
+    }
     return 'start';
   }
   if (instances > 1 || ours === null) return 'restart';

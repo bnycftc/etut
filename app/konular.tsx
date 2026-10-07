@@ -48,7 +48,7 @@ export default function TopicsScreen() {
 
   const mark = (topicId: string, tapped: TopicStatus) => {
     setTopicStatus(topicId, toggleStatus(data.statuses[topicId], tapped), Date.now());
-    notifyDataChanged();
+    notifyDataChanged('topics');
   };
 
   return (

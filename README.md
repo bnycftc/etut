@@ -121,14 +121,19 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   etkinliği yenisiyle değiştirir, sistemin 8 saatte bitirdiğini yeniden başlatır. Öğrencinin kendisi
   kaldırdığını uygulama 8 saat dolmadan bir kez görürse kaydeder (`dismissed`) ve o oturumda bir daha
   başlatmaz; kaldırmayı ancak 8 saatten sonra görürse sistemin bitirmesinden ayıramaz ve yenisini
-  başlatır. Sistemin bitirdiği etkinlik kilit ekranında 4 saate kadar donmuş kalabilir; expo-widgets
+  başlatır. Telefon yeniden başlayınca da etkinlik kaybolur ve bu, kaldırmadan ayırt edilemez; ama
+  yeniden başlatma uygulamayı da yeniden başlatır. Bu yüzden uygulamanın bu açılışta canlı gördüğü
+  etkinlik kaybolursa "kaldırıldı" sayılır; açılıştan önce kaybolmuşsa bir kez yeniden başlatılır
+  (`retried`), o da kaybolursa kaldırılmış sayılır. Sistemin bitirdiği etkinlik kilit ekranında 4 saate kadar donmuş kalabilir; expo-widgets
   57.0.x bitmiş etkinlikleri listelemediği için uygulama onu ne sayabilir ne kaldırabilir: o süre
   içinde kilit ekranında yenisinin yanında eskisi de görünebilir, oturum bitince de bir süre kalabilir.
 - **Ana ekran widget'ı "Etüt: Bugün"** (küçük, orta, kilit ekranı dikdörtgen): bugünkü süre, seri,
   günlük hedef ilerlemesi. Uygulama zaman çizelgesini App Group'a (`group.com.bnycftc.etut`) yazar,
   widget yalnız okur. Çizelge gece yarısı (İstanbul), pomodoro aşama değişimleri ve hedefe
   ulaşılan an için girdi içerir; sayaç açıkken süre ve hedef çubuğu widget'ta kendiliğinden ilerler.
-  Çizelge en çok 40 girdi tutar ve ikinci gece yarısında biter: pomodoroda ilk 34 aşama değişimini
+  Sayaç çalışmıyorsa çizelge dördüncü gece yarısına kadar gider; son girdi (seri 0, süre 0) uygulama
+  günlerce açılmasa da doğru kalır, widget bayat seri göstermez.
+  Sayaç çalışırken çizelge en çok 40 girdi tutar ve ikinci gece yarısında biter: pomodoroda ilk 34 aşama değişimini
   (25/5/15 ile ≈ 9 saat) kapsar; çizelgenin dışında kalan ilk aşama değişiminden sonrasına uzanan
   girdi saymaz (açık sayaçtan az gösterebilir, fazla göstermez). Tek istisna uzakta kuralı: uygulama
   uzun süre sonra dönünce o süreyi otomatik molaya çevirebilir; öğrenci "Çalışıyordum" demezse widget
@@ -338,6 +343,10 @@ ağ isteği atmaz (`test:web` bunu denetler):
   kimliklere göre idempotent; uygulamanın yazdığı her kayıt geri okunur (ör. bir hafta açık
   kalmış oturum); süre sınırı yok, zaman sınırı var (2016 sonrası başlangıç, dosya tarihinden en
   fazla 1 gün sonra bitiş). "Birleştir"de burada boş olan ayarlar (kaldırılmış hedef dahil) yedekten dolar.
+  Sınav tabloları değişirse (ÖSYM soru sayısını değiştirir, bir ders/deneme türü kalkar) eski dosya yine
+  yüklenir: şimdiki tabloya uymayan deneme ve net hedefleri atlanır ve önizlemede sayılır. "Değiştir"
+  ikinci kez onay ister ve yazmadan önce bu cihazdaki verinin kopyasını kv deposuna alır; yedek
+  ekranında bir gün boyunca "Geri al" ile o hâline dönülür ("Tüm verileri sil" kopyayı da siler).
   K-17: yaş yedekle yükseltilemez; yedekteki yaş daha küçükse küçük olan esas alınır (seçicinin
   sunmadığı bir yıl, ör. 2200, yok sayılır), 15 altı bayrağı içe aktarmayla kapanmaz. Dosya
   şifrelenmez (metinde yazıyor).

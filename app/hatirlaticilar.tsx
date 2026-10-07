@@ -26,7 +26,7 @@ export default function RemindersScreen() {
 
   const save = (next: ReminderPrefs) => {
     storeReminderPrefs(next);
-    notifyDataChanged();
+    notifyDataChanged('settings');
   };
   const setEnabled = (key: ReminderKey, enabled: boolean) => {
     // Turning a reminder on goes through the explanation screen the first time (also when the

@@ -9,11 +9,15 @@ import { AppState } from 'react-native';
 import {
   type BackupCounts,
   backupCounts,
+  type BackupData,
   type BackupFile,
   buildBackupFile,
   type ImportMode,
   importedProfile,
   mergeBackup,
+  parseBackup,
+  replaceUndoExpired,
+  serializeBackup,
 } from '../domain/backup';
 import { canUndoFinish } from '../domain/finish';
 import { istanbulYear } from '../domain/istanbul-day';
@@ -28,6 +32,7 @@ import {
 } from '../domain/profile';
 import {
   type ActiveSession,
+  capStudyTime,
   type CompletedSession,
   creditAway,
   dismissAway,
@@ -48,16 +53,28 @@ import { readBackupData, writeBackupData } from '../storage/backup';
 import { newId } from '../storage/db';
 import {
   loadActiveSession,
+  loadAwayRule,
   loadProfile,
+  loadReplaceUndo,
   storeActiveSession,
   storeLastSubject,
   storeProfile,
+  storeReplaceUndo,
 } from '../storage/kv';
 import { deleteSessionForUndo, saveSession } from '../storage/sessions';
 import { wipeAllData } from '../storage/wipe';
 import { flushPending, isSyncActive, stopSync, syncFinishedSession, syncPresence } from '../sync/session-sync';
 
 export type SaveProfileResult = 'ok' | 'age_blocked';
+
+/** What a `notifyDataChanged` call changed; screens that do not read it skip the reload. */
+export type DataKind = 'sessions' | 'exams' | 'topics' | 'settings';
+export type DataVersions = Record<DataKind, number>;
+
+export interface FinishOptions {
+  /** Save only this much study time (the student said a very long session was not all study). */
+  maxStudyMs?: number;
+}
 
 interface AppStateValue {
   profile: Profile | null;
@@ -70,7 +87,7 @@ interface AppStateValue {
   pause: () => void;
   resume: () => void;
   skipBreak: () => void;
-  finish: () => CompletedSession | null;
+  finish: (options?: FinishOptions) => CompletedSession | null;
   /**
    * Takes back the last Bitir within the undo window (domain/finish.ts): the record is removed
    * and the session continues as it was. `false` = too late, or nothing to undo.
@@ -80,12 +97,20 @@ interface AppStateValue {
   dismissAway: () => void;
   /** Increases whenever stored sessions or mock exams change; screens reload on change. */
   dataVersion: number;
-  notifyDataChanged: () => void;
+  /** The same per kind of data, for screens that read only some of it. */
+  dataVersions: DataVersions;
+  /** No `kind` = anything may have changed. */
+  notifyDataChanged: (kind?: DataKind) => void;
   resetAll: () => void;
   /** Everything on this device as a backup file (nothing is written or sent). */
   createBackup: (appVersion: string) => BackupFile;
-  /** Writes the merged/replaced data and applies the K-17 profile rule. */
+  /**
+   * Writes the merged/replaced data and applies the K-17 profile rule. Before a replace, the data
+   * on this device is kept as a copy for `undoReplace`.
+   */
   importBackup: (file: BackupFile, mode: ImportMode) => BackupCounts;
+  /** Puts back the data from before the last replace; `null` = no copy (or an unreadable one). */
+  undoReplace: () => BackupCounts | null;
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null);
@@ -116,6 +141,8 @@ function initialProfile(): Profile | null {
   return refreshed;
 }
 
+const NO_CHANGES: DataVersions = { sessions: 0, exams: 0, topics: 0, settings: 0 };
+
 /** How often a running timer records `lastSeenAt` (must stay below the 10 s tolerance). */
 const HEARTBEAT_MS = 5_000;
 
@@ -123,7 +150,7 @@ const HEARTBEAT_MS = 5_000;
 function initialActive(): ActiveSession | null {
   const stored = loadActiveSession();
   if (stored === null) return null;
-  const next = onAppLaunch(stored, Date.now());
+  const next = onAppLaunch(stored, Date.now(), loadAwayRule());
   if (next !== stored) storeActiveSession(next);
   return next;
 }
@@ -131,7 +158,8 @@ function initialActive(): ActiveSession | null {
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(initialProfile);
   const [active, setActiveState] = useState<ActiveSession | null>(initialActive);
-  const [dataVersion, setDataVersion] = useState(0);
+  const [dataVersions, setDataVersions] = useState<DataVersions>(NO_CHANGES);
+  const dataVersion = dataVersions.sessions + dataVersions.exams + dataVersions.topics + dataVersions.settings;
   const activeRef = useRef(active);
   const lastFinish = useRef<{ previous: ActiveSession; completed: CompletedSession; at: number } | null>(null);
 
@@ -147,14 +175,26 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     if (current !== null) setActive(fn(current));
   }
 
-  const notifyDataChanged = () => setDataVersion((v) => v + 1);
+  const notifyDataChanged = (kind?: DataKind) =>
+    setDataVersions((v) =>
+      kind === undefined
+        ? { sessions: v.sessions + 1, exams: v.exams + 1, topics: v.topics + 1, settings: v.settings + 1 }
+        : { ...v, [kind]: v[kind] + 1 },
+    );
+
+  // The copy kept for "Geri al" holds a full copy of the data: drop it once its day is over,
+  // whether or not the backup screen is opened again.
+  useEffect(() => {
+    const undo = loadReplaceUndo();
+    if (undo !== null && replaceUndoExpired(undo.createdAt, Date.now())) storeReplaceUndo(null);
+  }, []);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (status) => {
       // 'inactive' (Control Center, notification shade, app switcher peek) is not "leaving".
       if (status === 'background') update((s) => onAppBackground(s, Date.now()));
       else if (status === 'active') {
-        update((s) => onAppForeground(s, Date.now()));
+        update((s) => onAppForeground(s, Date.now(), loadAwayRule()));
         flushPending();
       }
     });
@@ -202,7 +242,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (next === null) return false;
       storeProfile(next);
       setProfile(next);
-      notifyDataChanged();
+      notifyDataChanged('settings');
       return true;
     },
     active,
@@ -214,11 +254,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     pause: () => update((s) => pauseSession(s, Date.now())),
     resume: () => update((s) => resumeSession(s, Date.now())),
     skipBreak: () => update((s) => skipBreak(s, Date.now())),
-    finish: () => {
+    finish: (options) => {
       const current = activeRef.current;
       if (current === null) return null;
       const now = Date.now();
-      const completed = finishSession(current, now);
+      const finished = finishSession(current, now);
+      const completed = options?.maxStudyMs === undefined ? finished : capStudyTime(finished, options.maxStudyMs);
       if (completed.durationMs > 0) {
         saveSession(completed, now);
         syncFinishedSession(completed, now);
@@ -226,7 +267,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setActive(null);
       // Undo only while nothing left the device (group module off or no account).
       lastFinish.current = isSyncActive() ? null : { previous: current, completed, at: now };
-      notifyDataChanged();
+      notifyDataChanged('sessions');
       return completed;
     },
     undoFinish: () => {
@@ -242,6 +283,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     creditAway: () => update(creditAway),
     dismissAway: () => update(dismissAway),
     dataVersion,
+    dataVersions,
     notifyDataChanged,
     resetAll: () => {
       // No heartbeat or retry may outlive the data (and the group account) it belongs to.
@@ -255,20 +297,41 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     },
     createBackup: (appVersion) => buildBackupFile(readBackupData(), profile, Date.now(), appVersion),
     importBackup: (file, mode) => {
-      const merged = mergeBackup(readBackupData(), file, mode);
-      writeBackupData(merged);
-      if (profile !== null) {
-        // K-17: the declared age can only stay or get younger; the record follows it.
-        const year = istanbulYear(Date.now());
-        const next = importedProfile(profile, file.profile, mode, year);
-        recordDeclaration(next.birthYear, year);
-        storeProfile(next);
-        setProfile(next);
+      const current = readBackupData();
+      if (mode === 'replace') {
+        // Everything here is about to go: keep a copy on this device so "Geri al" can bring it back.
+        const now = Date.now();
+        storeReplaceUndo({ createdAt: now, text: serializeBackup(buildBackupFile(current, profile, now, '')) });
       }
-      notifyDataChanged();
-      return backupCounts(merged);
+      return importData(current, file, mode);
+    },
+    undoReplace: () => {
+      const undo = loadReplaceUndo();
+      if (undo === null) return null;
+      // Our own copy: read back exactly, sessions with a wrong-clock time included.
+      const parsed = parseBackup(undo.text, { keepWrongClockSessions: true });
+      // An unreadable copy is kept (it may still be all there is); a used one is not.
+      if (!parsed.ok) return null;
+      const counts = importData(readBackupData(), parsed.file, 'replace');
+      storeReplaceUndo(null);
+      return counts;
     },
   };
+
+  function importData(current: BackupData, file: BackupFile, mode: ImportMode): BackupCounts {
+    const merged = mergeBackup(current, file, mode);
+    writeBackupData(merged);
+    if (profile !== null) {
+      // K-17: the declared age can only stay or get younger; the record follows it.
+      const year = istanbulYear(Date.now());
+      const next = importedProfile(profile, file.profile, mode, year);
+      recordDeclaration(next.birthYear, year);
+      storeProfile(next);
+      setProfile(next);
+    }
+    notifyDataChanged();
+    return backupCounts(merged);
+  }
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 }

@@ -10,8 +10,8 @@ import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
 import { defaultSubject, subjectsFor } from '@/domain/subjects';
-import { elapsedMs, isPaused } from '@/domain/timer';
-import { useAppState, useNow, useStored } from '@/state/app-state';
+import { elapsedMs, isPaused, pendingAwayMs } from '@/domain/timer';
+import { type FinishOptions, useAppState, useNow, useStored } from '@/state/app-state';
 import { useStudyStats } from '@/state/study-stats';
 import {
   loadCustomExamDate,
@@ -44,6 +44,7 @@ import { GoalSheet } from '@/ui/goal-sheet';
 import { Icon } from '@/ui/icon';
 import { subjectColor } from '@/ui/subject-colors';
 import { MAX_FONT_SCALE, space, usePalette } from '@/ui/theme';
+import { TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
 import { FirstUseTips } from '@/ui/tips';
 import { TopicPicker } from '@/ui/topic-picker';
 
@@ -150,8 +151,8 @@ export default function TimerScreen() {
     return () => clearTimeout(id);
   }, [finished?.at, finished?.undoable]);
 
-  const finish = () => {
-    const done = app.finish();
+  const finish = (options?: FinishOptions) => {
+    const done = app.finish(options);
     if (done !== null) {
       const saved = tr.timer.saved(
         done.durationMs < 60_000 ? tr.timer.lessThanMinute : formatDuration(done.durationMs),
@@ -171,6 +172,7 @@ export default function TimerScreen() {
       announce(tr.finish.announce(saved, formatDuration(todayTotal)));
     }
   };
+  const finishCheck = useFinishCheck(finish);
 
   const undo = () => {
     if (app.undoFinish()) {
@@ -192,6 +194,7 @@ export default function TimerScreen() {
 
   return (
     <Screen testID="timer-screen">
+      <TimerKeepAwake running={running} />
       <FirstUseTips />
       <GoalSheet visible={goalOpen} goal={goal} onChange={setGoal} onClose={() => setGoalOpen(false)} />
 
@@ -204,6 +207,11 @@ export default function TimerScreen() {
             </Label>
             {examDate.estimated ? <Tag title={tr.countdown.estimated} /> : null}
           </Row>
+        ) : daysLeft !== null ? (
+          // The date (built-in estimate or the student's) is behind us: say so instead of hiding it.
+          <Label testID="countdown-passed" variant="muted">
+            {tr.countdownPassed}
+          </Label>
         ) : null}
 
         {finished !== null ? (
@@ -296,7 +304,7 @@ export default function TimerScreen() {
       {active?.pendingAway ? (
         <Card>
           <Label testID="away-title" style={{ color: c.warning, fontWeight: '600' }}>
-            {tr.timer.awayTitle(formatAway(active.pendingAway.end - active.pendingAway.start))}
+            {tr.timer.awayTitle(formatAway(pendingAwayMs(active)))}
           </Label>
           <Label variant="muted">{tr.timer.awayBody}</Label>
           <Button testID="away-credit" title={tr.timer.awayCredit} onPress={app.creditAway} />
@@ -444,8 +452,9 @@ export default function TimerScreen() {
                 }}
               />
             )}
-            <Button large testID="timer-finish" kind="danger" title={tr.timer.finish} onPress={finish} />
+            <Button large testID="timer-finish" kind="danger" title={tr.timer.finish} onPress={finishCheck.request} />
           </ResponsiveRow>
+          {finishCheck.prompt}
         </Card>
       )}
 
