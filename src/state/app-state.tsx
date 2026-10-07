@@ -9,11 +9,14 @@ import { AppState } from 'react-native';
 import {
   type BackupCounts,
   backupCounts,
+  type BackupData,
   type BackupFile,
   buildBackupFile,
   type ImportMode,
   importedProfile,
   mergeBackup,
+  parseBackup,
+  serializeBackup,
 } from '../domain/backup';
 import { istanbulYear } from '../domain/istanbul-day';
 import type { YksArea } from '../domain/net';
@@ -50,9 +53,11 @@ import {
   loadActiveSession,
   loadAwayRule,
   loadProfile,
+  loadReplaceUndo,
   storeActiveSession,
   storeLastSubject,
   storeProfile,
+  storeReplaceUndo,
 } from '../storage/kv';
 import { saveSession } from '../storage/sessions';
 import { wipeAllData } from '../storage/wipe';
@@ -92,8 +97,13 @@ interface AppStateValue {
   resetAll: () => void;
   /** Everything on this device as a backup file (nothing is written or sent). */
   createBackup: (appVersion: string) => BackupFile;
-  /** Writes the merged/replaced data and applies the K-17 profile rule. */
+  /**
+   * Writes the merged/replaced data and applies the K-17 profile rule. Before a replace, the data
+   * on this device is kept as a copy for `undoReplace`.
+   */
   importBackup: (file: BackupFile, mode: ImportMode) => BackupCounts;
+  /** Puts back the data from before the last replace; `null` = no copy (or an unreadable one). */
+  undoReplace: () => BackupCounts | null;
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null);
@@ -259,20 +269,39 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     },
     createBackup: (appVersion) => buildBackupFile(readBackupData(), profile, Date.now(), appVersion),
     importBackup: (file, mode) => {
-      const merged = mergeBackup(readBackupData(), file, mode);
-      writeBackupData(merged);
-      if (profile !== null) {
-        // K-17: the declared age can only stay or get younger; the record follows it.
-        const year = istanbulYear(Date.now());
-        const next = importedProfile(profile, file.profile, mode, year);
-        recordDeclaration(next.birthYear, year);
-        storeProfile(next);
-        setProfile(next);
+      const current = readBackupData();
+      if (mode === 'replace') {
+        // Everything here is about to go: keep a copy on this device so "Geri al" can bring it back.
+        const now = Date.now();
+        storeReplaceUndo({ createdAt: now, text: serializeBackup(buildBackupFile(current, profile, now, '')) });
       }
-      notifyDataChanged();
-      return backupCounts(merged);
+      return importData(current, file, mode);
+    },
+    undoReplace: () => {
+      const undo = loadReplaceUndo();
+      if (undo === null) return null;
+      // Our own copy: read back exactly, sessions with a wrong-clock time included.
+      const parsed = parseBackup(undo.text, { keepWrongClockSessions: true });
+      const counts = parsed.ok ? importData(readBackupData(), parsed.file, 'replace') : null;
+      storeReplaceUndo(null);
+      return counts;
     },
   };
+
+  function importData(current: BackupData, file: BackupFile, mode: ImportMode): BackupCounts {
+    const merged = mergeBackup(current, file, mode);
+    writeBackupData(merged);
+    if (profile !== null) {
+      // K-17: the declared age can only stay or get younger; the record follows it.
+      const year = istanbulYear(Date.now());
+      const next = importedProfile(profile, file.profile, mode, year);
+      recordDeclaration(next.birthYear, year);
+      storeProfile(next);
+      setProfile(next);
+    }
+    notifyDataChanged();
+    return backupCounts(merged);
+  }
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 }

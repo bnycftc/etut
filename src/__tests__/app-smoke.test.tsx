@@ -1147,6 +1147,7 @@ describe('backup and restore', () => {
     expect(screen.getByTestId('backup-preview-skipped')).toBeTruthy();
     fireEvent.press(screen.getByTestId('backup-mode-replace'));
     fireEvent.press(screen.getByTestId('backup-confirm'));
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
     expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
   });
 
@@ -1173,6 +1174,7 @@ describe('backup and restore', () => {
     });
     fireEvent.press(screen.getByTestId('backup-mode-replace'));
     fireEvent.press(screen.getByTestId('backup-confirm'));
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
     expect(memory.profile).toMatchObject({ birthYear: year - 20, soloOnly: false, yksArea: 'sozel' });
 
     memory.pickText = file(year - 12);
@@ -1202,6 +1204,7 @@ describe('backup and restore', () => {
     });
     fireEvent.press(screen.getByTestId('backup-mode-replace'));
     fireEvent.press(screen.getByTestId('backup-confirm'));
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
     expect(memory.sessions.map((s) => s.id)).toEqual(['x']);
     act(() => router.back());
     expect(screen.getByTestId('settings-exam-current').props.children).toEqual(['YKS', ' · Sözel']);
@@ -1731,6 +1734,111 @@ describe('timer and data safety', () => {
     expect(memory.sessions).toHaveLength(1);
     expect(memory.sessions[0].durationMs).toBeGreaterThanOrEqual(20 * MIN);
     expect(memory.sessions[0].durationMs).toBeLessThan(21 * MIN);
+  });
+
+  const sessionAt = (id: string): CompletedSession => ({
+    id,
+    subjectId: 'kimya',
+    topicId: null,
+    startedAt: Date.parse('2026-10-01T07:00:00Z'),
+    endedAt: Date.parse('2026-10-01T08:00:00Z'),
+    pauses: [],
+    durationMs: HOUR,
+    source: 'timer',
+  });
+  const backupText = (extra: Record<string, unknown>) =>
+    JSON.stringify({
+      format: 'etut-yedek',
+      schemaVersion: 1,
+      exportedAt: Date.parse('2026-10-02T00:00:00Z'),
+      profile: { birthYear: 2000, examType: 'YKS', yksArea: 'sozel' },
+      sessions: [sessionAt('x')],
+      exams: [],
+      topicProgress: [],
+      ...extra,
+    });
+
+  it('"Değiştir" asks a second time, keeps a copy, and "Geri al" brings the old data back', async () => {
+    memory.sessions = [sessionAt('a')];
+    memory.topicStatuses = { 'tyt.fizik.basinc': 'done' };
+    memory.pickText = backupText({});
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-import'));
+    });
+    fireEvent.press(screen.getByTestId('backup-mode-replace'));
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    // Second question, with what will go; nothing has changed yet.
+    expect(screen.getByTestId('backup-replace-sure').props.children).toContain(
+      'Bu telefondaki 1 çalışma kaydı, 0 deneme ve 1 konu işareti silinip',
+    );
+    expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
+    fireEvent.press(screen.getByTestId('backup-replace-no'));
+    expect(screen.queryByTestId('backup-replace-sure')).toBeNull();
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
+    expect(memory.sessions.map((s) => s.id)).toEqual(['x']);
+    expect(memory.topicStatuses).toEqual({});
+    expect(memory.profile?.yksArea).toBe('sozel');
+    expect(memory.replaceUndo).not.toBeNull();
+
+    fireEvent.press(screen.getByTestId('backup-undo'));
+    expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
+    expect(memory.topicStatuses).toEqual({ 'tyt.fizik.basinc': 'done' });
+    expect(memory.profile?.yksArea).toBe('sayisal');
+    expect(screen.getByTestId('backup-message').props.children).toBe(
+      'Geri alındı. Şu an 1 çalışma kaydı, 0 deneme ve 1 konu işareti var.',
+    );
+    expect(memory.replaceUndo).toBeNull();
+    expect(screen.queryByTestId('backup-undo-card')).toBeNull();
+  });
+
+  it('the copy can be deleted; one older than a day is neither offered nor kept', async () => {
+    memory.replaceUndo = { createdAt: Date.now() - HOUR, text: backupText({}) };
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    expect(screen.getByTestId('backup-undo-card')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('backup-undo-discard'));
+    expect(memory.replaceUndo).toBeNull();
+    expect(screen.queryByTestId('backup-undo-card')).toBeNull();
+  });
+
+  it('an expired copy is removed', () => {
+    memory.replaceUndo = { createdAt: Date.now() - 25 * HOUR, text: backupText({}) };
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    expect(screen.queryByTestId('backup-undo-card')).toBeNull();
+    expect(memory.replaceUndo).toBeNull();
+  });
+
+  it('an old backup with an exam that no longer fits loads the rest and says what was left out', async () => {
+    memory.pickText = backupText({
+      exams: [
+        {
+          id: 'old',
+          kind: 'AYT_XYZ',
+          scope: 'genel',
+          bransSectionId: null,
+          takenOn: '2026-09-01',
+          createdAt: 1,
+          analysisDoneAt: null,
+          scores: [{ sectionId: 'matematik', questions: 40, correct: 10, wrong: 0 }],
+          marks: [],
+        },
+      ],
+      settings: { netTargets: { 'TYT:fizik': 8, 'TYT:matematik': 30 } },
+    });
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-import'));
+    });
+    expect(screen.getByTestId('backup-preview-counts').props.children).toBe(
+      'Yedekte 1 çalışma kaydı, 0 deneme ve 0 konu işareti var.',
+    );
+    expect(screen.getByTestId('backup-preview-skipped-exams').props.children).toBe(
+      'Uygulamanın şimdiki sınav biçimine (soru sayıları, dersler) uymayan 1 deneme ve 1 net hedefi yüklenmeyecek; geri kalan her şey yüklenecek.',
+    );
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    expect(memory.sessions.map((s) => s.id)).toEqual(['x']);
+    expect(memory.netTargets).toEqual({ 'TYT:matematik': 30 });
   });
 
   it('marking a topic does not reload the stored sessions for the timer and the system surfaces', () => {

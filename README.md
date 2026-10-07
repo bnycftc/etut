@@ -338,6 +338,10 @@ ağ isteği atmaz (`test:web` bunu denetler):
   kimliklere göre idempotent; uygulamanın yazdığı her kayıt geri okunur (ör. bir hafta açık
   kalmış oturum); süre sınırı yok, zaman sınırı var (2016 sonrası başlangıç, dosya tarihinden en
   fazla 1 gün sonra bitiş). "Birleştir"de burada boş olan ayarlar (kaldırılmış hedef dahil) yedekten dolar.
+  Sınav tabloları değişirse (ÖSYM soru sayısını değiştirir, bir ders/deneme türü kalkar) eski dosya yine
+  yüklenir: şimdiki tabloya uymayan deneme ve net hedefleri atlanır ve önizlemede sayılır. "Değiştir"
+  ikinci kez onay ister ve yazmadan önce bu cihazdaki verinin kopyasını kv deposuna alır; yedek
+  ekranında bir gün boyunca "Geri al" ile o hâline dönülür ("Tüm verileri sil" kopyayı da siler).
   K-17: yaş yedekle yükseltilemez; yedekteki yaş daha küçükse küçük olan esas alınır (seçicinin
   sunmadığı bir yıl, ör. 2200, yok sayılır), 15 altı bayrağı içe aktarmayla kapanmaz. Dosya
   şifrelenmez (metinde yazıyor).

@@ -9,6 +9,9 @@
  * - All or nothing: one malformed record rejects the whole file (nothing is written). A session
  *   whose times can only come from a wrong device clock (see `sessionTimeOk`) is well formed: it
  *   is left out and counted (`skippedSessions`) instead of costing the whole file.
+ * - Old files stay readable when the exam tables change (ÖSYM changes a question count, a paper
+ *   or a section goes): a well-formed mock exam or net target that no longer fits `EXAM_SECTIONS`
+ *   is left out and counted (`skippedExams`, `skippedTargets`); everything else still loads.
  * - Idempotent: records are keyed by their ids, so importing the same file twice leaves the same
  *   data as importing it once (no duplicate sessions or exams).
  * - K-17: the age can not be raised by a file. If the file's birth year is a younger age than the
@@ -106,8 +109,32 @@ export interface BackupFile extends BackupData {
 export type ImportMode = 'merge' | 'replace';
 export type BackupError = 'too_large' | 'not_json' | 'not_backup' | 'too_new' | 'invalid';
 export type ParseResult =
-  | { ok: true; file: BackupFile; /** Sessions left out for a wrong-clock time (`sessionTimeOk`). */ skippedSessions: number }
+  | {
+      ok: true;
+      file: BackupFile;
+      /** Sessions left out for a wrong-clock time (`sessionTimeOk`). */
+      skippedSessions: number;
+      /** Mock exams left out because they no longer fit the current exam tables. */
+      skippedExams: number;
+      /** Net targets left out for the same reason. */
+      skippedTargets: number;
+    }
   | { ok: false; error: BackupError };
+
+export interface ParseOptions {
+  /**
+   * Keep sessions with a wrong-clock time. Only for the app's own copy taken before a replace
+   * ("Geri al"): it must put back exactly what was on the device.
+   */
+  keepWrongClockSessions?: boolean;
+}
+
+/** "Geri al" after a replace is offered for this long. */
+export const REPLACE_UNDO_MS = 24 * 3_600_000;
+
+export function canUndoReplace(createdAt: number, now: number): boolean {
+  return now >= createdAt && now - createdAt < REPLACE_UNDO_MS;
+}
 
 export const EMPTY_SETTINGS: BackupSettings = {
   dailyGoalMinutes: null,
@@ -235,25 +262,33 @@ function parseSession(value: unknown): CompletedSession {
   };
 }
 
-function parseExam(value: unknown): BackupExam {
+/** More sections than any paper has (YDT 1, TYT 9): a longer list is not an exam. */
+const MAX_SECTIONS = 50;
+
+function isExamKind(v: string): v is ExamKind {
+  return (EXAM_KINDS as readonly string[]).includes(v);
+}
+
+/**
+ * A mock exam, or `null` when it is well formed but no longer fits `EXAM_SECTIONS` (paper or
+ * section gone, a question count changed): that one exam is left out, not the whole file.
+ */
+function parseExam(value: unknown): BackupExam | null {
   const v = obj(value);
-  const kind = oneOf(v.kind, EXAM_KINDS);
+  const id = str(v.id, ID, 64);
+  const takenOn = day(v.takenOn);
+  const createdAt = int(v.createdAt);
+  const analysisDoneAt = intOrNull(v.analysisDoneAt);
+  const kindName = str(v.kind, ID, 40);
   const scope = oneOf(v.scope, ['genel', 'brans'] as const);
-  const sections = EXAM_SECTIONS[kind];
-  const bransSectionId =
-    scope === 'brans' ? oneOf(v.bransSectionId, sections.map((s) => s.id)) : v.bransSectionId == null ? null : fail();
+  const bransName = scope === 'brans' ? str(v.bransSectionId, ID, 40) : v.bransSectionId == null ? null : fail();
   const scores: SectionScore[] = unique(
-    arr(v.scores, sections.length).map((s) => {
+    arr(v.scores, MAX_SECTIONS).map((s) => {
       const q = obj(s);
-      const section = sections.find((x) => x.id === q.sectionId) ?? fail();
-      const score = { sectionId: section.id, questions: int(q.questions), correct: int(q.correct), wrong: int(q.wrong) };
-      if (score.questions !== section.questions || validateScore(score) !== null) fail();
-      return score;
+      return { sectionId: str(q.sectionId, ID, 40), questions: int(q.questions), correct: int(q.correct), wrong: int(q.wrong) };
     }),
     (s) => s.sectionId,
   );
-  const expected = scope === 'genel' ? sections.map((s) => s.id) : [bransSectionId];
-  if (scores.length !== expected.length || !scores.every((s) => expected.includes(s.sectionId))) fail();
   const marks: TopicMark[] = unique(
     arr(v.marks ?? []).map((m) => {
       const q = obj(m);
@@ -262,18 +297,17 @@ function parseExam(value: unknown): BackupExam {
     }),
     (m) => `${m.sectionId}|${m.topicId}`,
   );
-  if (scores.some((s) => validateSectionMarks(s, marks) !== null)) fail();
-  return {
-    id: str(v.id, ID, 64),
-    kind,
-    scope,
-    bransSectionId,
-    takenOn: day(v.takenOn),
-    createdAt: int(v.createdAt),
-    analysisDoneAt: intOrNull(v.analysisDoneAt),
-    scores,
-    marks,
-  };
+
+  // Well formed so far. Does it still fit the exam tables of this version?
+  if (!isExamKind(kindName)) return null;
+  const sections = EXAM_SECTIONS[kindName];
+  const expected = scope === 'genel' ? sections.map((s) => s.id) : [bransName];
+  if (scores.length !== expected.length || !scores.every((s) => expected.includes(s.sectionId))) return null;
+  if (scores.some((s) => sections.find((x) => x.id === s.sectionId)?.questions !== s.questions)) return null;
+
+  // It fits: the numbers must make sense for it.
+  if (scores.some((s) => validateScore(s) !== null || validateSectionMarks(s, marks) !== null)) fail();
+  return { id, kind: kindName, scope, bransSectionId: bransName, takenOn, createdAt, analysisDoneAt, scores, marks };
 }
 
 function parseTopicProgress(value: unknown): BackupTopicProgress {
@@ -282,28 +316,33 @@ function parseTopicProgress(value: unknown): BackupTopicProgress {
   return { topicId: str(v.topicId, ID), status: v.status, updatedAt: int(v.updatedAt) };
 }
 
-function parseNetTargets(value: unknown): Record<string, number> {
-  const out: Record<string, number> = {};
+/** Net targets, and how many were left out because their section no longer fits. */
+function parseNetTargets(value: unknown): { targets: Record<string, number>; skipped: number } {
+  const targets: Record<string, number> = {};
+  let skipped = 0;
   for (const [key, target] of Object.entries(obj(value ?? {}))) {
     const [kind, sectionId, extra] = key.split(':');
-    if (extra !== undefined) fail();
-    const section = EXAM_SECTIONS[oneOf(kind, EXAM_KINDS)].find((s) => s.id === sectionId) ?? fail();
-    if (typeof target !== 'number' || !(target > 0) || target > section.questions || target * 4 !== Math.round(target * 4)) {
-      fail();
+    if (sectionId === undefined || extra !== undefined) fail();
+    if (typeof target !== 'number' || !(target > 0) || target * 4 !== Math.round(target * 4)) fail();
+    const section = isExamKind(kind) ? EXAM_SECTIONS[kind].find((s) => s.id === sectionId) : undefined;
+    if (section === undefined || target > section.questions) {
+      skipped++;
+      continue;
     }
-    out[key] = target;
+    targets[key] = target;
   }
-  return out;
+  return { targets, skipped };
 }
 
-function parseSettings(value: unknown): BackupSettings {
+function parseSettings(value: unknown): { settings: BackupSettings; skippedTargets: number } {
   const v = obj(value ?? {});
   const examDates: Partial<Record<ExamType, DayKey>> = {};
   for (const [type, date] of Object.entries(obj(v.examDates ?? {}))) {
     examDates[oneOf(type, EXAM_TYPES)] = day(date);
   }
   const goal = v.dailyGoalMinutes;
-  return {
+  const netTargets = parseNetTargets(v.netTargets);
+  const settings: BackupSettings = {
     dailyGoalMinutes:
       goal === null || goal === undefined ? null : clampGoalMinutes(int(goal, 1, 24 * 60)),
     pomodoro:
@@ -315,9 +354,10 @@ function parseSettings(value: unknown): BackupSettings {
     timerMode:
       v.timerMode === null || v.timerMode === undefined ? null : oneOf(v.timerMode, ['stopwatch', 'pomodoro'] as const),
     examDates,
-    netTargets: parseNetTargets(v.netTargets),
+    netTargets: netTargets.targets,
     lastSubject: v.lastSubject === null || v.lastSubject === undefined ? null : str(v.lastSubject, SUBJECT, 40),
   };
+  return { settings, skippedTargets: netTargets.skipped };
 }
 
 function parseProfile(value: unknown): BackupProfile | null {
@@ -335,7 +375,7 @@ function upgrade(file: Obj, version: number): Obj {
 }
 
 /** Text of a picked file → a validated backup, or why it can not be imported. */
-export function parseBackup(text: string): ParseResult {
+export function parseBackup(text: string, options: ParseOptions = {}): ParseResult {
   if (text.length > BACKUP_MAX_BYTES) return { ok: false, error: 'too_large' };
   let raw: unknown;
   try {
@@ -355,7 +395,13 @@ export function parseBackup(text: string): ParseResult {
     const v = upgrade(raw as Obj, version);
     const exportedAt = int(v.exportedAt, 0, MAX_DATE_MS);
     const sessions = unique(arr(v.sessions).map(parseSession), (s) => s.id);
-    const kept = sessions.filter(sessionTimeOk);
+    const kept = options.keepWrongClockSessions === true ? sessions : sessions.filter(sessionTimeOk);
+    const allExams = arr(v.exams).map(parseExam);
+    const exams = unique(
+      allExams.filter((e): e is BackupExam => e !== null),
+      (e) => e.id,
+    );
+    const { settings, skippedTargets } = parseSettings(v.settings);
     const file: BackupFile = {
       format: BACKUP_FORMAT,
       schemaVersion: BACKUP_SCHEMA_VERSION,
@@ -363,11 +409,17 @@ export function parseBackup(text: string): ParseResult {
       appVersion: typeof v.appVersion === 'string' ? v.appVersion.slice(0, 40) : '',
       profile: parseProfile(v.profile),
       sessions: kept,
-      exams: unique(arr(v.exams).map(parseExam), (e) => e.id),
+      exams,
       topicProgress: unique(arr(v.topicProgress).map(parseTopicProgress), (t) => t.topicId),
-      settings: parseSettings(v.settings),
+      settings,
     };
-    return { ok: true, file, skippedSessions: sessions.length - kept.length };
+    return {
+      ok: true,
+      file,
+      skippedSessions: sessions.length - kept.length,
+      skippedExams: allExams.length - exams.length,
+      skippedTargets,
+    };
   } catch (error) {
     if (error instanceof Invalid) return { ok: false, error: 'invalid' };
     throw error;
