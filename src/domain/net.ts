@@ -1,10 +1,15 @@
 /**
- * Mock exam (deneme) structure and net calculation for YKS.
- * Net = correct − wrong / 4 (four wrong answers cancel one correct one).
- * Question counts follow the current ÖSYM YKS format (TYT 120, AYT 160, YDT 80).
+ * Mock exam (deneme) structure and net calculation.
+ * YKS and KPSS: net = correct − wrong / 4 (four wrong answers cancel one correct one).
+ * LGS: net = correct − wrong / 3.
+ * Question counts follow the current ÖSYM YKS format (TYT 120, AYT 160, YDT 80), the MEB LGS
+ * format (90) and the ÖSYM KPSS GY-GK format (120); sources next to each table below.
  */
 
-export type ExamKind = 'TYT' | 'AYT_SAY' | 'AYT_EA' | 'AYT_SOZ' | 'YDT';
+import type { ExamType } from './profile';
+
+export type YksExamKind = 'TYT' | 'AYT_SAY' | 'AYT_EA' | 'AYT_SOZ' | 'YDT';
+export type ExamKind = YksExamKind | 'LGS' | 'KPSS_GYGK';
 export type ExamScope = 'genel' | 'brans';
 
 export interface ExamSection {
@@ -13,7 +18,9 @@ export interface ExamSection {
   questions: number;
 }
 
-export const EXAM_KINDS: readonly ExamKind[] = ['TYT', 'AYT_SAY', 'AYT_EA', 'AYT_SOZ', 'YDT'];
+export const YKS_EXAM_KINDS: readonly YksExamKind[] = ['TYT', 'AYT_SAY', 'AYT_EA', 'AYT_SOZ', 'YDT'];
+/** Every paper a stored exam (or a backup) may have. */
+export const EXAM_KINDS: readonly ExamKind[] = [...YKS_EXAM_KINDS, 'LGS', 'KPSS_GYGK'];
 
 export const EXAM_SECTIONS: Record<ExamKind, readonly ExamSection[]> = {
   TYT: [
@@ -49,6 +56,33 @@ export const EXAM_SECTIONS: Record<ExamKind, readonly ExamSection[]> = {
     { id: 'din', questions: 6 },
   ],
   YDT: [{ id: 'yabanci_dil', questions: 80 }],
+  // LGS (MEB merkezî sınav, 8. sınıf): sözel oturum Türkçe 20, T.C. İnkılap Tarihi ve Atatürkçülük
+  // 10, Din Kültürü 10, Yabancı Dil 10; sayısal oturum Matematik 20, Fen Bilimleri 20 (90 soru).
+  // Ham puan = doğru − yanlış/3. Kaynak: MEB, Merkezî Sınav Başvuru ve Uygulama Kılavuzu 2026,
+  // https://www.meb.gov.tr/meb_iys_dosyalar/2026_04/03170012_LGS_Basvuru_ve_Uygulama_Kilavuzu_2026_.pdf
+  // (erişim 2026-10-07).
+  LGS: [
+    { id: 'turkce', questions: 20 },
+    { id: 'inkilap', questions: 10 },
+    { id: 'din', questions: 10 },
+    { id: 'yabanci_dil', questions: 10 },
+    { id: 'matematik', questions: 20 },
+    { id: 'fen', questions: 20 },
+  ],
+  // KPSS Genel Yetenek (60) + Genel Kültür (60); ham puan = doğru − yanlış/4. Test toplamları ve
+  // puanlama: ÖSYM, 2026 KPSS Kılavuzu (Lisans),
+  // https://dokuman.osym.gov.tr/pdfdokuman/2026/KPSS/LISANS/kilavuz_Ld01072026.pdf (erişim
+  // 2026-10-07). Ders dağılımı (GY: Türkçe 30, Matematik 30; GK: Tarih 27, Coğrafya 18,
+  // Vatandaşlık 9, Güncel Bilgiler 6) ÖSYM soru kitapçıklarının sırasıdır, kılavuzda ayrıca
+  // yazmaz; `curriculum/kpss.ts` aynı dağılımı kullanır. Eğitim Bilimleri ve ÖABT kapsam dışı.
+  KPSS_GYGK: [
+    { id: 'turkce', questions: 30 },
+    { id: 'matematik', questions: 30 },
+    { id: 'tarih', questions: 27 },
+    { id: 'cografya', questions: 18 },
+    { id: 'vatandaslik', questions: 9 },
+    { id: 'guncel', questions: 6 },
+  ],
 };
 
 export interface SectionScore {
@@ -60,8 +94,13 @@ export interface SectionScore {
 
 export type ScoreError = 'not_integer' | 'negative' | 'too_many';
 
-export function net(correct: number, wrong: number): number {
-  return correct - wrong / 4;
+/** How many wrong answers cancel one correct answer on this paper. */
+export function wrongsPerCorrect(kind: ExamKind): number {
+  return kind === 'LGS' ? 3 : 4;
+}
+
+export function net(correct: number, wrong: number, kind: ExamKind): number {
+  return correct - wrong / wrongsPerCorrect(kind);
 }
 
 export function validateScore(score: SectionScore): ScoreError | null {
@@ -72,8 +111,8 @@ export function validateScore(score: SectionScore): ScoreError | null {
   return null;
 }
 
-export function totalNet(scores: SectionScore[]): number {
-  return scores.reduce((sum, s) => sum + net(s.correct, s.wrong), 0);
+export function totalNet(scores: readonly SectionScore[], kind: ExamKind): number {
+  return scores.reduce((sum, s) => sum + net(s.correct, s.wrong, kind), 0);
 }
 
 /** Sections that a mock exam of this kind and scope contains. */
@@ -110,13 +149,13 @@ export function aytKindForArea(area: YksArea | null): ExamKind {
   }
 }
 
-/** TYT first, then the paper of the student's area, then the others. */
+/** YKS papers: TYT first, then the paper of the student's area, then the others. */
 export function examKindsInOrder(area: YksArea | null): ExamKind[] {
   const preferred = aytKindForArea(area);
   return [
     'TYT',
     preferred,
-    ...EXAM_KINDS.filter((k) => k !== 'TYT' && k !== preferred),
+    ...YKS_EXAM_KINDS.filter((k) => k !== 'TYT' && k !== preferred),
   ];
 }
 
@@ -130,11 +169,33 @@ export function examKindsForArea(area: YksArea | null): ExamKind[] {
 }
 
 /**
- * Papers shown in charts and analysis: the area's papers, plus any other paper the student
- * already has exams of (e.g. after changing the area), so stored data never disappears.
+ * Papers a student of this exam type can enter: the YKS papers of the area (above), the LGS paper,
+ * the KPSS GY-GK paper. "Diğer" has no paper: a YKS form would give a wrong net there.
  */
-export function examKindsToShow(area: YksArea | null, kindsInUse: Iterable<ExamKind>): ExamKind[] {
-  const own = examKindsForArea(area);
+export function examKindsFor(examType: ExamType, area: YksArea | null): ExamKind[] {
+  switch (examType) {
+    case 'YKS':
+      return examKindsForArea(area);
+    case 'LGS':
+      return ['LGS'];
+    case 'KPSS':
+      return ['KPSS_GYGK'];
+    case 'DIGER':
+      return [];
+  }
+}
+
+/**
+ * Papers shown in charts and analysis: the student's own papers, plus any other paper the student
+ * already has exams of (e.g. after changing the area or the exam), so stored data never disappears.
+ */
+export function examKindsToShow(
+  examType: ExamType,
+  area: YksArea | null,
+  kindsInUse: Iterable<ExamKind>,
+): ExamKind[] {
+  const own = examKindsFor(examType, area);
   const used = new Set(kindsInUse);
-  return [...own, ...examKindsInOrder(area).filter((k) => !own.includes(k) && used.has(k))];
+  const rest = [...examKindsInOrder(area), 'LGS', 'KPSS_GYGK'] as ExamKind[];
+  return [...own, ...rest.filter((k) => !own.includes(k) && used.has(k))];
 }

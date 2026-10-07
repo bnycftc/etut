@@ -86,6 +86,9 @@ export function topicOfSubject(
 
 /** Topics a wrong/blank question of a mock-exam section can be tagged with. */
 export function topicsForSection(kind: ExamKind, sectionId: string): Topic[] {
+  // LGS and KPSS sections are named after their topic lists (KPSS geometry is in `matematik`).
+  if (kind === 'LGS') return [...list(LGS_TOPICS, sectionId)];
+  if (kind === 'KPSS_GYGK') return [...list(KPSS_TOPICS, sectionId)];
   const source = kind === 'TYT' ? TYT_TOPICS : AYT_TOPICS;
   switch (sectionId) {
     case 'matematik':

@@ -1,263 +1,42 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
 
-import { addDays, istanbulDayKey } from '@/domain/istanbul-day';
-import {
-  EXAM_SECTIONS,
-  type ExamKind,
-  examKindsForArea,
-  type ExamScope,
-  formatNet,
-  net,
-  type SectionScore,
-  sectionsFor,
-  totalNet,
-  validateScore,
-} from '@/domain/net';
+import { examKindsFor } from '@/domain/net';
 import { useAppState } from '@/state/app-state';
 import { newId } from '@/storage/db';
 import { saveMockExam } from '@/storage/mock-exams';
 import { tr } from '@/strings';
-import { Button, Card, Chip, ChipRow, Label, Row, Screen } from '@/ui/components';
-import { formatDay } from '@/ui/format';
-import { usePalette } from '@/ui/theme';
-
-type Entry = { correct: string; wrong: string };
-
-/** Empty input counts as 0; anything else must be a whole number. */
-function parseCount(text: string): number {
-  const trimmed = text.trim();
-  if (trimmed === '') return 0;
-  return /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
-}
+import { Label, Screen } from '@/ui/components';
+import { ExamForm } from '@/ui/exam-form';
 
 export default function NewExamScreen() {
   const { profile, notifyDataChanged } = useAppState();
-  const c = usePalette();
-  const [kind, setKind] = useState<ExamKind>('TYT');
-  const [scope, setScope] = useState<ExamScope>('genel');
-  const [bransId, setBransId] = useState<string>(EXAM_SECTIONS.TYT[0].id);
-  const [day, setDay] = useState(() => istanbulDayKey(Date.now()));
-  const [entries, setEntries] = useState<Record<string, Entry>>({});
-  const [showErrors, setShowErrors] = useState(false);
+  // One id per form: a second "Kaydet" can never create a second exam.
+  const [id] = useState(newId);
+  // YKS: TYT and the AYT/YDT paper of the area; LGS and KPSS: their own paper; "Diğer": none.
+  const kinds = examKindsFor(profile?.examType ?? 'YKS', profile?.yksArea ?? null);
 
-  const today = istanbulDayKey(Date.now());
-  const sections = sectionsFor(kind, scope, bransId);
-  const scores: SectionScore[] = sections.map((s) => ({
-    sectionId: s.id,
-    questions: s.questions,
-    correct: parseCount(entries[s.id]?.correct ?? ''),
-    wrong: parseCount(entries[s.id]?.wrong ?? ''),
-  }));
-  const errors = scores.map(validateScore);
-  const hasErrors = errors.some((e) => e !== null);
-  // TYT and the AYT/YDT paper of the student's YKS area only.
-  const kinds = examKindsForArea(profile?.yksArea ?? null);
-
-  const chooseKind = (k: ExamKind) => {
-    setKind(k);
-    setBransId(EXAM_SECTIONS[k][0].id);
-    setEntries({});
-    setShowErrors(false);
-  };
-
-  const setEntry = (sectionId: string, field: keyof Entry, value: string) => {
-    setEntries((prev) => ({
-      ...prev,
-      [sectionId]: { ...(prev[sectionId] ?? { correct: '', wrong: '' }), [field]: value },
-    }));
-  };
-
-  const save = () => {
-    if (hasErrors || sections.length === 0) {
-      setShowErrors(true);
-      return;
-    }
-    saveMockExam(
-      {
-        id: newId(),
-        kind,
-        scope,
-        bransSectionId: scope === 'brans' ? bransId : null,
-        takenOn: day,
-        createdAt: Date.now(),
-      },
-      scores,
-    );
-    notifyDataChanged();
-    router.back();
-  };
-
-  return (
-    <Screen>
-      <Card>
-        <Label variant="heading" testID="exam-form-kind-title">
-          {tr.exams.kind}
+  if (kinds.length === 0) {
+    return (
+      <Screen>
+        <Label variant="muted" testID="exam-no-form">
+          {tr.exams.noFormNote}
         </Label>
-        <ChipRow>
-          {kinds.map((k) => (
-            <Chip
-              key={k}
-              testID={`exam-kind-${k}`}
-              title={tr.examKind(k)}
-              selected={k === kind}
-              onPress={() => chooseKind(k)}
-            />
-          ))}
-        </ChipRow>
+      </Screen>
+    );
+  }
 
-        <Label variant="heading">{tr.exams.scope}</Label>
-        <ChipRow>
-          <Chip
-            testID="exam-scope-genel"
-            title={tr.exams.scopeGenel}
-            selected={scope === 'genel'}
-            onPress={() => setScope('genel')}
-          />
-          <Chip
-            testID="exam-scope-brans"
-            title={tr.exams.scopeBrans}
-            selected={scope === 'brans'}
-            onPress={() => setScope('brans')}
-          />
-        </ChipRow>
-
-        {scope === 'brans' ? (
-          <>
-            <Label variant="heading">{tr.exams.section}</Label>
-            <ChipRow>
-              {EXAM_SECTIONS[kind].map((s) => (
-                <Chip
-                  key={s.id}
-                  testID={`exam-brans-${s.id}`}
-                  title={tr.subject(s.id)}
-                  selected={s.id === bransId}
-                  onPress={() => setBransId(s.id)}
-                />
-              ))}
-            </ChipRow>
-          </>
-        ) : null}
-
-        <Label variant="heading">{tr.exams.date}</Label>
-        <Row>
-          <Button
-            testID="exam-prev-day"
-            kind="secondary"
-            title={tr.exams.prevDay}
-            onPress={() => setDay(addDays(day, -1))}
-          />
-          <Button
-            testID="exam-next-day"
-            kind="secondary"
-            title={tr.exams.nextDay}
-            disabled={day >= today}
-            onPress={() => setDay(addDays(day, 1))}
-          />
-        </Row>
-        <Label variant="muted">{formatDay(day)}</Label>
-      </Card>
-
-      <Card>
-        {sections.map((s, i) => {
-          const score = scores[i];
-          const error = errors[i];
-          return (
-            <View key={s.id} style={styles.section}>
-              <Row>
-                <Label style={{ flex: 1, fontWeight: '600' }}>{tr.subject(s.id)}</Label>
-                <Label variant="small">{tr.exams.questions(s.questions)}</Label>
-              </Row>
-              <Row>
-                <CountInput
-                  testID={`exam-correct-${s.id}`}
-                  label={tr.exams.correct}
-                  a11yLabel={tr.exams.countLabel(tr.subject(s.id), tr.exams.correct)}
-                  value={entries[s.id]?.correct ?? ''}
-                  onChange={(v) => setEntry(s.id, 'correct', v)}
-                />
-                <CountInput
-                  testID={`exam-wrong-${s.id}`}
-                  label={tr.exams.wrong}
-                  a11yLabel={tr.exams.countLabel(tr.subject(s.id), tr.exams.wrong)}
-                  value={entries[s.id]?.wrong ?? ''}
-                  onChange={(v) => setEntry(s.id, 'wrong', v)}
-                />
-                <View style={styles.netBox}>
-                  <Label variant="small">{tr.exams.net}</Label>
-                  <Label variant="heading" testID={`exam-net-${s.id}`}>
-                    {error === null ? formatNet(net(score.correct, score.wrong)) : '–'}
-                  </Label>
-                </View>
-              </Row>
-              {error !== null && (showErrors || error === 'too_many') ? (
-                <Label variant="small" style={{ color: c.danger }}>
-                  {tr.scoreError(error)}
-                </Label>
-              ) : null}
-            </View>
-          );
-        })}
-        <Row>
-          <Label variant="heading" style={{ flex: 1 }}>
-            {tr.exams.totalNet}
-          </Label>
-          <Label variant="heading" testID="exam-total-net">
-            {hasErrors ? '–' : formatNet(totalNet(scores))}
-          </Label>
-        </Row>
-      </Card>
-
-      {showErrors && hasErrors ? (
-        <Label style={{ color: c.danger }}>{tr.exams.fixErrors}</Label>
-      ) : null}
-      <Button large testID="exam-save" title={tr.common.save} onPress={save} />
-    </Screen>
-  );
-}
-
-function CountInput({
-  label,
-  a11yLabel,
-  value,
-  onChange,
-  testID,
-}: {
-  label: string;
-  a11yLabel: string;
-  value: string;
-  onChange: (value: string) => void;
-  testID?: string;
-}) {
-  const c = usePalette();
   return (
-    <View style={{ flex: 1, gap: 4 }}>
-      <Label variant="small">{label}</Label>
-      <TextInput
-        testID={testID}
-        accessibilityLabel={a11yLabel}
-        value={value}
-        onChangeText={onChange}
-        keyboardType="number-pad"
-        inputMode="numeric"
-        maxLength={3}
-        placeholder="0"
-        placeholderTextColor={c.textMuted}
-        style={[styles.input, { color: c.text, borderColor: c.controlBorder, backgroundColor: c.background }]}
-      />
-    </View>
+    <ExamForm
+      kinds={kinds}
+      onSave={(v) => {
+        saveMockExam(
+          { id, kind: v.kind, scope: v.scope, bransSectionId: v.bransSectionId, takenOn: v.takenOn, createdAt: Date.now() },
+          v.scores,
+        );
+        notifyDataChanged();
+        router.back();
+      }}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  section: { gap: 8, paddingBottom: 8 },
-  netBox: { flex: 1, alignItems: 'flex-end', gap: 4 },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 18,
-  },
-});

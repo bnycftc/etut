@@ -44,7 +44,7 @@ export default function ExamDetailScreen() {
               {tr.exams.correctWrongShort(s.correct, s.wrong)}
             </Label>
             <Label style={{ minWidth: 56, textAlign: 'right', fontWeight: '600' }}>
-              {formatNet(net(s.correct, s.wrong))}
+              {formatNet(net(s.correct, s.wrong, exam.kind))}
             </Label>
           </Row>
         ))}
@@ -52,7 +52,7 @@ export default function ExamDetailScreen() {
           <Label variant="heading" style={{ flex: 1 }}>
             {tr.exams.totalNet}
           </Label>
-          <Label variant="heading">{formatNet(exam.totalNet)}</Label>
+          <Label variant="heading" testID="exam-detail-total">{formatNet(exam.totalNet)}</Label>
         </Row>
       </Card>
 
@@ -68,7 +68,7 @@ export default function ExamDetailScreen() {
           {marks.map((m) => (
             <Row key={`${m.sectionId}|${m.topicId}`}>
               <Label variant="muted" style={{ flex: 1 }}>
-                {tr.subject(m.sectionId)} · {topicName(m.topicId) ?? m.topicId}
+                {tr.subject(m.sectionId)} · {topicName(m.topicId) ?? tr.analysis.unknownTopic}
               </Label>
               <Label variant="muted">{tr.analysis.markRow(m.wrong, m.blank)}</Label>
             </Row>
@@ -81,6 +81,13 @@ export default function ExamDetailScreen() {
           />
         </Card>
       ) : null}
+
+      <Button
+        testID="exam-edit"
+        kind="secondary"
+        title={tr.exams.edit}
+        onPress={() => router.push({ pathname: '/deneme/duzenle/[id]', params: { id: exam.id } })}
+      />
 
       {confirming ? (
         <Card>

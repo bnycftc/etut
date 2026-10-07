@@ -1,5 +1,5 @@
 import { topicGroupsForSubject, topicOfSubject, topicsForSection } from '../curriculum';
-import { EXAM_SECTIONS, examKindsForArea, examKindsToShow } from '../net';
+import { EXAM_SECTIONS, examKindsFor, examKindsForArea, examKindsToShow } from '../net';
 import { changeExam, type Profile } from '../profile';
 import { defaultSubject, SUBJECTS_BY_EXAM, subjectsFor, TYT_SUBJECTS } from '../subjects';
 
@@ -72,8 +72,29 @@ describe('mock exam papers per area', () => {
   });
 
   it('charts also keep papers that already have exams', () => {
-    expect(examKindsToShow('sozel', [])).toEqual(['TYT', 'AYT_SOZ']);
-    expect(examKindsToShow('sozel', ['AYT_SAY', 'TYT', 'AYT_SAY'])).toEqual(['TYT', 'AYT_SOZ', 'AYT_SAY']);
+    expect(examKindsToShow('YKS', 'sozel', [])).toEqual(['TYT', 'AYT_SOZ']);
+    expect(examKindsToShow('YKS', 'sozel', ['AYT_SAY', 'TYT', 'AYT_SAY'])).toEqual(['TYT', 'AYT_SOZ', 'AYT_SAY']);
+    // After switching YKS → LGS the old TYT exams stay visible, after the LGS paper.
+    expect(examKindsToShow('LGS', null, ['TYT'])).toEqual(['LGS', 'TYT']);
+    expect(examKindsToShow('DIGER', null, [])).toEqual([]);
+    expect(examKindsToShow('DIGER', null, ['KPSS_GYGK'])).toEqual(['KPSS_GYGK']);
+  });
+
+  it('LGS and KPSS students get their own paper, never a YKS form; "Diğer" gets none', () => {
+    expect(examKindsFor('YKS', 'sayisal')).toEqual(['TYT', 'AYT_SAY']);
+    expect(examKindsFor('YKS', null)).toHaveLength(5);
+    expect(examKindsFor('LGS', null)).toEqual(['LGS']);
+    expect(examKindsFor('KPSS', null)).toEqual(['KPSS_GYGK']);
+    expect(examKindsFor('DIGER', null)).toEqual([]);
+  });
+
+  it('LGS and KPSS sections offer their own topic lists', () => {
+    expect(topicsForSection('LGS', 'inkilap').length).toBeGreaterThan(0);
+    expect(topicsForSection('LGS', 'fen').every((t) => t.id.startsWith('lgs.'))).toBe(true);
+    expect(topicsForSection('KPSS_GYGK', 'vatandaslik').every((t) => t.id.startsWith('kpss.'))).toBe(true);
+    for (const kind of ['LGS', 'KPSS_GYGK'] as const) {
+      for (const s of EXAM_SECTIONS[kind]) expect(topicsForSection(kind, s.id).length).toBeGreaterThan(0);
+    }
   });
 
   it('the area papers match ÖSYM (SAY: Mat+Fen, EA: Mat+TDE-Sos1, SÖZ: TDE-Sos1+Sos2)', () => {

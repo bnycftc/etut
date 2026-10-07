@@ -31,6 +31,10 @@ function RootStack() {
           options={{ title: tr.exams.newTitle, presentation: 'modal' }}
         />
         <Stack.Screen name="deneme/[id]" options={{ title: tr.exams.detailTitle }} />
+        <Stack.Screen
+          name="deneme/duzenle/[id]"
+          options={{ title: tr.exams.editTitle, presentation: 'modal' }}
+        />
         <Stack.Screen name="konular" options={{ title: tr.topics.title }} />
         <Stack.Screen name="elle-ekle" options={{ title: tr.manual.title }} />
         <Stack.Screen name="analiz/[id]" options={{ title: tr.analysis.title }} />

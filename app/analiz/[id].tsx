@@ -109,29 +109,34 @@ export default function ExamAnalysisScreen() {
             <Label variant="small" testID={`analysis-tagged-${s.sectionId}`}>
               {tr.analysis.tagged(wrongTagged, s.wrong, blankTagged, blank)}
             </Label>
-            {Object.entries(tagged).map(([topicId, counts]) => (
-              <View key={topicId} style={{ gap: 4 }}>
-                <Label style={{ fontWeight: '600' }}>{topicName(topicId) ?? topicId}</Label>
-                <Stepper
-                  testID={`analysis-wrong-${topicId}`}
-                  label={tr.analysis.wrong}
-                  value={String(counts.wrong)}
-                  onMinus={() => setCount(s.sectionId, topicId, 'wrong', counts.wrong - 1)}
-                  onPlus={() => setCount(s.sectionId, topicId, 'wrong', counts.wrong + 1)}
-                  minusDisabled={counts.wrong === 0}
-                  plusDisabled={wrongTagged >= s.wrong}
-                />
-                <Stepper
-                  testID={`analysis-blank-${topicId}`}
-                  label={tr.analysis.blank}
-                  value={String(counts.blank)}
-                  onMinus={() => setCount(s.sectionId, topicId, 'blank', counts.blank - 1)}
-                  onPlus={() => setCount(s.sectionId, topicId, 'blank', counts.blank + 1)}
-                  minusDisabled={counts.blank === 0}
-                  plusDisabled={blankTagged >= blank}
-                />
-              </View>
-            ))}
+            {Object.entries(tagged).map(([topicId, counts]) => {
+              const name = topicName(topicId) ?? tr.analysis.unknownTopic;
+              return (
+                <View key={topicId} style={{ gap: 4 }}>
+                  <Label style={{ fontWeight: '600' }}>{name}</Label>
+                  <Stepper
+                    testID={`analysis-wrong-${topicId}`}
+                    label={tr.analysis.wrong}
+                    accessibilityLabel={tr.analysis.countLabel(name, tr.analysis.wrong)}
+                    value={String(counts.wrong)}
+                    onMinus={() => setCount(s.sectionId, topicId, 'wrong', counts.wrong - 1)}
+                    onPlus={() => setCount(s.sectionId, topicId, 'wrong', counts.wrong + 1)}
+                    minusDisabled={counts.wrong === 0}
+                    plusDisabled={wrongTagged >= s.wrong}
+                  />
+                  <Stepper
+                    testID={`analysis-blank-${topicId}`}
+                    label={tr.analysis.blank}
+                    accessibilityLabel={tr.analysis.countLabel(name, tr.analysis.blank)}
+                    value={String(counts.blank)}
+                    onMinus={() => setCount(s.sectionId, topicId, 'blank', counts.blank - 1)}
+                    onPlus={() => setCount(s.sectionId, topicId, 'blank', counts.blank + 1)}
+                    minusDisabled={counts.blank === 0}
+                    plusDisabled={blankTagged >= blank}
+                  />
+                </View>
+              );
+            })}
             {errors[s.sectionId] ? (
               <Label variant="small" style={{ color: c.danger }}>
                 {tr.analysis.markErrors[errors[s.sectionId]]}
@@ -145,6 +150,7 @@ export default function ExamAnalysisScreen() {
                       key={t.id}
                       testID={`analysis-add-${t.id}`}
                       title={t.name}
+                      accessibilityLabel={tr.analysis.addTopicA11y(t.name)}
                       selected={false}
                       onPress={() => {
                         setCount(s.sectionId, t.id, wrongTagged < s.wrong ? 'wrong' : 'blank', 1);

@@ -79,7 +79,7 @@ export function examRows(exams: readonly BackupExam[], labels: CsvLabels): CsvVa
   return [...exams]
     .sort((a, b) => a.takenOn.localeCompare(b.takenOn) || a.createdAt - b.createdAt)
     .flatMap((e) => {
-      const total = e.scores.reduce((sum, s) => sum + net(s.correct, s.wrong), 0);
+      const total = e.scores.reduce((sum, s) => sum + net(s.correct, s.wrong, e.kind), 0);
       return e.scores.map((s) => [
         e.takenOn,
         labels.examKind(e.kind),
@@ -89,7 +89,7 @@ export function examRows(exams: readonly BackupExam[], labels: CsvLabels): CsvVa
         s.correct,
         s.wrong,
         blankCount(s),
-        net(s.correct, s.wrong),
+        net(s.correct, s.wrong, e.kind),
         total,
         labels.yesNo(e.analysisDoneAt !== null),
       ]);

@@ -138,12 +138,12 @@ export function writeBackupData(data: BackupData): void {
           e.scope,
           e.bransSectionId,
           e.takenOn,
-          totalNet(e.scores),
+          totalNet(e.scores, e.kind),
           e.createdAt,
           e.analysisDoneAt,
         );
         for (const s of e.scores) {
-          insertScore.executeSync(e.id, s.sectionId, s.questions, s.correct, s.wrong, net(s.correct, s.wrong));
+          insertScore.executeSync(e.id, s.sectionId, s.questions, s.correct, s.wrong, net(s.correct, s.wrong, e.kind));
         }
         for (const m of e.marks) {
           if (m.wrong + m.blank > 0) insertMark.executeSync(e.id, m.sectionId, m.topicId, m.wrong, m.blank);

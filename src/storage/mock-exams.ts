@@ -1,4 +1,4 @@
-import { examNeedsAnalysis, type TopicMark } from '../domain/exam-analysis';
+import { analysisAfterEdit, examNeedsAnalysis, type TopicMark } from '../domain/exam-analysis';
 import type { DayKey } from '../domain/istanbul-day';
 import { type ExamKind, type ExamScope, net, type SectionScore, totalNet } from '../domain/net';
 import { getDb } from './db';
@@ -53,18 +53,54 @@ function toExam(row: ExamRow): MockExam {
   };
 }
 
-/** An exam without any wrong or blank answer has nothing to analyse and is saved as done. */
+type Db = ReturnType<typeof getDb>;
+
+function insertScores(db: Db, examId: string, kind: ExamKind, scores: readonly SectionScore[]): void {
+  for (const s of scores) {
+    db.runSync(
+      `INSERT INTO mock_exam_scores (exam_id, section_id, questions, correct, wrong, net)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      examId,
+      s.sectionId,
+      s.questions,
+      s.correct,
+      s.wrong,
+      net(s.correct, s.wrong, kind),
+    );
+  }
+}
+
+function insertMarks(db: Db, examId: string, marks: readonly TopicMark[]): void {
+  for (const m of marks) {
+    if (m.wrong + m.blank <= 0) continue;
+    db.runSync(
+      `INSERT INTO mock_exam_marks (exam_id, section_id, topic_id, wrong, blank)
+       VALUES (?, ?, ?, ?, ?)`,
+      examId,
+      m.sectionId,
+      m.topicId,
+      m.wrong,
+      m.blank,
+    );
+  }
+}
+
+/**
+ * An exam without any wrong or blank answer has nothing to analyse and is saved as done.
+ * Saving the same id again (a second tap on "Kaydet") changes nothing: no duplicate exam.
+ */
 export function saveMockExam(
   exam: Omit<MockExam, 'totalNet' | 'analysisDoneAt'>,
   scores: SectionScore[],
 ): MockExam {
   const saved: MockExam = {
     ...exam,
-    totalNet: totalNet(scores),
+    totalNet: totalNet(scores, exam.kind),
     analysisDoneAt: examNeedsAnalysis(scores) ? null : exam.createdAt,
   };
   const db = getDb();
   db.withTransactionSync(() => {
+    if (db.getFirstSync('SELECT 1 FROM mock_exams WHERE id = ?', saved.id) !== null) return;
     db.runSync(
       `INSERT INTO mock_exams (${EXAM_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       saved.id,
@@ -76,20 +112,53 @@ export function saveMockExam(
       saved.createdAt,
       saved.analysisDoneAt,
     );
-    for (const s of scores) {
-      db.runSync(
-        `INSERT INTO mock_exam_scores (exam_id, section_id, questions, correct, wrong, net)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        saved.id,
-        s.sectionId,
-        s.questions,
-        s.correct,
-        s.wrong,
-        net(s.correct, s.wrong),
-      );
-    }
+    insertScores(db, saved.id, saved.kind, scores);
   });
   return saved;
+}
+
+export type MockExamChanges = Pick<MockExam, 'kind' | 'scope' | 'bransSectionId' | 'takenOn'>;
+
+/**
+ * Corrects a saved exam in place (paper, type, date, counts). The id and `createdAt` stay, so the
+ * topic analysis stays linked; marks that no longer fit are dropped (`analysisAfterEdit`).
+ * `false` when the exam no longer exists.
+ */
+export function updateMockExam(
+  id: string,
+  changes: MockExamChanges,
+  scores: SectionScore[],
+  now: number,
+): boolean {
+  const db = getDb();
+  let found = false;
+  db.withTransactionSync(() => {
+    const before = getMockExam(id);
+    if (before === null) return;
+    found = true;
+    const after = analysisAfterEdit(
+      { kind: before.kind, scores: before.scores, marks: getExamMarks(id), analysisDoneAt: before.analysisDoneAt },
+      changes.kind,
+      scores,
+      now,
+    );
+    db.runSync(
+      `UPDATE mock_exams SET kind = ?, scope = ?, brans_section_id = ?, taken_on = ?, total_net = ?,
+         analysis_done_at = ? WHERE id = ?`,
+      changes.kind,
+      changes.scope,
+      changes.bransSectionId,
+      changes.takenOn,
+      totalNet(scores, changes.kind),
+      after.analysisDoneAt,
+      id,
+    );
+    db.runSync('DELETE FROM mock_exam_scores WHERE exam_id = ?', id);
+    insertScores(db, id, changes.kind, scores);
+    db.runSync('DELETE FROM mock_exam_marks WHERE exam_id = ?', id);
+    insertMarks(db, id, after.marks);
+  });
+  return found;
 }
 
 /** All mock exams, newest first. */
@@ -173,18 +242,7 @@ export function saveExamAnalysis(examId: string, marks: TopicMark[], now: number
   const db = getDb();
   db.withTransactionSync(() => {
     db.runSync('DELETE FROM mock_exam_marks WHERE exam_id = ?', examId);
-    for (const m of marks) {
-      if (m.wrong + m.blank <= 0) continue;
-      db.runSync(
-        `INSERT INTO mock_exam_marks (exam_id, section_id, topic_id, wrong, blank)
-         VALUES (?, ?, ?, ?, ?)`,
-        examId,
-        m.sectionId,
-        m.topicId,
-        m.wrong,
-        m.blank,
-      );
-    }
+    insertMarks(db, examId, marks);
     db.runSync('UPDATE mock_exams SET analysis_done_at = ? WHERE id = ?', now, examId);
   });
 }

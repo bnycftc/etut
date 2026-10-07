@@ -263,6 +263,7 @@ export function Stepper({
   minusDisabled = false,
   plusDisabled = false,
   testID,
+  accessibilityLabel = label,
 }: {
   label: string;
   value: string;
@@ -271,6 +272,8 @@ export function Stepper({
   minusDisabled?: boolean;
   plusDisabled?: boolean;
   testID?: string;
+  /** What the buttons announce they change; defaults to `label` (e.g. add the item's name). */
+  accessibilityLabel?: string;
 }) {
   const c = usePalette();
   const button = (symbol: string, a11yLabel: string, onPress: () => void, disabled: boolean, id: string) => (
@@ -292,9 +295,9 @@ export function Stepper({
   return (
     <View style={styles.row}>
       <Text style={[styles.muted, { color: c.textMuted, flex: 1 }]}>{label}</Text>
-      {button('−', tr.a11y.decrease(label), onMinus, minusDisabled, 'minus')}
+      {button('−', tr.a11y.decrease(accessibilityLabel), onMinus, minusDisabled, 'minus')}
       <Text style={[styles.body, { color: c.text, minWidth: 64, textAlign: 'center' }]}>{value}</Text>
-      {button('+', tr.a11y.increase(label), onPlus, plusDisabled, 'plus')}
+      {button('+', tr.a11y.increase(accessibilityLabel), onPlus, plusDisabled, 'plus')}
     </View>
   );
 }

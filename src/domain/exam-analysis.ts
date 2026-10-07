@@ -4,7 +4,10 @@
  * Also: per-section net trend, most-missed topics and per-section target nets.
  */
 
-import type { SectionScore } from './net';
+import { topicsForSubject } from './curriculum';
+import type { ExamKind, SectionScore, YksArea } from './net';
+import type { ExamType } from './profile';
+import { subjectsFor } from './subjects';
 
 /** Wrong/blank questions of one section attributed to one topic. */
 export interface TopicMark {
@@ -108,4 +111,105 @@ export function parseTargetNet(text: string, questions: number): number | null {
 /** Key of a target net: the same section id means different things in TYT and AYT. */
 export function targetKey(kind: string, sectionId: string): string {
   return `${kind}:${sectionId}`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Editing a saved exam
+
+export interface ExamAnalysisState {
+  kind: ExamKind;
+  scores: readonly SectionScore[];
+  marks: readonly TopicMark[];
+  analysisDoneAt: number | null;
+}
+
+/**
+ * Topic marks and analysis state after the student corrected a saved exam (same exam id, so the
+ * analysis stays with it). A section keeps its marks while they still fit its new wrong/blank
+ * counts; otherwise that section's marks go. A different paper drops every mark (its topics belong
+ * to another curriculum). The analysis turns pending again when marks were dropped, or when an exam
+ * that had nothing to analyse now has wrong or blank questions; it is done when nothing is left
+ * to analyse.
+ */
+export function analysisAfterEdit(
+  before: ExamAnalysisState,
+  kind: ExamKind,
+  scores: readonly SectionScore[],
+  now: number,
+): { marks: TopicMark[]; analysisDoneAt: number | null } {
+  const sameKind = kind === before.kind;
+  const marks = sameKind
+    ? before.marks.filter((m) => {
+        const score = scores.find((s) => s.sectionId === m.sectionId);
+        return score !== undefined && validateSectionMarks(score, before.marks) === null;
+      })
+    : [];
+  if (!examNeedsAnalysis(scores)) return { marks, analysisDoneAt: before.analysisDoneAt ?? now };
+  const dropped = marks.length < before.marks.length;
+  const neverAnalysed = !examNeedsAnalysis(before.scores);
+  const pending = before.analysisDoneAt === null || dropped || neverAnalysed || !sameKind;
+  return { marks, analysisDoneAt: pending ? null : before.analysisDoneAt };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Net charts
+
+export interface NetTrend {
+  last: number;
+  /** last − previous; `null` with a single net. */
+  change: number | null;
+}
+
+/** `nets` oldest first. `null` without any net. */
+export function netTrend(nets: readonly number[]): NetTrend | null {
+  if (nets.length === 0) return null;
+  const last = nets[nets.length - 1];
+  const change = nets.length < 2 ? null : Math.round((last - nets[nets.length - 2]) * 100) / 100;
+  return { last, change };
+}
+
+const NICE_STEPS = [1, 2, 5, 10, 20, 25, 50, 100];
+
+/** Smallest "round" number ≥ `value` (5, 10, 20, 25, 50…), never above `limit`. */
+function niceCeil(value: number, limit: number): number {
+  const nice = NICE_STEPS.map((s) => Math.ceil(value / s) * s).find((n, i) => n / NICE_STEPS[i] <= 5);
+  return Math.min(limit, nice ?? Math.ceil(value));
+}
+
+/**
+ * Vertical range of a net chart: from 0 (or below, for a negative net) to a round number a little
+ * above the largest net or target, at most the paper's question count. One exam therefore shows
+ * as a point in the upper part of the chart, not as a bar filling it.
+ */
+export function chartScale(
+  values: readonly number[],
+  target: number | null,
+  questions: number,
+): { min: number; max: number } {
+  const top = Math.max(0, target ?? 0, ...values);
+  const max = top <= 0 ? Math.min(5, questions) : niceCeil(top * 1.15, questions);
+  const low = Math.min(0, ...values);
+  const min = low < 0 ? -niceCeil(-low, questions) : 0;
+  return { min, max: Math.max(max, min + 1) };
+}
+
+// ---------------------------------------------------------------------------------------------
+// From a missed topic to studying it
+
+/**
+ * The timer subject (of this student's list) whose topics contain `topicId`, so that "Çalış" on a
+ * most-missed topic starts the timer on it. `null` when the topic is not in the student's current
+ * lists (e.g. an AYT topic after switching to another area): then no start is offered.
+ */
+export function studyTargetForTopic(
+  examType: ExamType,
+  yksArea: YksArea | null,
+  topicId: string,
+): { subjectId: string; topicId: string } | null {
+  for (const subjectId of subjectsFor(examType, yksArea)) {
+    if (topicsForSubject(examType, yksArea, subjectId).some((t) => t.id === topicId)) {
+      return { subjectId, topicId };
+    }
+  }
+  return null;
 }

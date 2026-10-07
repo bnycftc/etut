@@ -274,6 +274,8 @@ const examKinds: Record<ExamKind, string> = {
   AYT_EA: 'AYT Eşit Ağırlık',
   AYT_SOZ: 'AYT Sözel',
   YDT: 'AYT Dil (YDT)',
+  LGS: 'LGS',
+  KPSS_GYGK: 'KPSS GY-GK',
 };
 
 const scoreErrors: Record<ScoreError, string> = {
@@ -515,7 +517,8 @@ export const tr = {
     chartTitle: (kind: string) => `${kind} genel deneme netleri`,
     chartEmpty: 'Bu tür için henüz genel deneme yok.',
     listTitle: 'Tüm denemeler',
-    onlyYksNote: 'Şimdilik yalnız YKS (TYT/AYT) denemeleri destekleniyor.',
+    noFormNote:
+      'Bu sınav için deneme formu yok. Ayarlar’dan YKS, LGS ya da KPSS seçersen denemelerini burada girebilirsin.',
     net: 'net',
     totalNet: 'Toplam net',
     scopeGenel: 'Genel',
@@ -526,7 +529,7 @@ export const tr = {
     kind: 'Sınav',
     scope: 'Deneme türü',
     section: 'Ders',
-    date: 'Tarih',
+    date: 'Deneme tarihi',
     prevDay: '‹ Önceki gün',
     nextDay: 'Sonraki gün ›',
     correct: 'Doğru',
@@ -538,6 +541,25 @@ export const tr = {
     fixErrors: 'Hatalı alanları düzelt.',
     deleteConfirm: 'Bu deneme silinsin mi?',
     notFound: 'Deneme bulunamadı.',
+    /** How the net is computed on this paper (4 for YKS/KPSS, 3 for LGS). */
+    netRule: (wrongsPerCorrect: number) => `Net = Doğru − Yanlış ÷ ${wrongsPerCorrect}`,
+    today: 'Bugün',
+    yesterday: 'Dün',
+    edit: 'Düzenle',
+    editTitle: 'Denemeyi düzenle',
+    editNote:
+      'Konu işaretlerin korunur. Yanlış ya da boş sayısı işaretlediklerinin altına inen dersin işaretleri silinir; sınavı değiştirirsen hepsi silinir.',
+    prevField: '‹ Önceki',
+    nextField: 'Sonraki ›',
+    prevFieldA11y: 'Önceki kutu',
+    nextFieldA11y: 'Sonraki kutu',
+    keyboardDone: 'Bitti',
+    /** Screen-reader name of a chip: which choice it belongs to. */
+    choiceLabel: (group: string, item: string) => `${group}: ${item}`,
+    chartSingle: (last: string) => `Son deneme: ${last} net. Bir deneme daha ekleyince eğilim görünür.`,
+    chartChange: (last: string, change: string) => `Son deneme: ${last} net · öncekinden ${change}`,
+    chartBransLegend: 'Dolu nokta genel, içi boş nokta branş denemesi.',
+    chartTargetLegend: 'Kesik çizgi: hedef net.',
   },
 
   analysis: {
@@ -570,6 +592,15 @@ export const tr = {
       blank > 0 ? `${wrong} Y · ${blank} B` : `${wrong} Y`,
     topMissedTitle: 'En çok yanlış yaptığın 5 konu',
     topMissedEmpty: 'Deneme analizlerini tamamladıkça burada görünür.',
+    unknownTopic: 'Eski konu',
+    /** Screen-reader name of a stepper: topic and what it counts. */
+    countLabel: (topic: string, what: string) => `${topic}, ${what}`,
+    addTopicA11y: (topic: string) => `${topic} konusunu ekle`,
+    review: 'Tekrar lazım',
+    reviewA11y: (topic: string) => `${topic}: tekrar lazım`,
+    study: 'Çalış',
+    studyA11y: (topic: string) => `${topic} konusunda sayacı başlat`,
+    studyBusy: 'Sayaç zaten açık; önce onu bitir.',
   },
 
   trend: {

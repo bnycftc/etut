@@ -8,15 +8,17 @@ import {
   sectionsFor,
   totalNet,
   validateScore,
+  wrongsPerCorrect,
+  YKS_EXAM_KINDS,
 } from '../net';
 
 describe('net', () => {
   it('is correct − wrong / 4', () => {
-    expect(net(30, 8)).toBe(28);
-    expect(net(30, 5)).toBe(28.75);
-    expect(net(0, 0)).toBe(0);
-    expect(net(0, 4)).toBe(-1);
-    expect(net(40, 0)).toBe(40);
+    expect(net(30, 8, 'TYT')).toBe(28);
+    expect(net(30, 5, 'TYT')).toBe(28.75);
+    expect(net(0, 0, 'TYT')).toBe(0);
+    expect(net(0, 4, 'TYT')).toBe(-1);
+    expect(net(40, 0, 'TYT')).toBe(40);
   });
 
   it('totals several sections', () => {
@@ -24,8 +26,16 @@ describe('net', () => {
       totalNet([
         { sectionId: 'turkce', questions: 40, correct: 32, wrong: 6 },
         { sectionId: 'matematik', questions: 40, correct: 25, wrong: 3 },
-      ]),
+      ], 'TYT'),
     ).toBe(32 - 1.5 + 25 - 0.75);
+  });
+
+  it('LGS: three wrong answers cancel one correct one; KPSS like YKS four', () => {
+    expect(wrongsPerCorrect('LGS')).toBe(3);
+    expect(wrongsPerCorrect('KPSS_GYGK')).toBe(4);
+    expect(net(18, 3, 'LGS')).toBe(17);
+    expect(net(18, 3, 'KPSS_GYGK')).toBe(17.25);
+    expect(totalNet([{ sectionId: 'turkce', questions: 20, correct: 15, wrong: 3 }, { sectionId: 'fen', questions: 20, correct: 10, wrong: 6 }], 'LGS')).toBe(14 + 8);
   });
 
   it('formats with a Turkish decimal comma', () => {
@@ -63,6 +73,21 @@ describe('exam structure', () => {
     expect(sum('YDT')).toBe(80);
   });
 
+  it('matches the MEB LGS (90) and ÖSYM KPSS GY-GK (60 + 60) question counts', () => {
+    expect(sum('LGS')).toBe(90);
+    expect(EXAM_SECTIONS.LGS.map((s) => [s.id, s.questions])).toEqual([
+      ['turkce', 20],
+      ['inkilap', 10],
+      ['din', 10],
+      ['yabanci_dil', 10],
+      ['matematik', 20],
+      ['fen', 20],
+    ]);
+    expect(sum('KPSS_GYGK')).toBe(120);
+    const gy = EXAM_SECTIONS.KPSS_GYGK.filter((s) => s.id === 'turkce' || s.id === 'matematik');
+    expect(gy.reduce((n, s) => n + s.questions, 0)).toBe(60);
+  });
+
   it('has unique section ids per exam', () => {
     for (const kind of EXAM_KINDS) {
       const ids = EXAM_SECTIONS[kind].map((s) => s.id);
@@ -83,6 +108,6 @@ describe('exam structure', () => {
     expect(aytKindForArea('dil')).toBe('YDT');
     expect(aytKindForArea(null)).toBe('AYT_SAY');
     expect(examKindsInOrder('sozel')).toEqual(['TYT', 'AYT_SOZ', 'AYT_SAY', 'AYT_EA', 'YDT']);
-    expect(examKindsInOrder(null)).toHaveLength(EXAM_KINDS.length);
+    expect(examKindsInOrder(null)).toEqual([...YKS_EXAM_KINDS]);
   });
 });

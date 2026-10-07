@@ -162,4 +162,44 @@ describe('backup storage (real SQL)', () => {
     for (let i = 0; i < 2; i++) writeBackupData(mergeBackup(readBackupData(), result.file, 'merge'));
     expect(readBackupData()).toEqual(DATA);
   });
+
+  it('LGS and KPSS exams go through a backup; an LGS net is restored with wrong / 3', () => {
+    const lgs: BackupData['exams'][number] = {
+      id: 'l1',
+      kind: 'LGS',
+      scope: 'genel',
+      bransSectionId: null,
+      takenOn: '2026-10-04',
+      createdAt: 7,
+      analysisDoneAt: null,
+      scores: [
+        { sectionId: 'turkce', questions: 20, correct: 15, wrong: 3 },
+        { sectionId: 'inkilap', questions: 10, correct: 8, wrong: 1 },
+        { sectionId: 'din', questions: 10, correct: 9, wrong: 0 },
+        { sectionId: 'yabanci_dil', questions: 10, correct: 7, wrong: 3 },
+        { sectionId: 'matematik', questions: 20, correct: 12, wrong: 6 },
+        { sectionId: 'fen', questions: 20, correct: 14, wrong: 3 },
+      ],
+      marks: [{ sectionId: 'fen', topicId: 'lgs.fen.kalitim', wrong: 2, blank: 1 }],
+    };
+    const kpss: BackupData['exams'][number] = {
+      id: 'k1',
+      kind: 'KPSS_GYGK',
+      scope: 'brans',
+      bransSectionId: 'vatandaslik',
+      takenOn: '2026-10-05',
+      createdAt: 8,
+      analysisDoneAt: 8,
+      scores: [{ sectionId: 'vatandaslik', questions: 9, correct: 9, wrong: 0 }],
+      marks: [],
+    };
+    const data: BackupData = { ...DATA, exams: [...DATA.exams, lgs, kpss] };
+    const text = serializeBackup(buildBackupFile(data, null, T0, 'test'));
+    const result = parseBackup(text);
+    if (!result.ok) throw new Error(result.error);
+    writeBackupData(result.file);
+    expect(readBackupData().exams).toEqual(data.exams);
+    const { getMockExam } = jest.requireActual('../mock-exams') as typeof import('../mock-exams');
+    expect(getMockExam('l1')?.totalNet).toBeCloseTo(14 + (8 - 1 / 3) + 9 + 6 + 10 + 13, 10);
+  });
 });

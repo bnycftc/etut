@@ -26,6 +26,8 @@ const memory: {
   pomodoroConfig: { workMin: number; shortBreakMin: number; longBreakMin: number; longEvery: number };
   topicStatuses: Record<string, 'done' | 'review'>;
   exams: MockExamWithScores[];
+  /** Calls of saveMockExam (a double tap must not save twice). */
+  saves: number;
   marks: Record<string, TopicMark[]>;
   examDates: Record<string, string>;
   netTargets: Record<string, number>;
@@ -59,6 +61,7 @@ const memory: {
   pomodoroConfig: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 },
   topicStatuses: {},
   exams: [],
+  saves: 0,
   marks: {},
   examDates: {},
   netTargets: {},
@@ -291,8 +294,39 @@ jest.mock('../storage/mock-exams', () => ({
       (e) => e.analysisDoneAt === null && e.scores.some((s) => s.questions - s.correct > 0),
     ),
   getMockExam: (id: string) => memory.exams.find((e) => e.id === id) ?? null,
-  saveMockExam: () => {},
-  deleteMockExam: () => {},
+  // Same rules as the real SQL (storage/__tests__/mock-exams.test.ts): one row per id, newest first.
+  saveMockExam: (exam: Omit<MockExamWithScores, 'totalNet' | 'analysisDoneAt' | 'scores'>, scores: MockExamWithScores['scores']) => {
+    memory.saves += 1;
+    if (memory.exams.some((e) => e.id === exam.id)) return;
+    const { totalNet } = jest.requireActual('../domain/net');
+    const { examNeedsAnalysis } = jest.requireActual('../domain/exam-analysis');
+    memory.exams = [
+      { ...exam, scores, totalNet: totalNet(scores, exam.kind), analysisDoneAt: examNeedsAnalysis(scores) ? null : exam.createdAt },
+      ...memory.exams,
+    ];
+  },
+  updateMockExam: (
+    id: string,
+    changes: Pick<MockExamWithScores, 'kind' | 'scope' | 'bransSectionId' | 'takenOn'>,
+    scores: MockExamWithScores['scores'],
+    now: number,
+  ) => {
+    const before = memory.exams.find((e) => e.id === id);
+    if (!before) return false;
+    const { totalNet } = jest.requireActual('../domain/net');
+    const { analysisAfterEdit } = jest.requireActual('../domain/exam-analysis');
+    const after = analysisAfterEdit({ ...before, marks: memory.marks[id] ?? [] }, changes.kind, scores, now);
+    memory.marks[id] = after.marks;
+    memory.exams = memory.exams.map((e) =>
+      e.id === id
+        ? { ...e, ...changes, scores, totalNet: totalNet(scores, changes.kind), analysisDoneAt: after.analysisDoneAt }
+        : e,
+    );
+    return true;
+  },
+  deleteMockExam: (id: string) => {
+    memory.exams = memory.exams.filter((e) => e.id !== id);
+  },
   getExamMarks: (id: string) => memory.marks[id] ?? [],
   listAllMarks: () => Object.values(memory.marks).flat(),
   saveExamAnalysis: (id: string, marks: TopicMark[], now: number) => {
@@ -305,7 +339,12 @@ jest.mock('../storage/mock-exams', () => ({
       .flatMap((e) =>
         e.scores
           .filter((s) => s.sectionId === sectionId)
-          .map((s) => ({ examId: e.id, takenOn: e.takenOn, scope: e.scope, net: s.correct - s.wrong / 4 })),
+          .map((s) => ({
+            examId: e.id,
+            takenOn: e.takenOn,
+            scope: e.scope,
+            net: jest.requireActual('../domain/net').net(s.correct, s.wrong, e.kind),
+          })),
       ),
 }));
 
@@ -331,6 +370,7 @@ beforeEach(() => {
   memory.pomodoroConfig = { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 };
   memory.topicStatuses = {};
   memory.exams = [];
+  memory.saves = 0;
   memory.marks = {};
   memory.examDates = {};
   memory.netTargets = {};
@@ -623,6 +663,152 @@ describe('mock exam analysis', () => {
     expect(screen.getByTestId('trend-gap').props.children).toBe(
       'Hedefe 1,5 net kaldı (son denemelerin ortalaması: 28,5).',
     );
+  });
+});
+
+describe('mock exam entry, editing and charts', () => {
+  const TYT_E1: MockExamWithScores = {
+    id: 'e1',
+    kind: 'TYT',
+    scope: 'genel',
+    bransSectionId: null,
+    takenOn: '2026-10-01',
+    totalNet: 57.5,
+    createdAt: 1,
+    analysisDoneAt: 5,
+    scores: [
+      { sectionId: 'turkce', questions: 40, correct: 30, wrong: 4 },
+      { sectionId: 'matematik', questions: 40, correct: 30, wrong: 6 },
+    ],
+  };
+
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+  });
+
+  it('a double tap on Kaydet saves the exam once', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '10');
+    const save = screen.getByTestId('exam-save');
+    fireEvent.press(save);
+    fireEvent.press(save);
+    expect(memory.saves).toBe(1);
+    expect(memory.exams).toHaveLength(1);
+    expect(memory.exams[0]).toMatchObject({ kind: 'TYT', totalNet: 10 });
+    // Back on the list (the form closed after the first tap).
+    expect(screen.getByTestId('exam-item-0-net').props.children).toEqual(['10', ' ', 'net']);
+  });
+
+  it('"Dün" picks yesterday in one tap; the boxes move on with the return key / keyboard bar', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.press(screen.getByTestId('exam-day-yesterday'));
+    expect(screen.getByTestId('exam-day-yesterday').props.accessibilityState).toMatchObject({ selected: true });
+    expect(screen.getByTestId('exam-correct-turkce').props.returnKeyType).toBe('next');
+    expect(screen.getByTestId('exam-wrong-biyoloji').props.returnKeyType).toBe('done');
+    // iOS: the number pad has no return key, so a "‹ Önceki / Sonraki › / Bitti" bar sits on it.
+    expect(screen.getByTestId('exam-correct-turkce').props.inputAccessoryViewID).toBe('exam-form-keyboard');
+    expect(screen.getByLabelText('Sonraki kutu')).toBeTruthy();
+    fireEvent(screen.getByTestId('exam-correct-turkce'), 'submitEditing');
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '8');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    const { addDays, istanbulDayKey } = jest.requireActual('../domain/istanbul-day');
+    expect(memory.exams[0].takenOn).toBe(addDays(istanbulDayKey(Date.now()), -1));
+  });
+
+  it('chips name the choice they belong to', () => {
+    renderRouter(APP_DIR, { initialUrl: '/deneme/yeni' });
+    expect(screen.getByLabelText('Deneme türü: Branş')).toBeTruthy();
+    expect(screen.getByLabelText('Sınav: AYT Sayısal')).toBeTruthy();
+    expect(screen.getByLabelText('Deneme tarihi: Bugün')).toBeTruthy();
+  });
+
+  it('edit: the saved values are filled in; date, type and counts change, the analysis stays', () => {
+    memory.exams = [TYT_E1];
+    memory.marks = { e1: [{ sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 3, blank: 0 }] };
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exam-item-0'));
+    fireEvent.press(screen.getByTestId('exam-edit'));
+    expect(screen.getByTestId('exam-correct-turkce').props.value).toBe('30');
+    expect(screen.getByTestId('exam-wrong-matematik').props.value).toBe('6');
+    expect(screen.getByTestId('exam-total-net').props.children).toBe('57,5');
+    fireEvent.changeText(screen.getByTestId('exam-wrong-turkce'), '0');
+    fireEvent.press(screen.getByTestId('exam-prev-day'));
+    fireEvent.press(screen.getByTestId('exam-save'));
+
+    expect(memory.exams).toHaveLength(1);
+    expect(memory.exams[0]).toMatchObject({ id: 'e1', takenOn: '2026-09-30', totalNet: 30 + 28.5, analysisDoneAt: 5 });
+    expect(memory.marks.e1).toHaveLength(1);
+    // Back on the detail screen with the new total.
+    expect(screen.getByTestId('exam-detail-total').props.children).toBe('58,5');
+  });
+
+  it('edit: lowering the wrong count below the tagged topics drops them and asks for the analysis again', () => {
+    memory.exams = [TYT_E1];
+    memory.marks = { e1: [{ sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 3, blank: 0 }] };
+    renderRouter(APP_DIR, { initialUrl: '/deneme/e1' });
+    fireEvent.press(screen.getByTestId('exam-edit'));
+    fireEvent.changeText(screen.getByTestId('exam-wrong-matematik'), '1');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    expect(memory.marks.e1).toEqual([]);
+    expect(memory.exams[0].analysisDoneAt).toBeNull();
+  });
+
+  it('a single exam is one point with a hint', () => {
+    memory.exams = [TYT_E1];
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exams-chart-caption').props.children).toBe(
+      'Son deneme: 57,5 net. Bir deneme daha ekleyince eğilim görünür.',
+    );
+  });
+
+  it('two exams show the change from the previous one', () => {
+    memory.exams = [{ ...TYT_E1, id: 'e2', takenOn: '2026-10-04', totalNet: 62 }, TYT_E1];
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exams-chart-caption').props.children).toBe('Son deneme: 62 net · öncekinden +4,5');
+    expect(screen.getByLabelText(/^Grafik\. 01\.10: 57,5, 04\.10: 62/)).toBeTruthy();
+  });
+
+  it('most-missed topic: one tap marks it for review, "Çalış" starts the timer on it', () => {
+    memory.exams = [TYT_E1];
+    memory.marks = { e1: [{ sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 3, blank: 0 }] };
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByLabelText('Mutlak Değer: tekrar lazım'));
+    expect(memory.topicStatuses['tyt.matematik.mutlak-deger']).toBe('review');
+    expect(screen.getByTestId('missed-review-tyt.matematik.mutlak-deger').props.accessibilityState).toMatchObject({
+      selected: true,
+    });
+    fireEvent.press(screen.getByLabelText('Mutlak Değer konusunda sayacı başlat'));
+    expect(memory.active).toMatchObject({ subjectId: 'matematik', topicId: 'tyt.matematik.mutlak-deger' });
+    expect(screen.getByTestId('timer-subject')).toBeTruthy();
+  });
+
+  it('analysis steppers say which topic they change', () => {
+    memory.exams = [{ ...TYT_E1, analysisDoneAt: null }];
+    renderRouter(APP_DIR, { initialUrl: '/analiz/e1' });
+    fireEvent.press(screen.getByTestId('analysis-add-topic-matematik'));
+    fireEvent.press(screen.getByLabelText('Mutlak Değer konusunu ekle'));
+    expect(screen.getByLabelText('Mutlak Değer, Yanlış, artır')).toBeTruthy();
+    expect(screen.getByLabelText('Mutlak Değer, Boş, azalt')).toBeTruthy();
+  });
+
+  it('LGS: own paper and wrong / 3, no YKS sections', () => {
+    memory.profile = { ...ADULT_SAYISAL, examType: 'LGS', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/deneme/yeni' });
+    expect(screen.queryAllByTestId(/^exam-kind-/).map((el) => el.props.testID)).toEqual(['exam-kind-LGS']);
+    expect(screen.getByTestId('exam-net-rule').props.children).toBe('Net = Doğru − Yanlış ÷ 3');
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '15');
+    fireEvent.changeText(screen.getByTestId('exam-wrong-turkce'), '3');
+    expect(screen.getByTestId('exam-net-turkce').props.children).toBe('14');
+    expect(screen.queryByTestId('exam-correct-tarih')).toBeNull();
+  });
+
+  it('"Diğer" exam type: no form, no add button', () => {
+    memory.profile = { ...ADULT_SAYISAL, examType: 'DIGER', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exams-no-form')).toBeTruthy();
+    expect(screen.queryByTestId('exams-add')).toBeNull();
   });
 });
 
