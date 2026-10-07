@@ -13,12 +13,15 @@ import { useAppState, useNow, useStored } from '@/state/app-state';
 import { useStudyStats } from '@/state/study-stats';
 import { sessionsOverlapping } from '@/storage/sessions';
 import { tr } from '@/strings';
-import { BarChart, Button, Card, EmptyState, Label, Row, Screen, Tag } from '@/ui/components';
+import { BarChart, Button, Card, Dot, EmptyState, Label, Row, Screen, Tag } from '@/ui/components';
 import { formatDay, formatDuration } from '@/ui/format';
+import { subjectColor } from '@/ui/subject-colors';
+import { usePalette } from '@/ui/theme';
 
 /** Weekly summary (Monday–Sunday, Istanbul): own numbers only, no comparison with others. */
 export default function WeeklyScreen() {
   const { active, dataVersion, profile } = useAppState();
+  const c = usePalette();
   const now = useNow(active !== null && !isPaused(active), 30_000);
   const stats = useStudyStats(now);
   const thisWeek = weekStartOf(stats.today);
@@ -97,6 +100,7 @@ export default function WeeklyScreen() {
           <Label variant="heading">{tr.weekly.subjects}</Label>
           {week.bySubject.map((s) => (
             <Row key={s.subjectId}>
+              <Dot color={subjectColor(s.subjectId, c)} />
               <Label style={{ flex: 1 }}>{tr.subject(s.subjectId)}</Label>
               <Label variant="muted">{tr.weekly.percent(Math.round((s.ms * 100) / week.totalMs))}</Label>
               <Label>{formatDuration(s.ms)}</Label>

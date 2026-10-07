@@ -7,13 +7,16 @@ import { DAY_MS, dayStartMs, istanbulDayKey, istanbulWeekday, lastDays } from '@
 import { useAppState, useNow, useStored } from '@/state/app-state';
 import { sessionsOverlapping } from '@/storage/sessions';
 import { tr } from '@/strings';
-import { BarChart, Card, EmptyState, Label, Row, Screen, Tag } from '@/ui/components';
+import { BarChart, Card, Dot, EmptyState, Label, Row, Screen, Tag } from '@/ui/components';
 import { formatDay, formatDuration } from '@/ui/format';
+import { subjectColor } from '@/ui/subject-colors';
+import { usePalette } from '@/ui/theme';
 
 const LIST_DAYS = 30;
 
 export default function HistoryScreen() {
   const { active, dataVersion } = useAppState();
+  const c = usePalette();
   const now = useNow(active !== null, 30_000);
   const today = istanbulDayKey(now);
   const days = lastDays(now, LIST_DAYS);
@@ -79,6 +82,7 @@ export default function HistoryScreen() {
           <View style={{ gap: 4 }}>
             {subjectBreakdown(t).map((s) => (
               <Row key={s.subjectId}>
+                <Dot color={subjectColor(s.subjectId, c)} />
                 <Label variant="muted" style={{ flex: 1 }}>
                   {tr.subject(s.subjectId)}
                 </Label>
