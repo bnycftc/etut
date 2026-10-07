@@ -203,3 +203,42 @@ describe('backup storage (real SQL)', () => {
     expect(getMockExam('l1')?.totalNet).toBeCloseTo(14 + (8 - 1 / 3) + 9 + 6 + 10 + 13, 10);
   });
 });
+
+jest.mock('../subject-targets', () => {
+  let targets: Record<string, number> = {};
+  return {
+    loadSubjectTargets: () => ({ ...targets }),
+    storeSubjectTargets: (t: Record<string, number>) => {
+      targets = { ...t };
+    },
+  };
+});
+
+describe('backup storage, version 2 data (real SQL)', () => {
+  const V2: BackupData = {
+    ...DATA,
+    sessions: [{ ...DATA.sessions[0], questions: 35 }, DATA.sessions[1]],
+    settings: { ...DATA.settings, subjectWeeklyTargets: { fizik: 240 } },
+  };
+
+  it('question counts and subject targets are written and read back exactly', () => {
+    writeBackupData(V2);
+    const back = readBackupData();
+    expect(back).toEqual(V2);
+    expect('questions' in back.sessions[1]).toBe(false);
+  });
+
+  it('a file without targets clears the ones on the device', () => {
+    writeBackupData(V2);
+    writeBackupData(DATA);
+    expect(readBackupData()).toEqual(DATA);
+  });
+
+  it('export → file → import keeps the counts', () => {
+    writeBackupData(V2);
+    const result = parseBackup(serializeBackup(buildBackupFile(readBackupData(), null, T0 + 86_400_000, 'test')));
+    if (!result.ok) throw new Error(result.error);
+    writeBackupData(mergeBackup(readBackupData(), result.file, 'replace'));
+    expect(readBackupData()).toEqual(V2);
+  });
+});

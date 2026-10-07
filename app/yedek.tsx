@@ -170,7 +170,7 @@ export default function BackupScreen() {
       const data = readBackupData();
       const csv =
         which === 'sessions'
-          ? toCsv(tr.csv.sessionHeader, sessionRows(data.sessions, CSV_LABELS))
+          ? toCsv([...tr.csv.sessionHeader, tr.questions.csvHeader], sessionRows(data.sessions, CSV_LABELS))
           : toCsv(tr.csv.examHeader, examRows(data.exams, CSV_LABELS));
       report(
         await shareTextFile(which === 'sessions' ? tr.csv.sessionsFile(today) : tr.csv.examsFile(today), csv, {

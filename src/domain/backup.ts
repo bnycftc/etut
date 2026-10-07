@@ -18,6 +18,10 @@
  *   one on this device, the younger one (later year) is kept; never the older one. A year the
  *   birth-year picker could not offer (younger than its minimum age) is ignored.
  * - Everything this app wrote reads back: the checks reject only what the app can not produce.
+ *
+ * Versions: 1 = first layout. 2 = sessions may carry a solved question count (`questions`) and the
+ * settings the weekly target per subject (`subjectWeeklyTargets`); a version 1 file is upgraded
+ * (`upgrade`) and loads as before, with neither.
  */
 
 import { type TopicMark, validateSectionMarks } from './exam-analysis';
@@ -25,13 +29,20 @@ import { addDays, type DayKey } from './istanbul-day';
 import { EXAM_KINDS, EXAM_SECTIONS, type ExamKind, type ExamScope, type SectionScore, validateScore, type YksArea } from './net';
 import { isPomodoroConfig, normalizePomodoroConfig, type PomodoroConfig } from './pomodoro';
 import { birthYearOptions, EXAM_TYPES, type ExamType, isSoloOnly, type Profile, YKS_AREAS } from './profile';
+import { MAX_SESSION_QUESTIONS } from './questions';
 import { clampGoalMinutes } from './streak';
+import {
+  SUBJECT_TARGET_MAX_MIN,
+  SUBJECT_TARGET_MIN_MIN,
+  SUBJECT_TARGET_STEP_MIN,
+  type SubjectTargets,
+} from './subject-targets';
 import type { ClosedPause, CompletedSession, PauseKind } from './timer';
 import { isTopicStatus, type TopicStatus } from './topics';
 
 export const BACKUP_FORMAT = 'etut-yedek';
 /** Bump when the file layout changes; add an upgrade step in `upgrade()` for the old one. */
-export const BACKUP_SCHEMA_VERSION = 1;
+export const BACKUP_SCHEMA_VERSION = 2;
 /** Larger files are refused before parsing (years of daily use stay far below this). */
 export const BACKUP_MAX_BYTES = 20 * 1024 * 1024;
 
@@ -63,6 +74,8 @@ export interface BackupSettings {
   /** Target nets keyed by `targetKey(kind, sectionId)`. */
   netTargets: Record<string, number>;
   lastSubject: string | null;
+  /** Weekly minutes per subject (version 2); missing = none set. */
+  subjectWeeklyTargets?: SubjectTargets;
 }
 
 export interface BackupExam {
@@ -255,7 +268,7 @@ function parseSession(value: unknown): CompletedSession {
       kind: q.kind === undefined ? 'manual' : oneOf(q.kind, PAUSE_KINDS),
     };
   });
-  return {
+  const session: CompletedSession = {
     id: str(v.id, ID, 64),
     subjectId: str(v.subjectId, SUBJECT, 40),
     topicId: v.topicId === null || v.topicId === undefined ? null : str(v.topicId, ID),
@@ -265,6 +278,9 @@ function parseSession(value: unknown): CompletedSession {
     durationMs: int(v.durationMs, 0, endedAt - startedAt),
     source: oneOf(v.source, ['timer', 'manual'] as const),
   };
+  // Version 2: only sessions with a count carry it (the app never stores 0).
+  if (v.questions !== null && v.questions !== undefined) session.questions = int(v.questions, 1, MAX_SESSION_QUESTIONS);
+  return session;
 }
 
 /** More sections than any paper has (YDT 1, TYT 9): a longer list is not an exam. */
@@ -339,6 +355,23 @@ function parseNetTargets(value: unknown): { targets: Record<string, number>; ski
   return { targets, skipped };
 }
 
+/** Weekly targets per subject (version 2): the same steps and limits the app itself allows. */
+function parseSubjectTargets(value: unknown): SubjectTargets {
+  const targets: SubjectTargets = {};
+  for (const [subjectId, minutes] of Object.entries(obj(value ?? {}))) {
+    const m = int(minutes, SUBJECT_TARGET_MIN_MIN, SUBJECT_TARGET_MAX_MIN);
+    if (m % SUBJECT_TARGET_STEP_MIN !== 0) fail();
+    targets[str(subjectId, SUBJECT, 40)] = m;
+  }
+  return targets;
+}
+
+/** `settings` with the subject targets, the key left out when there are none. */
+function withSubjectTargets(settings: BackupSettings, targets: SubjectTargets): BackupSettings {
+  const { subjectWeeklyTargets: _old, ...rest } = settings;
+  return Object.keys(targets).length === 0 ? rest : { ...rest, subjectWeeklyTargets: targets };
+}
+
 function parseSettings(value: unknown): { settings: BackupSettings; skippedTargets: number } {
   const v = obj(value ?? {});
   const examDates: Partial<Record<ExamType, DayKey>> = {};
@@ -362,7 +395,7 @@ function parseSettings(value: unknown): { settings: BackupSettings; skippedTarge
     netTargets: netTargets.targets,
     lastSubject: v.lastSubject === null || v.lastSubject === undefined ? null : str(v.lastSubject, SUBJECT, 40),
   };
-  return { settings, skippedTargets: netTargets.skipped };
+  return { settings: withSubjectTargets(settings, parseSubjectTargets(v.subjectWeeklyTargets)), skippedTargets: netTargets.skipped };
 }
 
 function parseProfile(value: unknown): BackupProfile | null {
@@ -373,10 +406,31 @@ function parseProfile(value: unknown): BackupProfile | null {
   return { birthYear: int(v.birthYear, 1900, 2200), examType, yksArea };
 }
 
-/** Older layouts are upgraded here, one step per version (none yet: version 1 is the first). */
+/**
+ * Older layouts are upgraded here, one step per version, to the current one.
+ * 1 → 2: version 1 had no question counts and no subject targets. A version 1 file that holds
+ * either was not written by this app (edited by hand): those values are dropped, the rest loads.
+ */
 function upgrade(file: Obj, version: number): Obj {
-  if (version !== BACKUP_SCHEMA_VERSION) fail();
-  return file;
+  let v = version;
+  let out = file;
+  if (v === 1) {
+    const sessions = Array.isArray(out.sessions)
+      ? out.sessions.map((s) => {
+          if (typeof s !== 'object' || s === null || Array.isArray(s)) return s;
+          const { questions: _q, ...rest } = s as Obj;
+          return rest;
+        })
+      : out.sessions;
+    const settings =
+      typeof out.settings === 'object' && out.settings !== null && !Array.isArray(out.settings)
+        ? (({ subjectWeeklyTargets: _t, ...rest }: Obj) => rest)(out.settings as Obj)
+        : out.settings;
+    out = { ...out, sessions, settings };
+    v = 2;
+  }
+  if (v !== BACKUP_SCHEMA_VERSION) fail();
+  return out;
 }
 
 /** Text of a picked file → a validated backup, or why it can not be imported. */
@@ -464,18 +518,19 @@ export function mergeBackup(current: BackupData, incoming: BackupData, mode: Imp
   }
   const c = current.settings;
   const i = incoming.settings;
+  const settings: BackupSettings = {
+    dailyGoalMinutes: c.dailyGoalMinutes ?? i.dailyGoalMinutes,
+    pomodoro: c.pomodoro ?? i.pomodoro,
+    timerMode: c.timerMode ?? i.timerMode,
+    examDates: { ...i.examDates, ...c.examDates },
+    netTargets: { ...i.netTargets, ...c.netTargets },
+    lastSubject: c.lastSubject ?? i.lastSubject,
+  };
   return {
     sessions: byId(current.sessions, incoming.sessions, (s) => s.id),
     exams: byId(current.exams, incoming.exams, (e) => e.id),
     topicProgress: [...progress.values()],
-    settings: {
-      dailyGoalMinutes: c.dailyGoalMinutes ?? i.dailyGoalMinutes,
-      pomodoro: c.pomodoro ?? i.pomodoro,
-      timerMode: c.timerMode ?? i.timerMode,
-      examDates: { ...i.examDates, ...c.examDates },
-      netTargets: { ...i.netTargets, ...c.netTargets },
-      lastSubject: c.lastSubject ?? i.lastSubject,
-    },
+    settings: withSubjectTargets(settings, { ...i.subjectWeeklyTargets, ...c.subjectWeeklyTargets }),
   };
 }
 

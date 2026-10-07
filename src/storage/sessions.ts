@@ -1,3 +1,4 @@
+import { normalizeQuestions } from '../domain/questions';
 import type { ClosedPause, CompletedSession, SessionSource } from '../domain/timer';
 import { getDb } from './db';
 
@@ -10,9 +11,10 @@ interface SessionRow {
   pauses: string;
   duration_ms: number;
   source: string;
+  questions: number | null;
 }
 
-const COLUMNS = 'id, subject_id, topic_id, started_at, ended_at, pauses, duration_ms, source';
+const COLUMNS = 'id, subject_id, topic_id, started_at, ended_at, pauses, duration_ms, source, questions';
 
 function parsePauses(json: string): ClosedPause[] {
   try {
@@ -28,7 +30,7 @@ function parsePauses(json: string): ClosedPause[] {
 }
 
 function toSession(row: SessionRow): CompletedSession {
-  return {
+  const session: CompletedSession = {
     id: row.id,
     subjectId: row.subject_id,
     topicId: row.topic_id,
@@ -38,14 +40,18 @@ function toSession(row: SessionRow): CompletedSession {
     durationMs: row.duration_ms,
     source: (row.source === 'manual' ? 'manual' : 'timer') satisfies SessionSource,
   };
+  // Only sessions with a count carry the field (older ones read back exactly as before).
+  const questions = normalizeQuestions(row.questions);
+  if (questions !== null) session.questions = questions;
+  return session;
 }
 
 /** Idempotent: saving the same session id twice keeps one row. */
 export function saveSession(session: CompletedSession, now: number): void {
   getDb().runSync(
     `INSERT OR REPLACE INTO sessions
-       (id, subject_id, topic_id, started_at, ended_at, pauses, duration_ms, source, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, subject_id, topic_id, started_at, ended_at, pauses, duration_ms, source, created_at, questions)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     session.id,
     session.subjectId,
     session.topicId,
@@ -55,6 +61,7 @@ export function saveSession(session: CompletedSession, now: number): void {
     session.durationMs,
     session.source,
     now,
+    normalizeQuestions(session.questions),
   );
 }
 
