@@ -81,3 +81,33 @@ tags:
     id: exam-item-0
     text: ".*11,5 net.*"
 - takeScreenshot: e-deneme-02-liste
+# Edit the saved exam: Türkçe 4 yanlış -> 0 yanlış, so 10 + 2,5 = 12,5 net (same exam, no new row).
+- tapOn:
+    id: exam-item-0
+- scrollUntilVisible:
+    element:
+      id: exam-edit
+    direction: DOWN
+- tapOn:
+    id: exam-edit
+- extendedWaitUntil:
+    visible:
+      id: exam-wrong-turkce
+    timeout: 10000
+- tapOn:
+    id: exam-wrong-turkce
+- eraseText: 3
+- inputText: "0"
+- tapOn:
+    id: exam-form-kind-title
+- assertVisible:
+    id: exam-total-net
+    text: "12,5"
+- tapOn:
+    id: exam-save
+- extendedWaitUntil:
+    visible:
+      id: exam-detail-total
+      text: "12,5"
+    timeout: 10000
+- takeScreenshot: e-deneme-03-duzenlendi
