@@ -23,7 +23,6 @@ appId: com.bnycftc.etut
     element:
       id: onboarding-start
     direction: DOWN
-    centerElement: true
     timeout: 20000
 # A slow CI simulator can drop this tap (the screen stays on onboarding): tap again if nothing changes.
 - tapOn:

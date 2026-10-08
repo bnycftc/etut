@@ -32,7 +32,6 @@ tags:
     element:
       id: onboarding-start
     direction: DOWN
-    centerElement: true
     timeout: 20000
 - tapOn:
     id: onboarding-start

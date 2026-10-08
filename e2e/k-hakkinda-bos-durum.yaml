@@ -14,7 +14,6 @@ tags:
     element:
       id: onboarding-privacy
     direction: DOWN
-    centerElement: true
     timeout: 20000
 - tapOn:
     id: onboarding-privacy

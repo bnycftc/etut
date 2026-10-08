@@ -37,6 +37,11 @@ tags:
     id: exam-net-turkce
     text: "9"
 # Tarih: 3 doğru, 2 yanlış -> 3 - 2/4 = 2,5 net.
+# The form moves its content while the number pad opens (automaticallyAdjustKeyboardInsets), so a
+# tap aimed with a stale layout can land on the previous field: close the pad first, scroll, then
+# wait until the target field really has focus before typing.
+- tapOn:
+    id: exam-form-kind-title
 - scrollUntilVisible:
     element:
       id: exam-correct-tarih
@@ -44,12 +49,22 @@ tags:
     centerElement: true
 - tapOn:
     id: exam-correct-tarih
+- extendedWaitUntil:
+    visible:
+      id: exam-correct-tarih
+      focused: true
+    timeout: 5000
 - inputText: "3"
 - tapOn:
     id: exam-wrong-tarih
+- extendedWaitUntil:
+    visible:
+      id: exam-wrong-tarih
+      focused: true
+    timeout: 5000
 - inputText: "2"
 - tapOn:
-    id: exam-net-tarih
+    id: exam-form-kind-title
 - assertVisible:
     id: exam-net-tarih
     text: "2,5"
@@ -96,7 +111,13 @@ tags:
     timeout: 10000
 - tapOn:
     id: exam-wrong-turkce
-- eraseText: 3
+- extendedWaitUntil:
+    visible:
+      id: exam-wrong-turkce
+      focused: true
+    timeout: 5000
+# The field holds one or two digits; erase generously.
+- eraseText: 6
 - inputText: "0"
 - tapOn:
     id: exam-form-kind-title
