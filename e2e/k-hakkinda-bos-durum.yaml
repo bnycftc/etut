@@ -54,10 +54,13 @@ tags:
 - takeScreenshot: k-03-denemeler-bos
 - tapOn:
     id: tab-settings
+# Ayarlar is long and each hierarchy read on a busy CI simulator can take ~5 s, so allow time for
+# several scroll steps (run 37986063679 ran out of the default 20 s with the row on screen).
 - scrollUntilVisible:
     element:
       id: settings-open-about
     direction: DOWN
+    timeout: 60000
 # It is the last row: Maestro counts it as visible while it is still under the tab bar, so scroll
 # once more to the end before tapping (run 37953033218).
 - scroll
