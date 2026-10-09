@@ -8,10 +8,11 @@
  *
  * Checks: page is cross-origin isolated, no console errors / uncaught exceptions, no network
  * request outside the dev server; onboarding (+ short notice) → first-use tips → timer (start,
- * pause, resume, finish; Sayısal subjects only) → groups tab stays "Yakında" → reload keeps the
- * profile → share card (1080x1920 PNG) → mock exam with the right net (area papers only) → reload
- * keeps the exam → area change → backup + CSV download → about / legal / licenses → reminders
- * screen renders → "delete all data" returns to onboarding → empty states → restore the backup
+ * pause, resume, finish, summary and "Geri al"; Sayısal subjects only) → groups tab stays
+ * "Yakında" → reload keeps the profile → share card (1080x1920 PNG) → mock exam with the right
+ * net (area papers only) → reload keeps the exam → area change → "Sayaç çalışırken" settings
+ * (kept across a reload) → backup + CSV download → about / legal / licenses → reminders screen
+ * renders → "delete all data" returns to onboarding → empty states → restore the backup
  * twice (no duplicates) → dark theme with reduced motion.
  *
  * Environment:
@@ -224,7 +225,18 @@ async function runScenario(page, baseUrl) {
   await byId('timer-finish').click();
   await visible('timer-saved');
   check((await text('timer-saved')).startsWith('Kaydedildi'), 'finished session was not saved');
+  // The summary after Bitir names the subject and offers "Geri al" for a few seconds.
+  check((await text('finish-detail')).startsWith('Fizik çalıştın'), 'finish summary should name the subject');
+  await visible('finish-undo');
   await screenshot('timer-finished');
+  // "Geri al": the session runs on as before, then Bitir saves it (once) again.
+  await byId('finish-undo').click();
+  await waitUntil(() => text('timer-status'), (s) => s === 'Çalışıyorsun', 'running again after Geri al');
+  check(!(await byId('timer-saved').isVisible()), 'the summary must go with Geri al');
+  check((await text('timer-subject')) === 'Fizik', 'Geri al must keep the subject');
+  await screenshot('timer-undone');
+  await byId('timer-finish').click();
+  await visible('timer-saved');
 
   // 2b. The group module is off (src/config/features.ts): the tab stays "Yakında" and no request
   //     ever leaves the dev server (checked for the whole run in main()).
@@ -297,6 +309,42 @@ async function runScenario(page, baseUrl) {
   await byId('settings-exam-save').click();
   await visible('settings-exam-saved');
   await screenshot('settings-area');
+  await byId('tab-timer').click();
+  await visible('subject-edebiyat');
+
+  // 5b-2. Settings → "Sayaç çalışırken": keep the screen on (default on) and what leaving the app
+  //       means (default "Sor"); both are stored and survive a reload, then go back to defaults.
+  log('step: timer settings card');
+  await byId('tab-settings').click();
+  await visible('settings-timer');
+  // react-native-web does not render accessibilityState, so "selected" is read from the chip
+  // colour: a selected chip has the primary colour, the same as the selected "Sor" chip (whose
+  // explanation text below proves it is the selected one).
+  const background = (id) => byId(id).evaluate((el) => getComputedStyle(el).backgroundColor);
+  check(await byId('settings-timer').getByText('Sayaç çalışırken').isVisible(), 'timer settings card title is missing');
+  check((await text('settings-away-info')).startsWith('10 saniyeden uzun'), '"Sor" must be the default away rule');
+  const selectedColour = await background('settings-away-ask');
+  const selected = async (id) => (await background(id)) === selectedColour;
+  check(await selected('settings-keep-awake-on'), 'keep the screen on must be the default');
+  check(!(await selected('settings-keep-awake-off')), 'only one keep-awake chip may be selected');
+  check(!(await selected('settings-away-count')), 'only one away-rule chip may be selected');
+  await byId('settings-keep-awake-off').click();
+  await byId('settings-away-count').click();
+  await screenshot('DEBUG-after-click');
+  console.log('DEBUG', await byId('settings-timer').innerHTML());
+  await waitUntil(() => text('settings-away-info'), (v) => v.includes('çalışma sayılır'), 'the "count" explanation');
+  await waitUntil(() => selected('settings-keep-awake-off'), (v) => v, 'keep-awake "off" selected');
+  await byId('settings-timer').scrollIntoViewIfNeeded();
+  await screenshot('settings-timer-card');
+  await page.reload();
+  await visible('settings-timer', FIRST_SCREEN_TIMEOUT_MS);
+  check((await text('settings-away-info')).includes('çalışma sayılır'), 'away rule "count" lost after reload');
+  check(await selected('settings-keep-awake-off'), 'keep-awake "off" lost after reload');
+  check(await selected('settings-away-count'), 'away rule chip "count" not selected after reload');
+  await byId('settings-keep-awake-on').click();
+  await byId('settings-away-ask').click();
+  await waitUntil(() => text('settings-away-info'), (v) => v.startsWith('10 saniyeden uzun'), 'away rule back to "Sor"');
+  await waitUntil(() => selected('settings-keep-awake-on'), (v) => v, 'keep-awake back on');
   await byId('tab-timer').click();
   await visible('subject-edebiyat');
 

@@ -625,6 +625,22 @@ describe('timer on the real storage', () => {
   });
 });
 
+describe('settings: "Sayaç çalışırken" after another change on the same screen', () => {
+  // Passes here because Jest does not run the React Compiler; the shipped bundles do, and there
+  // these chips do freeze (use-stored-compiler.test.tsx, scripts/test-web.mjs step 5b-2).
+  it('saving the exam area first does not freeze the keep-awake and away-rule chips', () => {
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    fireEvent.press(screen.getByTestId('settings-yks-area-esit_agirlik'));
+    fireEvent.press(screen.getByTestId('settings-exam-save'));
+    expect(kv.loadProfile()?.yksArea).toBe('esit_agirlik');
+    fireEvent.press(screen.getByTestId('settings-keep-awake-off'));
+    expect(kv.loadKeepAwake()).toBe(false);
+    expect(screen.getByTestId('settings-keep-awake-off').props.accessibilityState.selected).toBe(true);
+    fireEvent.press(screen.getByTestId('settings-away-count'));
+    expect(screen.getByTestId('settings-away-info').props.children).toContain('çalışma sayılır');
+  });
+});
+
 describe('system surfaces are not rewritten with the same content', () => {
   it('coming back to the foreground with nothing changed sends no Live Activity update and no widget timeline', async () => {
     const from = listenersFrom();
