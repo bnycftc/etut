@@ -47,11 +47,21 @@ tags:
 # with the form's own "Bitti" (exam-keyboard-done), so every tap hits a settled layout.
 - tapOn:
     id: exam-correct-turkce
+# The number pad is up (and the field focused) once the form's own keyboard bar shows;
+# typing earlier can be lost (run 37953033218: "10" never reached exam-correct-turkce).
+- extendedWaitUntil:
+    visible:
+      id: exam-keyboard-bar
+    timeout: 10000
 - inputText: "15"
 - tapOn:
     id: exam-keyboard-done
 - tapOn:
     id: exam-wrong-turkce
+- extendedWaitUntil:
+    visible:
+      id: exam-keyboard-bar
+    timeout: 10000
 - inputText: "3"
 - tapOn:
     id: exam-keyboard-done
@@ -66,11 +76,19 @@ tags:
     centerElement: true
 - tapOn:
     id: exam-correct-matematik
+- extendedWaitUntil:
+    visible:
+      id: exam-keyboard-bar
+    timeout: 10000
 - inputText: "12"
 - tapOn:
     id: exam-keyboard-done
 - tapOn:
     id: exam-wrong-matematik
+- extendedWaitUntil:
+    visible:
+      id: exam-keyboard-bar
+    timeout: 10000
 - inputText: "6"
 - tapOn:
     id: exam-keyboard-done

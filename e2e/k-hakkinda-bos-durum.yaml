@@ -58,8 +58,12 @@ tags:
     element:
       id: settings-open-about
     direction: DOWN
+# It is the last row: Maestro counts it as visible while it is still under the tab bar, so scroll
+# once more to the end before tapping (run 37953033218).
+- scroll
 - tapOn:
     id: settings-open-about
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: about-controller

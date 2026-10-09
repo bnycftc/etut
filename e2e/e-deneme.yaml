@@ -25,11 +25,21 @@ tags:
 # would. Closing it before the next tap keeps every tap aimed at a settled layout.
 - tapOn:
     id: exam-correct-turkce
+# The number pad is up (and the field focused) once the form's own keyboard bar shows;
+# typing earlier can be lost (run 37953033218: "10" never reached exam-correct-turkce).
+- extendedWaitUntil:
+    visible:
+      id: exam-keyboard-bar
+    timeout: 10000
 - inputText: "10"
 - tapOn:
     id: exam-keyboard-done
 - tapOn:
     id: exam-wrong-turkce
+- extendedWaitUntil:
+    visible:
+      id: exam-keyboard-bar
+    timeout: 10000
 - inputText: "4"
 - tapOn:
     id: exam-keyboard-done
@@ -45,11 +55,19 @@ tags:
     centerElement: true
 - tapOn:
     id: exam-correct-tarih
+- extendedWaitUntil:
+    visible:
+      id: exam-keyboard-bar
+    timeout: 10000
 - inputText: "3"
 - tapOn:
     id: exam-keyboard-done
 - tapOn:
     id: exam-wrong-tarih
+- extendedWaitUntil:
+    visible:
+      id: exam-keyboard-bar
+    timeout: 10000
 - inputText: "2"
 - tapOn:
     id: exam-keyboard-done
@@ -99,6 +117,10 @@ tags:
     timeout: 10000
 - tapOn:
     id: exam-wrong-turkce
+- extendedWaitUntil:
+    visible:
+      id: exam-keyboard-bar
+    timeout: 10000
 # The field holds one or two digits; erase generously.
 - eraseText: 6
 - inputText: "0"
