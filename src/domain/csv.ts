@@ -8,6 +8,7 @@
 import { blankCount } from './exam-analysis';
 import { ISTANBUL_OFFSET_MS, istanbulDayKey } from './istanbul-day';
 import { net } from './net';
+import { normalizeQuestions } from './questions';
 import type { BackupExam } from './backup';
 import type { CompletedSession } from './timer';
 
@@ -55,7 +56,10 @@ export interface CsvLabels {
   yesNo: (value: boolean) => string;
 }
 
-/** Columns: day, start, end, subject, topic, source, study minutes, study seconds. */
+/**
+ * Columns: day, start, end, subject, topic, source, study minutes, study seconds, solved questions
+ * (empty when not given).
+ */
 export function sessionRows(sessions: readonly CompletedSession[], labels: CsvLabels): CsvValue[][] {
   return [...sessions]
     .sort((a, b) => a.startedAt - b.startedAt)
@@ -68,6 +72,7 @@ export function sessionRows(sessions: readonly CompletedSession[], labels: CsvLa
       labels.source(s.source),
       Math.floor(s.durationMs / 60_000),
       Math.floor(s.durationMs / 1000),
+      normalizeQuestions(s.questions),
     ]);
 }
 

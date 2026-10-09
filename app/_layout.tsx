@@ -39,6 +39,7 @@ function RootStack() {
         <Stack.Screen name="elle-ekle" options={{ title: tr.manual.title }} />
         <Stack.Screen name="analiz/[id]" options={{ title: tr.analysis.title }} />
         <Stack.Screen name="haftalik" options={{ title: tr.weekly.title }} />
+        <Stack.Screen name="karne/[subject]" options={{ title: tr.report.title }} />
         <Stack.Screen name="paylas" options={{ title: tr.share.title }} />
         <Stack.Screen name="yedek" options={{ title: tr.backup.title }} />
         <Stack.Screen name="hatirlaticilar" options={{ title: tr.reminders.title }} />

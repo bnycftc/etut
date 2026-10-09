@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
+import { resolveExamDate } from '../domain/exam-dates';
 import { addDays, type DayKey, dayStartMs, istanbulDayKey, lastDays } from '../domain/istanbul-day';
 import { liveActivityAction, type LiveActivityRecord, liveTimerView } from '../domain/live-timer';
 import {
@@ -23,8 +24,10 @@ import {
 } from '../domain/reminders';
 import { STREAK_LOOKBACK_DAYS } from '../domain/streak';
 import type { ActiveSession } from '../domain/timer';
-import { savedTotalsLookup, widgetTimeline } from '../domain/widget-summary';
+import type { ExamType } from '../domain/profile';
+import { savedTotalsLookup, type WidgetExam, widgetTimeline } from '../domain/widget-summary';
 import {
+  loadCustomExamDate,
   loadDailyGoal,
   loadLiveActivityRecord,
   loadReminderPrefs,
@@ -49,9 +52,11 @@ interface SurfaceData {
   goalMinutes: number | null;
   prefs: ReminderPrefs;
   pendingExams: PendingExam[];
+  /** The widget's countdown line (the same date the timer screen counts down to). */
+  exam: WidgetExam | null;
 }
 
-function loadSurfaceData(today: DayKey): SurfaceData {
+function loadSurfaceData(today: DayKey, examType: ExamType): SurfaceData {
   const days = [...lastDays(dayStartMs(today), STREAK_LOOKBACK_DAYS + 1), addDays(today, 1), addDays(today, 2)];
   const sessions = sessionsOverlapping(dayStartMs(days[0]), dayStartMs(addDays(today, 3)));
   return {
@@ -59,7 +64,13 @@ function loadSurfaceData(today: DayKey): SurfaceData {
     goalMinutes: loadDailyGoal(),
     prefs: effectiveReminderPrefs(loadReminderPrefs(), loadRemindersConfirmed()),
     pendingExams: listExamsNeedingAnalysis().map((e) => ({ id: e.id, createdAt: e.createdAt })),
+    exam: examFor(examType),
   };
+}
+
+function examFor(examType: ExamType): WidgetExam | null {
+  const date = resolveExamDate(examType, loadCustomExamDate(examType));
+  return date === null ? null : { examType, day: date.day };
 }
 
 /** Runs async jobs one at a time; a job queued while another runs replaces the older queued one. */
@@ -149,7 +160,7 @@ function syncWidget(active: ActiveSession | null, data: SurfaceData | null): voi
   const entries =
     data === null
       ? [{ at: now, props: emptyWidgetProps() }]
-      : widgetTimeline({ now, savedTotal: data.savedTotal, active, goalMinutes: data.goalMinutes }).map((e) => ({
+      : widgetTimeline({ now, savedTotal: data.savedTotal, active, goalMinutes: data.goalMinutes, exam: data.exam }).map((e) => ({
           at: e.at,
           props: todayWidgetProps(e),
         }));
@@ -205,8 +216,8 @@ export function SystemSync(): null {
   const [foreground, setForeground] = useState(0);
   // Sessions, goal/reminder settings and exams awaiting analysis; topic marks are not read here.
   const version = `${dataVersions.sessions}|${dataVersions.settings}|${dataVersions.exams}`;
-  const data = useStored(`${today}|${version}|${profile === null ? 'none' : 'profile'}`, () =>
-    profile === null ? null : loadSurfaceData(today),
+  const data = useStored(`${today}|${version}|${profile === null ? 'none' : profile.examType}`, () =>
+    profile === null ? null : loadSurfaceData(today, profile.examType),
   );
   const session = profile === null ? null : active;
   const phaseEnds = usePhaseEnds(session, foreground);

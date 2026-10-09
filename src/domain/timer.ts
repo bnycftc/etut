@@ -91,6 +91,8 @@ export interface CompletedSession {
   pauses: ClosedPause[];
   durationMs: number;
   source: SessionSource;
+  /** Questions solved in this session, if the student said (`questions.ts`); missing = not given. */
+  questions?: number;
 }
 
 export interface StartOptions {

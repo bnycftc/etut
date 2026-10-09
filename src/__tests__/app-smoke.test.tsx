@@ -1451,7 +1451,7 @@ describe('backup and restore', () => {
     expect(memory.shared).toHaveLength(1);
     expect(memory.shared[0].name).toMatch(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/);
     const file = JSON.parse(memory.shared[0].content);
-    expect(file).toMatchObject({ format: 'etut-yedek', schemaVersion: 1, sessions: [{ id: 'a' }] });
+    expect(file).toMatchObject({ format: 'etut-yedek', schemaVersion: 2, sessions: [{ id: 'a' }] });
     expect(screen.getByTestId('backup-message')).toBeTruthy();
   });
 
@@ -2289,5 +2289,243 @@ describe('timer and data safety', () => {
     fireEvent.press(screen.getByTestId('topic-done-tyt.fizik.basinc'));
     expect(memory.topicStatuses['tyt.fizik.basinc']).toBe('done');
     expect(memory.sessionLoads).toBe(before);
+  });
+});
+
+// Package E: report card, question counts, weekly subject targets, monthly calendar.
+const mockSubjectTargets: { value: Record<string, number> } = { value: {} };
+
+jest.mock('../storage/subject-targets', () => ({
+  loadSubjectTargets: () => ({ ...mockSubjectTargets.value }),
+  storeSubjectTarget: (id: string, minutes: number | null) => {
+    const next = { ...mockSubjectTargets.value };
+    if (minutes === null) delete next[id];
+    else next[id] = minutes;
+    mockSubjectTargets.value = next;
+  },
+  storeSubjectTargets: (t: Record<string, number>) => {
+    mockSubjectTargets.value = { ...t };
+  },
+}));
+
+jest.mock('../storage/report', () => ({
+  setSessionQuestions: (id: string, questions: number | null) => {
+    memory.sessions = memory.sessions.map((s) => {
+      if (s.id !== id) return s;
+      const { questions: _old, ...rest } = s;
+      return questions === null ? rest : { ...rest, questions };
+    });
+  },
+  subjectAllTime: (subjectId: string) => {
+    const own = memory.sessions.filter((s) => s.subjectId === subjectId);
+    return {
+      ms: own.reduce((sum, s) => sum + s.durationMs, 0),
+      questions: own.reduce((sum, s) => sum + (s.questions ?? 0), 0),
+    };
+  },
+}));
+
+describe('ders karnesi, soru sayısı, ders hedefi, aylık görünüm', () => {
+  const at = (iso: string) => Date.parse(iso);
+  const studied = (
+    id: string,
+    subjectId: string,
+    startIso: string,
+    minutes: number,
+    extra: Partial<CompletedSession> = {},
+  ): CompletedSession => ({
+    id,
+    subjectId,
+    topicId: null,
+    startedAt: at(startIso),
+    endedAt: at(startIso) + minutes * 60_000,
+    pauses: [],
+    durationMs: minutes * 60_000,
+    source: 'timer',
+    ...extra,
+  });
+
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+    mockSubjectTargets.value = {};
+    // Fake timers also when this block runs on its own (renderRouter installs them otherwise).
+    jest.useFakeTimers();
+    jest.setSystemTime(at('2026-10-07T09:00:00Z')); // Wednesday 12:00 Istanbul
+  });
+
+  it('after Bitir the question count is optional: skipped, it saves nothing; given, it is stored', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    act(() => {
+      jest.setSystemTime(Date.now() + 30 * 60_000);
+      jest.advanceTimersByTime(1000);
+    });
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    // Saved without waiting for the count; "Geri al" is still there.
+    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 30 dk');
+    expect(screen.getByTestId('finish-undo')).toBeTruthy();
+    expect(memory.sessions[0].questions).toBeUndefined();
+
+    fireEvent.changeText(screen.getByTestId('finish-questions-input'), '5000');
+    fireEvent.press(screen.getByTestId('finish-questions-save'));
+    expect(screen.getByTestId('finish-questions-message').props.children).toBe('0 ile 2000 arasında bir tam sayı gir.');
+    expect(memory.sessions[0].questions).toBeUndefined();
+
+    fireEvent.changeText(screen.getByTestId('finish-questions-input'), '35');
+    fireEvent.press(screen.getByTestId('finish-questions-save'));
+    expect(memory.sessions[0].questions).toBe(35);
+    expect(screen.getByTestId('finish-questions-message').props.children).toBe('35 soru kaydedildi.');
+    expect(screen.getByLabelText('Kaç soru çözdün? (isteğe bağlı)')).toBeTruthy();
+  });
+
+  it('"Elle ekle" takes an optional count; a wrong one stops the entry with a message', () => {
+    renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    fireEvent.press(screen.getByTestId('manual-subject-kimya'));
+    fireEvent.press(screen.getByTestId('manual-prev-day'));
+    fireEvent.changeText(screen.getByTestId('manual-start-hour'), '10');
+    fireEvent.changeText(screen.getByTestId('manual-duration-minutes'), '45');
+    fireEvent.changeText(screen.getByTestId('manual-questions'), '9999');
+    fireEvent.press(screen.getByTestId('manual-add'));
+    expect(screen.getByTestId('manual-questions-error')).toBeTruthy();
+    expect(memory.sessions).toHaveLength(0);
+    fireEvent.changeText(screen.getByTestId('manual-questions'), '20');
+    fireEvent.press(screen.getByTestId('manual-add'));
+    expect(memory.sessions[0]).toMatchObject({ subjectId: 'kimya', source: 'manual', questions: 20 });
+    expect(screen.getByText('20 soru')).toBeTruthy();
+  });
+
+  it('weekly: questions per day and subject; a subject row opens its report card', () => {
+    memory.sessions = [
+      studied('a', 'matematik', '2026-10-05T07:00:00Z', 90, { questions: 40 }),
+      studied('b', 'matematik', '2026-10-06T07:00:00Z', 60, { questions: 25 }),
+      studied('c', 'fizik', '2026-10-06T10:00:00Z', 30),
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    expect(screen.getByTestId('weekly-total').props.children).toBe('3 sa 0 dk');
+    expect(screen.getByTestId('weekly-questions').props.children).toBe('Çözülen soru: 65');
+    expect(screen.getByLabelText('Günlere göre çözülen soru. Pzt 40, Sal 25, Çar 0, Per 0, Cum 0, Cmt 0, Paz 0')).toBeTruthy();
+    expect(screen.getByText('65 soru')).toBeTruthy();
+    // No target yet: the card says where to set one.
+    expect(screen.getByText('Bir dersin karnesinden ona haftalık hedef koyabilirsin.')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('weekly-subject-matematik'));
+    expect(screen.getByTestId('report-screen')).toBeTruthy();
+    expect(screen.getByTestId('report-week').props.children).toBe('2 sa 30 dk');
+    expect(screen.getByTestId('report-total').props.children).toBe('2 sa 30 dk');
+    expect(screen.getByTestId('report-questions').props.children).toBe(
+      'Çözülen soru: bugün 0 · bu hafta 65 · toplam 65',
+    );
+  });
+
+  it('report card: weekly target with − / +, shown again in Haftalık; no ranking anywhere', () => {
+    memory.sessions = [studied('a', 'matematik', '2026-10-05T07:00:00Z', 90)];
+    renderRouter(APP_DIR, { initialUrl: '/karne/matematik' });
+    expect(screen.getByLabelText('Matematik haftalık hedefi, azalt').props.accessibilityState?.disabled).toBe(true);
+    fireEvent.press(screen.getByTestId('report-target-plus'));
+    fireEvent.press(screen.getByTestId('report-target-plus'));
+    fireEvent.press(screen.getByTestId('report-target-plus'));
+    fireEvent.press(screen.getByTestId('report-target-plus'));
+    expect(mockSubjectTargets.value).toEqual({ matematik: 120 });
+    expect(screen.getByTestId('report-target-progress').props.children).toBe('1 sa 30 dk / 2 sa 0 dk · %75');
+    expect(screen.getByText('Hedefe 30 dk kaldı.')).toBeTruthy();
+    expect(screen.queryByText(/sıra|sıralama/i)).toBeNull();
+
+    act(() => router.push('/haftalik'));
+    expect(screen.getByTestId('weekly-target-matematik').props.children).toBe('1 sa 30 dk / 2 sa 0 dk · %75');
+    expect(screen.getByLabelText('Matematik haftalık hedefi')).toBeTruthy();
+  });
+
+  it('report card brings time, topics and nets of one subject together', () => {
+    memory.sessions = [studied('a', 'matematik', '2026-10-07T07:00:00Z', 45, { topicId: 'tyt.matematik.mutlak-deger' })];
+    memory.topicStatuses = { 'tyt.matematik.temel-kavramlar': 'done', 'tyt.matematik.sayi-basamaklari': 'review' };
+    memory.exams = [
+      {
+        id: 'e1',
+        kind: 'TYT',
+        scope: 'genel',
+        bransSectionId: null,
+        takenOn: '2026-10-01',
+        totalNet: 25.5,
+        createdAt: 1,
+        analysisDoneAt: 2,
+        scores: [{ sectionId: 'matematik', questions: 40, correct: 27, wrong: 6 }],
+      },
+    ];
+    memory.marks = { e1: [{ sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 4, blank: 1 }] };
+    renderRouter(APP_DIR, { initialUrl: '/karne/matematik' });
+    expect(screen.getByTestId('report-today').props.children).toBe('45 dk');
+    expect(screen.getByTestId('report-topics-done').props.children).toBe('Bitti: 1');
+    expect(screen.getByTestId('report-topics-review').props.children).toBe('Tekrar lazım: 1');
+    expect(screen.getByTestId('report-net-TYT-matematik')).toBeTruthy();
+    expect(screen.getByText('4 yanlış · 1 boş · çalıştığın: 45 dk')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('report-untouched-toggle'));
+    expect(screen.getByText('Dokunulmamış konuları gizle')).toBeTruthy();
+
+    // Another subject from the chips; its card has no nets yet.
+    fireEvent.press(screen.getByTestId('report-subject-kimya'));
+    expect(screen.getByTestId('report-today').props.children).toBe('0 dk');
+    expect(screen.getByText('Bu ders için henüz deneme neti yok. Deneme ekleyince netlerin burada görünür.')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('report-open-topics'));
+    expect(screen.getByTestId('topics-screen')).toBeTruthy();
+    expect(screen.getByTestId('topics-subject-kimya').props.accessibilityState?.selected).toBe(true);
+  });
+
+  it('entry points: the Karne shortcut on the timer and the button in Konular', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    // Existing shortcuts are still there, Karne is added after them.
+    expect(screen.getByTestId('open-topics')).toBeTruthy();
+    expect(screen.getByTestId('open-weekly')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('open-report'));
+    expect(screen.getByTestId('report-screen')).toBeTruthy();
+
+    act(() => router.push('/konular'));
+    fireEvent.press(screen.getByTestId('topics-subject-fizik'));
+    fireEvent.press(screen.getByTestId('topics-open-report'));
+    expect(screen.getByTestId('report-subject-fizik').props.accessibilityState?.selected).toBe(true);
+  });
+
+  it('monthly calendar: totals, best day, every day labelled; arrows move by month', () => {
+    memory.sessions = [
+      studied('a', 'matematik', '2026-10-01T07:00:00Z', 120),
+      studied('b', 'fizik', '2026-10-03T07:00:00Z', 400),
+      studied('c', 'kimya', '2026-09-15T07:00:00Z', 30),
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    expect(screen.getByTestId('monthly-month').props.children).toBe('Ekim 2026');
+    expect(screen.getByTestId('monthly-total').props.children).toBe('Toplam: 8 sa 40 dk');
+    expect(screen.getByTestId('monthly-best').props.children).toBe('En çok: 3 Ekim 2026 · 6 sa 40 dk');
+    expect(screen.getByText('Çalıştığın gün: 2/7')).toBeTruthy();
+    expect(screen.getByText('Ara verdiğin gün: 5')).toBeTruthy();
+    expect(screen.getByLabelText('3 Ekim 2026: 6 sa 40 dk')).toBeTruthy();
+    expect(screen.getByLabelText('2 Ekim 2026: çalışma yok')).toBeTruthy();
+    expect(screen.getByLabelText('20 Ekim 2026: henüz gelmedi')).toBeTruthy();
+    const next = screen.getByTestId('monthly-next');
+    expect(next.props.accessibilityState?.disabled ?? next.props['aria-disabled']).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('monthly-prev'));
+    expect(screen.getByTestId('monthly-month').props.children).toBe('Eylül 2026');
+    expect(screen.getByTestId('monthly-total').props.children).toBe('Toplam: 30 dk');
+    expect(screen.getByText('Çalıştığın gün: 1/30')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('monthly-prev'));
+    expect(screen.getByTestId('monthly-empty')).toBeTruthy();
+  });
+
+  it('history shows the questions of a day', () => {
+    memory.sessions = [studied('a', 'matematik', '2026-10-06T07:00:00Z', 60, { questions: 30 })];
+    renderRouter(APP_DIR, { initialUrl: '/gecmis' });
+    expect(screen.getByTestId('history-questions-2026-10-06').props.children).toBe('30 soru');
+  });
+
+  it('widget: the exam countdown line follows the exam date', async () => {
+    // A date of the student's own (the widget skips a timeline that looks like the last one sent).
+    memory.examDates = { YKS: '2027-06-26' };
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    await act(async () => {});
+    expect(memory.widget[0].props.countdownLine).toBe('YKS’ye 262 gün');
+    // The next day's entry says one day less.
+    const tomorrow = memory.widget.find((e) => e.at === at('2026-10-07T21:00:00Z'));
+    expect(tomorrow?.props.countdownLine).toBe('YKS’ye 261 gün');
   });
 });

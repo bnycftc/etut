@@ -423,3 +423,58 @@ describe('K-17: the age on import', () => {
     expect(importedProfile(adult, null, 'replace', year)).toEqual(adult);
   });
 });
+
+describe('backup version 2: question counts and weekly subject targets', () => {
+  const V2: BackupData = {
+    ...DATA,
+    sessions: [session('q1', { questions: 40 }), session('q2', { source: 'manual', pauses: [], durationMs: 3_600_000 })],
+    settings: { ...DATA.settings, subjectWeeklyTargets: { matematik: 480, fizik: 90 } },
+  };
+
+  it('round-trips the counts and targets', () => {
+    const file = buildBackupFile(V2, PROFILE, EXPORTED, '0.4.0');
+    expect(file.schemaVersion).toBe(2);
+    const back = parsed(serializeBackup(file));
+    expect(back).toEqual(file);
+    expect(back.sessions[0].questions).toBe(40);
+    expect('questions' in back.sessions[1]).toBe(false);
+    expect(back.settings.subjectWeeklyTargets).toEqual({ matematik: 480, fizik: 90 });
+  });
+
+  it('a version 1 file (written before this version) still loads, with neither', () => {
+    const v1 = JSON.stringify({ ...buildBackupFile(DATA, PROFILE, EXPORTED, '0.3.0'), schemaVersion: 1 });
+    const result = parseBackup(v1);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.file.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
+    expect(result.file.sessions).toEqual(DATA.sessions);
+    expect(result.file.settings).toEqual(DATA.settings);
+    expect(result.file.settings.subjectWeeklyTargets).toBeUndefined();
+  });
+
+  it('version 1 had no such fields: in a version 1 file they are dropped, not trusted', () => {
+    const edited = JSON.stringify({ ...buildBackupFile(V2, PROFILE, EXPORTED, '0.3.0'), schemaVersion: 1 });
+    const result = parseBackup(edited);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.file.sessions.every((s) => s.questions === undefined)).toBe(true);
+    expect(result.file.settings.subjectWeeklyTargets).toBeUndefined();
+  });
+
+  it.each([
+    ['zero questions (the app never stores 0)', { sessions: [{ ...session('x'), questions: 0 }] }],
+    ['questions above the limit', { sessions: [{ ...session('x'), questions: 2001 }] }],
+    ['questions that are not a whole number', { sessions: [{ ...session('x'), questions: 2.5 }] }],
+    ['a target off the half-hour steps', { settings: { ...DATA.settings, subjectWeeklyTargets: { matematik: 45 } } }],
+    ['a target above the limit', { settings: { ...DATA.settings, subjectWeeklyTargets: { matematik: 2430 } } }],
+    ['a target for an odd subject id', { settings: { ...DATA.settings, subjectWeeklyTargets: { 'Mat ematik': 60 } } }],
+  ])('rejects: %s', (_name, overrides) => {
+    const result = parseBackup(fileText(overrides));
+    expect(result.ok ? null : result.error).toBe('invalid');
+  });
+
+  it('merge: targets set here stay, the file fills the others; none at all leaves the key out', () => {
+    const device: BackupData = { ...DATA, settings: { ...DATA.settings, subjectWeeklyTargets: { matematik: 300 } } };
+    expect(mergeBackup(device, V2, 'merge').settings.subjectWeeklyTargets).toEqual({ matematik: 300, fizik: 90 });
+    expect('subjectWeeklyTargets' in mergeBackup(DATA, DATA, 'merge').settings).toBe(false);
+    expect(mergeBackup(device, V2, 'replace').settings.subjectWeeklyTargets).toEqual({ matematik: 480, fizik: 90 });
+  });
+});

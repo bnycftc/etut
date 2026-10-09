@@ -66,13 +66,15 @@ describe('CSV rows', () => {
           pauses: [],
           durationMs: 1_800_000,
           source: 'timer',
+          questions: 25,
         },
       ],
       LABELS,
     );
+    // Last column: solved questions, empty when not given.
     expect(rows).toEqual([
-      ['2026-10-01', '2026-10-01 10:00', '2026-10-01 10:30', 'Matematik', null, 'sayaç', 30, 1800],
-      ['2026-10-02', '2026-10-02 10:00', '2026-10-02 11:00', 'Fizik', 'Basınç', 'elle', 59, 3599],
+      ['2026-10-01', '2026-10-01 10:00', '2026-10-01 10:30', 'Matematik', null, 'sayaç', 30, 1800, 25],
+      ['2026-10-02', '2026-10-02 10:00', '2026-10-02 11:00', 'Fizik', 'Basınç', 'elle', 59, 3599, null],
     ]);
   });
 

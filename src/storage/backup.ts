@@ -7,6 +7,7 @@
 import type { BackupData, BackupExam, BackupSettings, BackupTopicProgress } from '../domain/backup';
 import { net, totalNet } from '../domain/net';
 import { EXAM_TYPES, type ExamType } from '../domain/profile';
+import { normalizeQuestions } from '../domain/questions';
 import { isTopicStatus } from '../domain/topics';
 import { getDb } from './db';
 import {
@@ -25,6 +26,7 @@ import {
 } from './kv';
 import { getExamMarks, getMockExam, listMockExams } from './mock-exams';
 import { allSessions } from './sessions';
+import { loadSubjectTargets, storeSubjectTargets } from './subject-targets';
 
 function readSettings(): BackupSettings {
   const examDates: Partial<Record<ExamType, string>> = {};
@@ -32,7 +34,7 @@ function readSettings(): BackupSettings {
     const day = loadCustomExamDate(t);
     if (day !== null) examDates[t] = day;
   }
-  return {
+  const settings: BackupSettings = {
     dailyGoalMinutes: loadDailyGoal(),
     pomodoro: loadStoredPomodoroConfig(),
     timerMode: loadStoredTimerMode(),
@@ -40,6 +42,8 @@ function readSettings(): BackupSettings {
     netTargets: loadNetTargets(),
     lastSubject: loadLastSubject(),
   };
+  const subjectWeeklyTargets = loadSubjectTargets();
+  return Object.keys(subjectWeeklyTargets).length === 0 ? settings : { ...settings, subjectWeeklyTargets };
 }
 
 function readExams(): BackupExam[] {
@@ -84,6 +88,7 @@ function writeSettings(s: BackupSettings): void {
   storeNetTargets(s.netTargets);
   if (s.lastSubject === null) clearLastSubject();
   else storeLastSubject(s.lastSubject);
+  storeSubjectTargets(s.subjectWeeklyTargets ?? {});
 }
 
 /**
@@ -99,8 +104,8 @@ export function writeBackupData(data: BackupData): void {
     );
     const insertSession = db.prepareSync(
       `INSERT INTO sessions
-         (id, subject_id, topic_id, started_at, ended_at, pauses, duration_ms, source, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, subject_id, topic_id, started_at, ended_at, pauses, duration_ms, source, created_at, questions)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertExam = db.prepareSync(
       `INSERT INTO mock_exams
@@ -129,6 +134,7 @@ export function writeBackupData(data: BackupData): void {
           s.durationMs,
           s.source,
           s.endedAt,
+          normalizeQuestions(s.questions),
         );
       }
       for (const e of data.exams) {

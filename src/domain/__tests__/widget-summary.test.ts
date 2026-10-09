@@ -176,3 +176,70 @@ describe('widgetTimeline', () => {
     }
   });
 });
+
+describe('widgetTimeline: exam countdown', () => {
+  const exam = { examType: 'YKS' as const, day: '2027-06-19' };
+  // 7 Oct 2026 → 19 Jun 2027.
+  const LEFT_TODAY = 255;
+  const leftOn = (day: DayKey) => LEFT_TODAY - Math.round((dayStartMs(day) - dayStartMs(TODAY)) / (24 * HOUR));
+
+  it('idle: one less day at every midnight, for a month, and no number once it can not be sure', () => {
+    const entries = widgetTimeline({ now: NOW, savedTotal: () => 0, active: null, goalMinutes: 60, exam });
+    expect(entries.length).toBeLessThanOrEqual(MAX_WIDGET_ENTRIES);
+    expect(entries[0].countdown).toEqual({ examType: 'YKS', daysLeft: LEFT_TODAY });
+    // At every moment of the next 40 days the entry in effect shows the right number, or none.
+    let looksShown = 0;
+    for (let t = NOW; t < NOW + 40 * 24 * HOUR; t += 3 * HOUR) {
+      const shown = [...entries].reverse().find((e) => e.at <= t)!;
+      if (shown.countdown) {
+        expect(shown.countdown.daysLeft).toBe(leftOn(istanbulDayKey(t)));
+        looksShown++;
+      }
+    }
+    // Shown the rest of today (4 looks of 3 h) and the 29 whole days up to the 30th midnight; from
+    // that last entry on, which stays in effect for good, it is gone.
+    expect(looksShown).toBe(4 + 29 * 8);
+    expect(entries[entries.length - 1].countdown).toBeNull();
+    // The streak still settles exactly as without a date.
+    expect(entries[entries.length - 1]).toMatchObject({ streakDays: 0, todayMs: 0 });
+  });
+
+  it('exam day says 0, after it there is no countdown', () => {
+    const near = { examType: 'LGS' as const, day: '2026-10-08' };
+    const entries = widgetTimeline({ now: NOW, savedTotal: () => 0, active: null, goalMinutes: null, exam: near });
+    expect(entries[0].countdown).toEqual({ examType: 'LGS', daysLeft: 1 });
+    expect(entries.find((e) => e.at === midnight(TODAY, 1))?.countdown).toEqual({ examType: 'LGS', daysLeft: 0 });
+    expect(entries.find((e) => e.at === midnight(TODAY, 2))?.countdown).toBeNull();
+    // A passed date: no countdown and the usual short idle timeline.
+    const passed = widgetTimeline({
+      now: NOW,
+      savedTotal: () => 0,
+      active: null,
+      goalMinutes: null,
+      exam: { examType: 'YKS', day: '2026-06-20' },
+    });
+    expect(passed.every((e) => !e.countdown)).toBe(true);
+    expect(passed).toHaveLength(5);
+  });
+
+  it('without a date nothing changes', () => {
+    const entries = widgetTimeline({ now: NOW, savedTotal: () => 0, active: null, goalMinutes: 60, exam: null });
+    expect(entries).toHaveLength(5);
+    expect(entries.every((e) => !e.countdown)).toBe(true);
+  });
+
+  it('running pomodoro: the budget still holds; the number is right while the next midnight is covered', () => {
+    const start = dayStartMs(TODAY) + 8 * HOUR;
+    const active = startSession('p', 'fizik', start, { pomodoro: DEFAULT_POMODORO });
+    const entries = widgetTimeline({ now: start, savedTotal: () => 0, active, goalMinutes: 60, exam });
+    expect(entries.length).toBeLessThanOrEqual(MAX_WIDGET_ENTRIES);
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      const nextAt = entries[i + 1]?.at ?? Number.POSITIVE_INFINITY;
+      if (nextAt <= dayStartMs(addDays(e.day, 1))) expect(e.countdown?.daysLeft).toBe(leftOn(e.day));
+      else expect(e.countdown).toBeNull();
+    }
+    // After the first midnight it says one day less.
+    expect(entries.find((e) => e.at === midnight(TODAY, 1))?.countdown?.daysLeft).toBe(LEFT_TODAY - 1);
+  });
+});

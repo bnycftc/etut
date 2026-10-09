@@ -85,3 +85,44 @@ describe('database migrations', () => {
     db.close();
   });
 });
+
+describe('migration 6: solved question count on sessions', () => {
+  it('a v5 database with sessions gets the column; old rows read as "not given", new ones keep a count', () => {
+    const db = new DatabaseSync(':memory:');
+    db.exec('PRAGMA foreign_keys = ON');
+    migrate(db, 5);
+    db.exec(`
+      INSERT INTO sessions (id, subject_id, topic_id, started_at, ended_at, pauses, duration_ms, created_at, source)
+        VALUES ('s1', 'fizik', 'tyt.fizik.basinc', 1000, 61000, '[]', 60000, 61000, 'timer'),
+               ('s2', 'kimya', NULL, 70000, 130000, '[]', 60000, 130000, 'manual');
+      INSERT INTO sync_outbox (local_id, payload, attempts, next_attempt_at, last_error, created_at)
+        VALUES ('s1', '{}', 0, 0, NULL, 1);
+    `);
+
+    migrate(db, MIGRATIONS.length);
+
+    expect(MIGRATIONS.length).toBe(6);
+    expect((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(6);
+    // Nothing else changed in the rows that were there.
+    expect(db.prepare('SELECT id, subject_id, topic_id, duration_ms, source, questions FROM sessions ORDER BY id').all()).toEqual([
+      { id: 's1', subject_id: 'fizik', topic_id: 'tyt.fizik.basinc', duration_ms: 60000, source: 'timer', questions: null },
+      { id: 's2', subject_id: 'kimya', topic_id: null, duration_ms: 60000, source: 'manual', questions: null },
+    ]);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM sync_outbox').get()).toEqual({ n: 1 });
+
+    // What storage/report.ts and storage/sessions.ts then do.
+    db.prepare('UPDATE sessions SET questions = ? WHERE id = ?').run(40, 's1');
+    db.exec(`
+      INSERT INTO sessions (id, subject_id, topic_id, started_at, ended_at, pauses, duration_ms, source, created_at, questions)
+        VALUES ('s3', 'fizik', NULL, 200000, 260000, '[]', 60000, 'timer', 260000, 12);
+    `);
+    expect(
+      db.prepare('SELECT SUM(duration_ms) AS ms, SUM(questions) AS questions FROM sessions WHERE subject_id = ?').get('fizik'),
+    ).toEqual({ ms: 120000, questions: 52 });
+    // A subject without counts sums to NULL (read as 0).
+    expect(db.prepare('SELECT SUM(questions) AS questions FROM sessions WHERE subject_id = ?').get('kimya')).toEqual({
+      questions: null,
+    });
+    db.close();
+  });
+});

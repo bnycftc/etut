@@ -24,6 +24,7 @@ const ICONS = {
   share: { ios: 'square.and.arrow.up', android: 'ios_share', web: 'ios_share' },
   chevron: { ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' },
   server: { ios: 'server.rack', android: 'dns', web: 'dns' },
+  report: { ios: 'list.clipboard', android: 'assignment', web: 'assignment' },
 } as const satisfies Record<string, SymbolViewProps['name']>;
 
 export type IconName = keyof typeof ICONS;

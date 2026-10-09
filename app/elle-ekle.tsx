@@ -12,6 +12,7 @@ import {
   type TimeSpan,
   validateManualEntry,
 } from '@/domain/manual-entry';
+import { MAX_SESSION_QUESTIONS, parseQuestionCount } from '@/domain/questions';
 import { defaultSubject, subjectsFor } from '@/domain/subjects';
 import { useAppState, useStored } from '@/state/app-state';
 import { newId } from '@/storage/db';
@@ -49,6 +50,8 @@ export default function ManualEntryScreen() {
   const [startM, setStartM] = useState('');
   const [durH, setDurH] = useState('');
   const [durM, setDurM] = useState('');
+  const [questionsText, setQuestionsText] = useState('');
+  const [questionsError, setQuestionsError] = useState(false);
   const [error, setError] = useState<ManualEntryError | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -64,7 +67,13 @@ export default function ManualEntryScreen() {
       setError('invalid');
       return;
     }
-    const input = { subjectId, topicId, startMs, durationMs };
+    const questions = parseQuestionCount(questionsText);
+    setQuestionsError(!questions.ok);
+    if (!questions.ok) {
+      setError(null);
+      return;
+    }
+    const input = { subjectId, topicId, startMs, durationMs, questions: questions.value };
     const existing: TimeSpan[] = sessionsOverlapping(startMs, startMs + durationMs);
     if (active !== null) existing.push({ startedAt: active.startedAt, endedAt: now });
     const problem = validateManualEntry(input, existing, now);
@@ -79,6 +88,7 @@ export default function ManualEntryScreen() {
     setStartM('');
     setDurH('');
     setDurM('');
+    setQuestionsText('');
   };
 
   return (
@@ -170,6 +180,22 @@ export default function ManualEntryScreen() {
           />
         </Row>
         <Label variant="small">{tr.manual.limits}</Label>
+
+        <Row>
+          <Field
+            testID="manual-questions"
+            label={tr.questions.manualLabel}
+            value={questionsText}
+            onChange={setQuestionsText}
+            maxLength={4}
+            placeholder={tr.questions.placeholder}
+          />
+        </Row>
+        {questionsError ? (
+          <Label testID="manual-questions-error" variant="small" style={{ color: c.danger }}>
+            {tr.questions.invalid(MAX_SESSION_QUESTIONS)}
+          </Label>
+        ) : null}
       </Card>
 
       {error !== null ? (
@@ -197,7 +223,10 @@ export default function ManualEntryScreen() {
                   {tr.manual.when(formatDay(istanbulDayKey(s.startedAt)), hours, minutes)}
                 </Label>
               </View>
-              <Label>{formatDuration(s.durationMs)}</Label>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Label>{formatDuration(s.durationMs)}</Label>
+                {s.questions !== undefined ? <Label variant="small">{tr.questions.count(s.questions)}</Label> : null}
+              </View>
               <Tag title={tr.manualTag} />
             </Row>
             {confirmingId === s.id ? (

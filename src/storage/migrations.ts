@@ -81,4 +81,8 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX IF NOT EXISTS sync_outbox_next_attempt_at ON sync_outbox (next_attempt_at);
   `,
+  // 6: optional solved question count of a session (domain/questions.ts); NULL = not given.
+  `
+  ALTER TABLE sessions ADD COLUMN questions INTEGER;
+  `,
 ];

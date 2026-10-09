@@ -68,7 +68,16 @@ describe('widget props', () => {
       goalFrom: null,
       goalTo: null,
       streakLine: 'Seri: 3 gün',
+      countdownLine: null,
     });
+  });
+
+  it('exam countdown line: days left, the exam day, and none', () => {
+    expect(todayWidgetProps({ ...base, countdown: { examType: 'YKS', daysLeft: 255 } }).countdownLine).toBe('YKS’ye 255 gün');
+    expect(todayWidgetProps({ ...base, countdown: { examType: 'DIGER', daysLeft: 3 } }).countdownLine).toBe('Sınavına 3 gün');
+    expect(todayWidgetProps({ ...base, countdown: { examType: 'LGS', daysLeft: 0 } }).countdownLine).toBe('Sınav bugün');
+    expect(todayWidgetProps({ ...base, countdown: null }).countdownLine).toBeNull();
+    expect(emptyWidgetProps().countdownLine).toBeNull();
   });
 
   it('counting: the widget draws the clock and the goal bar from ranges', () => {

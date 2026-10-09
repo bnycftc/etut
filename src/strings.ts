@@ -1378,4 +1378,98 @@ export const tr = {
     subject: (version: string, build: string, os: string) => `Etüt geri bildirim · sürüm ${version} (${build}) · ${os}`,
     failed: (address: string) => `E-posta uygulaması açılamadı. Adresimiz: ${address}`,
   },
+
+  /** Optional solved question count of a session. Own numbers only, never a ranking. */
+  questions: {
+    finishLabel: 'Kaç soru çözdün? (isteğe bağlı)',
+    manualLabel: 'Çözülen soru (isteğe bağlı)',
+    placeholder: 'ör. 40',
+    save: 'Kaydet',
+    saved: (n: number) => `${n} soru kaydedildi.`,
+    cleared: 'Soru sayısı silindi.',
+    invalid: (max: number) => `0 ile ${max} arasında bir tam sayı gir.`,
+    count: (n: number) => `${n} soru`,
+    weekTotal: (n: number) => `Çözülen soru: ${n}`,
+    byDay: 'Günlere göre soru',
+    byDayA11y: (items: string) => `Günlere göre çözülen soru. ${items}`,
+    dayItem: (day: string, n: number) => `${day} ${n}`,
+    csvHeader: 'Soru',
+  },
+
+  /** Subject report card ("ders karnesi"): time, topics and nets of one subject together. */
+  report: {
+    title: 'Ders karnesi',
+    titleFor: (subject: string) => `${subject} karnesi`,
+    open: 'Ders karnesi',
+    openFor: (subject: string) => `${subject} karnesini aç`,
+    rowA11y: (subject: string, duration: string, percent: number) =>
+      `${subject}, ${duration}, yüzde ${percent}. Ders karnesini açar.`,
+    intro: 'Bu dersteki süren, konuların ve deneme netlerin bir arada.',
+    pickSubject: 'Ders',
+    timeTitle: 'Çalışma süresi',
+    today: 'Bugün',
+    week: 'Bu hafta',
+    total: 'Toplam',
+    questions: (today: number, week: number, total: number) =>
+      `Çözülen soru: bugün ${today} · bu hafta ${week} · toplam ${total}`,
+    trendTitle: 'Son 8 hafta',
+    trendEmpty: 'Son 8 haftada bu derste kayıtlı çalışma yok.',
+    topicsTitle: 'Konular',
+    done: (n: number) => `Bitti: ${n}`,
+    review: (n: number) => `Tekrar lazım: ${n}`,
+    started: (n: number) => `Çalışıldı, işaretlenmedi: ${n}`,
+    untouched: (n: number) => `Dokunulmamış: ${n}`,
+    reviewList: 'Tekrar bekleyen konular',
+    untouchedShow: (n: number) => `Dokunulmamış konuları göster (${n})`,
+    untouchedHide: 'Dokunulmamış konuları gizle',
+    noTopics: 'Bu ders için konu listesi yok.',
+    openTopics: 'Konuları işaretle',
+    examsTitle: 'Deneme netleri',
+    examsEmpty: 'Bu ders için henüz deneme neti yok. Deneme ekleyince netlerin burada görünür.',
+    sectionTitle: (paper: string, section: string) => `${paper} · ${section}`,
+    geometryNote: 'Geometri soruları Matematik testinin içinde; netler o testten.',
+    missedTitle: 'En çok yanlış yaptığın konular',
+    missedEmpty: 'Deneme analizinde bu dersten henüz konu işaretlemedin.',
+    missedRow: (wrong: number, blank: number, time: string) => `${wrong} yanlış · ${blank} boş · çalıştığın: ${time}`,
+    noTime: 'henüz süre yok',
+  },
+
+  /** Optional weekly target per subject. No reminder or notification is tied to it. */
+  subjectTargets: {
+    title: 'Haftalık hedef',
+    stepper: 'Haftalık hedef',
+    off: 'Yok',
+    progress: (done: string, target: string, percent: number) => `${done} / ${target} · %${percent}`,
+    reached: 'Bu haftaki hedef tamam.',
+    left: (left: string) => `Hedefe ${left} kaldı.`,
+    info: 'Yalnız senin planın: hatırlatıcı ya da bildirim yok.',
+    weeklyTitle: 'Ders hedefleri',
+    hint: 'Bir dersin karnesinden ona haftalık hedef koyabilirsin.',
+    barLabel: (subject: string) => `${subject} haftalık hedefi`,
+  },
+
+  /** Monthly calendar on the weekly screen. */
+  monthly: {
+    title: 'Aylık görünüm',
+    prev: '‹ Önceki ay',
+    next: 'Sonraki ay ›',
+    month: (year: number, month: number) => `${months[month - 1] ?? ''} ${year}`,
+    total: (duration: string) => `Toplam: ${duration}`,
+    studyDays: (n: number, of: number) => `Çalıştığın gün: ${n}/${of}`,
+    restDays: (n: number) => `Ara verdiğin gün: ${n}`,
+    best: (day: string, duration: string) => `En çok: ${day} · ${duration}`,
+    average: (duration: string) => `Çalıştığın günlerde ortalama: ${duration}`,
+    empty: 'Bu ay kayıtlı çalışma yok.',
+    legend: 'Renk koyulaştıkça o gün daha çok çalışmışsın.',
+    levels: ['Çalışma yok', '1 saatten az', '1–3 saat', '3–6 saat', '6 saat ve üstü'],
+    legendA11y: (items: string) => `Renk açıklaması: ${items}`,
+    cell: (date: string, duration: string) => `${date}: ${duration}`,
+    cellNone: (date: string) => `${date}: çalışma yok`,
+    cellFuture: (date: string) => `${date}: henüz gelmedi`,
+  },
+
+  /** Exam countdown line on the Home Screen widget (the days text is `countdown.days`). */
+  widgetCountdown: {
+    today: 'Sınav bugün',
+  },
 } as const;

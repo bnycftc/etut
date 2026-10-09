@@ -1,3 +1,4 @@
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -9,7 +10,7 @@ import { loadLastSubject } from '@/storage/kv';
 import { topicTotals } from '@/storage/sessions';
 import { loadTopicStatuses, setTopicStatus } from '@/storage/topics';
 import { tr } from '@/strings';
-import { Card, Chip, ChipRow, EmptyState, Label, ProgressBar, Row, Screen } from '@/ui/components';
+import { Button, Card, Chip, ChipRow, EmptyState, Label, ProgressBar, Row, Screen } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
 
 /** Topic tracking: time per topic, "bitti / tekrar lazım" and progress per subject. */
@@ -20,7 +21,10 @@ export default function TopicsScreen() {
   const subjects = subjectsFor(examType, yksArea).filter(
     (id) => topicGroupsForSubject(examType, yksArea, id).length > 0,
   );
+  // Opened from a report card: start on its subject.
+  const params = useLocalSearchParams<{ subject?: string }>();
   const [pickedSubject, setSubjectId] = useState<string | null>(() => {
+    if (typeof params.subject === 'string' && subjects.includes(params.subject)) return params.subject;
     const last = loadLastSubject();
     return last !== null && subjects.includes(last) ? last : (subjects[0] ?? null);
   });
@@ -72,6 +76,12 @@ export default function TopicsScreen() {
         </Label>
         <ProgressBar ratio={progress.total === 0 ? 0 : progress.done / progress.total} />
         {progress.review > 0 ? <Label variant="muted">{tr.topics.reviewCount(progress.review)}</Label> : null}
+        <Button
+          testID="topics-open-report"
+          kind="secondary"
+          title={tr.report.openFor(tr.subject(subjectId))}
+          onPress={() => router.push({ pathname: '/karne/[subject]', params: { subject: subjectId } })}
+        />
       </Card>
 
       {groups.map((g) => {
