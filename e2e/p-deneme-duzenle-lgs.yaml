@@ -138,9 +138,8 @@ tags:
     id: exam-wrong-matematik
 - extendedWaitUntil:
     visible:
-      id: exam-wrong-matematik
-      focused: true
-    timeout: 5000
+      id: exam-keyboard-bar
+    timeout: 10000
 # The field holds one or two digits; erase generously.
 - eraseText: 6
 - inputText: "0"

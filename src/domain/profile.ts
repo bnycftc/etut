@@ -38,6 +38,13 @@ export function isSoloOnly(birthYear: number, currentYear: number): boolean {
 }
 
 /** Newest year first; nothing is pre-selected by the UI. */
+/**
+ * Oldest age listed before "Daha önceki yıllar" is tapped on the first-launch screen. Only keeps
+ * that screen short: it is not an age hint (K-15), every year down to BIRTH_YEAR_MAX_AGE stays one
+ * tap away and nothing is pre-selected.
+ */
+export const BIRTH_YEAR_FIRST_PAGE_MAX_AGE = 30;
+
 export function birthYearOptions(currentYear: number): number[] {
   const years: number[] = [];
   for (let y = currentYear - BIRTH_YEAR_MIN_AGE; y >= currentYear - BIRTH_YEAR_MAX_AGE; y--) {

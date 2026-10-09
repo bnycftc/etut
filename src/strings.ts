@@ -334,6 +334,7 @@ export const tr = {
       'Etüt çalışma süreni ve deneme netlerini tutar. Birkaç soruyla başlayalım; cevapların bu cihazda saklanır, bize gönderilmez.',
     birthYearTitle: 'Doğum yılın',
     birthYearHint: 'Yalnız yılı soruyoruz.',
+    olderYears: 'Daha önceki yıllar',
     examTitle: 'Hazırlandığın sınav',
     areaTitle: 'Alanın',
     start: 'Başla',

@@ -5,7 +5,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { istanbulYear } from '@/domain/istanbul-day';
 import type { YksArea } from '@/domain/net';
-import { birthYearOptions, buildProfile, EXAM_TYPES, type ExamType, YKS_AREAS } from '@/domain/profile';
+import {
+  BIRTH_YEAR_FIRST_PAGE_MAX_AGE,
+  birthYearOptions,
+  buildProfile,
+  EXAM_TYPES,
+  type ExamType,
+  YKS_AREAS,
+} from '@/domain/profile';
 import { useAppState } from '@/state/app-state';
 import { storeDailyGoal } from '@/storage/kv';
 import { tr } from '@/strings';
@@ -23,6 +30,7 @@ export default function OnboardingScreen() {
   const c = usePalette();
   const currentYear = istanbulYear(Date.now());
   const [birthYear, setBirthYear] = useState<number | null>(null);
+  const [allYears, setAllYears] = useState(false);
   const [examType, setExamType] = useState<ExamType | null>(null);
   const [yksArea, setYksArea] = useState<YksArea | null>(null);
   const [goal, setGoal] = useState<number | null>(null);
@@ -58,24 +66,32 @@ export default function OnboardingScreen() {
         <Card>
           <Label variant="heading">{tr.onboarding.birthYearTitle}</Label>
           <Label variant="small">{tr.onboarding.birthYearHint}</Label>
-          <View style={[styles.yearBox, { borderColor: c.border }]}>
-            <ScrollView nestedScrollEnabled>
-              <ChipRow>
-                {birthYearOptions(currentYear).map((y) => (
-                  <Chip
-                    key={y}
-                    testID={`birth-year-${y}`}
-                    title={String(y)}
-                    selected={y === birthYear}
-                    onPress={() => {
-                      setBirthYear(y);
-                      setBlocked(false);
-                    }}
-                  />
-                ))}
-              </ChipRow>
-            </ScrollView>
-          </View>
+          {/* Part of the page, not a box that scrolls on its own: a swipe in the middle of the
+              screen then scrolled the year list instead of the page, hiding the cards below. */}
+          <ChipRow>
+            {birthYearOptions(currentYear)
+              .filter((y) => allYears || currentYear - y <= BIRTH_YEAR_FIRST_PAGE_MAX_AGE || y === birthYear)
+              .map((y) => (
+                <Chip
+                  key={y}
+                  testID={`birth-year-${y}`}
+                  title={String(y)}
+                  selected={y === birthYear}
+                  onPress={() => {
+                    setBirthYear(y);
+                    setBlocked(false);
+                  }}
+                />
+              ))}
+          </ChipRow>
+          {allYears ? null : (
+            <Button
+              testID="birth-year-more"
+              kind="secondary"
+              title={tr.onboarding.olderYears}
+              onPress={() => setAllYears(true)}
+            />
+          )}
         </Card>
 
         <Card>
@@ -162,5 +178,4 @@ const styles = StyleSheet.create({
   content: { padding: space.lg, gap: space.lg },
   brand: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   logo: { width: 48, height: 48, borderRadius: 11 },
-  yearBox: { maxHeight: 220, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: space.sm },
 });

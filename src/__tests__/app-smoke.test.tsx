@@ -1208,6 +1208,23 @@ describe('K-17: age declaration after deleting all data', () => {
     expect(memory.profile?.soloOnly).toBe(true);
   });
 
+  it('birth years are part of the page; older ones one tap away; nothing pre-selected (K-15)', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    const year = new Date().getUTCFullYear();
+    expect(screen.getByTestId(`birth-year-${year - 8}`)).toBeTruthy();
+    expect(screen.getByTestId(`birth-year-${year - 30}`)).toBeTruthy();
+    expect(screen.queryByTestId(`birth-year-${year - 31}`)).toBeNull();
+    for (const age of [8, 14, 15, 18, 30]) {
+      expect(screen.getByTestId(`birth-year-${year - age}`).props.accessibilityState).toMatchObject({ selected: false });
+    }
+    fireEvent.press(screen.getByTestId('birth-year-more'));
+    expect(screen.queryByTestId('birth-year-more')).toBeNull();
+    fireEvent.press(screen.getByTestId(`birth-year-${year - 45}`));
+    fireEvent.press(screen.getByText('KPSS'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(memory.profile).toMatchObject({ birthYear: year - 45, examType: 'KPSS' });
+  });
+
   it('2000 → nothing kept; delete; 2012 → kept; delete; 2000 → refused', () => {
     const year = new Date().getUTCFullYear();
     const deleteAll = () => {

@@ -51,9 +51,12 @@ tags:
 - takeScreenshot: b-sayac-03-mola
 - tapOn:
     id: timer-resume
-- assertVisible:
-    id: timer-status
-    text: "Çalışıyorsun"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: timer-status
+      text: "Çalışıyorsun"
+    timeout: 10000
 - takeScreenshot: b-sayac-04-devam
 # Today's total is shown in whole minutes, so keep studying past one minute.
 - extendedWaitUntil:

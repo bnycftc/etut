@@ -104,11 +104,26 @@ tags:
     id: timer-finish
 - assertVisible:
     id: timer-saved
-# Pomodoro: the Live Activity counts the work block down.
+# Pomodoro: the Live Activity counts the work block down. The finish summary above (saved time,
+# optional question count) pushes the timer card down, so scroll to its controls first; a blind
+# tap landed on the tab bar (run 37966317434).
+- scrollUntilVisible:
+    element:
+      id: mode-pomodoro
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
 - tapOn:
     id: mode-pomodoro
+- scrollUntilVisible:
+    element:
+      id: timer-start
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
 - tapOn:
     id: timer-start
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: pomodoro-phase
