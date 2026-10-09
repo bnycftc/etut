@@ -53,4 +53,19 @@ jobs:
               kinds = [x["attributes"].get("certificateType") or x["attributes"].get("profileType")
                        or x["attributes"].get("platform") for x in data]
               print(path.split("?")[0], "HTTP", r.status_code, "count", len(data), sorted(kinds))
+          # Latest uploads of Etüt (App Store Connect app 6818980777): build number, Apple's processing
+          # state and the internal TestFlight state (e.g. IN_BETA_TESTING once testers can install it).
+          r = requests.get("https://api.appstoreconnect.apple.com/v1/builds", headers=auth, timeout=30, params={
+              "filter[app]": "6818980777", "sort": "-uploadedDate", "limit": "3",
+              "include": "buildBetaDetail,preReleaseVersion"})
+          inc = {(x["type"], x["id"]): x["attributes"] for x in r.json().get("included", [])}
+          for b in r.json().get("data", []):
+              rel = b.get("relationships", {})
+              beta = inc.get(("buildBetaDetails", (rel.get("buildBetaDetail", {}).get("data") or {}).get("id")), {})
+              pre = inc.get(("preReleaseVersions", (rel.get("preReleaseVersion", {}).get("data") or {}).get("id")), {})
+              a = b["attributes"]
+              print("build", pre.get("version"), a.get("version"), a.get("processingState"),
+                    "internal:", beta.get("internalBuildState"), "uploaded:", a.get("uploadedDate"), "expired:", a.get("expired"))
+          if not r.ok:
+              print("builds errors:", [(e.get("code"), e.get("title")) for e in r.json().get("errors", [])])
           PY
