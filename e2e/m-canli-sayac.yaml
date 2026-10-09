@@ -1,6 +1,7 @@
 # m. Canlı sayaç (Live Activity: Dynamic Island ve Bildirim Merkezi) + pomodoro geri sayımı
-# Bu akışın yeşil olması Live Activity'nin çizildiğini kanıtlamaz: m-canli-sayac-0x ekran
-# görüntüleri artifact'ta elle incelenmelidir (README).
+# Kilit ekranı görünümünde ders ve durum metni zorunlu denetlenir (boş çizilen Live Activity akışı
+# düşürür). Dynamic Island, mola ve pomodoro görünümleri yalnız ekran görüntüsüyle kanıtlanır:
+# m-canli-sayac-0x görüntüleri artifact'ta elle incelenmelidir (README).
 appId: com.bnycftc.etut
 tags:
   - e2e
@@ -51,15 +52,18 @@ tags:
     timeout: 2000
     optional: true
 - takeScreenshot: m-canli-sayac-02b-izin-sonrasi
-# Best effort: Maestro may not see system (SpringBoard) content, so these checks are optional — a
-# miss is only a warning in the report. The screenshots are the evidence and must be looked at
-# (README, "m-canli-sayac").
-- assertVisible:
-    text: "Fizik"
-    optional: true
-- assertVisible:
-    text: "Çalışıyorsun"
-    optional: true
+# The Lock Screen presentation must show the subject and the status. Maestro does read
+# SpringBoard here: in runs e2e-ios-15-2 and 21-1 both checks passed while the Live Activity was
+# drawn, and in run 13-1 (App Group entitlement lost, the activity drawn empty) both failed. So a
+# blank or missing Live Activity now fails the flow; the screenshots stay the visual evidence.
+- extendedWaitUntil:
+    visible:
+      text: "Fizik"
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      text: "Çalışıyorsun"
+    timeout: 10000
 - swipe:
     start: 50%, 99%
     end: 50%, 20%

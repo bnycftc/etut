@@ -1,0 +1,145 @@
+# p. LGS denemesi ve düzenleme (net = doğru − yanlış/3, yalnız LGS bölümleri)
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+    timeout: 60000
+# An 8th grader (13): LGS, under 15 (no groups tab; the exam form is the same for every age).
+- tapOn:
+    id: "birth-year-${new Date().getFullYear() - 13}"
+- tapOn:
+    id: exam-type-LGS
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: onboarding-start
+    retryTapIfNoChange: true
+- runFlow:
+    file: subflows/ipucu-gec.yaml
+- tapOn:
+    id: tab-exams
+- extendedWaitUntil:
+    visible:
+      id: exams-add
+    timeout: 10000
+- tapOn:
+    id: exams-add
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: exam-kind-LGS
+    timeout: 10000
+# Only the LGS paper is offered, with its own rule.
+- assertNotVisible:
+    id: exam-kind-TYT
+- assertVisible:
+    id: exam-net-rule
+    text: "Net = Doğru − Yanlış ÷ 3"
+# Türkçe (20 soru): 15 doğru, 3 yanlış -> 15 - 3/3 = 14 net. The pad is closed after each field
+# with the form's own "Bitti" (exam-keyboard-done), so every tap hits a settled layout.
+- tapOn:
+    id: exam-correct-turkce
+- inputText: "15"
+- tapOn:
+    id: exam-keyboard-done
+- tapOn:
+    id: exam-wrong-turkce
+- inputText: "3"
+- tapOn:
+    id: exam-keyboard-done
+- assertVisible:
+    id: exam-net-turkce
+    text: "14"
+# Matematik (20 soru, fifth section): 12 doğru, 6 yanlış -> 12 - 6/3 = 10 net.
+- scrollUntilVisible:
+    element:
+      id: exam-correct-matematik
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: exam-correct-matematik
+- inputText: "12"
+- tapOn:
+    id: exam-keyboard-done
+- tapOn:
+    id: exam-wrong-matematik
+- inputText: "6"
+- tapOn:
+    id: exam-keyboard-done
+- assertVisible:
+    id: exam-net-matematik
+    text: "10"
+- assertVisible:
+    id: exam-total-net
+    text: "24"
+- takeScreenshot: p-deneme-lgs-01-form
+- tapOn:
+    id: exam-save
+    retryTapIfNoChange: true
+# Back on the list: the new exam is the first row (LGS, 24 net).
+- scrollUntilVisible:
+    element:
+      id: exam-item-0
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: exam-item-0
+    text: ".*LGS.*"
+- assertVisible:
+    id: exam-item-0
+    text: ".*24 net.*"
+- takeScreenshot: p-deneme-lgs-02-liste
+# Edit: Matematik 6 yanlış -> 0 yanlış, so 14 + 12 = 26 net (same exam, no new row).
+- tapOn:
+    id: exam-item-0
+- scrollUntilVisible:
+    element:
+      id: exam-edit
+    direction: DOWN
+- tapOn:
+    id: exam-edit
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: exam-correct-turkce
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: exam-wrong-matematik
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: exam-wrong-matematik
+- extendedWaitUntil:
+    visible:
+      id: exam-wrong-matematik
+      focused: true
+    timeout: 5000
+# The field holds one or two digits; erase generously.
+- eraseText: 6
+- inputText: "0"
+- tapOn:
+    id: exam-keyboard-done
+- assertVisible:
+    id: exam-net-matematik
+    text: "12"
+- assertVisible:
+    id: exam-total-net
+    text: "26"
+- tapOn:
+    id: exam-save
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: exam-detail-total
+      text: "26"
+    timeout: 10000
+- takeScreenshot: p-deneme-lgs-03-duzenlendi

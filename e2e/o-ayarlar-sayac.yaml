@@ -1,0 +1,151 @@
+# o. Ayarlar → "Sayaç çalışırken": ekranı açık tut kapat/aç, "Çalışmaya devam say" (uzakta kartı yok)
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+- tapOn:
+    id: tab-settings
+# The card sits below the exam, goal and pomodoro cards.
+- scrollUntilVisible:
+    element:
+      id: settings-away-info
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: settings-keep-awake-on
+    selected: true
+- assertVisible:
+    id: settings-away-ask
+    selected: true
+- takeScreenshot: o-ayarlar-sayac-01-varsayilan
+# "Uygulamadan çıkınca": "Çalışmaya devam say".
+- tapOn:
+    id: settings-away-count
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: settings-away-info
+      text: ".*çalışma sayılır.*"
+    timeout: 5000
+- assertVisible:
+    id: settings-away-count
+    selected: true
+- takeScreenshot: o-ayarlar-sayac-02-devam-say
+- tapOn:
+    id: tab-timer
+- extendedWaitUntil:
+    visible:
+      id: subject-matematik
+    timeout: 10000
+- tapOn:
+    id: subject-matematik
+- tapOn:
+    id: timer-start
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      # At least 2 s; a slow CI simulator may poll the clock late.
+      text: "0:(0[2-9]|[1-5][0-9])"
+    timeout: 15000
+# Leave the app (home screen) for longer than the 10 s tolerance.
+- pressKey: Home
+# Maestro has no sleep command: wait for an id that never exists and carry on (optional).
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 15000
+    optional: true
+# Back to the same process (no restart). `permissions: {}` skips launchApp's default permission
+# grant, which can terminate a running app.
+- launchApp:
+    stopApp: false
+    permissions: {}
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+    timeout: 15000
+# Nothing is asked: the time away counted as study and the clock kept running (>= 17 s).
+- assertNotVisible:
+    id: away-credit
+- assertNotVisible:
+    id: away-title
+- assertVisible:
+    id: timer-status
+    text: "Çalışıyorsun"
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: "0:(1[7-9]|[2-5][0-9])|[1-9]:[0-5][0-9]"
+    timeout: 10000
+- takeScreenshot: o-ayarlar-sayac-03-sorulmadi
+# Killed and relaunched after more than 10 s: the cold-start rule follows the setting too.
+- stopApp
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 15000
+    optional: true
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+    timeout: 30000
+- assertNotVisible:
+    id: away-credit
+- assertVisible:
+    id: timer-subject
+    text: "Matematik"
+# At least 30 s: before the kill (>= 17 s) plus the 15 s closed.
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: "0:(3[0-9]|[4-5][0-9])|[1-9]:[0-5][0-9]"
+    timeout: 10000
+- takeScreenshot: o-ayarlar-sayac-04-yeniden-acilis
+- tapOn:
+    id: timer-finish
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: timer-saved
+    timeout: 10000
+# "Ekranı açık tut": off, then on again (the default stays on). Last in the flow on purpose:
+# KNOWN BUG (src/state/__tests__/use-stored-compiler.test.tsx): with the React Compiler a screen
+# re-reads storage only on its first data change after it mounted, so the second tap ("Açık")
+# is stored but the chips may not follow. Until useStored is fixed this part is expected to fail;
+# the away-rule checks above have already run by then.
+- tapOn:
+    id: tab-settings
+- scrollUntilVisible:
+    element:
+      id: settings-away-info
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: settings-away-count
+    selected: true
+- tapOn:
+    id: settings-keep-awake-off
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: settings-keep-awake-off
+      selected: true
+    timeout: 5000
+- tapOn:
+    id: settings-keep-awake-on
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: settings-keep-awake-on
+      selected: true
+    timeout: 5000
+- takeScreenshot: o-ayarlar-sayac-05-ekran-acik

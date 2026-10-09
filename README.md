@@ -217,12 +217,26 @@ paylaşım sayfası), `j-kart-paylas` (çalışma kartı, paylaşım sayfası), 
 (aydınlatma ilk açılıştan, boş durumlar, hakkında, gizlilik),
 `l-hatirlaticilar` (onaydan önce hepsi kapalı; hatırlatıcı aç → tek düğmeli açıklama ekranı;
 sistem izin penceresi açılmaz, uygulama yeniden başlatılır ve hatırlatıcılar kapalı kalır),
-`m-canli-sayac` (ana ekranda Dynamic Island, Bildirim Merkezi'nde kilit ekranı görünümü, mola, pomodoro, bitir).
+`m-canli-sayac` (ana ekranda Dynamic Island, Bildirim Merkezi'nde kilit ekranı görünümü, mola, pomodoro, bitir),
+`o-ayarlar-sayac` (Ayarlar → "Sayaç çalışırken": ekranı açık tut kapat/aç, "Çalışmaya devam say";
+15 sn ana ekran ve öldür-aç sonrası uzakta kartı yok, saat saymaya devam eder; en sondaki
+"Açık"a geri dönüş adımı React Compiler altındaki `useStored` hatası düzelene kadar düşer, bkz.
+`src/state/__tests__/use-stored-compiler.test.tsx`),
+`p-deneme-duzenle-lgs` (13 yaş LGS: yalnız LGS kâğıdı, net = D − Y/3, kaydet ve düzenle).
 İlk açılıştan sonraki tek seferlik ipucu `subflows/ipucu-gec.yaml` ile kapatılır.
-**`m-canli-sayac`'ın yeşil olması Live Activity'nin çizildiğini kanıtlamaz:** Maestro sistem
-(SpringBoard) içeriğini göremeyebilir, bu yüzden oradaki "Fizik"/"Çalışıyorsun" denetimleri isteğe
-bağlıdır (görülmezse yalnız uyarı). `m-canli-sayac-0x` ekran görüntüleri artifact'ta elle
-incelenmeden canlı sayaç doğrulanmış sayılmaz. Maestro'nun XCTest sürücüsü hiçbir akış başlamadan
+**`m-canli-sayac`:** Bildirim Merkezi'ndeki kilit ekranı görünümünde "Fizik" ve "Çalışıyorsun"
+artık zorunlu denetimdir. Maestro SpringBoard içeriğini okuyabiliyor: e2e-ios-15-2 ve 21-1
+çalıştırmalarında Live Activity çizilmişken iki denetim de geçti, App Group yetkisinin kaybolduğu
+13-1'de etkinlik boş çizildi ve ikisi de düştü. Dynamic Island, mola ve pomodoro görünümleri hâlâ
+yalnız `m-canli-sayac-0x` ekran görüntüleriyle kanıtlanır; bunlar artifact'ta elle incelenmelidir.
+**Yedekten geri yükleme E2E'de yok (bilinçli):** içe aktarma dosyayı yalnız sistemin belge seçicisinden
+(`expo-document-picker`, UIDocumentPickerViewController) alır. Simülatörün Dosyalar uygulamasına
+Maestro'dan deterministik dosya koymanın yolu yok (`addMedia` yalnız fotoğraf/video ekler), dışa
+aktarılan dosya da paylaşım sayfasından "Dosyalara Kaydet" ile iOS sürümüne ve dile bağlı sistem
+ekranlarından geçer. Uygulamada test için bir derin bağlantı ya da hazır yedek dosyası (fixture) da
+yok; eklemek üretim koduna yalnız test için bir giriş açmak olur. Birleştir/değiştir/geri al akışları
+bu yüzden Jest'te gerçek depolama katmanıyla (`src/__tests__/app-real-storage.test.tsx`) ve web
+duman testinde (`scripts/test-web.mjs`, dosya seçici Playwright ile beslenir) denenir. Maestro'nun XCTest sürücüsü hiçbir akış başlamadan
 zaman aşımına uğrarsa (`IOSDriverTimeoutException`) akışlar bir kez daha çalıştırılır.
 Derleme adımı uzantının (`PlugIns/ExpoWidgetsTarget.appex`) gömüldüğünü, App Group'u,
 `aps-environment` olmadığını ve uygulama ile uzantıda `PrivacyInfo.xcprivacy` (`1C8F.1`) bulunduğunu da denetler.
