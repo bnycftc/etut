@@ -9,6 +9,7 @@ import { sessionsOverlapping } from '@/storage/sessions';
 import { tr } from '@/strings';
 import { BarChart, Card, Dot, EmptyState, Label, Row, Screen, Tag } from '@/ui/components';
 import { formatDay, formatDuration } from '@/ui/format';
+import { InfoLink } from '@/ui/info-link';
 import { subjectColor } from '@/ui/subject-colors';
 import { usePalette } from '@/ui/theme';
 
@@ -36,6 +37,8 @@ export default function HistoryScreen() {
   );
   const week = totals.slice(-7);
   const listed = [...totals].reverse().filter((t) => t.totalMs > 0);
+  // "Nedir?" once, on the newest day with an "elle" part, not on every card.
+  const firstManualDay = listed.find((t) => (manualByDay.get(t.day) ?? 0) > 0)?.day;
 
   return (
     <Screen>
@@ -77,6 +80,9 @@ export default function HistoryScreen() {
             <Row>
               <Tag title={tr.manualTag} />
               <Label variant="small">{tr.history.manualLine(formatDuration(manualByDay.get(t.day) ?? 0))}</Label>
+              {t.day === firstManualDay ? (
+                <InfoLink testID="history-manual-info" section="elle" term={tr.infoLink.manual} />
+              ) : null}
             </Row>
           ) : null}
           <View style={{ gap: 4 }}>

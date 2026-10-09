@@ -25,6 +25,7 @@ import {
 import { tr } from '../strings';
 import { Button, Card, Chip, ChipRow, Label, Row } from './components';
 import { formatDay } from './format';
+import { InfoLink } from './info-link';
 import { space, usePalette } from './theme';
 
 type Entry = { correct: string; wrong: string };
@@ -191,9 +192,12 @@ export function ExamForm({
               />
             ))}
           </ChipRow>
-          <Label variant="small" testID="exam-net-rule">
-            {tr.exams.netRule(wrongsPerCorrect(kind))}
-          </Label>
+          <Row>
+            <Label variant="small" testID="exam-net-rule">
+              {tr.exams.netRule(wrongsPerCorrect(kind))}
+            </Label>
+            <InfoLink testID="exam-net-info" section="net" term={tr.infoLink.net} />
+          </Row>
 
           <Label variant="heading">{tr.exams.scope}</Label>
           <ChipRow>

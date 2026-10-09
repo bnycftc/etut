@@ -38,10 +38,12 @@ import {
   Screen,
   Tag,
 } from '@/ui/components';
+import { BackupNudge } from '@/ui/backup-reminder';
 import { announce, hapticSuccess, hapticTap } from '@/ui/feedback';
 import { formatDuration } from '@/ui/format';
 import { GoalSheet } from '@/ui/goal-sheet';
 import { Icon } from '@/ui/icon';
+import { InfoLink } from '@/ui/info-link';
 import { subjectColor } from '@/ui/subject-colors';
 import { MAX_FONT_SCALE, space, usePalette } from '@/ui/theme';
 import { TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
@@ -96,7 +98,7 @@ export default function TimerScreen() {
   };
   const pomodoroConfig = useStored(`pomodoro|${app.dataVersion}`, loadPomodoroConfig);
 
-  const { today, todayTotal, todayManual, comparison, goal, streak } = useStudyStats(now);
+  const { today, todayTotal, todayManual, comparison, goal, streak, studyDays } = useStudyStats(now);
   const customExamDay = useStored(`examDate|${examType}|${app.dataVersion}`, () =>
     loadCustomExamDate(examType),
   );
@@ -205,7 +207,12 @@ export default function TimerScreen() {
             <Label testID="countdown" style={{ fontWeight: '700', flex: 1, color: c.accent }}>
               {daysLeft === 0 ? tr.countdown.today : tr.countdown.days(examType, daysLeft)}
             </Label>
-            {examDate.estimated ? <Tag title={tr.countdown.estimated} /> : null}
+            {examDate.estimated ? (
+              <>
+                <Tag title={tr.countdown.estimated} />
+                <InfoLink testID="countdown-info" section="tarih" term={tr.infoLink.estimated} />
+              </>
+            ) : null}
           </Row>
         ) : daysLeft !== null ? (
           // The date (built-in estimate or the student's) is behind us: say so instead of hiding it.
@@ -265,6 +272,7 @@ export default function TimerScreen() {
               <Label testID="streak" style={{ color: c.streak, fontWeight: '700' }}>
                 {tr.goal.streak(goalStreak.streak.current)}
               </Label>
+              <InfoLink testID="streak-info" section="seri" term={tr.infoLink.streak} />
             </View>
           ) : (
             <Button
@@ -477,6 +485,8 @@ export default function TimerScreen() {
           <ListRow icon="share" testID="open-share" title={tr.share.open} onPress={() => router.push('/paylas')} />
         ) : null}
       </Card>
+
+      {active === null ? <BackupNudge studyDays={studyDays} now={now} /> : null}
 
       <Card>
         <Label variant="heading">{tr.compare.title}</Label>

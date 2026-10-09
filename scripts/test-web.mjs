@@ -363,6 +363,7 @@ async function runScenario(page, baseUrl) {
   const backup = JSON.parse(readFileSync(backupPath, 'utf8'));
   check(backup.format === 'etut-yedek' && backup.schemaVersion === 1, 'backup file has the wrong format');
   check(backup.sessions.length === 1 && backup.exams.length === 1, 'backup must hold the session and the exam');
+  await byId('backup-last').filter({ hasText: 'Son yedek: bugün' }).waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS });
   const [csvDownload] = await Promise.all([
     page.waitForEvent('download', { timeout: STEP_TIMEOUT_MS }),
     byId('csv-sessions').click(),
@@ -381,6 +382,10 @@ async function runScenario(page, baseUrl) {
   await byId('about-doc-gizlilik').click();
   await visible('legal-gizlilik');
   await screenshot('legal-gizlilik');
+  await page.goBack();
+  await byId('about-open-guide').click();
+  await visible('guide-section-sayac');
+  await screenshot('guide');
   await page.goBack();
   await byId('about-licenses').click();
   await visible('licenses-screen');

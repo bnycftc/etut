@@ -46,6 +46,8 @@ const memory: {
   keepAwakeSetting: boolean;
   awayRule: 'ask' | 'count';
   replaceUndo: { createdAt: number; text: string } | null;
+  lastBackupAt: number | null;
+  backupNudgeDismissedAt: number | null;
   /** Calls of `sessionsOverlapping` (how often the stored sessions are read). */
   sessionLoads: number;
   /** System surfaces (src/system adapters, replaced below). */
@@ -83,6 +85,8 @@ const memory: {
   keepAwakeSetting: true,
   awayRule: 'ask',
   replaceUndo: null,
+  lastBackupAt: null,
+  backupNudgeDismissedAt: null,
   sessionLoads: 0,
   permission: 'undetermined',
   grantOnRequest: true,
@@ -208,6 +212,17 @@ jest.mock('../storage/kv', () => ({
   storeTipsSeen: () => {
     memory.tipsSeen = true;
   },
+  clearTipsSeen: () => {
+    memory.tipsSeen = false;
+  },
+  loadLastBackupAt: () => memory.lastBackupAt,
+  storeLastBackupAt: (ms: number) => {
+    memory.lastBackupAt = ms;
+  },
+  loadBackupNudgeDismissedAt: () => memory.backupNudgeDismissedAt,
+  storeBackupNudgeDismissedAt: (ms: number) => {
+    memory.backupNudgeDismissedAt = ms;
+  },
   loadKeepAwake: () => memory.keepAwakeSetting,
   storeKeepAwake: (on: boolean) => {
     memory.keepAwakeSetting = on;
@@ -222,6 +237,8 @@ jest.mock('../storage/kv', () => ({
   },
   wipeKeyValueStore: () => {
     memory.replaceUndo = null;
+    memory.lastBackupAt = null;
+    memory.backupNudgeDismissedAt = null;
     memory.keepAwakeSetting = true;
     memory.awayRule = 'ask';
     memory.profile = null;
@@ -434,6 +451,8 @@ beforeEach(() => {
   memory.keepAwakeSetting = true;
   memory.awayRule = 'ask';
   memory.replaceUndo = null;
+  memory.lastBackupAt = null;
+  memory.backupNudgeDismissedAt = null;
   mockKeepAwake.clear();
   memory.sessionLoads = 0;
   memory.permission = 'undetermined';

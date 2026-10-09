@@ -20,8 +20,9 @@ import { istanbulDayKey, istanbulTimeOfDay } from '@/domain/istanbul-day';
 import { useAppState, useStored } from '@/state/app-state';
 import { readBackupData } from '@/storage/backup';
 import { pickTextFile, type ShareResult, shareTextFile } from '@/storage/file-io';
-import { loadReplaceUndo, storeReplaceUndo } from '@/storage/kv';
+import { loadReplaceUndo, storeLastBackupAt, storeReplaceUndo } from '@/storage/kv';
 import { tr } from '@/strings';
+import { LastBackupLabel } from '@/ui/backup-reminder';
 import { Button, Card, Chip, ChipRow, Label, Screen } from '@/ui/components';
 import { formatDay } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
@@ -98,14 +99,17 @@ export default function BackupScreen() {
         setError(tr.backup.exportCheckFailed);
         return;
       }
-      report(
-        await shareTextFile(backupFileName(today), json, {
-          mimeType: 'application/json',
-          uti: 'public.json',
-          dialogTitle: tr.backup.shareTitle,
-        }),
-        check.skippedSessions > 0 ? tr.backup.exportSkipped(check.skippedSessions) : tr.backup.exported,
-      );
+      const result = await shareTextFile(backupFileName(today), json, {
+        mimeType: 'application/json',
+        uti: 'public.json',
+        dialogTitle: tr.backup.shareTitle,
+      });
+      // "Son yedek": the file was made and handed to the share sheet (where it went is not known).
+      if (result === 'shared') {
+        storeLastBackupAt(Date.now());
+        notifyDataChanged('settings');
+      }
+      report(result, check.skippedSessions > 0 ? tr.backup.exportSkipped(check.skippedSessions) : tr.backup.exported);
     });
 
   const pick = () =>
@@ -231,6 +235,7 @@ export default function BackupScreen() {
       ) : null}
 
       <Card>
+        <LastBackupLabel testID="backup-last" note />
         <Button testID="backup-export" title={tr.backup.export} disabled={busy} onPress={exportBackup} />
         <Button testID="backup-import" kind="secondary" title={tr.backup.import} disabled={busy} onPress={pick} />
       </Card>
