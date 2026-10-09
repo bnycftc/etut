@@ -279,7 +279,14 @@ export default function BackupScreen() {
           ) : (
             <>
               <Label testID="backup-replace-sure" style={{ color: c.danger }}>
-                {tr.backupSafety.replaceSure(replaceSure.sessions, replaceSure.exams, replaceSure.topics)}
+                {undoable
+                  ? tr.backupSafety.replaceSureKeepsUndo(
+                      replaceSure.sessions,
+                      replaceSure.exams,
+                      replaceSure.topics,
+                      formatMoment(undo.createdAt),
+                    )
+                  : tr.backupSafety.replaceSure(replaceSure.sessions, replaceSure.exams, replaceSure.topics)}
               </Label>
               <Button testID="backup-replace-yes" kind="danger" title={tr.backupSafety.replaceYes} onPress={confirmImport} />
               <Button

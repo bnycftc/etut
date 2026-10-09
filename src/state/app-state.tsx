@@ -12,6 +12,7 @@ import {
   type BackupData,
   type BackupFile,
   buildBackupFile,
+  canUndoReplace,
   type ImportMode,
   importedProfile,
   mergeBackup,
@@ -106,7 +107,8 @@ interface AppStateValue {
   createBackup: (appVersion: string) => BackupFile;
   /**
    * Writes the merged/replaced data and applies the K-17 profile rule. Before a replace, the data
-   * on this device is kept as a copy for `undoReplace`.
+   * on this device is kept as a copy for `undoReplace`, unless a copy from an earlier replace can
+   * still be undone: that one is kept (the data in between came from a file the student has).
    */
   importBackup: (file: BackupFile, mode: ImportMode) => BackupCounts;
   /** Puts back the data from before the last replace; `null` = no copy (or an unreadable one). */
@@ -298,9 +300,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     createBackup: (appVersion) => buildBackupFile(readBackupData(), profile, Date.now(), appVersion),
     importBackup: (file, mode) => {
       const current = readBackupData();
-      if (mode === 'replace') {
-        // Everything here is about to go: keep a copy on this device so "Geri al" can bring it back.
-        const now = Date.now();
+      const now = Date.now();
+      const undo = loadReplaceUndo();
+      // Everything here is about to go: keep a copy on this device so "Geri al" can bring it back.
+      // A second replace within the window keeps the first copy: "Geri al" always goes back to the
+      // data from before the first replace, which no file may hold.
+      if (mode === 'replace' && (undo === null || !canUndoReplace(undo.createdAt, now))) {
         storeReplaceUndo({ createdAt: now, text: serializeBackup(buildBackupFile(current, profile, now, '')) });
       }
       return importData(current, file, mode);

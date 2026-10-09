@@ -469,6 +469,40 @@ describe('backup screen on the real storage', () => {
       'Geri alındı. Şu an 1 çalışma kaydı, 0 deneme ve 0 konu işareti var.',
     );
   });
+
+  it('a second "Değiştir" within the window keeps the copy from before the first one', async () => {
+    saveSession(session('a'), T0);
+    mockSurfaces.pickText = backup();
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    const replace = async () => {
+      await act(async () => {
+        fireEvent.press(screen.getByTestId('backup-import'));
+      });
+      fireEvent.press(screen.getByTestId('backup-mode-replace'));
+      fireEvent.press(screen.getByTestId('backup-confirm'));
+    };
+    await replace();
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
+    expect(allSessions().map((s) => s.id)).toEqual(['x']);
+
+    // An hour later, another file: the second question says what "Geri al" will bring back.
+    act(() => jest.setSystemTime(T0 + HOUR));
+    mockSurfaces.pickText = backup({ sessions: [session('y')] });
+    await replace();
+    expect(screen.getByTestId('backup-replace-sure').props.children).toBe(
+      'Emin misin? Bu telefondaki 1 çalışma kaydı, 0 deneme ve 0 konu işareti silinip yerine yedektekiler gelecek. ' +
+        'Yeni kopya alınmaz: “Geri al” verileri ilk “Değiştir”den önceki ana (7 Ekim 2026 09:00) döndürür.',
+    );
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
+    expect(allSessions().map((s) => s.id)).toEqual(['y']);
+    expect(kv.loadReplaceUndo()?.createdAt).toBe(T0);
+
+    // "Geri al" brings back the data from before the first replace, not the file in between.
+    fireEvent.press(screen.getByTestId('backup-undo'));
+    fireEvent.press(screen.getByTestId('backup-undo-yes'));
+    expect(allSessions().map((s) => s.id)).toEqual(['a']);
+    expect(kv.loadProfile()?.yksArea).toBe('sayisal');
+  });
 });
 
 describe('timer on the real storage', () => {

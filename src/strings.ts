@@ -1217,6 +1217,9 @@ export const tr = {
       } yüklenmeyecek; geri kalan her şey yüklenecek.`,
     replaceSure: (sessions: number, exams: number, topics: number) =>
       `Emin misin? Bu telefondaki ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti silinip yerine yedektekiler gelecek. Önce otomatik bir kopya alınır; istersen hemen geri alabilirsin.`,
+    /** A second "Değiştir" while the first one can still be undone: no new copy is taken. */
+    replaceSureKeepsUndo: (sessions: number, exams: number, topics: number, when: string) =>
+      `Emin misin? Bu telefondaki ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti silinip yerine yedektekiler gelecek. Yeni kopya alınmaz: “Geri al” verileri ilk “Değiştir”den önceki ana (${when}) döndürür.`,
     replaceYes: 'Evet, değiştir',
     replaceNo: 'Vazgeç',
     undoTitle: 'Değiştirmeden önceki verilerin',
