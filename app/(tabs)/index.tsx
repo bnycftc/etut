@@ -4,6 +4,7 @@ import { AppState, StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { formatClock } from '@/domain/clock';
 import { topicName, topicOfSubject } from '@/domain/curriculum';
+import { activeSpan, dailyTotals } from '@/domain/daily-totals';
 import { daysUntil, resolveExamDate } from '@/domain/exam-dates';
 import { goalStep, UNDO_FINISH_MS } from '@/domain/finish';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
@@ -64,8 +65,10 @@ interface Finished {
   subjectId: string;
   topicId: string | null;
   durationMs: number;
-  /** Today's total including the session. */
+  /** Today's total including the session as saved. */
   todayAfterMs: number;
+  /** The part of the saved session that fell on today (a session can cross midnight). */
+  sessionTodayMs: number;
   at: number;
   undoable: boolean;
 }
@@ -160,6 +163,11 @@ export default function TimerScreen() {
   const finish = (options?: FinishOptions) => {
     const done = app.finish(options);
     if (done !== null) {
+      // This render's total holds the running session as it was shown; the saved one can differ
+      // ("Çalışıyordum" adds the time away, "İlk 10 saati kaydet" cuts it): swap one for the other.
+      const runningTodayMs = active === null ? 0 : dailyTotals([activeSpan(active, now)], [today])[0].totalMs;
+      const sessionTodayMs = dailyTotals([done], [today])[0].totalMs;
+      const todayAfterMs = Math.max(0, todayTotal - runningTodayMs) + sessionTodayMs;
       const saved = tr.timer.saved(
         done.durationMs < 60_000 ? tr.timer.lessThanMinute : formatDuration(done.durationMs),
       );
@@ -169,14 +177,14 @@ export default function TimerScreen() {
         subjectId: done.subjectId,
         topicId: done.topicId,
         durationMs: done.durationMs,
-        // The running session was already part of today's total on this render.
-        todayAfterMs: todayTotal,
+        todayAfterMs,
+        sessionTodayMs,
         at: Date.now(),
         undoable: done.durationMs > 0 && !isSyncActive(),
       });
       setSubjectId(done.subjectId);
       hapticSuccess();
-      announce(tr.finish.announce(saved, formatDuration(todayTotal)));
+      announce(tr.finish.announce(saved, formatDuration(todayAfterMs)));
     }
   };
   const finishCheck = useFinishCheck(finish);
@@ -197,7 +205,7 @@ export default function TimerScreen() {
   };
 
   const goalStreak = goal !== null && streak !== null ? { goal, streak } : null;
-  const step = finished !== null && goal !== null ? goalStep(finished.todayAfterMs, finished.durationMs, goal) : null;
+  const step = finished !== null && goal !== null ? goalStep(finished.todayAfterMs, finished.sessionTodayMs, goal) : null;
 
   return (
     <Screen testID="timer-screen">

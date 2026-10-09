@@ -14,7 +14,7 @@
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
-import { AppState, type AppStateStatus } from 'react-native';
+import { AccessibilityInfo, AppState, type AppStateStatus } from 'react-native';
 
 import { UNDO_FINISH_MS } from '../domain/finish';
 import type { Profile } from '../domain/profile';
@@ -608,6 +608,46 @@ describe('timer on the real storage', () => {
     expect(allSessions()[0]).toMatchObject({ startedAt: T0, endedAt: T0 + 10 * HOUR, durationMs: 10 * HOUR });
     // All of it was yesterday.
     expect(screen.getByTestId('today-total').props.children).toBe('0 dk');
+  });
+
+  it('"Çalışıyordum, ekle ve bitir": the summary and VoiceOver count the added time towards the goal', () => {
+    kv.storeDailyGoal(120);
+    saveSession(
+      { id: 'earlier', subjectId: 'kimya', topicId: null, startedAt: T0 - 3 * HOUR, endedAt: T0 - 2 * HOUR, pauses: [], durationMs: HOUR, source: 'timer' },
+      T0,
+    );
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    // 30 minutes of study, then 40 minutes outside the app.
+    at(T0 + 30 * MIN);
+    emitAppState('background', from);
+    act(() => jest.setSystemTime(T0 + 70 * MIN));
+    emitAppState('active', from);
+    finish();
+    fireEvent.press(screen.getByTestId('finish-away-credit'));
+    expect(allSessions().find((s) => s.id !== 'earlier')?.durationMs).toBe(70 * MIN);
+    // 60 + 70 minutes: over the 2-hour goal.
+    expect(screen.getByTestId('finish-goal-reached')).toBeTruthy();
+    expect(screen.getByTestId('finish-detail').props.children).not.toContain('Hedef:');
+    expect(announce).toHaveBeenCalledWith('Kaydedildi: 1 sa 10 dk. Bugün toplam 2 sa 10 dk.');
+    announce.mockRestore();
+  });
+
+  it('"İlk 10 saati kaydet": the summary judges the goal by the 10 hours saved, not the 12 run', () => {
+    kv.storeDailyGoal(11 * 60);
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    at(T0 + 12 * HOUR);
+    finish();
+    fireEvent.press(screen.getByTestId('finish-long-cap'));
+    expect(allSessions()[0].durationMs).toBe(10 * HOUR);
+    expect(screen.queryByTestId('finish-goal-reached')).toBeNull();
+    expect(screen.getByTestId('finish-detail').props.children).toContain('Hedef: %0 → %90');
+    expect(announce).toHaveBeenCalledWith('Kaydedildi: 10 sa 0 dk. Bugün toplam 10 sa 0 dk.');
+    announce.mockRestore();
   });
 
   it('"Geri al": inside the window the stored row goes and the session runs on; after it, it stays', () => {
