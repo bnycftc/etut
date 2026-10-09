@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { hoursMinutes } from '@/domain/clock';
 import { activeSpan, dailyTotals, type SessionSpan, subjectBreakdown } from '@/domain/daily-totals';
 import { DAY_MS, dayStartMs, istanbulDayKey, istanbulWeekday, lastDays } from '@/domain/istanbul-day';
+import { questionTotals } from '@/domain/questions';
 import { useAppState, useNow, useStored } from '@/state/app-state';
 import { sessionsOverlapping } from '@/storage/sessions';
 import { tr } from '@/strings';
@@ -34,6 +35,7 @@ export default function HistoryScreen() {
       days,
     ).map((t) => [t.day, t.totalMs]),
   );
+  const questions = questionTotals(stored, days);
   const week = totals.slice(-7);
   const listed = [...totals].reverse().filter((t) => t.totalMs > 0);
 
@@ -73,6 +75,11 @@ export default function HistoryScreen() {
             </Label>
             <Label variant="heading">{formatDuration(t.totalMs)}</Label>
           </Row>
+          {(questions.byDay[t.day] ?? 0) > 0 ? (
+            <Label variant="small" testID={`history-questions-${t.day}`}>
+              {tr.questions.count(questions.byDay[t.day] ?? 0)}
+            </Label>
+          ) : null}
           {(manualByDay.get(t.day) ?? 0) > 0 ? (
             <Row>
               <Tag title={tr.manualTag} />

@@ -226,6 +226,25 @@ async function runScenario(page, baseUrl) {
   check((await text('timer-saved')).startsWith('Kaydedildi'), 'finished session was not saved');
   await screenshot('timer-finished');
 
+  // 2a. Optional question count after Bitir, then the subject report card and the monthly view
+  //     read it back through the real SQLite (migration 6).
+  log('step: question count, report card, monthly view');
+  await byId('finish-questions-input').fill('12');
+  await byId('finish-questions-save').click();
+  await waitUntil(() => text('finish-questions-message'), (m) => m === '12 soru kaydedildi.', 'question count saved');
+  await byId('open-report').click();
+  await visible('report-screen');
+  await waitUntil(() => text('report-questions'), (q) => q.endsWith('toplam 12'), 'report card question total');
+  await screenshot('report-card');
+  await page.goBack();
+  await byId('open-weekly').click();
+  await visible('monthly-grid');
+  check((await text('weekly-questions')) === 'Çözülen soru: 12', 'weekly question total');
+  await byId('monthly-grid').scrollIntoViewIfNeeded();
+  await screenshot('weekly-monthly');
+  await page.goBack();
+  await visible('timer-start');
+
   // 2b. The group module is off (src/config/features.ts): the tab stays "Yakında" and no request
   //     ever leaves the dev server (checked for the whole run in main()).
   log('step: groups tab (module off)');
@@ -313,7 +332,7 @@ async function runScenario(page, baseUrl) {
   const backupPath = path.join(OUT_DIR, backupDownload.suggestedFilename());
   await backupDownload.saveAs(backupPath);
   const backup = JSON.parse(readFileSync(backupPath, 'utf8'));
-  check(backup.format === 'etut-yedek' && backup.schemaVersion === 1, 'backup file has the wrong format');
+  check(backup.format === 'etut-yedek' && backup.schemaVersion === 2, 'backup file has the wrong format');
   check(backup.sessions.length === 1 && backup.exams.length === 1, 'backup must hold the session and the exam');
   const [csvDownload] = await Promise.all([
     page.waitForEvent('download', { timeout: STEP_TIMEOUT_MS }),

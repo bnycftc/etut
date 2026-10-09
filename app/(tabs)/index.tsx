@@ -23,6 +23,7 @@ import {
   type TimerMode,
 } from '@/storage/kv';
 import { tr } from '@/strings';
+import { setSessionQuestions } from '@/storage/report';
 import { isSyncActive } from '@/sync/session-sync';
 import {
   Button,
@@ -44,6 +45,7 @@ import { GoalSheet } from '@/ui/goal-sheet';
 import { Icon } from '@/ui/icon';
 import { subjectColor } from '@/ui/subject-colors';
 import { MAX_FONT_SCALE, space, usePalette } from '@/ui/theme';
+import { QuestionCount } from '@/ui/question-count';
 import { TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
 import { FirstUseTips } from '@/ui/tips';
 import { TopicPicker } from '@/ui/topic-picker';
@@ -53,6 +55,8 @@ const PHASE_SIGNAL_MAX_GAP_MS = 3_000;
 
 /** What the summary after "Bitir" shows; frozen at that moment. */
 interface Finished {
+  /** The saved session (for the optional question count). */
+  id: string;
   /** "Kaydedildi: 45 dk" (E2E reads this text). */
   saved: string;
   subjectId: string;
@@ -158,6 +162,7 @@ export default function TimerScreen() {
         done.durationMs < 60_000 ? tr.timer.lessThanMinute : formatDuration(done.durationMs),
       );
       setFinished({
+        id: done.id,
         saved,
         subjectId: done.subjectId,
         topicId: done.topicId,
@@ -245,6 +250,16 @@ export default function TimerScreen() {
                 {tr.finish.goalReached}
                 {streak !== null && streak.current > 0 ? ` ${tr.finish.streak(streak.current)}` : ''}
               </Label>
+            ) : null}
+            {finished.durationMs > 0 ? (
+              <QuestionCount
+                key={finished.id}
+                testID="finish-questions"
+                onSave={(questions) => {
+                  setSessionQuestions(finished.id, questions);
+                  app.notifyDataChanged('sessions');
+                }}
+              />
             ) : null}
           </View>
         ) : null}
@@ -476,6 +491,14 @@ export default function TimerScreen() {
         {canShareCard(profile) ? (
           <ListRow icon="share" testID="open-share" title={tr.share.open} onPress={() => router.push('/paylas')} />
         ) : null}
+        <ListRow
+          icon="report"
+          testID="open-report"
+          title={tr.report.open}
+          onPress={() =>
+            router.push({ pathname: '/karne/[subject]', params: { subject: active?.subjectId ?? subjectId } })
+          }
+        />
       </Card>
 
       <Card>

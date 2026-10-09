@@ -34,6 +34,8 @@ export interface ManualEntryInput {
   topicId: string | null;
   startMs: number;
   durationMs: number;
+  /** Optional solved question count (`questions.ts`); missing/`null` = not given. */
+  questions?: number | null;
 }
 
 export interface TimeSpan {
@@ -68,7 +70,7 @@ export function validateManualEntry(
 }
 
 export function buildManualSession(id: string, input: ManualEntryInput): CompletedSession {
-  return {
+  const session: CompletedSession = {
     id,
     subjectId: input.subjectId,
     topicId: input.topicId,
@@ -78,6 +80,8 @@ export function buildManualSession(id: string, input: ManualEntryInput): Complet
     durationMs: input.durationMs,
     source: 'manual',
   };
+  if (input.questions !== undefined && input.questions !== null) session.questions = input.questions;
+  return session;
 }
 
 /** Whole number from a text field; empty is `null`, anything else non-numeric is NaN. */

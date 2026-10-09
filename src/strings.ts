@@ -1250,6 +1250,7 @@ export const tr = {
   /** Subject report card ("ders karnesi"): time, topics and nets of one subject together. */
   report: {
     title: 'Ders karnesi',
+    titleFor: (subject: string) => `${subject} karnesi`,
     open: 'Ders karnesi',
     openFor: (subject: string) => `${subject} karnesini aç`,
     rowA11y: (subject: string, duration: string, percent: number) =>
