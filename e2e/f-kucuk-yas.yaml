@@ -7,11 +7,16 @@ tags:
     clearState: true
 - extendedWaitUntil:
     visible:
-      id: onboarding-start
+      id: onboarding-screen
     timeout: 60000
 # Born 12 years ago: under 15 -> solo-only profile.
 - tapOn:
     id: "birth-year-${new Date().getFullYear() - 12}"
+- scrollUntilVisible:
+    element:
+      id: exam-type-LGS
+    direction: DOWN
+    timeout: 20000
 - tapOn:
     id: exam-type-LGS
 - scrollUntilVisible:

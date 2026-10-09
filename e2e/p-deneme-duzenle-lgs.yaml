@@ -7,11 +7,16 @@ tags:
     clearState: true
 - extendedWaitUntil:
     visible:
-      id: onboarding-start
+      id: onboarding-screen
     timeout: 60000
 # An 8th grader (13): LGS, under 15 (no groups tab; the exam form is the same for every age).
 - tapOn:
     id: "birth-year-${new Date().getFullYear() - 13}"
+- scrollUntilVisible:
+    element:
+      id: exam-type-LGS
+    direction: DOWN
+    timeout: 20000
 - tapOn:
     id: exam-type-LGS
 - scrollUntilVisible:

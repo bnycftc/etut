@@ -4,10 +4,15 @@ appId: com.bnycftc.etut
 ---
 - extendedWaitUntil:
     visible:
-      id: onboarding-start
+      id: onboarding-screen
     timeout: 60000
 - tapOn:
     id: "birth-year-${new Date().getFullYear() - Number(AGE)}"
+- scrollUntilVisible:
+    element:
+      id: exam-type-YKS
+    direction: DOWN
+    timeout: 20000
 - tapOn:
     id: exam-type-YKS
 # The screen is taller than the viewport (year list, exam, area, optional goal, start): scroll to

@@ -45,18 +45,23 @@ tags:
     id: settings-delete-all-confirm
 - extendedWaitUntil:
     visible:
-      id: onboarding-start
+      id: onboarding-screen
     timeout: 10000
+- takeScreenshot: g-sil-03-ilk-acilis
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    timeout: 20000
 - assertVisible:
     id: onboarding-start
     enabled: false
-- takeScreenshot: g-sil-03-ilk-acilis
 # The deletion is persistent: a cold start opens onboarding again.
 - stopApp
 - launchApp:
     clearState: false
 - extendedWaitUntil:
     visible:
-      id: onboarding-start
+      id: onboarding-screen
     timeout: 30000
 - takeScreenshot: g-sil-04-yeniden-acilis

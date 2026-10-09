@@ -7,16 +7,31 @@ tags:
     clearState: true
 - extendedWaitUntil:
     visible:
-      id: onboarding-start
+      id: onboarding-screen
     timeout: 60000
-# K-15: nothing is pre-selected, so the start button is disabled.
+- takeScreenshot: a-ilk-acilis-01-bos
+# K-15: nothing is pre-selected, so the start button (below the cards) is disabled.
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    timeout: 20000
 - assertVisible:
     id: onboarding-start
     enabled: false
-- takeScreenshot: a-ilk-acilis-01-bos
+- scrollUntilVisible:
+    element:
+      id: "birth-year-${new Date().getFullYear() - 20}"
+    direction: UP
+    timeout: 20000
 # Born 20 years ago: certainly 15 or older.
 - tapOn:
     id: "birth-year-${new Date().getFullYear() - 20}"
+- scrollUntilVisible:
+    element:
+      id: exam-type-YKS
+    direction: DOWN
+    timeout: 20000
 - tapOn:
     id: exam-type-YKS
 # The screen is taller than the viewport: scroll to each target instead of a fixed swipe.
