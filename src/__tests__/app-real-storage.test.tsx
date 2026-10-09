@@ -481,9 +481,12 @@ describe('backup screen on the real storage', () => {
       fireEvent.press(screen.getByTestId('backup-mode-replace'));
       fireEvent.press(screen.getByTestId('backup-confirm'));
     };
+    // Half a minute after the screen opened (no render tick in between).
+    act(() => jest.setSystemTime(T0 + 30_000));
     await replace();
     fireEvent.press(screen.getByTestId('backup-replace-yes'));
     expect(allSessions().map((s) => s.id)).toEqual(['x']);
+    expect(screen.getByTestId('backup-undo-card')).toBeTruthy();
 
     // An hour later, another file: the second question says what "Geri al" will bring back.
     act(() => jest.setSystemTime(T0 + HOUR));
@@ -495,7 +498,7 @@ describe('backup screen on the real storage', () => {
     );
     fireEvent.press(screen.getByTestId('backup-replace-yes'));
     expect(allSessions().map((s) => s.id)).toEqual(['y']);
-    expect(kv.loadReplaceUndo()?.createdAt).toBe(T0);
+    expect(kv.loadReplaceUndo()?.createdAt).toBe(T0 + 30_000);
 
     // "Geri al" brings back the data from before the first replace, not the file in between.
     fireEvent.press(screen.getByTestId('backup-undo'));

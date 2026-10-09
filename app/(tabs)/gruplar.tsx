@@ -14,7 +14,7 @@ import {
   usageLimitReached,
 } from '@/domain/groups';
 import { istanbulYear } from '@/domain/istanbul-day';
-import { useAppState } from '@/state/app-state';
+import { useAppState, useNow } from '@/state/app-state';
 import { useGroupsUsage } from '@/state/groups-usage';
 import { loadGroupsAccount, storeGroupsAccount, storeGroupsMember, storeParentLinked } from '@/storage/groups-kv';
 import { tr } from '@/strings';
@@ -100,6 +100,9 @@ function GroupsHome() {
   const [groupName, setGroupName] = useState('');
   const [code, setCode] = useState('');
   const [parentCode, setParentCode] = useState<{ code: string; expiresAt: string } | null>(null);
+  // "… dk geçerli" counts down: a render clock, not Date.now() (the React Compiler memoises it);
+  // read again the moment a code is shown.
+  const now = useNow(parentCode !== null, 15_000);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmUnlinkParents, setConfirmUnlinkParents] = useState(false);
   const [blocks, setBlocks] = useState<BlockedUser[] | null>(null);
@@ -483,7 +486,7 @@ function GroupsHome() {
           ) : null}
           {parentCode !== null ? (
             <Label testID="groups-parent-code" variant="heading">
-              {tr.groups.parentCodeShown(formatCode(parentCode.code), minutesLeft(parentCode.expiresAt, Date.now()))}
+              {tr.groups.parentCodeShown(formatCode(parentCode.code), minutesLeft(parentCode.expiresAt, now))}
             </Label>
           ) : null}
           <Button

@@ -22,6 +22,7 @@ import {
   validateScore,
   wrongsPerCorrect,
 } from '../domain/net';
+import { useNow } from '../state/app-state';
 import { tr } from '../strings';
 import { Button, Card, Chip, ChipRow, Label, Row } from './components';
 import { formatDay } from './format';
@@ -116,7 +117,9 @@ export function ExamForm({
   const keyboardHeight = useKeyboardHeight();
   const [focused, setFocused] = useState<number | null>(null);
 
-  const today = istanbulDayKey(Date.now());
+  // A render clock, not Date.now() (the React Compiler would compute it once per mount).
+  const now = useNow(false);
+  const today = istanbulDayKey(now);
   const yesterday = addDays(today, -1);
   const sections = sectionsFor(kind, scope, bransId);
   const scores: SectionScore[] = sections.map((s) => ({

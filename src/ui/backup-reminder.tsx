@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 import { BACKUP_NUDGE_SNOOZE_DAYS, daysSince, shouldShowBackupNudge } from '../domain/backup-reminder';
 import { istanbulDayKey } from '../domain/istanbul-day';
-import { useAppState, useStored } from '../state/app-state';
+import { useAppState, useNow, useStored } from '../state/app-state';
 import { loadBackupNudgeDismissedAt, loadLastBackupAt, storeBackupNudgeDismissedAt } from '../storage/kv';
 import { tr } from '../strings';
 import { Button, Card, Label, ResponsiveRow } from './components';
@@ -22,10 +22,13 @@ export function lastBackupText(lastBackupAt: number | null, now: number): string
 export function LastBackupLabel({ testID, note = false }: { testID?: string; note?: boolean }) {
   const { dataVersions } = useAppState();
   const last = useStored(`lastBackup|${dataVersions.settings}`, loadLastBackupAt);
+  // A render clock, not Date.now(): the React Compiler memoises the text on `last` alone, and
+  // "bugün" must turn into "dün" while the screen stays open.
+  const now = useNow(false);
   return (
     <>
       <Label testID={testID} variant="small">
-        {lastBackupText(last, Date.now())}
+        {lastBackupText(last, now)}
       </Label>
       {note && last !== null ? <Label variant="small">{tr.backupReminder.lastNote}</Label> : null}
     </>

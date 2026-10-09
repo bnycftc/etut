@@ -14,7 +14,7 @@ import {
 } from '@/domain/manual-entry';
 import { MAX_SESSION_QUESTIONS, parseQuestionCount } from '@/domain/questions';
 import { defaultSubject, subjectsFor } from '@/domain/subjects';
-import { useAppState, useStored } from '@/state/app-state';
+import { useAppState, useNow, useStored } from '@/state/app-state';
 import { newId } from '@/storage/db';
 import { loadLastSubject } from '@/storage/kv';
 import {
@@ -38,7 +38,9 @@ export default function ManualEntryScreen() {
   const c = usePalette();
   const examType = profile?.examType ?? 'DIGER';
   const yksArea = profile?.yksArea ?? null;
-  const today = istanbulDayKey(Date.now());
+  // A render clock, not Date.now() (the React Compiler would compute it once per mount).
+  const now = useNow(false);
+  const today = istanbulDayKey(now);
 
   const subjects = subjectsFor(examType, yksArea);
   const [pickedSubject, setSubjectId] = useState(() => defaultSubject(examType, loadLastSubject(), yksArea));
@@ -127,7 +129,7 @@ export default function ManualEntryScreen() {
             testID="manual-prev-day"
             kind="secondary"
             title={tr.exams.prevDay}
-            disabled={day <= earliestManualDay(Date.now())}
+            disabled={day <= earliestManualDay(now)}
             onPress={() => setDay(addDays(day, -1))}
           />
           <Button

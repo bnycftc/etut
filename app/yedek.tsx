@@ -17,7 +17,7 @@ import {
 import { topicName } from '@/domain/curriculum';
 import { type CsvLabels, examRows, sessionRows, toCsv } from '@/domain/csv';
 import { istanbulDayKey, istanbulTimeOfDay } from '@/domain/istanbul-day';
-import { useAppState, useStored } from '@/state/app-state';
+import { useAppState, useNow, useStored } from '@/state/app-state';
 import { readBackupData } from '@/storage/backup';
 import { pickTextFile, type ShareResult, shareTextFile } from '@/storage/file-io';
 import { loadReplaceUndo, storeLastBackupAt, storeReplaceUndo } from '@/storage/kv';
@@ -52,7 +52,7 @@ export default function BackupScreen() {
   const [skipped, setSkipped] = useState(0);
   const [skippedExams, setSkippedExams] = useState({ exams: 0, targets: 0 });
   const [mode, setModeState] = useState<ImportMode>('merge');
-  // "Değiştir" asks twice: this is what the second question says will go.
+  // "DeÄŸiÅŸtir" asks twice: this is what the second question says will go.
   const [replaceSure, setReplaceSure] = useState<BackupCounts | null>(null);
   const [busy, setBusy] = useState(false);
   const setMode = (m: ImportMode) => {
@@ -60,9 +60,13 @@ export default function BackupScreen() {
     setReplaceSure(null);
   };
   const undo = useStored(`undo|${dataVersion}`, loadReplaceUndo);
-  const undoable = undo !== null && canUndoReplace(undo.createdAt, Date.now());
+  // A render clock, not Date.now(): the React Compiler would keep the first result while `undo`
+  // stays. Never before the copy itself (it may be newer than the clock's last tick).
+  const clock = useNow(false);
+  const now = undo === null ? clock : Math.max(clock, undo.createdAt);
+  const undoable = undo !== null && canUndoReplace(undo.createdAt, now);
   // A copy too old to offer is not kept either (it holds a full copy of the data).
-  const expired = undo !== null && replaceUndoExpired(undo.createdAt, Date.now());
+  const expired = undo !== null && replaceUndoExpired(undo.createdAt, now);
   // "Geri al" is a replace too: it asks first, with what will go.
   const [undoSure, setUndoSure] = useState<BackupCounts | null>(null);
   useEffect(() => {
