@@ -272,6 +272,9 @@ export default function TimerScreen() {
                 testID="finish-questions"
                 onSave={(questions) => {
                   setSessionQuestions(finished.id, questions);
+                  // "Geri al" would delete the row with its count and the next Bitir saves none:
+                  // once the student has added to this record, it is no longer taken back.
+                  setFinished((f) => (f === null ? f : { ...f, undoable: false }));
                   app.notifyDataChanged('sessions');
                 }}
               />

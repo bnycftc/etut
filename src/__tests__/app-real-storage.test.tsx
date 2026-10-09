@@ -650,6 +650,21 @@ describe('timer on the real storage', () => {
     announce.mockRestore();
   });
 
+  it('a question count saved after Bitir turns "Geri al" off, so the count is never dropped', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    at(T0 + 20 * MIN);
+    finish();
+    expect(screen.getByTestId('finish-undo')).toBeTruthy();
+    fireEvent.changeText(screen.getByTestId('finish-questions-input'), '35');
+    fireEvent.press(screen.getByTestId('finish-questions-save'));
+    expect(screen.getByTestId('finish-questions-message').props.children).toBe('35 soru kaydedildi.');
+    expect(screen.queryByTestId('finish-undo')).toBeNull();
+    act(() => jest.advanceTimersByTime(UNDO_FINISH_MS + 1_000));
+    expect(allSessions()).toHaveLength(1);
+    expect(allSessions()[0].questions).toBe(35);
+  });
+
   it('"Geri al": inside the window the stored row goes and the session runs on; after it, it stays', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     fireEvent.press(screen.getByTestId('subject-fizik'));
