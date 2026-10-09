@@ -117,11 +117,9 @@ tags:
     visible:
       id: timer-saved
     timeout: 10000
-# "Ekranı açık tut": off, then on again (the default stays on). Last in the flow on purpose:
-# KNOWN BUG (src/state/__tests__/use-stored-compiler.test.tsx): with the React Compiler a screen
-# re-reads storage only on its first data change after it mounted, so the second tap ("Açık")
-# is stored but the chips may not follow. Until useStored is fixed this part is expected to fail;
-# the away-rule checks above have already run by then.
+# "Ekranı açık tut": off, then on again (the default stays on). Two changes in a row on the same
+# screen: with the React Compiler a screen once stopped following taps after its first data
+# change (src/state/__tests__/use-stored-compiler.test.tsx); this guards that on the device.
 - tapOn:
     id: tab-settings
 - scrollUntilVisible:

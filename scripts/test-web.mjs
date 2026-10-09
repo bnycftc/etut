@@ -313,11 +313,9 @@ async function runScenario(page, baseUrl) {
   await visible('subject-edebiyat');
 
   // 5b-2. Settings → "Sayaç çalışırken": keep the screen on (default on) and what leaving the app
-  //       means (default "Sor"); both are stored and survive a reload.
-  //       KNOWN BUG (src/state/__tests__/use-stored-compiler.test.tsx): with the React Compiler,
-  //       `useStored` reads storage again only on the first data change after a screen mounts, so
-  //       after the area change above these chips would stop following taps. Each change here is
-  //       therefore made right after a reload. Drop the reloads once useStored is fixed.
+  //       means (default "Sor"); both are stored and survive a reload. Both changes are made on
+  //       the same screen, right after the area change above: with the React Compiler a screen
+  //       once stopped following taps after its first data change (use-stored-compiler.test.tsx).
   log('step: timer settings card');
   await page.goto(baseUrl + 'ayarlar');
   await visible('settings-timer', FIRST_SCREEN_TIMEOUT_MS);
@@ -339,8 +337,6 @@ async function runScenario(page, baseUrl) {
   check(!(await selected('settings-away-count')), 'only one away-rule chip may be selected');
   await choose('settings-keep-awake-off');
   check(!(await selected('settings-keep-awake-on')), 'keep-awake "on" must be off now');
-  await page.reload();
-  await visible('settings-timer', FIRST_SCREEN_TIMEOUT_MS);
   await choose('settings-away-count');
   check((await text('settings-away-info')).includes('çalışma sayılır'), 'the "count" explanation is missing');
   await screenshot('settings-timer-card');

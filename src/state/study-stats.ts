@@ -24,6 +24,9 @@ export interface StudyStats {
 }
 
 export function useStudyStats(now: number): StudyStats {
+  // Out of the React Compiler like useStored: the streak cache below is a ref read and written
+  // during render, which must run exactly as written.
+  'use no memo';
   const { active, dataVersions } = useAppState();
   const today = istanbulDayKey(now);
   // Only sessions and the goal are read here: a topic mark or a mock exam needs no reload.

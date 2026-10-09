@@ -4,14 +4,12 @@
  * Compiler (`experiments.reactCompiler`), which the device and web bundles apply but Jest's
  * transform does not. Every other test therefore sees the hand-written hook.
  *
- * The compiler memoises the `load()` call inside the "key changed" branch on `load` alone. A
- * loader with a stable identity (a module function such as `loadKeepAwake`, or an inline closure
- * the compiler itself memoised) is then read only on the first key change; every later change
- * returns that first value. Seen on web: Denemeler shows only the first of three exams saved in a
- * row until a reload; Ayarlar → "Sayaç çalışırken" no longer follows a tap after the exam area
- * was saved on the same screen (scripts/test-web.mjs works around it, see there).
- *
- * `it.failing` documents the bug: it turns red once `useStored` is fixed (then make it `it`).
+ * Compiled, the compiler memoised the `load()` call inside the "key changed" branch on `load`
+ * alone. A loader with a stable identity (a module function such as `loadKeepAwake`, or an inline
+ * closure the compiler itself memoised) was then read only on the first key change; every later
+ * change returned that first value ([0, 10, 10, 10]). Seen on web: Denemeler showed only the first
+ * of three exams saved in a row until a reload. `useStored` now opts out with 'use no memo'; this
+ * file compiles the real source with the compiler and proves the bundles read storage every time.
  */
 
 import { readFileSync } from 'node:fs';
@@ -39,8 +37,10 @@ function compiledUseStored(): UseStored {
     plugins: [require.resolve('babel-plugin-react-compiler'), require.resolve('@babel/plugin-transform-modules-commonjs')],
   });
   const compiled = out?.code ?? '';
-  // The compiler did run (it adds its memo cache) on the whole hook.
-  expect(compiled).toContain('react/compiler-runtime');
+  // The compiler ran over the source and left the hook alone because of 'use no memo': no memo
+  // cache was added. (Without the directive it imports react/compiler-runtime here.)
+  expect(compiled).toContain('use no memo');
+  expect(compiled).not.toContain('react/compiler-runtime');
   expect(compiled).toContain('setCache');
   const module = { exports: {} as { useStored?: UseStored } };
   // eslint-disable-next-line no-new-func
@@ -68,14 +68,14 @@ it('hand-written useStored reads storage again on every key change', () => {
   expect(scenario(handWritten)).toEqual([0, 10, 20, 30]);
 });
 
-// Guards the it.failing below: it must fail on the assertion, not because compiling broke.
-it('the React Compiler compiles useStored and the result renders', () => {
+// The compiled module loads and renders, so the check below tests behaviour, not a compile error.
+it('the React Compiler output of useStored renders', () => {
   const useStored = compiledUseStored();
   const { result } = renderHook(() => useStored('k', () => 7));
   expect(result.current).toBe(7);
 });
 
-// BUG: with the React Compiler only the first key change reads storage again ([0, 10, 10, 10]).
-it.failing('compiled useStored reads storage again on every key change (React Compiler, as shipped)', () => {
+// Regression: with the compiler applied, only the first key change used to read storage again.
+it('compiled useStored reads storage again on every key change (React Compiler, as shipped)', () => {
   expect(scenario(compiledUseStored())).toEqual([0, 10, 20, 30]);
 });

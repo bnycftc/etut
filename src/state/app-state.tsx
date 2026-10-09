@@ -347,6 +347,12 @@ export function useAppState(): AppStateValue {
  * Storage reads are synchronous, so the new value is available in the same render.
  */
 export function useStored<T>(key: string, load: () => T): T {
+  // Kept out of the React Compiler (app.json experiments.reactCompiler): it memoises the `load()`
+  // call below on `load` alone, and callers pass loaders whose identity does not change with `key`
+  // (module functions, or inline closures the compiler memoised), so only the first key change
+  // read storage again. Screens then showed stale data until a reload
+  // (src/state/__tests__/use-stored-compiler.test.tsx).
+  'use no memo';
   const [cache, setCache] = useState(() => ({ key, value: load() }));
   if (cache.key !== key) {
     const value = load();
