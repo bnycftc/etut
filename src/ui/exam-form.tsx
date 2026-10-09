@@ -1,6 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  InputAccessoryView,
   Keyboard,
   Platform,
   ScrollView,
@@ -48,7 +47,25 @@ export interface ExamFormInitial {
   scores: readonly SectionScore[];
 }
 
-const ACCESSORY_ID = 'exam-form-keyboard';
+/**
+ * Height of the on-screen keyboard (0 while hidden). The number pad has no return or "done" key,
+ * so the form draws its own Önceki / Sonraki / Bitti bar right above it. InputAccessoryView is not
+ * used: it is not drawn inside the sheet the exam screens are presented in (E2E run 37818248269).
+ */
+function useKeyboardHeight(): number {
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const shown = Keyboard.addListener(showEvent, (e) => setHeight(e.endCoordinates.height));
+    const hidden = Keyboard.addListener(hideEvent, () => setHeight(0));
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, []);
+  return height;
+}
 
 /** Empty input counts as 0; anything else must be a whole number. */
 function parseCount(text: string): number {
@@ -95,6 +112,7 @@ export function ExamForm({
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const inputs = useRef<Record<string, TextInput | null>>({});
+  const keyboardHeight = useKeyboardHeight();
   const [focused, setFocused] = useState<number | null>(null);
 
   const today = istanbulDayKey(Date.now());
@@ -317,9 +335,10 @@ export function ExamForm({
         </View>
       </SafeAreaView>
 
-      {Platform.OS === 'ios' ? (
-        <InputAccessoryView nativeID={ACCESSORY_ID} backgroundColor={c.surface}>
-          <View style={[styles.accessory, { borderColor: c.border }]}>
+      {keyboardHeight > 0 ? (
+        <View
+          testID="exam-keyboard-bar"
+          style={[styles.accessory, { bottom: keyboardHeight, backgroundColor: c.surface, borderColor: c.border }]}>
             <Button
               testID="exam-keyboard-prev"
               kind="secondary"
@@ -337,8 +356,7 @@ export function ExamForm({
               onPress={() => focusField((focused ?? -1) + 1)}
             />
             <Button testID="exam-keyboard-done" title={tr.exams.keyboardDone} onPress={() => Keyboard.dismiss()} />
-          </View>
-        </InputAccessoryView>
+        </View>
       ) : null}
     </View>
   );
@@ -384,7 +402,6 @@ function CountInput({
         submitBehavior={last ? 'blurAndSubmit' : 'submit'}
         onSubmitEditing={onSubmit}
         onFocus={onFocus}
-        inputAccessoryViewID={Platform.OS === 'ios' ? ACCESSORY_ID : undefined}
         selectTextOnFocus
         style={[styles.input, { color: c.text, borderColor: c.controlBorder, backgroundColor: c.background }]}
       />
@@ -412,6 +429,9 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   accessory: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     gap: space.sm,
     paddingHorizontal: space.sm,

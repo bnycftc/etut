@@ -20,28 +20,24 @@ tags:
 - tapOn:
     id: exam-kind-TYT
 # Türkçe: 10 doğru, 4 yanlış -> 10 - 4/4 = 9 net.
-# The Türkçe row sits right at the top edge of the number pad, so the pad is closed after each
-# field by tapping the plain "Sınav" heading at the top (Screen uses
-# keyboardShouldPersistTaps="handled": a tap on plain text dismisses the keyboard).
+# The number pad has no return key: the form draws its own "‹ Önceki / Sonraki › / Bitti" bar on
+# top of it, and the pad is closed after each field with "Bitti" (exam-keyboard-done), as a student
+# would. Closing it before the next tap keeps every tap aimed at a settled layout.
 - tapOn:
     id: exam-correct-turkce
 - inputText: "10"
 - tapOn:
-    id: exam-form-kind-title
+    id: exam-keyboard-done
 - tapOn:
     id: exam-wrong-turkce
 - inputText: "4"
 - tapOn:
-    id: exam-form-kind-title
+    id: exam-keyboard-done
 - assertVisible:
     id: exam-net-turkce
     text: "9"
 # Tarih: 3 doğru, 2 yanlış -> 3 - 2/4 = 2,5 net.
-# The form moves its content while the number pad opens (automaticallyAdjustKeyboardInsets), so a
-# tap aimed with a stale layout can land on the previous field: close the pad first, scroll, then
-# wait until the target field really has focus before typing.
-- tapOn:
-    id: exam-form-kind-title
+# The pad is already closed here; it is closed again after each value so taps hit a settled layout.
 - scrollUntilVisible:
     element:
       id: exam-correct-tarih
@@ -49,22 +45,14 @@ tags:
     centerElement: true
 - tapOn:
     id: exam-correct-tarih
-- extendedWaitUntil:
-    visible:
-      id: exam-correct-tarih
-      focused: true
-    timeout: 5000
 - inputText: "3"
 - tapOn:
+    id: exam-keyboard-done
+- tapOn:
     id: exam-wrong-tarih
-- extendedWaitUntil:
-    visible:
-      id: exam-wrong-tarih
-      focused: true
-    timeout: 5000
 - inputText: "2"
 - tapOn:
-    id: exam-form-kind-title
+    id: exam-keyboard-done
 - assertVisible:
     id: exam-net-tarih
     text: "2,5"
@@ -111,16 +99,11 @@ tags:
     timeout: 10000
 - tapOn:
     id: exam-wrong-turkce
-- extendedWaitUntil:
-    visible:
-      id: exam-wrong-turkce
-      focused: true
-    timeout: 5000
 # The field holds one or two digits; erase generously.
 - eraseText: 6
 - inputText: "0"
 - tapOn:
-    id: exam-form-kind-title
+    id: exam-keyboard-done
 - assertVisible:
     id: exam-total-net
     text: "12,5"

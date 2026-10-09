@@ -7,7 +7,7 @@ import { act, fireEvent, screen } from '@testing-library/react-native';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
-import { AccessibilityInfo, AppState, type AppStateStatus, Vibration } from 'react-native';
+import { AccessibilityInfo, AppState, type AppStateStatus, Keyboard, Vibration } from 'react-native';
 
 import { UNDO_FINISH_MS } from '../domain/finish';
 
@@ -855,20 +855,35 @@ describe('mock exam entry, editing and charts', () => {
   });
 
   it('"Dün" picks yesterday in one tap; the boxes move on with the return key / keyboard bar', () => {
+    const keyboardListeners: { show?: (e: object) => void; hide?: (e: object) => void } = {};
+    const keyboardSpy = jest.spyOn(Keyboard, 'addListener').mockImplementation(((event: string, cb: (e: object) => void) => {
+      if (event === 'keyboardWillShow' || event === 'keyboardDidShow') keyboardListeners.show = cb;
+      if (event === 'keyboardWillHide' || event === 'keyboardDidHide') keyboardListeners.hide = cb;
+      return { remove: () => {} };
+    }) as unknown as typeof Keyboard.addListener);
     renderRouter(APP_DIR, { initialUrl: '/denemeler' });
     fireEvent.press(screen.getByTestId('exams-add'));
     fireEvent.press(screen.getByTestId('exam-day-yesterday'));
     expect(screen.getByTestId('exam-day-yesterday').props.accessibilityState).toMatchObject({ selected: true });
     expect(screen.getByTestId('exam-correct-turkce').props.returnKeyType).toBe('next');
     expect(screen.getByTestId('exam-wrong-biyoloji').props.returnKeyType).toBe('done');
-    // iOS: the number pad has no return key, so a "‹ Önceki / Sonraki › / Bitti" bar sits on it.
-    expect(screen.getByTestId('exam-correct-turkce').props.inputAccessoryViewID).toBe('exam-form-keyboard');
+    // The number pad has no return key, so a "‹ Önceki / Sonraki › / Bitti" bar is drawn right above
+    // it while it is open (not an InputAccessoryView: that is not drawn inside the sheet).
+    expect(screen.queryByTestId('exam-keyboard-bar')).toBeNull();
+    act(() => keyboardListeners.show?.({ endCoordinates: { height: 300 } }));
+    expect(screen.getByTestId('exam-keyboard-bar').props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ bottom: 300 })]),
+    );
     expect(screen.getByLabelText('Sonraki kutu')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('exam-keyboard-done'));
+    act(() => keyboardListeners.hide?.({}));
+    expect(screen.queryByTestId('exam-keyboard-bar')).toBeNull();
     fireEvent(screen.getByTestId('exam-correct-turkce'), 'submitEditing');
     fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '8');
     fireEvent.press(screen.getByTestId('exam-save'));
     const { addDays, istanbulDayKey } = jest.requireActual('../domain/istanbul-day');
     expect(memory.exams[0].takenOn).toBe(addDays(istanbulDayKey(Date.now()), -1));
+    keyboardSpy.mockRestore();
   });
 
   it('chips name the choice they belong to', () => {
