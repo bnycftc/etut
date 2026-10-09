@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Modal, StyleSheet, View } from 'react-native';
 
 import { loadTipsSeen, storeTipsSeen } from '../storage/kv';
@@ -9,13 +10,21 @@ import { space, usePalette } from './theme';
 
 /**
  * Three short first-use tips, shown once after onboarding on the timer screen. Closing them
- * ("Geç" or "Anladım") is remembered; "Tüm verileri sil" shows them again.
+ * ("Geç" or "Anladım") is remembered; Ayarlar → "Turu yeniden göster" (and "Tüm verileri sil")
+ * clears that, and the tips open again from the first step when the timer tab is shown.
  */
 export function FirstUseTips() {
   const c = usePalette();
   const reduceMotion = useReducedMotion();
   const [visible, setVisible] = useState(() => !loadTipsSeen());
   const [step, setStep] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      if (loadTipsSeen()) return;
+      setStep(0);
+      setVisible(true);
+    }, []),
+  );
   if (!visible) return null;
 
   const steps = tr.tips.steps;

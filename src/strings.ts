@@ -330,7 +330,8 @@ export const tr = {
 
   onboarding: {
     title: 'Etüt’e hoş geldin',
-    intro: 'Birkaç soruyla başlayalım. Cevapların bu cihazda saklanır, bize gönderilmez.',
+    intro:
+      'Etüt çalışma süreni ve deneme netlerini tutar. Birkaç soruyla başlayalım; cevapların bu cihazda saklanır, bize gönderilmez.',
     birthYearTitle: 'Doğum yılın',
     birthYearHint: 'Yalnız yılı soruyoruz.',
     examTitle: 'Hazırlandığın sınav',
@@ -1105,15 +1106,15 @@ export const tr = {
     steps: [
       {
         title: 'Ders seç, Başla’ya dokun',
-        body: 'Süre zaman damgasıyla tutulur. Uygulamadan 10 saniyeden uzun çıkarsan o süre mola sayılır; dönünce “Çalışıyordum” diyerek ekleyebilirsin.',
+        body: 'Sayaç açıkken ekran kendiliğinden kapanmaz; iPhone’da sayaç kilit ekranında da görünür. Bitir’e dokununca kısa bir özet çıkar; yanlışlıkla dokunduysan hemen “Geri al”.',
       },
       {
-        title: 'Denemelerini ekle',
-        body: 'Denemeler sekmesinde doğru ve yanlışlarını gir; net hemen hesaplanır. Kitapçık gelince yanlış konularını işaretle.',
+        title: 'Uygulamadan çıkarsan',
+        body: 'Telefonu kilitler ya da başka uygulamaya geçersen o süre mola sayılır; dönünce “Çalışıyordum” deyip ekleyebilirsin. Kitaptan çalışırken telefonu kilitliyorsan Ayarlar → Sayaç çalışırken bölümünde “Çalışmaya devam say”ı seç.',
       },
       {
-        title: 'Verilerin sende',
-        body: 'Her şey bu telefonda; Etüt hiçbir sunucuya göndermez. Telefon değiştirmeden önce Ayarlar’dan yedek al.',
+        title: 'Denemeler ve verilerin',
+        body: 'Denemeler sekmesinde doğru ve yanlışlarını gir, net hemen hesaplanır. Her şey bu telefonda kalır; ara sıra Ayarlar’dan yedek al. Ayrıntılar: Ayarlar → Nasıl çalışır.',
       },
     ],
     step: (n: number, of: number) => `${n}/${of}`,
@@ -1228,5 +1229,153 @@ export const tr = {
     undone: (sessions: number, exams: number, topics: number) =>
       `Geri alındı. Şu an ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti var.`,
     undoFailed: 'Kopya okunamadı, geri alınamadı.',
+  },
+
+  /** Ayarlar → Yardım: the guide and the tips again. */
+  help: {
+    title: 'Yardım',
+    info: 'Sayaç, net, seri ve yedek kısaca nasıl işliyor.',
+    guide: 'Nasıl çalışır',
+    showTips: 'Turu yeniden göster',
+  },
+
+  /** "Nedir?" next to a term; opens its section of "Nasıl çalışır". */
+  infoLink: {
+    title: 'Nedir?',
+    a11y: (term: string) => `${term} nedir?`,
+    estimated: '“Tahmini” tarih',
+    manual: '“Elle” etiketi',
+    streak: 'Seri',
+    net: 'Net hesabı',
+  },
+
+  /** "Nasıl çalışır": short, plain explanations of the rules (each matches its domain module). */
+  guide: {
+    title: 'Nasıl çalışır',
+    intro: 'Etüt’ün kuralları kısaca. Bir terimin yanındaki “Nedir?” seni buradaki ilgili bölüme getirir.',
+    close: 'Kapat',
+    timer: {
+      title: 'Sayaç ve uzakta kuralı',
+      paragraphs: (toleranceSeconds: number, undoSeconds: number, longHours: number) => [
+        'Ders seç, Başla’ya dokun. Süre, başladığın andan itibaren saate bakılarak hesaplanır; “Mola” sayacı durdurur, “Devam” sürdürür.',
+        `Uygulamadan ${toleranceSeconds} saniyeden uzun çıkarsan ya da telefon kilitlenirse o süre mola sayılır. Dönünce “… uygulamanın dışındaydın” kartı çıkar: “Çalışıyordum, süreye ekle” dersen süre eklenir, “Tamam, mola kalsın” dersen eklenmez. Cevaplamadan Bitir’e dokunursan önce bu sorulur.`,
+        'Kitaptan çalışırken telefonu kilitliyorsan Ayarlar → Sayaç çalışırken → Uygulamadan çıkınca bölümünde “Çalışmaya devam say”ı seç: dışarıda geçen süre sorulmadan çalışma sayılır. O zaman mola verirken “Mola”ya dokunmayı unutma.',
+        'Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez, böylece süren molaya dönmez. Pili biraz daha çok kullanır; Ayarlar’dan kapatabilirsin.',
+        `Bitir’e dokununca oturum kaydedilir ve kısa bir özet görürsün. Yanlışlıkla dokunduysan ${undoSeconds} saniye içinde “Geri al”: kayıt silinir, sayaç kaldığı yerden sürer. ${longHours} saati aşan bir oturumda hepsini mi yoksa ilk ${longHours} saati mi kaydedeceğin sorulur.`,
+      ],
+    },
+    pomodoro: {
+      title: 'Pomodoro',
+      paragraphs: (work: number, short: number, long: number, every: number) => [
+        `Sayaç türünü “Pomodoro” seçersen sayaç geri sayar. Varsayılan: ${work} dk çalışma, ${short} dk kısa mola, her ${every} turda bir ${long} dk uzun mola. Süreleri Ayarlar → Pomodoro’dan değiştirebilirsin.`,
+        'Mola süresi çalışma süresine sayılmaz. Molayı kısaltmak istersen “Molayı geç”e dokun. Uygulama açıkken bir aşama bitince telefon kısa titrer; Hatırlatıcılar’ı açtıysan uygulama kapalıyken bildirim gelir.',
+      ],
+    },
+    manual: {
+      title: '“Elle” etiketi',
+      paragraphs: (days: number, maxHours: number) => [
+        `Sayacı açmayı unuttuysan çalıştığın süreyi sonradan Sayaç → Elle ekle ile girebilirsin: yalnız son ${days} gün için, tek kayıt en fazla ${maxHours} saat, başka bir kayıtla çakışmadan.`,
+        'Böyle eklenen süreler geçmişte, haftalık özette ve tablolarda “elle” etiketiyle görünür; hangi sürenin sayaçla, hangisinin sonradan girildiğini hep ayırt edebilirsin. Toplamlara, günlük hedefe ve seriye sayılır.',
+        'Yanlış girdiysen Elle ekle ekranındaki listeden silebilirsin.',
+      ],
+    },
+    net: {
+      title: 'Deneme ve net',
+      intro: 'Net, doğru sayından yanlışların götürdüğü kısım çıkarılarak bulunur. Boş bıraktığın soru neti etkilemez.',
+      rule: (exam: string, rule: string) => `${exam}: ${rule}`,
+      yks: 'YKS (TYT, AYT, YDT)',
+      kpss: 'KPSS Genel Yetenek–Genel Kültür',
+      lgs: 'LGS',
+      example: (correct: number, wrong: number, perCorrect: number, result: string) =>
+        `Örnek: ${correct} doğru, ${wrong} yanlış → ${correct} − ${wrong} ÷ ${perCorrect} = ${result} net.`,
+      more: [
+        'Genel deneme sınavın bütün derslerini, branş denemesi tek bir dersi kapsar. Kaydettiğin bir denemeyi sonradan “Düzenle” ile değiştirebilirsin.',
+        'Sınav türün “Diğer” ise deneme formu yoktur; Ayarlar’dan YKS, LGS ya da KPSS seçebilirsin.',
+      ],
+    },
+    analysis: {
+      title: 'Analiz ve “tekrar lazım”',
+      paragraphs: (window: number) => [
+        'Deneme analizi iki adımlı: önce netini kaydedersin, kitapçık ya da cevap anahtarı gelince yanlış ve boş soruların hangi konulardan olduğunu işaretlersin. Hepsini işaretlemek zorunda değilsin.',
+        'İşaretledikçe “En çok yanlış yaptığın 5 konu” listesi oluşur. Oradan bir konuya “Tekrar lazım” diyebilir, “Çalış” ile o konuda sayacı başlatabilirsin.',
+        'Konular ekranında bitirdiğin konuyu “Bitti”, yeniden bakman gerekeni “Tekrar lazım” diye işaretlersin. Sayaçta konu seçersen o konuya ayırdığın süre de orada toplanır.',
+        `Bir ders için hedef net koyarsan son ${window} denemenin ortalamasıyla kıyaslanır.`,
+      ],
+    },
+    goal: {
+      title: 'Günlük hedef',
+      paragraphs: (minMinutes: number, maxHours: number) => [
+        `Günlük hedefi istersen koyarsın: ${minMinutes} dakika ile ${maxHours} saat arasında. Sayaç ekranındaki çubuk bugünkü sürenin hedefe oranını gösterir; elle eklediğin süre de sayılır.`,
+        'Hedefi değiştirirsen yeni hedef geçmiş günlere de uygulanır ve seri buna göre yeniden hesaplanır. Hedefi kapatırsan seri gösterilmez.',
+      ],
+    },
+    streak: {
+      title: 'Seri ve dinlenme günü',
+      paragraphs: [
+        'Seri, günlük hedefini tutturduğun art arda günlerin sayısıdır. Gün, Türkiye saatiyle gece yarısı değişir.',
+        'Bugün henüz bitmedi: hedefin altında olman seriyi bozmaz, seri dünden geriye sayılır. Bugün hedefi tutturunca bugün de eklenir.',
+        'Her hafta (Pazartesi–Pazar) 1 gün hedefin altında kalabilirsin: o gün dinlenme günü sayılır, seriyi bozmaz ama seriye de eklenmez. Aynı hafta içinde ikinci bir gün hedefin altında kalırsan seri biter.',
+        'Bu haftaki dinlenme gününü kullanıp kullanmadığını haftalık özette görürsün.',
+      ],
+    },
+    examDate: {
+      title: '“Tahmini” sınav tarihi',
+      paragraphs: [
+        'ÖSYM ya da MEB sınav takvimini henüz açıklamadıysa geri sayım, önceki yılların düzenine göre tahmin ettiğimiz tarihe göre yapılır; yanında “tahmini” yazar.',
+        'Kesin tarihi biliyorsan ya da başka bir oturuma giriyorsan Ayarlar → Sınav tarihi’nden kendin gir; “tahmini” etiketi kalkar. “Tahmini tarihe dön” ile geri alabilirsin.',
+      ],
+    },
+    lockScreen: {
+      title: 'Kilit ekranı sayacı ve widget',
+      paragraphs: (maxHours: number) => [
+        'iPhone’da Başla’ya dokununca sayaç kilit ekranında ve Dynamic Island’da da görünür. Görmüyorsan iPhone’un Ayarlar → Etüt → Canlı Etkinlikler seçeneğini aç.',
+        'Kilit ekranındaki sayaç durmadan sayar; ama “Uygulamadan çıkınca: Sor” seçiliyse telefonun kilitli kaldığı süre dönünce sorulur, “Çalışıyordum” demezsen mola kalır.',
+        `iOS bir canlı sayacı en fazla ${maxHours} saat gösterir; uzun bir oturumda uygulamayı açınca yenilenir.`,
+      ],
+      widgetTitle: 'Ana ekrana widget eklemek',
+      widgetSteps: [
+        '1. Ana ekranda boş bir yere basılı tut.',
+        '2. Sol üstteki “Düzenle”ye (ya da “+”ya) dokun, “Widget Ekle”yi seç.',
+        '3. Listeden Etüt’ü bul, küçük ya da orta boyutu seçip “Widget Ekle”ye dokun.',
+      ],
+      lockWidget:
+        'Kilit ekranına eklemek için kilit ekranına basılı tut, “Özelleştir” → “Kilitli Ekran”a dokun, saatin altındaki alana dokunup Etüt’ü seç.',
+      widgetInfo: 'Widget bugünkü çalışma süreni, günlük hedefini ve serini gösterir; sayaç açıkken süre orada da ilerler.',
+    },
+    backup: {
+      title: 'Yedek',
+      paragraphs: (minDays: number, afterDays: number, snoozeDays: number) => [
+        'Etüt’ün sunucusu yok: verilerin yalnız bu telefonda (iPhone’un iCloud yedeği açıksa o yedekte de). Uygulamayı silersen ya da telefonu değiştirirsen yedek dosyası olmadan geri getiremeyebilirsin.',
+        'Ayarlar → Yedekle ve geri yükle → “Yedek dosyası oluştur” tek bir dosya hazırlar; onu Dosyalar’a, iCloud Drive’a ya da güvendiğin başka bir yere kaydet. Dosya şifrelenmez.',
+        'Yeni telefonda “Yedekten geri yükle” ile dosyayı seç. “Birleştir” iki taraftaki kayıtları birleştirir, “Değiştir” buradakileri silip yedektekileri koyar.',
+        `En az ${minDays} gün çalıştıysan ve ${afterDays} gündür yedek almadıysan Sayaç ekranında küçük bir hatırlatma çıkar. Bildirim gelmez; “Şimdi değil” dersen ${snoozeDays} gün görünmez.`,
+      ],
+    },
+  },
+
+  /** "Son yedek" line and the quiet reminder card on the timer screen (no notification, K-34). */
+  backupReminder: {
+    never: 'Hiç yedek alınmadı',
+    last: (days: number, date: string) =>
+      days === 0 ? 'Son yedek: bugün' : days === 1 ? 'Son yedek: dün' : `Son yedek: ${days} gün önce (${date})`,
+    lastNote:
+      'Yedek dosyasını en son oluşturduğun zaman. Dosyayı nereye kaydettiğini Etüt bilemez; kaydettiğinden emin ol.',
+    cardTitle: (days: number | null) => (days === null ? 'Henüz yedek almadın' : `Son yedeğin ${days} gün önce`),
+    cardBody:
+      'Verilerin yalnız bu telefonda. Telefonu değiştirir ya da uygulamayı silersen yedek dosyası olmadan geri getiremeyebilirsin.',
+    open: 'Yedek al',
+    dismiss: 'Şimdi değil',
+    dismissHint: (days: number) => `Bu hatırlatma ${days} gün görünmez.`,
+  },
+
+  /** Hakkında → İletişim (e-mail with the app and OS version in the subject, nothing else). */
+  contact: {
+    title: 'İletişim',
+    info: 'Soru, hata ya da önerin için bize e-posta gönderebilirsin. Konu satırına yalnız uygulama ve işletim sistemi sürümü eklenir.',
+    send: 'E-posta gönder',
+    soon: 'E-posta · Yakında',
+    soonInfo: 'İletişim adresi yayından önce eklenecek.',
+    subject: (version: string, build: string, os: string) => `Etüt geri bildirim · sürüm ${version} (${build}) · ${os}`,
+    failed: (address: string) => `E-posta uygulaması açılamadı. Adresimiz: ${address}`,
   },
 } as const;

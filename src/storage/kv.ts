@@ -35,6 +35,8 @@ const KEYS = {
   keepAwake: 'etut.keepAwake.v1',
   awayRule: 'etut.awayRule.v1',
   replaceUndo: 'etut.replaceUndo.v1',
+  lastBackupAt: 'etut.lastBackupAt.v1',
+  backupNudgeDismissedAt: 'etut.backupNudgeDismissedAt.v1',
 } as const;
 
 export type TimerMode = 'stopwatch' | 'pomodoro';
@@ -176,6 +178,11 @@ export function storeTipsSeen(): void {
   Storage.setItemSync(KEYS.tipsSeen, '1');
 }
 
+/** Ayarlar → "Turu yeniden göster": the tips appear again on the timer screen. */
+export function clearTipsSeen(): void {
+  Storage.removeItemSync(KEYS.tipsSeen);
+}
+
 export function loadReminderPrefs(): ReminderPrefs {
   return normalizeReminderPrefs(readJson(KEYS.reminderPrefs));
 }
@@ -245,6 +252,29 @@ export function loadReplaceUndo(): ReplaceUndo | null {
 export function storeReplaceUndo(undo: ReplaceUndo | null): void {
   if (undo === null) Storage.removeItemSync(KEYS.replaceUndo);
   else Storage.setItemSync(KEYS.replaceUndo, JSON.stringify(undo));
+}
+
+function readTime(key: string): number | null {
+  const value = readJson(key);
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** When a backup file was last created and handed to the share sheet; `null` = never. */
+export function loadLastBackupAt(): number | null {
+  return readTime(KEYS.lastBackupAt);
+}
+
+export function storeLastBackupAt(ms: number): void {
+  Storage.setItemSync(KEYS.lastBackupAt, JSON.stringify(ms));
+}
+
+/** When the student closed the backup reminder card ("Şimdi değil"); `null` = never. */
+export function loadBackupNudgeDismissedAt(): number | null {
+  return readTime(KEYS.backupNudgeDismissedAt);
+}
+
+export function storeBackupNudgeDismissedAt(ms: number): void {
+  Storage.setItemSync(KEYS.backupNudgeDismissedAt, JSON.stringify(ms));
 }
 
 /** expo-sqlite/kv-store keeps its rows in this database file (expo-sqlite src/Storage.ts). */

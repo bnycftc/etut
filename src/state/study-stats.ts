@@ -21,6 +21,8 @@ export interface StudyStats {
   /** Daily goal in minutes; `null` = none. */
   goal: number | null;
   streak: StreakResult | null;
+  /** Days with any study time in the streak window (today included); for the backup reminder. */
+  studyDays: number;
 }
 
 export function useStudyStats(now: number): StudyStats {
@@ -38,7 +40,9 @@ export function useStudyStats(now: number): StudyStats {
       dailyTotals(sessions, lastDays(todayStart - 1, STREAK_LOOKBACK_DAYS)).map((t) => [t.day, t.totalMs]),
     );
     const recentFrom = dayStartMs(weekStartOf(today)) - 7 * DAY_MS;
-    return { past, recent: sessions.filter((s) => s.endedAt > recentFrom), goal: loadDailyGoal() };
+    let pastStudyDays = 0;
+    for (const ms of past.values()) if (ms > 0) pastStudyDays++;
+    return { past, pastStudyDays, recent: sessions.filter((s) => s.endedAt > recentFrom), goal: loadDailyGoal() };
   });
 
   const spans: SessionSpan[] = [...stored.recent];
@@ -76,5 +80,6 @@ export function useStudyStats(now: number): StudyStats {
     streakCache.current = { stored, key: streakKey, value: streak };
   }
 
-  return { today, todayTotal, todayManual, comparison: compareWithPast(spans, now), goal, streak };
+  const studyDays = stored.pastStudyDays + (todayTotal > 0 ? 1 : 0);
+  return { today, todayTotal, todayManual, comparison: compareWithPast(spans, now), goal, streak, studyDays };
 }

@@ -27,6 +27,7 @@ import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '@/domain/streak';
 import { useAppState, useStored } from '@/state/app-state';
 import { useNotificationPermission } from '@/state/notification-permission';
 import {
+  clearTipsSeen,
   loadCustomExamDate,
   loadDailyGoal,
   loadPomodoroConfig,
@@ -39,8 +40,10 @@ import {
 import { loadGroupsAccount, loadParentAccount } from '@/storage/groups-kv';
 import { tr } from '@/strings';
 import { groupApi, isAccountGone } from '@/sync/api';
+import { LastBackupLabel } from '@/ui/backup-reminder';
 import { Button, Card, Chip, ChipRow, Field, Label, Row, Screen, Stepper, Tag } from '@/ui/components';
 import { formatDay, formatDuration } from '@/ui/format';
+import { openGuide } from '@/ui/info-link';
 import { useReducedMotion } from '@/ui/motion';
 import { usePalette } from '@/ui/theme';
 import { TimerSettingsCard } from '@/ui/timer-safety';
@@ -326,6 +329,7 @@ export default function SettingsScreen() {
       <Card>
         <Label variant="heading">{tr.settings.dataTitle}</Label>
         <Label variant="muted">{GROUPS_ENABLED ? tr.settings.dataInfoGroups : tr.settings.dataInfo}</Label>
+        <LastBackupLabel testID="settings-last-backup" />
         <Button
           testID="settings-open-backup"
           kind="secondary"
@@ -410,6 +414,22 @@ export default function SettingsScreen() {
           <Button testID="settings-parent-mode" kind="secondary" title={tr.parent.entry} onPress={() => router.push('/veli')} />
         </Card>
       ) : null}
+
+      <Card>
+        <Label variant="heading">{tr.help.title}</Label>
+        <Label variant="small">{tr.help.info}</Label>
+        <Button testID="settings-open-guide" kind="secondary" title={tr.help.guide} onPress={() => openGuide()} />
+        <Button
+          testID="settings-show-tips"
+          kind="secondary"
+          title={tr.help.showTips}
+          onPress={() => {
+            // The timer tab opens the tips again when it is shown (src/ui/tips.tsx).
+            clearTipsSeen();
+            router.navigate('/');
+          }}
+        />
+      </Card>
 
       <Card>
         <Label variant="heading">{tr.settings.about}</Label>
