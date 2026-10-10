@@ -51,11 +51,13 @@ tags:
 - tapOn:
     id: onboarding-start
     retryTapIfNoChange: true
-# One-time tips: three steps, then the timer.
+# One-time tips: three steps, then the timer. The tips open in a modal; wait for its button (the
+# modal container itself was once missing from Maestro's hierarchy for 30 s while on screen, run
+# 38020253679), with the same 30 s as subflows/ipucu-gec.yaml.
 - extendedWaitUntil:
     visible:
-      id: tips-card
-    timeout: 15000
+      id: tips-next
+    timeout: 30000
 - takeScreenshot: a-ilk-acilis-03a-ipucu
 - tapOn:
     id: tips-next

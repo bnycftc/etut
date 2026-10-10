@@ -1,9 +1,10 @@
 # Closes the first-use tips that appear once after onboarding ("Geç"). Ends on the timer tab.
 appId: com.bnycftc.etut
 ---
+# The tips are a modal: wait for its button rather than the container (see a-ilk-acilis.yaml).
 - extendedWaitUntil:
     visible:
-      id: tips-card
+      id: tips-skip
     timeout: 30000
 - tapOn:
     id: tips-skip
