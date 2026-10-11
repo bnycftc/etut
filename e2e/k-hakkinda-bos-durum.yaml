@@ -17,6 +17,7 @@ tags:
     timeout: 20000
 - tapOn:
     id: onboarding-privacy
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: legal-aydinlatma

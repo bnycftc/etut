@@ -175,7 +175,8 @@ export default function OnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space.lg, gap: space.lg },
+  // Extra room under the last button: right above the home indicator a tap is easily lost.
+  content: { padding: space.lg, paddingBottom: space.xl * 2, gap: space.lg },
   brand: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   logo: { width: 48, height: 48, borderRadius: 11 },
 });
