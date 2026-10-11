@@ -96,6 +96,12 @@ export default function AboutScreen() {
         </Row>
         <Row>
           <Label variant="muted" style={{ flex: 1 }}>
+            {tr.about.address}
+          </Label>
+          <Label testID="about-address">{DATA_CONTROLLER.address}</Label>
+        </Row>
+        <Row>
+          <Label variant="muted" style={{ flex: 1 }}>
             {tr.about.contact}
           </Label>
           <Label>{DATA_CONTROLLER.contact}</Label>

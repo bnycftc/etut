@@ -11,14 +11,23 @@ import type { ManualEntryError } from './domain/manual-entry';
 import type { ExamKind, ScoreError, YksArea } from './domain/net';
 import type { ExamType } from './domain/profile';
 
+/** Shown wherever a data controller field has no value (every build except the release one). */
+export const DATA_CONTROLLER_PLACEHOLDER = '[DOLDURULACAK]';
+
 /**
- * Data controller ("veri sorumlusu") shown in the legal texts. Single place to fill in before
- * release; do not put a personal e-mail address here without bny's decision.
+ * Data controller ("veri sorumlusu", KVKK m.10) shown in the legal texts and on Hakkında. The real
+ * values are deliberately not in this public repository (bny, 11 Oct 2026): the TestFlight build
+ * gets them at bundle time from the GitHub secrets DATA_CONTROLLER_NAME / _ADDRESS / _CONTACT
+ * (.github/workflows/testflight.yml), which Expo inlines from these EXPO_PUBLIC_ variables. Every
+ * other build (tests, E2E, web) shows the placeholder.
  */
 export const DATA_CONTROLLER = {
-  name: '[DOLDURULACAK]',
-  contact: '[DOLDURULACAK]',
-} as const;
+  name: process.env.EXPO_PUBLIC_DATA_CONTROLLER_NAME || DATA_CONTROLLER_PLACEHOLDER,
+  /** Postal address for written KVKK applications (Başvuru Tebliği m.5). */
+  address: process.env.EXPO_PUBLIC_DATA_CONTROLLER_ADDRESS || DATA_CONTROLLER_PLACEHOLDER,
+  /** Support and KVKK application e-mail; enables the İletişim button on Hakkında. */
+  contact: process.env.EXPO_PUBLIC_DATA_CONTROLLER_CONTACT || DATA_CONTROLLER_PLACEHOLDER,
+};
 
 /** Date shown as "Son güncelleme" on the legal texts. */
 export const LEGAL_UPDATED = '5 Ekim 2026';
@@ -152,7 +161,7 @@ const legalDocs = {
       },
       {
         heading: '10. İletişim',
-        paragraphs: [`${C.name} · ${C.contact}`],
+        paragraphs: [`${C.name} · ${C.address} · ${C.contact}`],
       },
     ],
   },
@@ -210,7 +219,7 @@ const legalDocs = {
       },
       {
         heading: '9. İletişim',
-        paragraphs: [`${C.name} · ${C.contact}`],
+        paragraphs: [`${C.name} · ${C.address} · ${C.contact}`],
       },
     ],
   },
@@ -1075,6 +1084,7 @@ export const tr = {
     licenseTextMissing: (license: string) =>
       `${license} lisansı. Tam metin projenin kendi deposunda; bir sonraki sürümde buraya da eklenecek.`,
     controller: 'Veri sorumlusu',
+    address: 'Adres',
     contact: 'İletişim',
     updated: (date: string) => `Son güncelleme: ${date}`,
     noNetwork: 'Etüt internete bağlanmaz; reklam, analitik ve izleme içermez.',

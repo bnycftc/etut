@@ -62,18 +62,25 @@ jobs:
 
       # No build may reach App Store Connect with the data controller left as a placeholder
       # (KVKK m.10/a, K-31, K-38): App Store Connect can send any uploaded build to external
-      # testing or App Review, whatever started it. Only a manual run with internal_only ticked
-      # passes with placeholders, and says so in the run summary.
-      - name: Legal placeholders filled
+      # testing or App Review, whatever started it. The real name, postal address and e-mail are
+      # not in this public repository (src/strings.ts DATA_CONTROLLER): they come from these
+      # secrets and are inlined into the JS bundle by the archive step. Only a manual run with
+      # internal_only ticked passes without them, and says so in the run summary.
+      - name: Data controller set
         env:
           INTERNAL_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.internal_only }}
+          DC_NAME: ${{ secrets.DATA_CONTROLLER_NAME }}
+          DC_ADDRESS: ${{ secrets.DATA_CONTROLLER_ADDRESS }}
+          DC_CONTACT: ${{ secrets.DATA_CONTROLLER_CONTACT }}
         run: |
-          if grep -n 'DOLDURULACAK' src/strings.ts; then
+          missing=""
+          for name in DC_NAME DC_ADDRESS DC_CONTACT; do [ -n "${!name}" ] || missing="$missing $name"; done
+          if [ -n "$missing" ]; then
             if [ "$INTERNAL_ONLY" = "true" ]; then
-              echo "::warning file=src/strings.ts::DATA_CONTROLLER is still [DOLDURULACAK]. Internal TestFlight only: do NOT add build $BUILD_NUMBER to an external group or submit it for review."
-              echo "Build $BUILD_NUMBER: internal TestFlight only (legal placeholders). Never send it to external testing or App Review." >> "$GITHUB_STEP_SUMMARY"
+              echo "::warning::Data controller secrets missing:$missing. Internal TestFlight only: do NOT add build $BUILD_NUMBER to an external group or submit it for review."
+              echo "Build $BUILD_NUMBER: internal TestFlight only (data controller placeholders). Never send it to external testing or App Review." >> "$GITHUB_STEP_SUMMARY"
             else
-              echo "::error file=src/strings.ts::DATA_CONTROLLER is still [DOLDURULACAK]. Fill the data controller and contact, or run manually with internal_only for internal testing."
+              echo "::error::Data controller secrets missing:$missing (DATA_CONTROLLER_NAME / _ADDRESS / _CONTACT). Set them, or run manually with internal_only for internal testing."
               exit 1
             fi
           fi
@@ -202,6 +209,10 @@ jobs:
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          # Inlined by Metro into the JS bundle (the "Bundle React Native code" phase of the archive).
+          EXPO_PUBLIC_DATA_CONTROLLER_NAME: ${{ secrets.DATA_CONTROLLER_NAME }}
+          EXPO_PUBLIC_DATA_CONTROLLER_ADDRESS: ${{ secrets.DATA_CONTROLLER_ADDRESS }}
+          EXPO_PUBLIC_DATA_CONTROLLER_CONTACT: ${{ secrets.DATA_CONTROLLER_CONTACT }}
         run: |
           set -o pipefail
           mkdir -p build
@@ -311,6 +322,18 @@ jobs:
           done
           [ "$extensions" -ge 1 ] || { echo "::error::No app extension found; the widget extension (ExpoWidgetsTarget) is missing"; exit 1; }
           echo "Verified app + $extensions extension(s)." >> "$GITHUB_STEP_SUMMARY"
+
+      # When the secrets are set, the e-mail must really be in the shipped bundle (otherwise the app
+      # would show the placeholder). Only a count is printed, never the value.
+      - name: Verify data controller in the bundle
+        env:
+          DC_CONTACT: ${{ secrets.DATA_CONTROLLER_CONTACT }}
+        run: |
+          if [ -z "$DC_CONTACT" ]; then echo "No data controller secrets: the build shows the placeholder."; exit 0; fi
+          ipa="$(ls build/export/*.ipa | head -1)"
+          hits="$(unzip -p "$ipa" 'Payload/*.app/main.jsbundle' | LC_ALL=C grep -a -c -F "$DC_CONTACT" || true)"
+          [ "${hits:-0}" -ge 1 ] || { echo "::error::The data controller e-mail is not in main.jsbundle; EXPO_PUBLIC_DATA_CONTROLLER_* did not reach the bundle"; exit 1; }
+          echo "Data controller inlined into the JS bundle (found $hits time(s))." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload to App Store Connect
         env:
