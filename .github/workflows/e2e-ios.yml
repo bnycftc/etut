@@ -305,18 +305,22 @@ jobs:
           # failing every later flow. A real bug fails both runs; the retried flows are listed in
           # the run summary so a flaky flow stays visible.
           if [ "$status" -ne 0 ] && [ -f "$RESULTS/report.xml" ]; then
-            mapfile -t lost < <(python3 - <<'PY'
+            # macOS runners run bash 3.2: no mapfile. Flow files have no spaces, so a plain list works.
+            lost="$(python3 - <<'PY'
           import os, xml.etree.ElementTree as ET
           for case in ET.parse(os.path.join(os.environ["RESULTS"], "report.xml")).getroot().iter("testcase"):
               bad = case.find("failure") if case.find("failure") is not None else case.find("error")
               if bad is not None:
                   print(f"e2e/{case.get('name')}.yaml")
           PY
-            )
-            if [ "${#lost[@]}" -gt 0 ]; then
-              echo "::warning::${#lost[@]} flow(s) failed; running them once more in a new driver session: ${lost[*]}"
-              { echo "Retried once (failed on the first run): ${lost[*]}"; } >> "$GITHUB_STEP_SUMMARY"
-              run_maestro retry "${lost[@]}"
+            )"
+            lost="$(echo $lost | tr -d '\015')"
+            if [ -n "$lost" ]; then
+              count="$(echo $lost | wc -w | tr -d ' ')"
+              echo "::warning::$count flow(s) failed; running them once more in a new driver session: $lost"
+              { echo "Retried once (failed on the first run): $lost"; } >> "$GITHUB_STEP_SUMMARY"
+              # shellcheck disable=SC2086
+              run_maestro retry $lost
               python3 - <<'PY'
           import os, xml.etree.ElementTree as ET
           path = os.path.join(os.environ["RESULTS"], "report.xml")
