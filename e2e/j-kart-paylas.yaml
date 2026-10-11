@@ -48,9 +48,11 @@ tags:
           start: 50%, 55%
           end: 50%, 98%
           duration: 400
-- extendedWaitUntil:
-    visible:
+# The fallback drag above may also have scrolled the page up: scroll back down to the button.
+- scrollUntilVisible:
+    element:
       id: share-card-share
+    direction: DOWN
     timeout: 20000
 - assertNotVisible:
     id: share-message

@@ -27,6 +27,7 @@ tags:
 # Born 20 years ago: certainly 15 or older.
 - tapOn:
     id: "birth-year-${new Date().getFullYear() - 20}"
+    retryTapIfNoChange: true
 - scrollUntilVisible:
     element:
       id: exam-type-YKS
@@ -34,6 +35,7 @@ tags:
     timeout: 20000
 - tapOn:
     id: exam-type-YKS
+    retryTapIfNoChange: true
 # The screen is taller than the viewport: scroll to each target instead of a fixed swipe.
 - scrollUntilVisible:
     element:
@@ -42,6 +44,7 @@ tags:
     timeout: 20000
 - tapOn:
     id: yks-area-sayisal
+    retryTapIfNoChange: true
 - takeScreenshot: a-ilk-acilis-02-secimler
 - scrollUntilVisible:
     element:

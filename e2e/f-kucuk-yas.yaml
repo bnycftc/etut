@@ -12,6 +12,7 @@ tags:
 # Born 12 years ago: under 15 -> solo-only profile.
 - tapOn:
     id: "birth-year-${new Date().getFullYear() - 12}"
+    retryTapIfNoChange: true
 - scrollUntilVisible:
     element:
       id: exam-type-LGS
@@ -19,6 +20,7 @@ tags:
     timeout: 20000
 - tapOn:
     id: exam-type-LGS
+    retryTapIfNoChange: true
 - scrollUntilVisible:
     element:
       id: onboarding-start

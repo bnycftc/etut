@@ -12,6 +12,7 @@ tags:
 # An 8th grader (13): LGS, under 15 (no groups tab; the exam form is the same for every age).
 - tapOn:
     id: "birth-year-${new Date().getFullYear() - 13}"
+    retryTapIfNoChange: true
 - scrollUntilVisible:
     element:
       id: exam-type-LGS
@@ -19,6 +20,7 @@ tags:
     timeout: 20000
 - tapOn:
     id: exam-type-LGS
+    retryTapIfNoChange: true
 - scrollUntilVisible:
     element:
       id: onboarding-start

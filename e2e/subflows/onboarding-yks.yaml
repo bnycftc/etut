@@ -8,6 +8,7 @@ appId: com.bnycftc.etut
     timeout: 60000
 - tapOn:
     id: "birth-year-${new Date().getFullYear() - Number(AGE)}"
+    retryTapIfNoChange: true
 - scrollUntilVisible:
     element:
       id: exam-type-YKS
@@ -15,6 +16,7 @@ appId: com.bnycftc.etut
     timeout: 20000
 - tapOn:
     id: exam-type-YKS
+    retryTapIfNoChange: true
 # The screen is taller than the viewport (year list, exam, area, optional goal, start): scroll to
 # each target instead of a fixed swipe, which stops reaching the start button as cards are added.
 - scrollUntilVisible:
@@ -24,6 +26,7 @@ appId: com.bnycftc.etut
     timeout: 20000
 - tapOn:
     id: yks-area-sayisal
+    retryTapIfNoChange: true
 - scrollUntilVisible:
     element:
       id: onboarding-start
