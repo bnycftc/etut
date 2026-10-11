@@ -73,6 +73,7 @@ tags:
     id: tips-card
 - assertVisible:
     id: today-total
-- assertVisible:
+# The group module is off (no server yet): no Groups tab, even for a 15+ profile.
+- assertNotVisible:
     id: tab-groups
 - takeScreenshot: a-ilk-acilis-03-sayac

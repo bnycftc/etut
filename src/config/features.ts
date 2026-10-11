@@ -4,8 +4,9 @@
 
 /**
  * Group module backed by the self-hosted server (src/sync, supabase/). Off until the server in
- * Turkey exists (hukuk/kvkk/00). While false the app makes no network request at all and the
- * Groups tab shows the "Yakında" card; the supabase client is never even loaded.
+ * Turkey exists (hukuk/kvkk/00). While false the app makes no network request at all, there is no
+ * Groups tab (bny, 2026-10-11: a "coming soon" tab risks App Review 2.1) and the supabase client
+ * is never even loaded.
  */
 export const GROUPS_ENABLED: boolean = false;
 

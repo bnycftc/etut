@@ -13,8 +13,8 @@ import { goalMet, goalRatio } from './streak';
 export type CardPeriod = 'day' | 'week';
 
 /**
- * K-09 / K-16 (docs/hukuk/adr/ADR-001-calisma-karti.md): until bny decides otherwise the card is
- * offered only to 15+ profiles. Under 15 (solo) it is not shown and its screen does not open.
+ * K-09 / K-16 (docs/hukuk/adr/ADR-001-calisma-karti.md, accepted by bny on 11 Oct 2026): the card
+ * is offered only to 15+ profiles. Under 15 (solo) it is not shown and its screen does not open.
  */
 export function canShareCard(profile: Profile | null): boolean {
   return profile !== null && !profile.soloOnly;

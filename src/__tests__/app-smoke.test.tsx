@@ -582,7 +582,7 @@ describe('the moment after Bitir', () => {
   });
 });
 
-it('a 15+ profile sees the groups tab; start, pause, finish saves a session', () => {
+it('with the group module off a 15+ profile sees no Groups tab; start, pause, finish saves a session', () => {
   memory.profile = {
     birthYear: 2000,
     examType: 'YKS',
@@ -591,7 +591,7 @@ it('a 15+ profile sees the groups tab; start, pause, finish saves a session', ()
     createdAt: 0,
   };
   renderRouter(APP_DIR, { initialUrl: '/' });
-  expect(screen.getByText('Gruplar')).toBeTruthy();
+  expect(screen.queryByText('Gruplar')).toBeNull();
   fireEvent.press(screen.getByText('Fizik'));
   fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
   expect(memory.active?.subjectId).toBe('fizik');

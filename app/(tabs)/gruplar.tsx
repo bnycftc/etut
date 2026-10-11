@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { Redirect, router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -29,57 +29,18 @@ import {
 import { endGroupsAccount } from '@/sync/session-sync';
 import { Button, Card, Chip, ChipRow, Label, Row, Screen, Tag, TextField } from '@/ui/components';
 import { errorText, Message, minutesLeft, ToggleRow } from '@/ui/group-ui';
-import { Icon } from '@/ui/icon';
 import { usePalette } from '@/ui/theme';
 
-/** Shown solely to 15+ profiles (see (tabs)/_layout.tsx). */
+/**
+ * Shown solely to 15+ profiles while the group module is on (see (tabs)/_layout.tsx). With the
+ * module off there is no tab, and a link here goes back to the timer, so no group code and no
+ * network request can run (src/config/features.ts).
+ */
 export default function GroupsScreen() {
-  if (!GROUPS_ENABLED) return <GroupsOff />;
+  if (!GROUPS_ENABLED) return <Redirect href="/" />;
   return <GroupsHome />;
 }
 
-/**
- * The module is off: no network request is ever made (src/config/features.ts). An honest
- * explanation only — what is planned, why it is not here yet, what already works — and no
- * pretend group UI or sign-up.
- */
-function GroupsOff() {
-  const { profile } = useAppState();
-  const c = usePalette();
-  return (
-    <Screen testID="groups-off">
-      <Card tone="accent">
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Icon name="groups" color={c.accent} />
-          <Label variant="title" style={{ flexShrink: 1 }}>
-            {tr.groups.introTitle}
-          </Label>
-        </View>
-        <Row>
-          <Tag title={tr.groups.soon} />
-        </Row>
-        <Label variant="heading">{tr.groupsOff.planTitle}</Label>
-        <Label>{tr.groupsOff.plan}</Label>
-      </Card>
-      <Card>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Icon name="server" color={c.textMuted} />
-          <Label variant="heading" style={{ flexShrink: 1 }}>
-            {tr.groupsOff.whyTitle}
-          </Label>
-        </View>
-        <Label variant="muted">{tr.groupsOff.why}</Label>
-      </Card>
-      <Card>
-        <Label variant="heading">{tr.groupsOff.nowTitle}</Label>
-        <Label variant="muted">{tr.groupsOff.now}</Label>
-        {profile !== null && !groupsAllowedForExam(profile.examType) ? (
-          <Label variant="small">{tr.groups.unavailableLgs}</Label>
-        ) : null}
-      </Card>
-    </Screen>
-  );
-}
 
 function GroupsHome() {
   const { profile } = useAppState();

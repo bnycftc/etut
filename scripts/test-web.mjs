@@ -8,8 +8,8 @@
  *
  * Checks: page is cross-origin isolated, no console errors / uncaught exceptions, no network
  * request outside the dev server; onboarding (+ short notice) → first-use tips → timer (start,
- * pause, resume, finish, summary and "Geri al"; Sayısal subjects only) → groups tab stays
- * "Yakında" → reload keeps the profile → share card (1080x1920 PNG) → mock exam with the right
+ * pause, resume, finish, summary and "Geri al"; Sayısal subjects only) → no groups tab, the
+ * groups route opens the timer → reload keeps the profile → share card (1080x1920 PNG) → mock exam with the right
  * net (area papers only) → reload keeps the exam → area change → "Sayaç çalışırken" settings
  * (kept across a reload) → backup + CSV download → about / legal / licenses → reminders screen
  * renders → "delete all data" returns to onboarding → empty states → restore the backup
@@ -206,7 +206,8 @@ async function runScenario(page, baseUrl) {
   // 2. Timer: start, runs, pause, resume, finish.
   log('step: timer');
   await visible('timer-start');
-  check(await byId('tab-groups').isVisible(), 'a 15+ profile must see the groups tab');
+  // The group module is off (no server yet): no Groups tab at all, not a "coming soon" one.
+  check((await byId('tab-groups').count()) === 0, 'no groups tab while the group module is off');
   // Sayısal: no literature and no foreign language among the subjects.
   check((await byId('subject-edebiyat').count()) === 0, 'Sayısal must not offer Türk Dili ve Edebiyatı');
   check((await byId('subject-yabanci_dil').count()) === 0, 'Sayısal must not offer Yabancı Dil');
@@ -257,15 +258,13 @@ async function runScenario(page, baseUrl) {
   await page.goBack();
   await visible('timer-start');
 
-  // 2b. The group module is off (src/config/features.ts): the tab stays "Yakında" and no request
-  //     ever leaves the dev server (checked for the whole run in main()).
-  log('step: groups tab (module off)');
-  await byId('tab-groups').click();
-  await page.getByText('Yakında').waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS });
-  check(!(await byId('groups-intro').isVisible()), 'the group module must stay off');
-  await screenshot('groups-off');
-  await byId('tab-timer').click();
-  await visible('timer-start');
+  // 2b. The group module is off (src/config/features.ts): there is no groups tab, a link to it
+  //     opens the timer, and no request ever leaves the dev server (checked in main()).
+  log('step: groups route (module off)');
+  await page.goto(baseUrl + 'gruplar');
+  await visible('timer-start', FIRST_SCREEN_TIMEOUT_MS);
+  check((await byId('groups-intro').count()) === 0, 'the group module must stay off');
+  check((await byId('tab-groups').count()) === 0, 'no groups tab while the group module is off');
 
   // 3. Reload: the profile comes back from the kv-store (no onboarding).
   log('step: reload keeps profile');

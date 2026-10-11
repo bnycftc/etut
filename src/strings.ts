@@ -706,7 +706,6 @@ export const tr = {
   },
 
   groups: {
-    soon: 'Yakında',
     body: 'Davetle kurulan küçük çalışma grupları üzerinde çalışıyoruz. Sayaç ve denemeler gruplardan bağımsız çalışır.',
     // Group module (GROUPS_ENABLED). Wording: "çalışma grubu", never "sosyal ağ / topluluk" (K-13).
     introTitle: 'Çalışma grupları',
@@ -1167,15 +1166,6 @@ export const tr = {
     away: (title: string, body: string) => `${title} ${body}`,
   },
 
-  /** Groups tab while the module is off (GROUPS_ENABLED = false). No "soon" word here: tr.groups.soon is the badge. */
-  groupsOff: {
-    planTitle: 'Planladığımız',
-    plan: 'Davet koduyla kurulan, en fazla 30 kişilik küçük çalışma grupları: kimin şu an çalıştığını ve günlük, haftalık süreleri görürsün. Sohbet ve mesaj olmayacak; yalnız hazır tepkiler.',
-    whyTitle: 'Neden henüz yok?',
-    why: 'Gruplar için Türkiye’de bir sunucu gerekiyor. O hazır olana kadar Etüt internete hiç bağlanmaz; bu sekme de hiçbir yere bir şey göndermez.',
-    nowTitle: 'Şimdi neler çalışıyor?',
-    now: 'Sayaç, günlük hedef ve seri, denemeler ve analiz gruplar olmadan tam çalışır. Gruplar açılınca katılmak isteğe bağlı olacak.',
-  },
 
   /** Ayarlar → "Sayaç çalışırken": screen kept on, what leaving the app means. */
   timerSettings: {
