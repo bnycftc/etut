@@ -1,0 +1,69 @@
+# Sets the App Store "Privacy Policy URL" of Etüt (App Store Connect app 6818980777) on every
+# localization of the editable app info. Same API key secrets as asc-key-check.yml. Prints only
+# locales, states, URLs and HTTP status.
+name: ASC privacy URL
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Privacy policy URL
+        required: true
+        default: https://bnycftc.github.io/etut/gizlilik.html
+
+permissions:
+  contents: read
+
+jobs:
+  set:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Set privacyPolicyUrl
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          PRIVACY_URL: ${{ inputs.url }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import base64, os, sys, time, jwt, requests
+          raw = os.environ["ASC_PRIVATE_KEY"]
+          key = raw if "BEGIN PRIVATE KEY" in raw else base64.b64decode(raw).decode()
+          now = int(time.time())
+          token = jwt.encode(
+              {"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 600, "aud": "appstoreconnect-v1"},
+              key, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+          api = "https://api.appstoreconnect.apple.com/v1"
+          auth = {"Authorization": "Bearer " + token}
+          url = os.environ["PRIVACY_URL"]
+          if not url.startswith("https://"):
+              sys.exit("URL must start with https://")
+
+          def errors(r):
+              return [(e.get("code"), e.get("title"), e.get("detail")) for e in r.json().get("errors", [])]
+
+          r = requests.get(f"{api}/apps/6818980777/appInfos", headers=auth, timeout=30)
+          print("appInfos HTTP", r.status_code)
+          if not r.ok:
+              sys.exit(f"errors: {errors(r)}")
+          failed = False
+          for info in r.json()["data"]:
+              state = info["attributes"].get("state") or info["attributes"].get("appStoreState")
+              print("appInfo", info["id"], "state", state)
+              if state in ("READY_FOR_DISTRIBUTION", "READY_FOR_SALE", "REPLACED_WITH_NEW_INFO"):
+                  continue  # live info is read-only; the next version's info carries the change
+              locs = requests.get(f"{api}/appInfos/{info['id']}/appInfoLocalizations", headers=auth, timeout=30)
+              for loc in locs.json().get("data", []):
+                  before = loc["attributes"].get("privacyPolicyUrl")
+                  p = requests.patch(f"{api}/appInfoLocalizations/{loc['id']}", headers=auth, timeout=30, json={
+                      "data": {"type": "appInfoLocalizations", "id": loc["id"],
+                               "attributes": {"privacyPolicyUrl": url}}})
+                  after = p.json().get("data", {}).get("attributes", {}).get("privacyPolicyUrl") if p.ok else None
+                  print(" ", loc["attributes"]["locale"], "before:", before, "->", after, "HTTP", p.status_code)
+                  if not p.ok:
+                      failed = True
+                      print("  errors:", errors(p))
+          sys.exit(1 if failed else 0)
+          PY
