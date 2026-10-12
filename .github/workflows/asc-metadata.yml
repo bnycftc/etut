@@ -37,7 +37,7 @@ jobs:
 
           APP = "6818980777"
           LOCALE = "tr"
-          NEW_VERSION = "0.4.0"
+          NEW_VERSION = json.load(open("app.json", encoding="utf-8"))["expo"]["version"]
           # docs/hukuk/kvkk/11 §4: Apple primary Education, secondary Productivity.
           PRIMARY_CATEGORY, SECONDARY_CATEGORY = "EDUCATION", "PRODUCTIVITY"
           CONTENT_RIGHTS = "DOES_NOT_USE_THIRD_PARTY_CONTENT"
@@ -162,7 +162,12 @@ jobs:
           else:
               print("editable version:", version["attributes"].get("versionString"), "id", version["id"])
               if version["attributes"].get("versionString") != NEW_VERSION:
-                  print(f"  note: editable version is not {NEW_VERSION}; its metadata is used as it is")
+                  # The uploaded builds carry NEW_VERSION, so the store version must match it.
+                  print(f"  versionString: CHANGE {version['attributes'].get('versionString')} -> {NEW_VERSION}")
+                  if APPLY:
+                      version = write("PATCH", f"/appStoreVersions/{version['id']}", {"data": {
+                          "type": "appStoreVersions", "id": version["id"],
+                          "attributes": {"versionString": NEW_VERSION}}})["data"]
 
           # ---- Version: copyright ----
           print("\n[version]")

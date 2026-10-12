@@ -30,7 +30,7 @@ export const DATA_CONTROLLER = {
 };
 
 /** Date shown as "Son güncelleme" on the legal texts. */
-export const LEGAL_UPDATED = '11 Ekim 2026';
+export const LEGAL_UPDATED = '12 Ekim 2026';
 
 export interface LegalSection {
   heading: string;
