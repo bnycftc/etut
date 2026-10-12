@@ -1,0 +1,391 @@
+name: Store screenshots (iPhone 6.9")
+
+# App Store screenshots for the 6.9" iPhone display (1320 × 2868 portrait, PNG without alpha),
+# made on a simulator by the Maestro flow e2e/store/screenshots.yaml with realistic demo data:
+# e2e/store/demo-backup.js writes a backup dated relative to this run, the file is placed in the
+# simulator's "On My iPhone" folder, and the flow restores it through the app's own
+# "Yedekten geri yükle" screen. Nothing is uploaded to App Store Connect: the PNGs are an artifact
+# (app-store-screenshots-6.9). Needs no secrets.
+# The simulator build steps are copied from e2e-ios.yml (Release, embedded JS bundle, ad-hoc
+# signed); the built .app is cached by a hash of the app sources, so a run that only changes the
+# flows or this file skips the build.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - store-screenshots
+
+concurrency:
+  group: store-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+  MIN_XCODE: "26.4"
+  MAESTRO_VERSION: "2.11.0"
+  MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"
+  MAESTRO_CLI_NO_ANALYTICS: "true"
+  MAESTRO_DISABLE_UPDATE_CHECK: "true"
+  MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: "true"
+  SIM_LANGUAGE: tr
+  SIM_LOCALE: tr_TR
+  SIM_TIMEZONE: Europe/Istanbul
+  # App Store Connect 6.9" iPhone display, portrait.
+  SHOT_WIDTH: "1320"
+  SHOT_HEIGHT: "2868"
+  RESULTS: test-results/store
+  SHOTS: app-store-screenshots-6.9
+  APP_CACHE_DIR: build/app-cache
+
+jobs:
+  screenshots:
+    name: Build for simulator and take store screenshots
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          current="$(xcodebuild -version | awk 'NR==1 {print $2}')"
+          lowest="$(printf '%s\n%s\n' "$MIN_XCODE" "$current" | sort -V | head -1)"
+          if [ "$lowest" != "$MIN_XCODE" ]; then
+            echo "::warning::Xcode $current is older than $MIN_XCODE required by Expo SDK 57. Available:"
+            ls -d /Applications/Xcode*.app || true
+          fi
+          echo "XCODE_VERSION=$current" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Everything that goes into the .app (JS, native config, assets, dependencies, Xcode).
+      - name: Restore cached simulator build
+        id: app-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.APP_CACHE_DIR }}
+          key: store-app-${{ env.XCODE_VERSION }}-${{ hashFiles('package-lock.json', 'app.json', 'index.ts', 'metro.config.js', 'tsconfig.json', 'app/**', 'src/**', 'plugins/**', 'assets/**') }}
+
+      - name: Install JS dependencies
+        if: steps.app-cache.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Install xcbeautify
+        if: steps.app-cache.outputs.cache-hit != 'true'
+        run: brew list xcbeautify > /dev/null 2>&1 || brew install xcbeautify
+
+      - name: Generate iOS project (expo prebuild)
+        if: steps.app-cache.outputs.cache-hit != 'true'
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Locate project
+        if: steps.app-cache.outputs.cache-hit != 'true'
+        run: |
+          project="$(ls -d ios/*.xcodeproj | head -1)"
+          [ -n "$project" ] || { echo "::error::expo prebuild produced no .xcodeproj"; exit 1; }
+          scheme="$(basename "$project" .xcodeproj)"
+          {
+            echo "WORKSPACE=ios/$scheme.xcworkspace"
+            echo "SCHEME=$scheme"
+          } >> "$GITHUB_ENV"
+          echo "Scheme: $scheme"
+
+      - name: Install CocoaPods dependencies
+        if: steps.app-cache.outputs.cache-hit != 'true'
+        working-directory: ios
+        run: |
+          pod install
+          [ -d "../$WORKSPACE" ] || { echo "::error::pod install did not create $WORKSPACE"; exit 1; }
+
+      # Same build as e2e-ios.yml: ad-hoc signed ("-") so the App Group entitlement stays and the
+      # Live Activity is drawn.
+      - name: Build app for the simulator (Release, ad-hoc signed)
+        if: steps.app-cache.outputs.cache-hit != 'true'
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild build \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            ARCHS="$(uname -m)" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER= \
+            CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tee build/xcodebuild-simulator.log | xcbeautify
+          app="$(ls -d build/DerivedData/Build/Products/Release-iphonesimulator/*.app | head -1)"
+          [ -n "$app" ] || { echo "::error::No .app was built"; exit 1; }
+          for bin in "$app/$(basename "$app" .app)" "$app/PlugIns/ExpoWidgetsTarget.appex/ExpoWidgetsTarget"; do
+            [ -f "$bin" ] || { echo "::error::Binary not found: $bin"; exit 1; }
+            rm -f "$RUNNER_TEMP/ents.plist"
+            segedit "$bin" -extract __TEXT __entitlements "$RUNNER_TEMP/ents.plist" 2>/dev/null
+            grep -q 'group.com.bnycftc.etut' "$RUNNER_TEMP/ents.plist" 2>/dev/null \
+              || { echo "::error::$bin has no App Group entitlement (Live Activity would render blank)"; exit 1; }
+          done
+          [ -f "$app/main.jsbundle" ] || { echo "::error::$app has no embedded main.jsbundle"; exit 1; }
+          bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
+          [ "$bundle_id" = "com.bnycftc.etut" ] || { echo "::error::Unexpected bundle id $bundle_id"; exit 1; }
+          rm -rf "$APP_CACHE_DIR"
+          mkdir -p "$APP_CACHE_DIR"
+          cp -R "$app" "$APP_CACHE_DIR/"
+
+      - name: Save simulator build to the cache
+        if: steps.app-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.APP_CACHE_DIR }}
+          key: ${{ steps.app-cache.outputs.cache-primary-key }}
+
+      - name: Locate app
+        run: |
+          app="$(ls -d "$APP_CACHE_DIR"/*.app | head -1)"
+          [ -n "$app" ] || { echo "::error::No .app in $APP_CACHE_DIR"; exit 1; }
+          echo "APP_PATH=$app" >> "$GITHUB_ENV"
+          echo "APP_NAME=$(basename "$app" .app)" >> "$GITHUB_ENV"
+          echo "App: $app (cache hit: ${{ steps.app-cache.outputs.cache-hit }})"
+
+      - name: Set host time zone
+        run: |
+          sudo systemsetup -settimezone "$SIM_TIMEZONE" > /dev/null 2>&1 \
+            || sudo ln -sf "/usr/share/zoneinfo/$SIM_TIMEZONE" /etc/localtime
+          date
+
+      # 6.9" display: iPhone 17 Pro Max / 16 Pro Max (1320 × 2868). Any other device would give
+      # screenshots App Store Connect does not take for this slot, so fail instead of falling back.
+      - name: Pick a 6.9" iPhone simulator (newest iOS runtime)
+        run: |
+          xcrun simctl list runtimes available
+          python3 - <<'PY'
+          import json, os, re, subprocess
+
+          def simctl_json(*args):
+              return json.loads(subprocess.check_output(["xcrun", "simctl", "list", *args, "--json"]))
+
+          def version_key(version):
+              return tuple(int(part) for part in re.findall(r"\d+", version))
+
+          runtimes = [
+              r for r in simctl_json("runtimes", "available")["runtimes"]
+              if r.get("platform") == "iOS" or ".SimRuntime.iOS-" in r.get("identifier", "")
+          ]
+          if not runtimes:
+              raise SystemExit("::error::No available iOS simulator runtime")
+          wanted = ["iPhone 17 Pro Max", "iPhone 16 Pro Max"]
+          for runtime in sorted(runtimes, key=lambda r: version_key(r["version"]), reverse=True):
+              types = {t["name"]: t for t in runtime.get("supportedDeviceTypes", [])}
+              device = next((types[n] for n in wanted if n in types), None)
+              if device is not None:
+                  break
+          else:
+              names = sorted({t["name"] for r in runtimes for t in r.get("supportedDeviceTypes", []) if "iPhone" in t["name"]})
+              raise SystemExit(f"::error::No 6.9-inch iPhone simulator ({', '.join(wanted)}). iPhone types: {', '.join(names)}")
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"SIM_RUNTIME={runtime['identifier']}\n")
+              env.write(f"SIM_DEVICE_TYPE={device['identifier']}\n")
+          print(f"Runtime: {runtime['name']} ({runtime['identifier']})")
+          print(f"Device:  {device['name']} ({device['identifier']})")
+          PY
+
+      - name: Boot simulator in Turkish, light mode
+        run: |
+          udid="$(xcrun simctl create "Etut Store" "$SIM_DEVICE_TYPE" "$SIM_RUNTIME")"
+          echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl spawn "$udid" defaults write "Apple Global Domain" AppleLanguages -array "$SIM_LANGUAGE"
+          xcrun simctl spawn "$udid" defaults write "Apple Global Domain" AppleLocale -string "$SIM_LOCALE"
+          xcrun simctl shutdown "$udid"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl ui "$udid" appearance light
+          xcrun simctl ui "$udid" appearance
+          xcrun simctl list devices booted
+          # The device must render at the 6.9" size.
+          xcrun simctl io "$udid" screenshot "$RUNNER_TEMP/probe.png"
+          w="$(sips -g pixelWidth "$RUNNER_TEMP/probe.png" | awk '/pixelWidth/ {print $2}')"
+          h="$(sips -g pixelHeight "$RUNNER_TEMP/probe.png" | awk '/pixelHeight/ {print $2}')"
+          echo "Simulator screen: ${w}x${h}"
+          [ "$w" = "$SHOT_WIDTH" ] && [ "$h" = "$SHOT_HEIGHT" ] \
+            || { echo "::error::Simulator screen is ${w}x${h}, expected ${SHOT_WIDTH}x${SHOT_HEIGHT}"; exit 1; }
+
+      - name: Install app on the simulator
+        run: |
+          xcrun simctl install "$SIM_UDID" "$APP_PATH"
+          xcrun simctl get_app_container "$SIM_UDID" com.bnycftc.etut app
+
+      # As in e2e-ios.yml: the first launches after boot can take minutes on the runner. Files
+      # (com.apple.DocumentsApp) is launched once too, so its "On My iPhone" storage exists.
+      - name: Wait until the simulator launches apps
+        run: |
+          for bid in com.apple.Preferences com.apple.DocumentsApp com.bnycftc.etut; do
+            start=$(date +%s)
+            xcrun simctl launch "$SIM_UDID" "$bid" &
+            pid=$!
+            while kill -0 "$pid" 2>/dev/null && [ $(( $(date +%s) - start )) -lt 600 ]; do sleep 2; done
+            if kill -0 "$pid" 2>/dev/null; then
+              kill "$pid"; echo "::error::$bid did not launch within 600 s"; exit 1
+            fi
+            wait "$pid" || { echo "::error::Launching $bid failed"; exit 1; }
+            echo "$bid launched after $(( $(date +%s) - start )) s"
+            sleep 3
+            xcrun simctl terminate "$SIM_UDID" "$bid" || true
+          done
+
+      # Generated now: every session and exam date is relative to this run.
+      - name: Put the demo backup in "On My iPhone"
+        run: |
+          node e2e/store/demo-backup.js "$RUNNER_TEMP/etut-demo.json"
+          ls -la "$RUNNER_TEMP/etut-demo.json"
+          python3 - <<'PY'
+          import glob, os, plistlib, shutil
+          root = os.path.expanduser(f"~/Library/Developer/CoreSimulator/Devices/{os.environ['SIM_UDID']}/data/Containers/Shared/AppGroup")
+          for meta in glob.glob(os.path.join(root, "*", ".com.apple.mobile_container_manager.metadata.plist")):
+              with open(meta, "rb") as f:
+                  ident = plistlib.load(f).get("MCMMetadataIdentifier")
+              if ident == "group.com.apple.FileProvider.LocalStorage":
+                  storage = os.path.join(os.path.dirname(meta), "File Provider Storage")
+                  os.makedirs(storage, exist_ok=True)
+                  shutil.copy(os.path.join(os.environ["RUNNER_TEMP"], "etut-demo.json"), os.path.join(storage, "etut-demo.json"))
+                  print("Copied to", storage, os.listdir(storage))
+                  break
+          else:
+              raise SystemExit("::error::The simulator has no Files local storage (group.com.apple.FileProvider.LocalStorage)")
+          PY
+
+      - name: Clean status bar
+        run: |
+          xcrun simctl status_bar "$SIM_UDID" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
+          xcrun simctl status_bar "$SIM_UDID" list || true
+
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          installed="$("$HOME/.maestro/bin/maestro" --version 2>/dev/null | tail -1)"
+          echo "Maestro $installed"
+          case "$installed" in
+            *"$MAESTRO_VERSION"*) ;;
+            *) echo "::warning::Expected Maestro $MAESTRO_VERSION, --version printed: $installed" ;;
+          esac
+
+      # One flow; on the CI simulator the Maestro driver now and then loses taps or does not start,
+      # so a failed attempt runs once more from scratch (the flow clears the app state itself).
+      - name: Run the screenshot flow
+        env:
+          SIMCTL_CHILD_TZ: ${{ env.SIM_TIMEZONE }}
+        run: |
+          mkdir -p "$RESULTS"
+          run_flow() {
+            maestro --device "$SIM_UDID" test e2e/store/screenshots.yaml \
+              --format junit \
+              --output "$RESULTS/report-$1.xml" \
+              --test-output-dir "$RESULTS/output-$1" \
+              --debug-output "$RESULTS/debug-$1" 2>&1 | tee "$RESULTS/maestro-$1.log"
+            return "${PIPESTATUS[0]}"
+          }
+          set +e
+          run_flow 1
+          status=$?
+          attempt=1
+          if [ "$status" -ne 0 ]; then
+            echo "::warning::Screenshot flow failed on the first attempt; running it once more"
+            pkill -f 'xcodebuild test-without-building' || true
+            xcrun simctl status_bar "$SIM_UDID" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
+            run_flow 2
+            status=$?
+            attempt=2
+          fi
+          echo "PASSED_ATTEMPT=$attempt" >> "$GITHUB_ENV"
+          exit "$status"
+
+      # Only the store images ("NN-name.png") of the passing attempt; alpha is removed and the size
+      # is checked (App Store Connect rejects anything else for the 6.9" slot).
+      - name: Check and flatten screenshots
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet pillow
+          mkdir -p "$SHOTS"
+          "$RUNNER_TEMP/venv/bin/python" - <<'PY'
+          import glob, os, re
+          from PIL import Image
+          src = os.path.join(os.environ["RESULTS"], f"output-{os.environ['PASSED_ATTEMPT']}")
+          out = os.environ["SHOTS"]
+          width, height = int(os.environ["SHOT_WIDTH"]), int(os.environ["SHOT_HEIGHT"])
+          paths = sorted(p for p in glob.glob(os.path.join(src, "**", "*.png"), recursive=True)
+                         if re.fullmatch(r"\d\d-[a-z0-9-]+\.png", os.path.basename(p)))
+          if not paths:
+              raise SystemExit(f"::error::No store screenshots under {src}")
+          bad = []
+          for p in paths:
+              img = Image.open(p)
+              print(f"{os.path.basename(p)}: {img.size[0]}x{img.size[1]} {img.mode}")
+              if img.size != (width, height):
+                  bad.append(f"{os.path.basename(p)} is {img.size[0]}x{img.size[1]}")
+                  continue
+              img.convert("RGB").save(os.path.join(out, os.path.basename(p)), "PNG", optimize=True)
+          for p in sorted(glob.glob(os.path.join(out, "*.png"))):
+              img = Image.open(p)
+              assert img.mode == "RGB" and img.size == (width, height), p
+          if bad:
+              raise SystemExit("::error::Wrong size: " + "; ".join(bad))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as s:
+              s.write(f"### {len(paths)} screenshots, {width}×{height}, RGB PNG\n\n")
+              for p in paths:
+                  s.write(f"- {os.path.basename(p)}\n")
+          PY
+
+      - name: Upload store screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.SHOTS }}
+          path: ${{ env.SHOTS }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Collect logs
+        if: always()
+        run: |
+          mkdir -p "$RESULTS/logs"
+          find "$RESULTS" -name '*.png' | sort || true
+          cp -R "$HOME/.maestro/tests" "$RESULTS/logs/maestro-tests" 2>/dev/null || true
+          cp build/xcodebuild-simulator.log "$RESULTS/logs/" 2>/dev/null || true
+          if [ -n "${SIM_UDID:-}" ]; then
+            xcrun simctl spawn "$SIM_UDID" log show --last 30m --style compact \
+              --predicate 'process == "'"${APP_NAME:-Ett}"'"' > "$RESULTS/logs/app.log" 2>&1 || true
+          fi
+
+      - name: Upload run results (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-screenshots-debug-${{ github.run_number }}-${{ github.run_attempt }}
+          path: ${{ env.RESULTS }}
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Shut down simulator
+        if: always()
+        run: |
+          if [ -n "${SIM_UDID:-}" ]; then
+            xcrun simctl shutdown "$SIM_UDID" || true
+            xcrun simctl delete "$SIM_UDID" || true
+          fi
