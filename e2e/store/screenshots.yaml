@@ -39,7 +39,8 @@ tags:
 - extendedWaitUntil:
     visible:
       text: "etut-demo.*|Göz At|Gözat|Browse|Son Kullanılanlar|Recents|iPhone.umda|On My iPhone"
-    timeout: 30000
+    # The first picker of a fresh simulator can stay blank for more than 30 s (run 38299848466).
+    timeout: 90000
 - takeScreenshot: debug-picker-1
 - runFlow:
     when:
