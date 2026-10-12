@@ -17,13 +17,16 @@ tags:
 # --- Demo verisini yükle (Ayarlar → Yedekle ve geri yükle → Yedekten geri yükle) ---
 - tapOn:
     id: tab-settings
+# Scroll past the button (to "Tüm verileri sil" below it): when the scroll stops as soon as the
+# button shows, it can sit under the tab bar and the tap lands there (run 38238796629).
 - scrollUntilVisible:
     element:
-      id: settings-open-backup
+      id: settings-delete-all
     direction: DOWN
     timeout: 20000
 - tapOn:
     id: settings-open-backup
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: backup-import
@@ -31,11 +34,11 @@ tags:
 - tapOn:
     id: backup-import
 # The system document picker (Files UI, out of process). Where it opens differs between iOS
-# versions (Son Kullanılanlar / Gözat / last folder): reach "iPhone'umda" step by step, each step
-# only when the file is not shown yet.
+# versions (iOS 26: the empty "Son Kullanılanlar", tab "Göz At"; or the last folder): reach
+# "iPhone'umda" step by step, each step only when the file is not shown yet.
 - extendedWaitUntil:
     visible:
-      text: "etut-demo.*|Gözat|Browse|iPhone.umda|On My iPhone"
+      text: "etut-demo.*|Göz At|Gözat|Browse|Son Kullanılanlar|Recents|iPhone.umda|On My iPhone"
     timeout: 30000
 - takeScreenshot: debug-picker-1
 - runFlow:
@@ -44,7 +47,7 @@ tags:
         text: "etut-demo.*"
     commands:
       - tapOn:
-          text: "Gözat|Browse"
+          text: "Göz At|Gözat|Browse"
           optional: true
       - waitForAnimationToEnd:
           timeout: 3000
