@@ -147,7 +147,8 @@ const legalDocs = {
       {
         heading: '4. İzinler',
         paragraphs: [
-          'Uygulama konum, kamera, mikrofon, fotoğraf okuma, rehber, bildirim ya da takip (ATT) izni istemez. Yedeği geri yüklerken dosyayı sen seçersin; uygulama yalnız seçtiğin dosyayı okur.',
+          'Uygulama konum, kamera, mikrofon, fotoğraf okuma, rehber ya da takip (ATT) izni istemez. Yedeği geri yüklerken dosyayı sen seçersin; uygulama yalnız seçtiğin dosyayı okur.',
+          'Bildirim iznini yalnız Ayarlar → Hatırlatıcılar’dan bir hatırlatıcıyı açtığında sorar. Hatırlatıcılar telefonunda kurulur ve telefonunda gösterilir; bunun için de bize hiçbir şey gitmez. İzni istediğin an iOS Ayarlar’ından kapatabilirsin.',
           'Çalışma kartını paylaşım ekranından “Görüntüyü Kaydet” ile Fotoğraflar’a eklemek istersen iOS yalnız ekleme izni sorar; Etüt fotoğraflarını göremez.',
         ],
       },
