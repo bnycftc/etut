@@ -275,9 +275,14 @@ jobs:
       # too; no carrier name.
       - name: Clean status bar
         run: |
-          STATUS_TIME="$(TZ="$SIM_TIMEZONE" date +%Y-%m-%d)T09:41:00+03:00"
+          # 09:41 Istanbul (UTC+3) = 06:41 UTC; simctl refused the "+03:00" form.
+          STATUS_TIME="$(TZ="$SIM_TIMEZONE" date +%Y-%m-%d)T06:41:00Z"
+          if ! xcrun simctl status_bar "$SIM_UDID" override --time "$STATUS_TIME" --operatorName "" --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3; then
+            echo "::warning::simctl did not take $STATUS_TIME; using 9:41 without a date"
+            STATUS_TIME=9:41
+            xcrun simctl status_bar "$SIM_UDID" override --time "$STATUS_TIME" --operatorName "" --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
+          fi
           echo "STATUS_TIME=$STATUS_TIME" >> "$GITHUB_ENV"
-          xcrun simctl status_bar "$SIM_UDID" override --time "$STATUS_TIME" --operatorName "" --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
           xcrun simctl status_bar "$SIM_UDID" list || true
 
       - name: Install Maestro
