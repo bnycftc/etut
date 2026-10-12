@@ -1,0 +1,282 @@
+# Writes the App Store listing of Etüt (App Store Connect app 6818980777) from store/app-store/:
+# tr app info (name, subtitle), tr version text (description, keywords, promotional text, support
+# and marketing URL), categories, age rating, content rights, copyright and App Review notes.
+# Default is a dry run: it prints current vs wanted and writes nothing. With apply=true it writes
+# only what differs. It never submits for review, never attaches a build, never touches pricing,
+# availability or App Privacy. Same API key secrets as asc-key-check.yml.
+name: ASC metadata
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Write the changes (false = dry run, print only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync store/app-store with App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          DATA_CONTROLLER_NAME: ${{ secrets.DATA_CONTROLLER_NAME }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import base64, json, os, sys, time, jwt, requests
+
+          APP = "6818980777"
+          LOCALE = "tr"
+          NEW_VERSION = "0.4.0"
+          # docs/hukuk/kvkk/11 §4: Apple primary Education, secondary Productivity.
+          PRIMARY_CATEGORY, SECONDARY_CATEGORY = "EDUCATION", "PRODUCTIVITY"
+          CONTENT_RIGHTS = "DOES_NOT_USE_THIRD_PARTY_CONTENT"
+          APPLY = os.environ.get("APPLY") == "true"
+          API = "https://api.appstoreconnect.apple.com/v1"
+          print("mode:", "APPLY (writes)" if APPLY else "DRY RUN (no writes)")
+
+          # ---- Store files and limits (checked before any API call) ----
+          def read(path):
+              with open(path, encoding="utf-8") as f:
+                  return f.read().strip()
+
+          tr = "store/app-store/tr/"
+          info_want = {"name": read(tr + "name.txt"), "subtitle": read(tr + "subtitle.txt")}
+          loc_want = {
+              "description": read(tr + "description.txt"),
+              "keywords": read(tr + "keywords.txt"),
+              "promotionalText": read(tr + "promotional_text.txt"),
+              "supportUrl": read(tr + "support_url.txt"),
+              "marketingUrl": read(tr + "marketing_url.txt"),
+          }
+          notes_want = read("store/app-store/review-notes.txt")
+          with open("store/app-store/age-rating.json", encoding="utf-8") as f:
+              age_want = json.load(f)["attributes"]
+
+          limits = {"name": 30, "subtitle": 30, "promotionalText": 170, "description": 4000, "notes": 4000}
+          values = {**info_want, **loc_want, "notes": notes_want}
+          problems = [f"{k} is empty" for k, v in values.items() if not v]
+          problems += [f"{k}: {len(values[k])} characters, limit {n}" for k, n in limits.items() if len(values[k]) > n]
+          kw = loc_want["keywords"]
+          if len(kw.encode("utf-8")) > 100:
+              problems.append(f"keywords: {len(kw.encode('utf-8'))} bytes, limit 100")
+          if ", " in kw or " ," in kw:
+              problems.append("keywords: no spaces around commas")
+          if "Etüt" not in info_want["name"]:
+              problems.append("name must contain Etüt")
+          for k in ("name", "subtitle"):
+              if any(w in info_want[k].upper() for w in ("ÖSYM", "MEB")):
+                  problems.append(f"{k} must not contain ÖSYM or MEB")
+          for k in ("supportUrl", "marketingUrl"):
+              if not loc_want[k].startswith("https://"):
+                  problems.append(f"{k} must start with https://")
+          if problems:
+              sys.exit("store files invalid:\n  " + "\n  ".join(problems))
+          print("store files: limits ok")
+
+          # ---- API ----
+          raw = os.environ["ASC_PRIVATE_KEY"]
+          key = raw if "BEGIN PRIVATE KEY" in raw else base64.b64decode(raw).decode()
+          now = int(time.time())
+          token = jwt.encode(
+              {"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 1200, "aud": "appstoreconnect-v1"},
+              key, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+          http = requests.Session()
+          http.headers["Authorization"] = "Bearer " + token
+
+          def errors(r):
+              try:
+                  return [(e.get("code"), e.get("title"), e.get("detail")) for e in r.json().get("errors", [])]
+              except ValueError:
+                  return []
+
+          def get(path, params=None, allow_404=False):
+              r = http.get(API + path, params=params, timeout=30)
+              if allow_404 and r.status_code == 404:
+                  return None
+              if not r.ok:
+                  sys.exit(f"GET {path} HTTP {r.status_code} errors: {errors(r)}")
+              return r.json()
+
+          # Paths this workflow may write to. Anything else (submissions, builds, prices,
+          # availability, App Privacy) is refused before a request is made.
+          WRITABLE = ("/appInfoLocalizations", "/appStoreVersionLocalizations", "/appInfos/",
+                      "/ageRatingDeclarations/", "/apps/" + APP, "/appStoreVersions", "/appStoreReviewDetails")
+          FORBIDDEN = ("submission", "build", "price", "availab", "privacy", "phased", "release")
+
+          def write(method, path, body):
+              low = path.lower()
+              if not path.startswith(WRITABLE) or any(w in low for w in FORBIDDEN):
+                  sys.exit(f"refusing to write {method} {path}")
+              r = http.request(method, API + path, json=body, timeout=30)
+              print(f"    {method} {path} HTTP {r.status_code}")
+              if not r.ok:
+                  sys.exit(f"{method} {path} failed, HTTP {r.status_code} errors: {errors(r)}")
+              return r.json() if r.content else {}
+
+          def short(v):
+              s = "" if v is None else str(v).replace("\n", " / ")
+              return s if len(s) <= 80 else s[:77] + "..."
+
+          def compare(label, current, wanted):
+              same = current == wanted
+              print(f"  {label}: {'unchanged' if same else 'CHANGE'}")
+              if not same:
+                  print(f"    current: {short(current)}")
+                  print(f"    wanted:  {short(wanted)}")
+              return not same
+
+          def diff(label, current_attrs, wanted_attrs):
+              return {k: v for k, v in wanted_attrs.items()
+                      if compare(f"{label}.{k}", (current_attrs or {}).get(k), v)}
+
+          # ---- Editable App Store version (create 0.4.0 only with apply) ----
+          EDITABLE_VERSION = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED",
+                              "METADATA_REJECTED", "INVALID_BINARY"}
+          versions = get(f"/apps/{APP}/appStoreVersions", {"filter[platform]": "IOS", "limit": "50"})["data"]
+          for v in versions:
+              a = v["attributes"]
+              print("version", a.get("versionString"), "state", a.get("appVersionState") or a.get("appStoreState"))
+          editable = [v for v in versions
+                      if (v["attributes"].get("appVersionState") or v["attributes"].get("appStoreState")) in EDITABLE_VERSION]
+          version = editable[0] if editable else None
+          if version is None:
+              if APPLY:
+                  print(f"no editable version: creating {NEW_VERSION} (IOS)")
+                  version = write("POST", "/appStoreVersions", {"data": {
+                      "type": "appStoreVersions",
+                      "attributes": {"platform": "IOS", "versionString": NEW_VERSION},
+                      "relationships": {"app": {"data": {"type": "apps", "id": APP}}}}})["data"]
+              else:
+                  print(f"no editable version: apply=true would create {NEW_VERSION} (IOS); version fields shown against empty values")
+          else:
+              print("editable version:", version["attributes"].get("versionString"), "id", version["id"])
+              if version["attributes"].get("versionString") != NEW_VERSION:
+                  print(f"  note: editable version is not {NEW_VERSION}; its metadata is used as it is")
+
+          # ---- Version: copyright ----
+          print("\n[version]")
+          dc_name = os.environ.get("DATA_CONTROLLER_NAME", "").strip()
+          if not dc_name:
+              print("  copyright: DATA_CONTROLLER_NAME secret missing, skipped")
+          else:
+              wanted = "2026 " + dc_name
+              current = version["attributes"].get("copyright") if version else None
+              if current == wanted:
+                  print("  copyright: unchanged")
+              elif APPLY:
+                  write("PATCH", f"/appStoreVersions/{version['id']}", {"data": {
+                      "type": "appStoreVersions", "id": version["id"], "attributes": {"copyright": wanted}}})
+                  print("  copyright: set")
+              else:
+                  print("  copyright: would be set (value not printed)")
+
+          # ---- Version localization (tr) ----
+          print(f"\n[version localization {LOCALE}]")
+          loc = None
+          if version:
+              locs = get(f"/appStoreVersions/{version['id']}/appStoreVersionLocalizations", {"limit": "50"})["data"]
+              print("  locales:", sorted(l["attributes"]["locale"] for l in locs))
+              loc = next((l for l in locs if l["attributes"]["locale"] == LOCALE), None)
+          changed = diff("versionLocalization", loc["attributes"] if loc else None, loc_want)
+          if APPLY and changed:
+              if loc:
+                  write("PATCH", f"/appStoreVersionLocalizations/{loc['id']}", {"data": {
+                      "type": "appStoreVersionLocalizations", "id": loc["id"], "attributes": changed}})
+              else:
+                  write("POST", "/appStoreVersionLocalizations", {"data": {
+                      "type": "appStoreVersionLocalizations",
+                      "attributes": {"locale": LOCALE, **loc_want},
+                      "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": version["id"]}}}}})
+
+          # ---- App Review detail: notes only; contact fields are filled by hand ----
+          print("\n[app review detail]")
+          detail = None
+          if version:
+              res = get(f"/appStoreVersions/{version['id']}/appStoreReviewDetail", allow_404=True)
+              detail = (res or {}).get("data")
+          d_attrs = detail["attributes"] if detail else {}
+          review_want = {"notes": notes_want, "demoAccountRequired": False}
+          changed = diff("appStoreReviewDetail", d_attrs, review_want)
+          for k in ("contactFirstName", "contactLastName", "contactPhone", "contactEmail"):
+              print(f"  {k}: {'set' if d_attrs.get(k) else 'MISSING - fill it in App Store Connect by hand'}")
+          if APPLY and changed:
+              if detail:
+                  write("PATCH", f"/appStoreReviewDetails/{detail['id']}", {"data": {
+                      "type": "appStoreReviewDetails", "id": detail["id"], "attributes": changed}})
+              else:
+                  write("POST", "/appStoreReviewDetails", {"data": {
+                      "type": "appStoreReviewDetails", "attributes": review_want,
+                      "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": version["id"]}}}}})
+
+          # ---- App info: editable one (read again: a new version may have created it) ----
+          print("\n[app info]")
+          EDITABLE_INFO = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED",
+                           "METADATA_REJECTED", "INVALID_BINARY"}
+          infos_res = get(f"/apps/{APP}/appInfos", {"include": "primaryCategory,secondaryCategory,ageRatingDeclaration"})
+          infos = infos_res["data"]
+          included = {(x["type"], x["id"]): x for x in infos_res.get("included", [])}
+          for i in infos:
+              print("  appInfo", i["id"], "state", i["attributes"].get("state") or i["attributes"].get("appStoreState"))
+          info = next((i for i in infos
+                       if (i["attributes"].get("state") or i["attributes"].get("appStoreState")) in EDITABLE_INFO), None)
+          if info is None:
+              print("no editable app info (live or in review): name, subtitle, categories and age rating can't change now")
+              sys.exit(1 if APPLY else 0)
+
+          infolocs = get(f"/appInfos/{info['id']}/appInfoLocalizations", {"limit": "50"})["data"]
+          print("  locales:", sorted(l["attributes"]["locale"] for l in infolocs))
+          iloc = next((l for l in infolocs if l["attributes"]["locale"] == LOCALE), None)
+          print("  appInfoLocalization.privacyPolicyUrl (left as it is):", short((iloc or {}).get("attributes", {}).get("privacyPolicyUrl")))
+          changed = diff("appInfoLocalization", iloc["attributes"] if iloc else None, info_want)
+          if APPLY and changed:
+              if iloc:
+                  write("PATCH", f"/appInfoLocalizations/{iloc['id']}", {"data": {
+                      "type": "appInfoLocalizations", "id": iloc["id"], "attributes": changed}})
+              else:
+                  write("POST", "/appInfoLocalizations", {"data": {
+                      "type": "appInfoLocalizations", "attributes": {"locale": LOCALE, **info_want},
+                      "relationships": {"appInfo": {"data": {"type": "appInfos", "id": info["id"]}}}}})
+
+          # ---- Categories ----
+          rel = info.get("relationships", {})
+          def rel_id(name):
+              return ((rel.get(name) or {}).get("data") or {}).get("id")
+          cat_changed = {}
+          for name, wanted in (("primaryCategory", PRIMARY_CATEGORY), ("secondaryCategory", SECONDARY_CATEGORY)):
+              if compare(name, rel_id(name), wanted):
+                  cat_changed[name] = {"data": {"type": "appCategories", "id": wanted}}
+          if APPLY and cat_changed:
+              write("PATCH", f"/appInfos/{info['id']}", {"data": {
+                  "type": "appInfos", "id": info["id"], "relationships": cat_changed}})
+
+          # ---- Age rating ----
+          age = included.get(("ageRatingDeclarations", rel_id("ageRatingDeclaration")))
+          if age is None:
+              age = (get(f"/appInfos/{info['id']}/ageRatingDeclaration", allow_404=True) or {}).get("data")
+          if age is None:
+              sys.exit("ageRatingDeclaration not found on the editable app info")
+          changed = diff("ageRating", age["attributes"], age_want)
+          if APPLY and changed:
+              write("PATCH", f"/ageRatingDeclarations/{age['id']}", {"data": {
+                  "type": "ageRatingDeclarations", "id": age["id"], "attributes": changed}})
+
+          # ---- App: content rights ----
+          app = get(f"/apps/{APP}")["data"]
+          if compare("contentRightsDeclaration", app["attributes"].get("contentRightsDeclaration"), CONTENT_RIGHTS) and APPLY:
+              write("PATCH", f"/apps/{APP}", {"data": {
+                  "type": "apps", "id": APP, "attributes": {"contentRightsDeclaration": CONTENT_RIGHTS}}})
+
+          print("\ndone:", "changes written" if APPLY else "dry run, nothing written")
+          print("not touched: builds, review submission, pricing, availability, App Privacy, screenshots")
+          PY

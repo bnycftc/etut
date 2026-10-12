@@ -1,0 +1,38 @@
+Etüt, sınava hazırlanan öğrenciler için bir çalışma sayacı ve deneme net takibidir. Ne kadar çalıştığını, hangi konuda olduğunu ve denemelerde nerede yanlış yaptığını tek yerde görürsün. YKS (TYT, AYT; sayısal, eşit ağırlık, sözel, dil), LGS ve KPSS için ders ve konu listeleri hazır gelir. Başka bir sınava hazırlanıyorsan sayacı ve hedefleri yine kullanabilirsin.
+
+ÇALIŞMA SAYACI
+- Kronometre ya da pomodoro. Pomodoro sürelerini ve uzun molanın aralığını sen ayarlarsın.
+- Ders ve istersen konu seçip başlat; mola ver, devam et, bitir.
+- Uygulamadan çıktığın süre mola sayılır; çalışıyorduysan "Çalışıyordum" ile süreye eklersin. İstersen ayarlardan bu süreyi doğrudan çalışma saydırırsın.
+- Sayacı açmayı unuttuysan son 7 gün için süreyi elle eklersin. Bu kayıtlar "elle" etiketiyle görünür.
+- Oturum sonunda kaç soru çözdüğünü yazabilirsin; isteğe bağlıdır.
+
+HEDEF VE GEÇMİŞ
+- Günlük hedef ve seri. Haftada 1 gün hedefin altında kalırsan seri bozulmaz.
+- Derslere haftalık süre hedefi koyabilirsin.
+- Son 7 gün, haftalık özet, aylık görünüm ve ders dağılımı.
+- Kendinle kıyas: dün bu saate kadar ve geçen hafta bu zamana kadar ne kadar çalıştığın.
+
+KONULAR VE DENEMELER
+- Konu takibi: konu başına süre, "bitti" ve "tekrar lazım" işaretleri, ilerleme yüzdesi.
+- Genel ve branş deneme netlerini gir, net grafiğinde gelişimini izle.
+- Derslere hedef net koy; son denemelerinin ortalamasıyla aradaki farkı gör.
+- Deneme analizi: yanlış ve boş soruların konularını işaretle, en çok yanlış yaptığın konuları gör.
+- Ders karnesi: bir dersteki süren, konuların ve netlerin bir arada.
+- Sınav tarihine kalan gün. Gösterilen tarih tahminidir, kendin değiştirebilirsin.
+
+IPHONE'DA
+- Sayaç açıkken kilit ekranında ve Dynamic Island'da canlı süre.
+- Ana ekran ve kilit ekranı widget'ı: bugünkü süre, seri ve günlük hedef.
+- İsteğe bağlı hatırlatıcılar: uzun oturum, pomodoro aşama sonu, günlük çalışma ve deneme analizi. Hatırlatıcılar telefonda kurulur; sen açmadıkça bildirim izni istenmez.
+
+VERİLERİN SENDE
+- Hesap yok, giriş yok. Uygulama internete bağlanmaz.
+- Reklam, analitik, çökme raporu ve izleme yok.
+- Tüm kayıtların yalnız telefonunda saklanır; bize hiçbir şey gönderilmez.
+- Yedek dosyası, CSV ya da çalışma kartı yalnız sen dokununca, telefonunun paylaşım ekranıyla dışarı çıkar. Çalışma kartında yalnız çalışma sayıların vardır; 15 yaşından küçükler için kart paylaşımı kapalıdır.
+- Telefon değiştirirken yedek dosyasıyla kayıtlarını taşıyabilirsin.
+
+Etüt resmî bir uygulama değildir; ÖSYM veya MEB ile bağlantısı yoktur.
+
+Gizlilik politikası ve kullanım şartları uygulamada Ayarlar > Hakkında bölümündedir.

@@ -1,0 +1,36 @@
+{
+  "_source": "Age rating answers for the device-only version 0.4.0 (no server, no account, no groups). Keys are App Store Connect API AgeRatingDeclaration attribute names; .github/workflows/asc-metadata.yml sends `attributes` as they are. Re-answer when groups, a server or any SDK is added.",
+  "expectedRating": "4+",
+  "attributes": {
+    "parentalControls": false,
+    "ageAssurance": false,
+    "unrestrictedWebAccess": false,
+    "userGeneratedContent": false,
+    "socialMedia": false,
+    "messagingAndChat": false,
+    "advertising": false,
+    "profanityOrCrudeHumor": "NONE",
+    "horrorOrFearThemes": "NONE",
+    "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+    "matureOrSuggestiveThemes": "NONE",
+    "medicalOrTreatmentInformation": "NONE",
+    "healthOrWellnessTopics": false,
+    "sexualContentOrNudity": "NONE",
+    "sexualContentGraphicAndNudity": "NONE",
+    "violenceCartoonOrFantasy": "NONE",
+    "violenceRealistic": "NONE",
+    "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+    "gunsOrOtherWeapons": "NONE",
+    "gambling": false,
+    "gamblingSimulated": "NONE",
+    "lootBox": false,
+    "contests": "NONE"
+  },
+  "notSet": {
+    "kidsAgeBand": "Not in the Kids category; left as it is.",
+    "socialMediaAgeRestricted": "Only meaningful when socialMedia is true; left as it is.",
+    "ageRatingOverrideV2": "No override; Apple's calculated rating is used.",
+    "koreaAgeRatingOverride": "Not distributed with a Korea-specific rating; left as it is.",
+    "developerAgeRatingInfoUrl": "Optional; not set."
+  }
+}
