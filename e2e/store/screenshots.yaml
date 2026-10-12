@@ -67,8 +67,26 @@ tags:
     visible:
       text: "etut-demo.*"
     timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 5000
+# The whole file cell (its accessibility id); a tap on the name label while the folder was still
+# settling did nothing (run 38245503752). One more tap if the picker is still up.
 - tapOn:
-    text: "etut-demo.*"
+    id: "etut-demo.json.*"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: backup-preview
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        text: "etut-demo.*"
+    commands:
+      - takeScreenshot: debug-picker-4
+      - tapOn:
+          id: "etut-demo.json.*"
 - extendedWaitUntil:
     visible:
       id: backup-preview
