@@ -165,12 +165,13 @@ tags:
     visible:
       id: report-screen
     timeout: 15000
-# Down to the 8-week chart, topics and nets: the "this week" figures above depend on the weekday
-# of the run (little on a Monday).
+# Down to the net charts (centred, so the card's title shows) and the most missed topics: the
+# "this week" figures above depend on the weekday of the run (little on a Monday).
 - scrollUntilVisible:
     element:
       id: report-exams
     direction: DOWN
+    centerElement: true
     timeout: 20000
 - waitForAnimationToEnd:
     timeout: 3000
@@ -221,7 +222,9 @@ tags:
     timeout: 3000
 - takeScreenshot: 07-aylik-takvim
 
-# --- 02 Çalışan sayaç (pomodoro; Matematik son ders olarak seçili), 08 Canlı Etkinlik ---
+# --- 02 Çalışan sayaç (pomodoro; Matematik son ders olarak seçili) ---
+# No Live Activity image: on the CI simulator the Lock Screen shows 1 January whatever the status
+# bar override says, and system notifications ("Ready for Apple Intelligence") appear next to it.
 - launchApp
 - extendedWaitUntil:
     visible:
@@ -259,34 +262,3 @@ tags:
     timeout: 4000
     optional: true
 - takeScreenshot: 02-sayac
-# Live Activity: Home, then Notification Center (Lock Screen presentation). The first activity
-# asks for permission there (see e2e/m-canli-sayac.yaml).
-- pressKey: Home
-- extendedWaitUntil:
-    visible:
-      id: e2e-never-present
-    timeout: 3000
-    optional: true
-- swipe:
-    start: 15%, 0%
-    end: 15%, 70%
-    duration: 600
-- extendedWaitUntil:
-    visible:
-      id: e2e-never-present
-    timeout: 2000
-    optional: true
-- tapOn:
-    text: "İzin Ver|Allow"
-    optional: true
-- extendedWaitUntil:
-    visible:
-      text: "Matematik"
-    timeout: 10000
-    optional: true
-- extendedWaitUntil:
-    visible:
-      id: e2e-never-present
-    timeout: 2000
-    optional: true
-- takeScreenshot: 08-canli-etkinlik
