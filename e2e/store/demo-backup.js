@@ -128,7 +128,7 @@ function pickSubject(r, avoid) {
 function buildSessions(now, r) {
   const sessions = [];
   let n = 0;
-  const add = (subjectId, startedAt, minutes) => {
+  const add = (subjectId, startedAt, minutes, withQuestions = r() < 0.85) => {
     const durationMs = minutes * MIN + Math.floor(r() * 50) * 1000;
     const topics = TOPICS[subjectId] ?? [];
     const s = {
@@ -141,7 +141,7 @@ function buildSessions(now, r) {
       durationMs,
       source: 'timer',
     };
-    if (r() < 0.85) s.questions = Math.max(5, Math.round(minutes * QUESTIONS_PER_MIN[subjectId] * (0.8 + r() * 0.4)));
+    if (withQuestions) s.questions = Math.max(5, Math.round(minutes * QUESTIONS_PER_MIN[subjectId] * (0.8 + r() * 0.4)));
     sessions.push(s);
     return s.endedAt;
   };
@@ -176,7 +176,7 @@ function buildSessions(now, r) {
   let t = Math.max(today + 5 * MIN, end - needed);
   for (const [subject, minutes] of plan) {
     if (t + (minutes + 1) * MIN > end) break;
-    t = add(subject, t, minutes) + 12 * MIN;
+    t = add(subject, t, minutes, true) + 12 * MIN;
   }
   return sessions;
 }

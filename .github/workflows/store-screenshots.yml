@@ -271,9 +271,13 @@ jobs:
               raise SystemExit("::error::The simulator has no Files local storage (group.com.apple.FileProvider.LocalStorage)")
           PY
 
+      # 9:41 as an ISO time of today, so the Lock Screen (Live Activity image) shows today's date
+      # too; no carrier name.
       - name: Clean status bar
         run: |
-          xcrun simctl status_bar "$SIM_UDID" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
+          STATUS_TIME="$(TZ="$SIM_TIMEZONE" date +%Y-%m-%d)T09:41:00+03:00"
+          echo "STATUS_TIME=$STATUS_TIME" >> "$GITHUB_ENV"
+          xcrun simctl status_bar "$SIM_UDID" override --time "$STATUS_TIME" --operatorName "" --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
           xcrun simctl status_bar "$SIM_UDID" list || true
 
       - name: Install Maestro
@@ -309,7 +313,7 @@ jobs:
           if [ "$status" -ne 0 ]; then
             echo "::warning::Screenshot flow failed on the first attempt; running it once more"
             pkill -f 'xcodebuild test-without-building' || true
-            xcrun simctl status_bar "$SIM_UDID" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
+            xcrun simctl status_bar "$SIM_UDID" override --time "$STATUS_TIME" --operatorName "" --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
             run_flow 2
             status=$?
             attempt=2

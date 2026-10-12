@@ -123,7 +123,7 @@ tags:
     timeout: 3000
 - takeScreenshot: 01-ana-sayfa
 
-# --- 03 Deneme grafiği, 05 deneme listesi, 04 deneme analizi ---
+# --- 03 Deneme grafiği, 04 deneme analizi (son TYT) ---
 - tapOn:
     id: tab-exams
 - extendedWaitUntil:
@@ -135,17 +135,9 @@ tags:
 - takeScreenshot: 03-deneme-grafigi
 - scrollUntilVisible:
     element:
-      id: exam-item-3
+      id: exam-item-0
     direction: DOWN
     timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 3000
-- takeScreenshot: 05-deneme-listesi
-- scrollUntilVisible:
-    element:
-      id: exam-item-0
-    direction: UP
-    timeout: 20000
 - tapOn:
     id: exam-item-0
 - extendedWaitUntil:
@@ -156,7 +148,7 @@ tags:
     timeout: 3000
 - takeScreenshot: 04-deneme-analizi
 
-# --- 06 Ders karnesi (Matematik, son ders) ---
+# --- 05 Ders karnesi (Matematik, son ders) ---
 - launchApp
 - extendedWaitUntil:
     visible:
@@ -173,11 +165,18 @@ tags:
     visible:
       id: report-screen
     timeout: 15000
+# Down to the 8-week chart, topics and nets: the "this week" figures above depend on the weekday
+# of the run (little on a Monday).
+- scrollUntilVisible:
+    element:
+      id: report-exams
+    direction: DOWN
+    timeout: 20000
 - waitForAnimationToEnd:
     timeout: 3000
-- takeScreenshot: 06-ders-karnesi
+- takeScreenshot: 05-ders-karnesi
 
-# --- 07 Haftalık özet, 08 aylık takvim ---
+# --- 06 Haftalık özet (geçen hafta, her zaman tam), 07 aylık takvim ---
 - launchApp
 - extendedWaitUntil:
     visible:
@@ -194,19 +193,35 @@ tags:
     visible:
       id: weekly-total
     timeout: 15000
+# This week holds only the days so far; last week is a full one whatever the weekday of the run.
+- tapOn:
+    id: weekly-prev
+    retryTapIfNoChange: true
 - waitForAnimationToEnd:
     timeout: 3000
-- takeScreenshot: 07-haftalik-ozet
+- takeScreenshot: 06-haftalik-ozet
 - scrollUntilVisible:
     element:
       id: monthly-grid
     direction: DOWN
     timeout: 30000
+# Early in a month this month has only a few days: show the previous one, full of data.
+- runFlow:
+    when:
+      true: "${new Date().getDate() < 10}"
+    commands:
+      - tapOn:
+          id: monthly-prev
+      - scrollUntilVisible:
+          element:
+            id: monthly-grid
+          direction: DOWN
+          timeout: 20000
 - waitForAnimationToEnd:
     timeout: 3000
-- takeScreenshot: 08-aylik-takvim
+- takeScreenshot: 07-aylik-takvim
 
-# --- 02 Çalışan sayaç (pomodoro; Matematik son ders olarak seçili), 09 Canlı Etkinlik ---
+# --- 02 Çalışan sayaç (pomodoro; Matematik son ders olarak seçili), 08 Canlı Etkinlik ---
 - launchApp
 - extendedWaitUntil:
     visible:
@@ -274,4 +289,4 @@ tags:
       id: e2e-never-present
     timeout: 2000
     optional: true
-- takeScreenshot: 09-canli-etkinlik
+- takeScreenshot: 08-canli-etkinlik
