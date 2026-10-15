@@ -1292,7 +1292,7 @@ export const tr = {
         'Ders seç, Başla’ya dokun. Süre, başladığın andan itibaren saate bakılarak hesaplanır; “Mola” sayacı durdurur, “Devam” sürdürür.',
         `Uygulamadan ${toleranceSeconds} saniyeden uzun çıkarsan ya da telefon kilitlenirse o süre mola sayılır. Dönünce “… uygulamanın dışındaydın” kartı çıkar: “Çalışıyordum, süreye ekle” dersen süre eklenir, “Tamam, mola kalsın” dersen eklenmez. Cevaplamadan Bitir’e dokunursan önce bu sorulur.`,
         'Kitaptan çalışırken telefonu kilitliyorsan Ayarlar → Sayaç çalışırken → Uygulamadan çıkınca bölümünde “Çalışmaya devam say”ı seç: dışarıda geçen süre sorulmadan çalışma sayılır. O zaman mola verirken “Mola”ya dokunmayı unutma.',
-        'Uygulamayı tamamen kapatırsan iPhone’un kilit ekranındaki sayaç saymayı sürdürür; uygulamayı yeniden açınca, kapandığı andan sonraki süre de “Uygulamadan çıkınca” ayarına göre sorulur ya da çalışma sayılır.',
+        'Uygulamayı tamamen kapatırsan sayaç kaybolmaz: yeniden açınca, uygulamanın kapandığı andan sonraki süre de “Uygulamadan çıkınca” ayarına göre sorulur ya da çalışma sayılır.',
         'Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez, böylece süren molaya dönmez. Pili biraz daha çok kullanır; Ayarlar’dan kapatabilirsin.',
         `Bitir’e dokununca oturum kaydedilir ve kısa bir özet görürsün. Yanlışlıkla dokunduysan ${undoSeconds} saniye içinde “Geri al”: kayıt silinir, sayaç kaldığı yerden sürer. ${longHours} saati aşan bir oturumda hepsini mi yoksa ilk ${longHours} saati mi kaydedeceğin sorulur.`,
       ],
