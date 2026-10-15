@@ -6,6 +6,7 @@ import { topicName } from '@/domain/curriculum';
 import {
   parseTargetNet,
   studyTargetForTopic,
+  TARGET_WINDOW,
   targetKey,
   targetProgress,
   topMissedTopics,
@@ -211,6 +212,9 @@ export default function ExamsScreen() {
             )}
 
             <Label variant="heading">{tr.trend.target}</Label>
+            <Label testID="trend-target-rule" variant="small">
+              {tr.trend.targetRule(TARGET_WINDOW)}
+            </Label>
             <Label testID="trend-target">
               {target === null ? tr.trend.targetNone : tr.trend.targetCurrent(formatNet(target))}
             </Label>

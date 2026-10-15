@@ -825,6 +825,10 @@ describe('mock exam analysis', () => {
   it('per-section net trend with a target and the distance to it', () => {
     renderRouter(APP_DIR, { initialUrl: '/denemeler' });
     fireEvent.press(screen.getByTestId('trend-section-matematik'));
+    // The rule is said before a target is set (TARGET_WINDOW = 3).
+    expect(screen.getByTestId('trend-target-rule').props.children).toBe(
+      'Hedef netin, bu dersteki son 3 denemedeki (genel ya da branş) netlerinin ortalamasıyla kıyaslanır.',
+    );
     expect(screen.getByTestId('trend-target').props.children).toBe('Bu ders için hedef koymadın.');
     fireEvent.changeText(screen.getByTestId('trend-target-input'), '45');
     fireEvent.press(screen.getByTestId('trend-target-save'));
@@ -1613,14 +1617,21 @@ describe('about and legal texts', () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
     fireEvent.press(screen.getByTestId('settings-open-about'));
     expect(screen.getByTestId('about-controller').props.children).toBe('[DOLDURULACAK]');
+    expect(screen.getByText('Aydınlatma metni')).toBeTruthy();
+    expect(screen.queryByText(/Kısaca bilgilerin/)).toBeNull();
     fireEvent.press(screen.getByTestId('about-doc-gizlilik'));
     expect(screen.getByTestId('legal-gizlilik')).toBeTruthy();
   });
 
   it('the short notice is reachable from onboarding before anything is saved', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
+    // It sits right above Başla.
+    const buttons = screen.getAllByRole('button').map((b) => b.props.testID);
+    expect(buttons.indexOf('onboarding-privacy')).toBe(buttons.indexOf('onboarding-start') - 1);
     fireEvent.press(screen.getByTestId('onboarding-privacy'));
     expect(screen.getByTestId('legal-aydinlatma')).toBeTruthy();
+    expect(screen.getAllByText('Aydınlatma metni').length).toBeGreaterThan(0);
+    expect(screen.getByText('Son güncelleme: 15 Ekim 2026')).toBeTruthy();
     expect(memory.profile).toBeNull();
   });
 

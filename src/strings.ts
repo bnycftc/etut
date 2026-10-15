@@ -30,7 +30,7 @@ export const DATA_CONTROLLER = {
 };
 
 /** Date shown as "Son güncelleme" on the legal texts. */
-export const LEGAL_UPDATED = '12 Ekim 2026';
+export const LEGAL_UPDATED = '15 Ekim 2026';
 
 export interface LegalSection {
   heading: string;
@@ -46,7 +46,7 @@ const C = DATA_CONTROLLER;
 
 const legalDocs = {
   aydinlatma: {
-    title: 'Kısaca bilgilerin',
+    title: 'Aydınlatma metni',
     sections: [
       {
         heading: 'Kim sorumlu?',
@@ -139,7 +139,7 @@ const legalDocs = {
         heading: '3. Paylaşım',
         paragraphs: [
           'Uygulama bize veri göndermez; senin hakkında elimize geçebilecek tek şey bize kendin yazdığın e-postalardır. Onları yalnız sana cevap vermek ve KVKK başvurunu sonuçlandırmak için kullanırız. Hiçbir bilgiyi satmayız, reklam ya da başka bir amaçla kimseyle paylaşmayız.',
-          // [AVUKAT TEYİDİ] KVKK m.9 dayanağı: "Kısaca bilgilerin" → "Nerede duruyor" altındaki nota bak.
+          // [AVUKAT TEYİDİ] KVKK m.9 dayanağı: "Aydınlatma metni" → "Nerede duruyor" altındaki nota bak.
           `E-posta adresimiz Gmail’de olduğu için bu e-postalar Google’ın (Google LLC, ABD) Türkiye dışındaki sunucularında saklanır; bu, KVKK m.9 kapsamında yurt dışına aktarımdır ve yalnız sen bize e-postayla yazmayı seçersen olur. İstemezsen imzalı bir mektupla ${C.address} adresine yazabilirsin; o zaman yurt dışına hiçbir şey gitmez.`,
           'Yedek, CSV ya da çalışma kartı yalnız sen dokunduğunda, telefonunun paylaşım ekranıyla dışarı çıkar. Seçtiğin uygulama ya da servis (ör. Dosyalar, AirDrop, bir mesajlaşma uygulaması) kendi kurallarına tabidir. Yedek dosyasında doğum yılın, sınav türün, tüm çalışma kayıtların (soru sayıları dahil), denemelerin, konu işaretlerin ve hedeflerin bulunur; CSV dosyaları çalışma kayıtlarını (girdiysen soru sayısıyla) ve denemeleri içerir. Çalışma kartında ad, yaş, okul gibi seni tanıtan bilgi yer almaz.',
         ],
@@ -196,7 +196,7 @@ const legalDocs = {
       {
         heading: '1. Taraflar',
         paragraphs: [
-          `Bu şartlar Etüt’ü geliştiren ${C.name} ile uygulamayı kullanan sen arasındadır. Kişisel verilerin nasıl işlendiği ayrı metinde (Kısaca bilgilerin) anlatılır.`,
+          `Bu şartlar Etüt’ü geliştiren ${C.name} ile uygulamayı kullanan sen arasındadır. Kişisel verilerin nasıl işlendiği ayrı metinde (Aydınlatma metni) anlatılır.`,
         ],
       },
       {
@@ -403,7 +403,7 @@ export const tr = {
       'Sayacı açmayı unuttuysan çalıştığın süreyi sonradan ekle. Bu kayıtlar her yerde “elle” etiketiyle görünür.',
     subject: 'Ders',
     day: 'Gün',
-    start: 'Başlangıç',
+    start: 'Başlangıç (Türkiye saati)',
     duration: 'Süre',
     hour: 'Saat',
     minute: 'Dakika',
@@ -638,6 +638,9 @@ export const tr = {
     title: (kind: string) => `${kind} ders bazlı net`,
     empty: 'Bu ders için henüz net yok.',
     target: 'Hedef net',
+    /** How a target net is checked (`TARGET_WINDOW` in domain/exam-analysis.ts). */
+    targetRule: (window: number) =>
+      `Hedef netin, bu dersteki son ${window} denemedeki (genel ya da branş) netlerinin ortalamasıyla kıyaslanır.`,
     targetPlaceholder: 'ör. 30',
     targetNone: 'Bu ders için hedef koymadın.',
     targetCurrent: (target: string) => `Hedef: ${target} net`,
@@ -676,7 +679,7 @@ export const tr = {
     pomodoro: 'Pomodoro aşama sonu',
     pomodoroInfo: 'Uygulama kapalıyken çalışma ya da mola bitince haber verir.',
     daily: 'Günlük çalışma hatırlatıcısı',
-    dailyInfo: 'Seçtiğin saatte bir kez hatırlatır; o gün çalıştıysan hatırlatmaz.',
+    dailyInfo: 'Seçtiğin saatte (Türkiye saati) bir kez hatırlatır; o gün çalıştıysan hatırlatmaz.',
     dailyHour: 'Saat',
     dailyMinute: 'Dakika',
     /** `20:30` */
@@ -1289,8 +1292,18 @@ export const tr = {
         'Ders seç, Başla’ya dokun. Süre, başladığın andan itibaren saate bakılarak hesaplanır; “Mola” sayacı durdurur, “Devam” sürdürür.',
         `Uygulamadan ${toleranceSeconds} saniyeden uzun çıkarsan ya da telefon kilitlenirse o süre mola sayılır. Dönünce “… uygulamanın dışındaydın” kartı çıkar: “Çalışıyordum, süreye ekle” dersen süre eklenir, “Tamam, mola kalsın” dersen eklenmez. Cevaplamadan Bitir’e dokunursan önce bu sorulur.`,
         'Kitaptan çalışırken telefonu kilitliyorsan Ayarlar → Sayaç çalışırken → Uygulamadan çıkınca bölümünde “Çalışmaya devam say”ı seç: dışarıda geçen süre sorulmadan çalışma sayılır. O zaman mola verirken “Mola”ya dokunmayı unutma.',
+        'Uygulamayı tamamen kapatırsan iPhone’un kilit ekranındaki sayaç saymayı sürdürür; uygulamayı yeniden açınca, kapandığı andan sonraki süre de “Uygulamadan çıkınca” ayarına göre sorulur ya da çalışma sayılır.',
         'Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez, böylece süren molaya dönmez. Pili biraz daha çok kullanır; Ayarlar’dan kapatabilirsin.',
         `Bitir’e dokununca oturum kaydedilir ve kısa bir özet görürsün. Yanlışlıkla dokunduysan ${undoSeconds} saniye içinde “Geri al”: kayıt silinir, sayaç kaldığı yerden sürer. ${longHours} saati aşan bir oturumda hepsini mi yoksa ilk ${longHours} saati mi kaydedeceğin sorulur.`,
+      ],
+      /** iOS Focus: the app never turns it on itself; only how to set it up next to the timer. */
+      focusTitle: 'iPhone’da Odak ile çalışmak',
+      focus: [
+        'Bildirimler dikkatini dağıtıyorsa iPhone’un Odak özelliğini kullanabilirsin. Etüt Odak’ı kendisi açıp kapatmaz; sayaç Odak açıkken de aynı çalışır.',
+        '1. iPhone’un Ayarlar → Odak bölümünde “Rahatsız Etme”yi seç ya da “+” ile kendine yeni bir Odak oluştur.',
+        '2. Bu Odak’ta bildirimlerine izin verilen uygulamalara Etüt’ü ekle; yoksa Odak açıkken pomodoro ve hatırlatıcı bildirimlerin de sessize alınır.',
+        '3. Çalışmaya başlarken Odak’ı Denetim Merkezi’nden aç, bitirince kapat.',
+        'Odak açıkken de başka bir uygulamaya (ör. ders videosu ya da PDF için) geçersen o süre yukarıdaki uzakta kuralına girer.',
       ],
     },
     pomodoro: {
@@ -1401,7 +1414,7 @@ export const tr = {
   /** Hakkında → İletişim (e-mail with the app and OS version in the subject, nothing else). */
   contact: {
     title: 'İletişim',
-    info: 'Soru, hata, öneri ya da KVKK başvurun için bize e-posta gönderebilirsin. Konu satırına yalnız uygulama ve işletim sistemi sürümü eklenir. E-posta adresin ve yazdıkların bize ulaşır; e-postalarımız Gmail’de, yani Google’ın yurt dışındaki sunucularında durur. İstemezsen aşağıdaki adrese mektupla yazabilirsin. Ayrıntılar “Kısaca bilgilerin” metninde.',
+    info: 'Soru, hata, öneri ya da KVKK başvurun için bize e-posta gönderebilirsin. Konu satırına yalnız uygulama ve işletim sistemi sürümü eklenir. E-posta adresin ve yazdıkların bize ulaşır; e-postalarımız Gmail’de, yani Google’ın yurt dışındaki sunucularında durur. İstemezsen aşağıdaki adrese mektupla yazabilirsin. Ayrıntılar “Aydınlatma metni”nde.',
     send: 'E-posta gönder',
     soon: 'E-posta · Yakında',
     soonInfo: 'İletişim adresi yayından önce eklenecek.',
