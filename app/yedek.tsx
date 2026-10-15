@@ -181,9 +181,9 @@ export default function BackupScreen() {
     <Screen testID="backup-screen">
       <Label variant="muted">{tr.backup.info}</Label>
 
-      {message !== null ? <Label testID="backup-message">{message}</Label> : null}
+      {message !== null ? <Label testID="backup-message" live>{message}</Label> : null}
       {error !== null ? (
-        <Label testID="backup-error" style={{ color: c.danger }}>
+        <Label testID="backup-error" live style={{ color: c.danger }}>
           {error}
         </Label>
       ) : null}

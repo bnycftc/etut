@@ -79,6 +79,14 @@ export function cardRows(bySubject: readonly { subjectId: string; ms: number }[]
   return rows.map((r, i) => ({ ...r, percent: percents[i] }));
 }
 
+/**
+ * The card shows whole minutes: under one minute it would say "0 dk", so there is nothing to
+ * share yet (the share button is off and the screen says why).
+ */
+export function cardHasStudy(card: StudyCard): boolean {
+  return Math.floor(Math.max(0, card.totalMs) / 60_000) > 0;
+}
+
 /** `spans` must cover the day (running session included). */
 export function dailyCard(
   spans: SessionSpan[],

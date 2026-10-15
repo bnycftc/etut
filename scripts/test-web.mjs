@@ -224,6 +224,8 @@ async function runScenario(page, baseUrl) {
   await waitUntil(() => text('timer-status'), (s) => s === 'Moladasın', 'paused status');
   await byId('timer-resume').click();
   await waitUntil(() => text('timer-status'), (s) => s === 'Çalışıyorsun', 'running status');
+  // Study past one minute: the study card (3b) is not shared at "0 dk".
+  await waitUntil(() => text('timer-clock'), (clock) => seconds(clock) >= 61, 'clock past one minute', 90_000);
   await byId('timer-finish').click();
   await visible('timer-saved');
   check((await text('timer-saved')).startsWith('Kaydedildi'), 'finished session was not saved');
@@ -277,6 +279,7 @@ async function runScenario(page, baseUrl) {
   log('step: share card');
   await byId('open-share').click();
   await visible('share-card-preview');
+  check((await byId('share-nothing').count()) === 0, 'a minute of study must be shareable');
   await screenshot('share-day-light');
   await byId('share-period-week').click();
   await byId('share-theme-dark').click();
@@ -285,6 +288,10 @@ async function runScenario(page, baseUrl) {
     page.waitForEvent('download', { timeout: STEP_TIMEOUT_MS }),
     byId('share-card-share').click(),
   ]);
+  check(
+    /^etut-calisma-\d{4}-\d{2}-\d{2}\.png$/.test(cardDownload.suggestedFilename()),
+    `card file name: ${cardDownload.suggestedFilename()}`,
+  );
   const cardPath = path.join(OUT_DIR, 'shared-card.png');
   await cardDownload.saveAs(cardPath);
   const png = readFileSync(cardPath);
@@ -457,6 +464,13 @@ async function runScenario(page, baseUrl) {
   await onboard();
   await visible('tips-card');
   await byId('tips-skip').click();
+  // Nothing studied yet: the study card is not shared ("0 dk") and the screen says why.
+  await byId('open-share').click();
+  await visible('share-nothing');
+  check((await byId('share-card-share').getAttribute('aria-disabled')) === 'true', 'Paylaş must be off at 0 dk');
+  await screenshot('share-nothing');
+  await page.goBack();
+  await visible('open-history');
   await byId('open-history').click();
   await visible('history-empty');
   await screenshot('empty-history');

@@ -372,6 +372,14 @@ export default function ExamsScreen() {
           key={e.id}
           testID={`exam-item-${index}`}
           accessibilityRole="button"
+          accessibilityLabel={tr.exams.itemA11y(
+            tr.examKind(e.kind),
+            formatNet(e.totalNet),
+            formatDay(e.takenOn),
+            e.scope === 'genel' ? tr.exams.scopeGenel : tr.exams.bransLabel(tr.subject(e.bransSectionId ?? '')),
+            pendingIds.has(e.id),
+          )}
+          accessibilityHint={tr.exams.itemHint}
           onPress={() => router.push({ pathname: '/deneme/[id]', params: { id: e.id } })}>
           <Card>
             <Row>

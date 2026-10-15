@@ -45,6 +45,7 @@ export function ToggleRow({
         testID={testID}
         kind={on ? 'primary' : 'secondary'}
         title={on ? tr.groups.on : tr.groups.off}
+        accessibilityLabel={tr.a11y.toggle(label, on ? tr.groups.on : tr.groups.off)}
         onPress={onToggle}
         disabled={disabled}
       />

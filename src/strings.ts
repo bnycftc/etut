@@ -409,6 +409,8 @@ export const tr = {
     minute: 'Dakika',
     hours: 'Saat',
     minutes: 'Dakika',
+    /** Screen-reader name of a time box: `Başlangıç, Saat` / `Süre, Saat`. */
+    fieldA11y: (group: string, field: string) => `${group}, ${field}`,
     add: 'Ekle',
     added: (duration: string) => `Eklendi: ${duration} (elle)`,
     limits:
@@ -527,6 +529,12 @@ export const tr = {
     reviewCount: (n: number) => `${n} konu tekrar bekliyor`,
     done: 'Bitti',
     review: 'Tekrar lazım',
+    /**
+     * Screen-reader name of a topic's mark chip: which topic it marks. TYT and AYT share topic
+     * names (Fonksiyonlar, Olasılık…), so the paper comes first when there is one.
+     */
+    markA11y: (topic: string, mark: string, paper: string | null) =>
+      paper === null ? `${topic}: ${mark}` : `${paper} ${topic}: ${mark}`,
     noTime: 'Henüz süre yok',
     unsupported: 'Konu listeleri YKS, LGS ve KPSS için var.',
   },
@@ -554,6 +562,10 @@ export const tr = {
     scopeGenel: 'Genel',
     scopeBrans: 'Branş',
     bransLabel: (subject: string) => `Branş: ${subject}`,
+    /** Screen-reader name of an exam in the list: one sentence instead of its pieces. */
+    itemA11y: (kind: string, net: string, day: string, scope: string, pending: boolean) =>
+      `${kind}, ${net} net, ${day}, ${scope}${pending ? ', analiz bekliyor' : ''}`,
+    itemHint: 'Denemenin ayrıntısını açar',
     newTitle: 'Yeni deneme',
     detailTitle: 'Deneme',
     kind: 'Sınav',
@@ -611,6 +623,8 @@ export const tr = {
     tagged: (wrongTagged: number, wrong: number, blankTagged: number, blank: number) =>
       `İşaretlenen: ${wrongTagged}/${wrong} yanlış · ${blankTagged}/${blank} boş`,
     addTopic: 'Konu ekle',
+    /** Screen-reader name of a section's "Konu ekle" (one per section on the screen). */
+    addTopicFor: (section: string) => `${section} dersine konu ekle`,
     close: 'Kapat',
     wrong: 'Yanlış',
     blank: 'Boş',
@@ -1098,11 +1112,16 @@ export const tr = {
     shareTitle: 'Çalışma kartını paylaş',
     unavailable: 'Bu cihazda paylaşım ekranı açılamadı.',
     failed: 'Kart hazırlanamadı. Yeniden dene.',
+    /** Under the disabled button when the card would show "0 dk". */
+    nothingToShare: 'Paylaşmak için bu dönemde en az 1 dakika çalışmış olmalısın.',
+    /** Name of the shared image (Istanbul day of sharing). */
+    fileName: (day: string) => `etut-calisma-${day}.png`,
     cardDay: 'Bugünkü çalışmam',
     cardWeek: 'Bu haftaki çalışmam',
     total: 'Toplam çalışma',
     subjects: 'Ders dağılımı',
-    noStudy: 'Henüz çalışma yok. İlk oturumu başlat!',
+    /** On the card itself (it may be shared): a plain fact, no in-app call to action. */
+    noStudy: 'Bu dönemde kayıtlı çalışma yok.',
     otherSubjects: 'Diğer dersler',
     streak: (days: number) => `Seri: ${days} gün`,
     goalDay: (percent: number) => (percent >= 100 ? 'Günlük hedef tamam' : `Günlük hedefin %${percent}’i`),
@@ -1138,6 +1157,8 @@ export const tr = {
     chart: (items: string) => `Grafik. ${items}`,
     chartItem: (label: string, value: string) => `${label}: ${value || '0'}`,
     progress: 'İlerleme',
+    /** An on/off button named by what it switches: `Görünmez ol: Kapalı`. */
+    toggle: (label: string, state: string) => `${label}: ${state}`,
   },
 
   empty: {

@@ -98,10 +98,13 @@ export default function SettingsScreen() {
   const examDate = resolveExamDate(examType, customDay);
   const [dateText, setDateText] = useState('');
   const [dateError, setDateError] = useState(false);
+  // Bumped when the error appears or the field is left with a wrong date, so VoiceOver reads it again.
+  const [dateAttempt, setDateAttempt] = useState(0);
   // Saved as soon as the field holds a valid date: settings have no Kaydet button (bny, 12 Oct 2026).
   const changeDate = (text: string, left = false) => {
     const day = readExamDayInput(text, dateText, istanbulDayKey(Date.now()), left);
     setDateError(day === 'invalid');
+    if (day === 'invalid' && (left || !dateError)) setDateAttempt((n) => n + 1);
     if (day === null || day === 'invalid') {
       setDateText(text);
       return;
@@ -255,7 +258,7 @@ export default function SettingsScreen() {
             />
           </Row>
           {dateError ? (
-            <Label variant="small" style={{ color: c.danger }}>
+            <Label variant="small" live={dateAttempt} style={{ color: c.danger }}>
               {tr.countdown.invalid}
             </Label>
           ) : null}
