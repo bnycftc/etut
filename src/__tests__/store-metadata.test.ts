@@ -50,6 +50,12 @@ it('the name is Etüt and neither name nor subtitle names ÖSYM or MEB', () => {
   }
 });
 
+it('no LGS or young-age marketing in the listing (K-45)', () => {
+  for (const text of [name, subtitle, keywords, promotional, description]) {
+    expect(text.toLocaleUpperCase('tr')).not.toContain('LGS');
+  }
+});
+
 it('the description says the app is not official and keeps data on the phone', () => {
   expect(description).toContain('Etüt resmî bir uygulama değildir; ÖSYM veya MEB ile bağlantısı yoktur.');
   expect(description).toContain('yalnız telefonunda');

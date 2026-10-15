@@ -1,4 +1,4 @@
-Etüt, sınava hazırlanan öğrenciler için bir çalışma sayacı ve deneme net takibidir. Ne kadar çalıştığını, hangi konuda olduğunu ve denemelerde nerede yanlış yaptığını tek yerde görürsün. YKS (TYT, AYT; sayısal, eşit ağırlık, sözel, dil), LGS ve KPSS için ders ve konu listeleri hazır gelir. Başka bir sınava hazırlanıyorsan sayacı ve hedefleri yine kullanabilirsin.
+Etüt, sınava hazırlanan öğrenciler için bir çalışma sayacı ve deneme net takibidir. Ne kadar çalıştığını, hangi konuda olduğunu ve denemelerde nerede yanlış yaptığını tek yerde görürsün. YKS (TYT, AYT; sayısal, eşit ağırlık, sözel, dil) ve KPSS için ders ve konu listeleri hazır gelir. Başka bir sınava hazırlanıyorsan sayacı ve hedefleri yine kullanabilirsin.
 
 ÇALIŞMA SAYACI
 - Kronometre ya da pomodoro. Pomodoro sürelerini ve uzun molanın aralığını sen ayarlarsın.
