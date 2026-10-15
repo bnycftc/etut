@@ -1,6 +1,7 @@
 /**
  * The native (iOS) file path of backup import/export, with the Expo modules mocked: document
- * picker → cache copy → size check → text → the cache copy is deleted. The app smoke test mocks
+ * picker → cache copy → size check → text → the cache copy is deleted; the study card image is
+ * shared as a copy with a readable name. The app smoke test mocks
  * this whole module and the web preview uses `file-io.web.ts`, so this is the only test of it.
  */
 
@@ -48,11 +49,15 @@ jest.mock('expo-file-system', () => {
     delete() {
       this.entry.deleted = true;
     }
+    async copy(to: File, options?: { overwrite?: boolean }) {
+      if (mockFiles.has(to.uri) && !options?.overwrite) throw new Error(`${to.uri} exists`);
+      mockFiles.set(to.uri, { ...this.entry, deleted: false });
+    }
   }
   return { File, Paths: { cache: { uri: 'file:///cache' } } };
 });
 
-import { pickTextFile, shareTextFile } from '../file-io';
+import { pickTextFile, shareImage, shareTextFile } from '../file-io';
 
 const URI = 'file:///cache/DocumentPicker/etut-yedek.json';
 
@@ -115,6 +120,33 @@ describe('shareTextFile (native)', () => {
   it('without a share sheet nothing is written', async () => {
     mockSharing.available = false;
     await expect(shareTextFile('a.json', '{}', options)).resolves.toBe('unavailable');
+    expect(mockFiles.size).toBe(0);
+  });
+});
+
+describe('shareImage (native)', () => {
+  // react-native-view-shot's temporary file: a path without the scheme, named by a UUID.
+  const CAPTURE = '/tmp/ReactNative/47DB24A8-7A07-4C5B-9F7E-1D2C3B4A5F60.png';
+
+  it('shares a copy named like etut-calisma-2026-10-15.png (not the UUID) and deletes the copy', async () => {
+    mockFiles.set(`file://${CAPTURE}`, { text: 'png', size: 3, deleted: false, failRead: false });
+    // A copy left over from an earlier share is replaced.
+    mockFiles.set('file:///cache/etut-calisma-2026-10-15.png', { text: 'old', size: 3, deleted: false, failRead: false });
+    await expect(shareImage(CAPTURE, 'etut-calisma-2026-10-15.png', 'Kart')).resolves.toBe('shared');
+    expect(mockShared).toEqual([
+      {
+        uri: 'file:///cache/etut-calisma-2026-10-15.png',
+        options: { mimeType: 'image/png', UTI: 'public.png', dialogTitle: 'Kart' },
+      },
+    ]);
+    expect(mockFiles.get('file:///cache/etut-calisma-2026-10-15.png')).toMatchObject({ text: 'png', deleted: true });
+    // The capture itself is the caller's (releaseCapture).
+    expect(mockFiles.get(`file://${CAPTURE}`)?.deleted).toBe(false);
+  });
+
+  it('without a share sheet nothing is copied', async () => {
+    mockSharing.available = false;
+    await expect(shareImage(`file://${CAPTURE}`, 'etut-calisma-2026-10-15.png', 'Kart')).resolves.toBe('unavailable');
     expect(mockFiles.size).toBe(0);
   });
 });

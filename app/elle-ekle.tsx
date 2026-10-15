@@ -56,11 +56,14 @@ export default function ManualEntryScreen() {
   const [questionsError, setQuestionsError] = useState(false);
   const [error, setError] = useState<ManualEntryError | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // Each tap on Ekle reads its result out again, also when it is the same message.
+  const [attempt, setAttempt] = useState(0);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const recent = useStored(String(dataVersions.sessions), () => recentManualSessions(RECENT_LIMIT));
 
   const add = () => {
+    setAttempt((n) => n + 1);
     setMessage(null);
     const now = Date.now();
     const startMs = parseStartTime(day, startH, startM);
@@ -147,6 +150,7 @@ export default function ManualEntryScreen() {
           <Field
             testID="manual-start-hour"
             label={tr.manual.hour}
+            accessibilityLabel={tr.manual.fieldA11y(tr.manual.start, tr.manual.hour)}
             value={startH}
             onChange={setStartH}
             maxLength={2}
@@ -155,6 +159,7 @@ export default function ManualEntryScreen() {
           <Field
             testID="manual-start-minute"
             label={tr.manual.minute}
+            accessibilityLabel={tr.manual.fieldA11y(tr.manual.start, tr.manual.minute)}
             value={startM}
             onChange={setStartM}
             maxLength={2}
@@ -167,6 +172,7 @@ export default function ManualEntryScreen() {
           <Field
             testID="manual-duration-hours"
             label={tr.manual.hours}
+            accessibilityLabel={tr.manual.fieldA11y(tr.manual.duration, tr.manual.hours)}
             value={durH}
             onChange={setDurH}
             maxLength={2}
@@ -175,6 +181,7 @@ export default function ManualEntryScreen() {
           <Field
             testID="manual-duration-minutes"
             label={tr.manual.minutes}
+            accessibilityLabel={tr.manual.fieldA11y(tr.manual.duration, tr.manual.minutes)}
             value={durM}
             onChange={setDurM}
             maxLength={2}
@@ -194,18 +201,18 @@ export default function ManualEntryScreen() {
           />
         </Row>
         {questionsError ? (
-          <Label testID="manual-questions-error" variant="small" style={{ color: c.danger }}>
+          <Label testID="manual-questions-error" live={attempt} variant="small" style={{ color: c.danger }}>
             {tr.questions.invalid(MAX_SESSION_QUESTIONS)}
           </Label>
         ) : null}
       </Card>
 
       {error !== null ? (
-        <Label testID="manual-error" style={{ color: c.danger }}>
+        <Label testID="manual-error" live={attempt} style={{ color: c.danger }}>
           {tr.manual.errors[error]}
         </Label>
       ) : null}
-      {message !== null ? <Label testID="manual-added">{message}</Label> : null}
+      {message !== null ? <Label testID="manual-added" live={attempt}>{message}</Label> : null}
       <Button testID="manual-add" large title={tr.manual.add} onPress={add} />
 
       <Label variant="heading">{tr.manual.recent}</Label>

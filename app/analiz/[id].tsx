@@ -166,6 +166,7 @@ export default function ExamAnalysisScreen() {
                 testID={`analysis-add-topic-${s.sectionId}`}
                 kind="secondary"
                 title={tr.analysis.addTopic}
+                accessibilityLabel={tr.analysis.addTopicFor(tr.subject(s.sectionId))}
                 disabled={full || available.length === 0}
                 onPress={() => setAdding(s.sectionId)}
               />

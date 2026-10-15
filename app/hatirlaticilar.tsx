@@ -170,7 +170,15 @@ function ToggleRow({
         <Label variant="heading" style={{ flex: 1 }}>
           {label}
         </Label>
-        <Chip testID={`${testID}-toggle`} title={on ? tr.reminders.on : tr.reminders.off} selected={on} onPress={onToggle} />
+        {/* An on/off switch named by the reminder (not a "Kapalı" button). */}
+        <Chip
+          testID={`${testID}-toggle`}
+          title={on ? tr.reminders.on : tr.reminders.off}
+          accessibilityLabel={label}
+          toggle
+          selected={on}
+          onPress={onToggle}
+        />
       </Row>
       <Label variant="small">{info}</Label>
     </View>

@@ -35,8 +35,8 @@ export async function shareTextFile(
 }
 
 /** `uri` is the data URI that `react-native-view-shot` returns on web. */
-export async function shareImage(uri: string, _dialogTitle: string): Promise<ShareResult> {
-  download(uri, 'etut-kart.png');
+export async function shareImage(uri: string, name: string, _dialogTitle: string): Promise<ShareResult> {
+  download(uri, name);
   return 'shared';
 }
 
