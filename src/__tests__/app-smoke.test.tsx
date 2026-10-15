@@ -37,7 +37,7 @@ const memory: {
   tipsSeen: boolean;
   /** Files handed to the share sheet (backup, CSV) and captured card images. */
   shared: { name: string; content: string }[];
-  sharedImages: string[];
+  sharedImages: { uri: string; name: string }[];
   /** Text the fake document picker returns; `null` = the student cancels. */
   pickText: string | null;
   reminderPrefs: unknown;
@@ -292,8 +292,8 @@ jest.mock('../storage/file-io', () => ({
     memory.shared.push({ name, content });
     return 'shared';
   },
-  shareImage: async (uri: string) => {
-    memory.sharedImages.push(uri);
+  shareImage: async (uri: string, name: string) => {
+    memory.sharedImages.push({ uri, name });
     return 'shared';
   },
   pickTextFile: async () =>
@@ -825,6 +825,10 @@ describe('mock exam analysis', () => {
   it('per-section net trend with a target and the distance to it', () => {
     renderRouter(APP_DIR, { initialUrl: '/denemeler' });
     fireEvent.press(screen.getByTestId('trend-section-matematik'));
+    // The rule is said before a target is set (TARGET_WINDOW = 3).
+    expect(screen.getByTestId('trend-target-rule').props.children).toBe(
+      'Hedef netin, bu dersteki son 3 denemedeki (genel ya da branş) netlerinin ortalamasıyla kıyaslanır.',
+    );
     expect(screen.getByTestId('trend-target').props.children).toBe('Bu ders için hedef koymadın.');
     fireEvent.changeText(screen.getByTestId('trend-target-input'), '45');
     fireEvent.press(screen.getByTestId('trend-target-save'));
@@ -871,6 +875,76 @@ describe('mock exam entry, editing and charts', () => {
     expect(memory.exams[0]).toMatchObject({ kind: 'TYT', totalNet: 10 });
     // Back on the list (the form closed after the first tap).
     expect(screen.getByTestId('exam-item-0-net').props.children).toEqual(['10', ' ', 'net']);
+  });
+
+  it('after Kaydet the list confirms the net and offers the analysis once', () => {
+    jest.mocked(Haptics.notificationAsync).mockClear();
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    // Türkçe 10 doğru 6 yanlış = 8,5 net; the other sections stay blank, so there is something to analyse.
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '10');
+    fireEvent.changeText(screen.getByTestId('exam-wrong-turkce'), '6');
+    fireEvent.press(screen.getByTestId('exam-save'));
+
+    expect(screen.getByTestId('exams-saved-title').props.children).toBe('8,5 net kaydedildi');
+    expect(Haptics.notificationAsync).toHaveBeenCalledWith('success');
+    expect(announce).toHaveBeenCalledWith('8,5 net kaydedildi');
+    // The reminder card would repeat the same offer for the same exam.
+    expect(screen.queryByTestId('analysis-reminder')).toBeNull();
+    fireEvent.press(screen.getByTestId('exams-saved-analysis'));
+    expect(screen.getByTestId('analysis-tagged-turkce')).toBeTruthy();
+
+    // Back on the list: the confirmation was a moment; the usual reminder takes over.
+    act(() => router.back());
+    expect(screen.queryByTestId('exams-saved')).toBeNull();
+    expect(screen.getByTestId('analysis-reminder').props.children).toBe('Analizi bekleyen 1 deneme var');
+    announce.mockRestore();
+  });
+
+  it('an exam with nothing to analyse is only confirmed; "Kapat" removes the card', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.press(screen.getByTestId('exam-scope-brans'));
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '40');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    expect(screen.getByTestId('exams-saved-title').props.children).toBe('40 net kaydedildi');
+    expect(screen.queryByTestId('exams-saved-analysis')).toBeNull();
+    fireEvent.press(screen.getByLabelText('Kaydedildi bilgisini kapat'));
+    expect(screen.queryByTestId('exams-saved')).toBeNull();
+  });
+
+  it('the confirmation is gone once the student leaves the list and comes back', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '5');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    expect(screen.getByTestId('exams-saved')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('exam-item-0'));
+    expect(screen.getByTestId('exam-detail-total')).toBeTruthy();
+    act(() => router.back());
+    expect(screen.getByTestId('exam-item-0')).toBeTruthy();
+    expect(screen.queryByTestId('exams-saved')).toBeNull();
+  });
+
+  it('the list draws 20 exams at a time; "Daha fazla göster" adds the next 20', () => {
+    memory.exams = Array.from({ length: 45 }, (_, i) => ({ ...TYT_E1, id: `e${i}`, totalNet: i }));
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exam-item-19-net').props.children).toEqual(['19', ' ', 'net']);
+    expect(screen.queryByTestId('exam-item-20')).toBeNull();
+    fireEvent.press(screen.getByTestId('exams-more'));
+    expect(screen.getByTestId('exam-item-39')).toBeTruthy();
+    expect(screen.queryByTestId('exam-item-40')).toBeNull();
+    fireEvent.press(screen.getByTestId('exams-more'));
+    expect(screen.getByTestId('exam-item-44-net').props.children).toEqual(['44', ' ', 'net']);
+    expect(screen.queryByTestId('exams-more')).toBeNull();
+  });
+
+  it('20 exams or fewer: no "Daha fazla göster"', () => {
+    memory.exams = Array.from({ length: 20 }, (_, i) => ({ ...TYT_E1, id: `e${i}` }));
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exam-item-19')).toBeTruthy();
+    expect(screen.queryByTestId('exams-more')).toBeNull();
   });
 
   it('"Dün" picks yesterday in one tap; the boxes move on with the return key / keyboard bar', () => {
@@ -1160,13 +1234,24 @@ describe('exam countdown', () => {
 
   it('the student can set the exact date and go back to the estimate', () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    const invalid = 'Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.';
+    const input = () => screen.getByTestId('settings-exam-date-input');
     expect(screen.getByTestId('settings-exam-date').props.children).toBe('19 Haziran 2027');
-    fireEvent.changeText(screen.getByTestId('settings-exam-date-input'), '01.01.2020');
-    fireEvent.press(screen.getByTestId('settings-exam-date-save'));
-    expect(screen.getByText('Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.')).toBeTruthy();
-    fireEvent.changeText(screen.getByTestId('settings-exam-date-input'), '26.06.2027');
-    fireEvent.press(screen.getByTestId('settings-exam-date-save'));
+    // Saved as it is typed, no Kaydet button; an error only once the entry is finished.
+    expect(screen.queryByTestId('settings-exam-date-save')).toBeNull();
+    fireEvent.changeText(input(), '01.01.2020');
+    expect(screen.getByText(invalid)).toBeTruthy();
+    expect(memory.examDates.YKS).toBeUndefined();
+    fireEvent.changeText(input(), '26.06');
+    expect(screen.queryByText(invalid)).toBeNull();
+    fireEvent(input(), 'blur');
+    expect(screen.getByText(invalid)).toBeTruthy();
+    fireEvent.changeText(input(), '26.06.202');
+    expect(screen.queryByText(invalid)).toBeNull();
+    expect(memory.examDates.YKS).toBeUndefined();
+    fireEvent.changeText(input(), '26.06.2027');
     expect(memory.examDates.YKS).toBe('2027-06-26');
+    expect(input().props.value).toBe('');
     expect(screen.getByTestId('settings-exam-date').props.children).toBe('26 Haziran 2027');
     expect(screen.getByText('senin girdiğin tarih')).toBeTruthy();
     fireEvent.press(screen.getByTestId('settings-exam-date-reset'));
@@ -1306,6 +1391,40 @@ describe('other screens render', () => {
     expect(memory.profile).toBeNull();
     expect(screen.getByText('Doğum yılın')).toBeTruthy();
   });
+
+  it('"Önce yedek al" in the delete dialog shares the backup and deletes nothing; deleting stays a choice of its own', async () => {
+    memory.sessions = [
+      {
+        id: 'a',
+        subjectId: 'fizik',
+        topicId: null,
+        startedAt: Date.parse('2026-10-01T07:00:00Z'),
+        endedAt: Date.parse('2026-10-01T08:00:00Z'),
+        pauses: [],
+        durationMs: 3_600_000,
+        source: 'timer',
+      },
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
+    await act(async () => {
+      fireEvent.press(screen.getByRole('button', { name: 'Önce yedek al' }));
+    });
+    expect(memory.shared).toHaveLength(1);
+    expect(memory.shared[0].name).toMatch(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(JSON.parse(memory.shared[0].content)).toMatchObject({ format: 'etut-yedek', sessions: [{ id: 'a' }] });
+    expect(memory.lastBackupAt).not.toBeNull();
+    // The share sheet does not tell whether the file was saved: the note says so.
+    expect(screen.getByTestId('settings-delete-all-backup-note').props.children).toBe(
+      'Yedek dosyası hazırlandı. Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez.',
+    );
+    // Nothing deleted, the dialog still open.
+    expect(memory.profile).not.toBeNull();
+    expect(memory.sessions).toHaveLength(1);
+    expect(screen.getByTestId('settings-delete-all-dialog')).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    expect(memory.profile).toBeNull();
+  });
 });
 
 describe('subjects and papers follow the exam and YKS area', () => {
@@ -1404,6 +1523,30 @@ describe('empty states', () => {
     renderRouter(APP_DIR, { initialUrl: url });
     expect(screen.getByTestId(id)).toBeTruthy();
   });
+
+  it('the empty exam list has its own add button (the top one is out of sight down there)', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByRole('button', { name: 'İlk denemeni ekle' })).toBeTruthy();
+    fireEvent.press(screen.getByTestId('exams-empty-action'));
+    expect(screen.getByTestId('exam-kind-TYT')).toBeTruthy();
+  });
+
+  it('no exam form ("Diğer"): the empty card offers no add button', () => {
+    memory.profile = { ...ADULT_SAYISAL, examType: 'DIGER', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exams-empty')).toBeTruthy();
+    expect(screen.queryByTestId('exams-empty-action')).toBeNull();
+  });
+
+  it('an empty week leads to the timer; a past week does not', () => {
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    fireEvent.press(screen.getByTestId('weekly-prev'));
+    expect(screen.getByTestId('weekly-empty')).toBeTruthy();
+    expect(screen.queryByTestId('weekly-empty-action')).toBeNull();
+    fireEvent.press(screen.getByTestId('weekly-next'));
+    fireEvent.press(screen.getByTestId('weekly-empty-action'));
+    expect(screen.getByTestId('timer-start')).toBeTruthy();
+  });
 });
 
 describe('share card', () => {
@@ -1433,7 +1576,47 @@ describe('share card', () => {
     await act(async () => {
       fireEvent.press(screen.getByTestId('share-card-share'));
     });
-    expect(memory.sharedImages).toEqual(['/tmp/etut-card.png']);
+    expect(memory.sharedImages).toEqual([{ uri: '/tmp/etut-card.png', name: expect.stringMatching(/^etut-calisma-\d{4}-\d{2}-\d{2}\.png$/) }]);
+  });
+
+  it('0 dk: Paylaş is off and says why; the card holds no call to action; the file is named by the Istanbul day', async () => {
+    memory.profile = ADULT_SAYISAL;
+    jest.setSystemTime(Date.parse('2026-10-07T21:30:00Z')); // 8 Oct 00:30 Istanbul
+    // Studied on Wednesday 7 October (Istanbul), nothing yet on Thursday.
+    memory.sessions = [
+      {
+        id: 's1',
+        subjectId: 'fizik',
+        topicId: null,
+        startedAt: Date.parse('2026-10-07T18:00:00Z'),
+        endedAt: Date.parse('2026-10-07T18:30:00Z'),
+        pauses: [],
+        durationMs: 30 * 60_000,
+        source: 'timer',
+      },
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/paylas' });
+    const button = () => screen.getByTestId('share-card-share');
+    expect(button().props.accessibilityState).toMatchObject({ disabled: true });
+    expect(screen.getByTestId('share-nothing').props.children).toBe(
+      'Paylaşmak için bu dönemde en az 1 dakika çalışmış olmalısın.',
+    );
+    expect(button().props.accessibilityHint).toBe('Paylaşmak için bu dönemde en az 1 dakika çalışmış olmalısın.');
+    expect(screen.getByText('Bu dönemde kayıtlı çalışma yok.')).toBeTruthy();
+    expect(screen.queryByText(/başlat/i)).toBeNull();
+    await act(async () => {
+      fireEvent.press(button());
+    });
+    expect(memory.sharedImages).toEqual([]);
+
+    // This week has the 30 minutes: the button is on and the image is named by today (Istanbul).
+    fireEvent.press(screen.getByTestId('share-period-week'));
+    expect(screen.queryByTestId('share-nothing')).toBeNull();
+    expect(button().props.accessibilityState).toMatchObject({ disabled: false });
+    await act(async () => {
+      fireEvent.press(button());
+    });
+    expect(memory.sharedImages).toEqual([{ uri: '/tmp/etut-card.png', name: 'etut-calisma-2026-10-08.png' }]);
   });
 
   it('under 15 (solo) the card is not offered and its screen does not open (ADR-001)', () => {
@@ -1613,14 +1796,21 @@ describe('about and legal texts', () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
     fireEvent.press(screen.getByTestId('settings-open-about'));
     expect(screen.getByTestId('about-controller').props.children).toBe('[DOLDURULACAK]');
+    expect(screen.getByText('Aydınlatma metni')).toBeTruthy();
+    expect(screen.queryByText(/Kısaca bilgilerin/)).toBeNull();
     fireEvent.press(screen.getByTestId('about-doc-gizlilik'));
     expect(screen.getByTestId('legal-gizlilik')).toBeTruthy();
   });
 
   it('the short notice is reachable from onboarding before anything is saved', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
+    // It sits right above Başla.
+    const buttons = screen.getAllByRole('button').map((b) => b.props.testID);
+    expect(buttons.indexOf('onboarding-privacy')).toBe(buttons.indexOf('onboarding-start') - 1);
     fireEvent.press(screen.getByTestId('onboarding-privacy'));
     expect(screen.getByTestId('legal-aydinlatma')).toBeTruthy();
+    expect(screen.getAllByText('Aydınlatma metni').length).toBeGreaterThan(0);
+    expect(screen.getByText('Son güncelleme: 15 Ekim 2026')).toBeTruthy();
     expect(memory.profile).toBeNull();
   });
 
@@ -1901,7 +2091,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     expect(screen.getByTestId('reminders-permission-missing')).toBeTruthy();
     // Neutral wording: asking is not granting.
     expect(screen.getByRole('button', { name: 'Bildirim izni iste' })).toBeTruthy();
-    expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.selected).toBe(false);
+    expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.checked).toBe(false);
     fireEvent.press(screen.getByTestId('reminder-daily-toggle'));
     await settle();
     // The explanation lists what will be on, the requested daily reminder included.
@@ -1918,7 +2108,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     fireEvent.press(screen.getByTestId('notification-permission-allow'));
     await settle();
     expect(memory.permissionRequests).toBe(1);
-    expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.checked).toBe(true);
     expect(screen.getByTestId('reminder-daily-time').props.children).toBe('20:00');
     fireEvent.press(screen.getByTestId('reminder-daily-hour-plus'));
     fireEvent.press(screen.getByTestId('reminder-daily-minute-minus'));
@@ -1969,14 +2159,14 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     act(() => router.push('/hatirlaticilar'));
     await settle();
     // Shown as they are: off. Turning one on explains first, even with the permission granted.
-    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.selected).toBe(false);
+    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.checked).toBe(false);
     fireEvent.press(screen.getByTestId('reminder-long-toggle'));
     await settle();
     expect(screen.getByTestId('notification-permission-item-longSession')).toBeTruthy();
     fireEvent.press(screen.getByTestId('notification-permission-allow'));
     await settle();
     expect(memory.remindersConfirmed).toBe(true);
-    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.checked).toBe(true);
     const kinds = memory.planned.map((n) => n.kind);
     expect(kinds).toContain('long_session');
     expect(kinds).toContain('pomodoro');
@@ -2623,5 +2813,137 @@ describe('ders karnesi, soru sayısı, ders hedefi, aylık görünüm', () => {
     // The next day's entry says one day less.
     const tomorrow = memory.widget.find((e) => e.at === at('2026-10-07T21:00:00Z'));
     expect(tomorrow?.props.countdownLine).toBe('YKS’ye 261 gün');
+  });
+});
+
+describe('accessibility names on key screens', () => {
+  /** Roles a screen reader user acts on; each one needs a name of its own. */
+  const ACTIONABLE = new Set(['button', 'switch', 'link', 'checkbox', 'radio', 'tab', 'togglebutton', 'adjustable', 'menuitem']);
+  type Node = ReturnType<typeof screen.getByTestId>;
+
+  const isInput = (node: Node): boolean => String(node.type) === 'TextInput';
+
+  function textOf(node: Node | string): string {
+    return typeof node === 'string' ? node : node.children.map(textOf).join('');
+  }
+
+  /** What VoiceOver reads as the element's name: its label, or else its text. */
+  function nameOf(node: Node): string {
+    const label = node.props.accessibilityLabel ?? node.props['aria-label'];
+    if (typeof label === 'string') return label.trim();
+    return isInput(node) ? '' : textOf(node).replace(/\s+/g, ' ').trim();
+  }
+
+  const roleOf = (node: Node): unknown => node.props.accessibilityRole ?? node.props.role;
+  const idOf = (node: Node): string => node.props.testID ?? `${String(node.type)} "${textOf(node)}"`;
+
+  /** Buttons, switches, links and text fields of the rendered screen (host elements). */
+  function controls(): Node[] {
+    return screen.root.findAll(
+      (node) => typeof node.type === 'string' && (isInput(node) || ACTIONABLE.has(roleOf(node) as string)),
+    );
+  }
+
+  beforeEach(() => {
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // Wednesday 12:00 Istanbul
+    const now = Date.now();
+    memory.profile = ADULT_SAYISAL;
+    memory.dailyGoal = 120;
+    memory.remindersConfirmed = true;
+    memory.reminderPrefs = { daily: { enabled: true, hour: 20, minute: 0 }, longSession: { enabled: true, hours: 3 } };
+    memory.topicStatuses = { 'tyt.fizik.basinc': 'done', 'ayt.matematik.turev': 'review' };
+    memory.sessions = [
+      { id: 's1', subjectId: 'fizik', topicId: null, startedAt: now - 3 * 3_600_000, endedAt: now - 2 * 3_600_000, pauses: [], durationMs: 3_600_000, source: 'timer' },
+      { id: 's2', subjectId: 'matematik', topicId: null, startedAt: now - 26 * 3_600_000, endedAt: now - 25 * 3_600_000, pauses: [], durationMs: 3_600_000, source: 'manual' },
+    ];
+    const scores = (matematikWrong: number) => [
+      { sectionId: 'turkce', questions: 40, correct: 30, wrong: 0 },
+      { sectionId: 'matematik', questions: 40, correct: 30, wrong: matematikWrong },
+    ];
+    memory.exams = [
+      { id: 'e1', kind: 'TYT', scope: 'genel', bransSectionId: null, takenOn: '2026-10-01', totalNet: 58.5, createdAt: 2, analysisDoneAt: null, scores: scores(6) },
+      { id: 'e2', kind: 'TYT', scope: 'genel', bransSectionId: null, takenOn: '2026-09-24', totalNet: 60, createdAt: 1, analysisDoneAt: 1, scores: scores(0) },
+    ];
+    memory.marks = { e1: [{ sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 2, blank: 1 }] };
+  });
+
+  it.each([
+    '/',
+    '/konular',
+    '/hatirlaticilar',
+    '/denemeler',
+    '/ayarlar',
+    '/paylas',
+    '/yedek',
+    '/karne/fizik',
+    '/elle-ekle',
+    '/deneme/yeni',
+    '/deneme/e1',
+    '/analiz/e1',
+    '/haftalik',
+    '/gecmis',
+    '/hakkinda',
+  ])('%s: every control has a role and a name of its own', (url) => {
+    renderRouter(APP_DIR, { initialUrl: url });
+    const found = controls();
+    expect(found.length).toBeGreaterThan(0);
+    // Anything pressable is announced as something (button, switch, link…), not as plain text.
+    const pressable = screen.root.findAll(
+      (node) => typeof node.type === 'string' && node.props.onClick !== undefined && !ACTIONABLE.has(roleOf(node) as string),
+    );
+    expect(pressable.map(idOf)).toEqual([]);
+    expect(found.filter((node) => nameOf(node) === '').map(idOf)).toEqual([]);
+    // The same name twice on one screen ("Bitti", "Saat") leaves a VoiceOver user guessing.
+    const names = found.map(nameOf);
+    expect(names.filter((name, i) => names.indexOf(name) !== i)).toEqual([]);
+  });
+
+  it('reminder toggles are switches named by their reminder', () => {
+    memory.reminderPrefs = { daily: { enabled: true, hour: 20, minute: 0 }, longSession: { enabled: false, hours: 3 } };
+    renderRouter(APP_DIR, { initialUrl: '/hatirlaticilar' });
+    const daily = screen.getByRole('switch', { name: 'Günlük çalışma hatırlatıcısı' });
+    expect(daily.props.testID).toBe('reminder-daily-toggle');
+    expect(daily.props.accessibilityState).toEqual({ checked: true });
+    expect(screen.getByRole('switch', { name: 'Uzun oturum uyarısı' }).props.accessibilityState).toEqual({ checked: false });
+    // The visible text stays "Açık" / "Kapalı".
+    expect(textOf(daily)).toBe('Açık');
+  });
+
+  it('topic marks name their topic, with the paper where TYT and AYT share a name', () => {
+    renderRouter(APP_DIR, { initialUrl: '/konular' });
+    fireEvent.press(screen.getByTestId('topics-subject-matematik'));
+    expect(screen.getByTestId('topic-done-tyt.matematik.fonksiyonlar').props.accessibilityLabel).toBe('TYT Fonksiyonlar: Bitti');
+    expect(screen.getByTestId('topic-done-ayt.matematik.fonksiyonlar').props.accessibilityLabel).toBe('AYT Fonksiyonlar: Bitti');
+    expect(screen.getByTestId('topic-review-ayt.matematik.turev').props).toMatchObject({
+      accessibilityLabel: 'AYT Türev: Tekrar lazım',
+      accessibilityState: { selected: true },
+    });
+  });
+
+  it('an exam in the list is one button with a full sentence and a hint', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exam-item-0').props).toMatchObject({
+      accessibilityRole: 'button',
+      accessibilityLabel: 'TYT, 58,5 net, 1 Ekim 2026, Genel, analiz bekliyor',
+      accessibilityHint: 'Denemenin ayrıntısını açar',
+    });
+    expect(screen.getByTestId('exam-item-1').props.accessibilityLabel).toBe('TYT, 60 net, 24 Eylül 2026, Genel');
+  });
+
+  it('a message that appears after an action is read out (manual entry error and success)', () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    // React Native's jest setup already mocks it: spyOn returns that mock, with earlier tests' calls.
+    announce.mockClear();
+    renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    fireEvent.press(screen.getByTestId('manual-add'));
+    expect(announce).toHaveBeenLastCalledWith('Başlangıç saatini ve süreyi kontrol et.');
+    // The same mistake again is read out again (else the tap would seem to do nothing).
+    fireEvent.press(screen.getByTestId('manual-add'));
+    expect(announce.mock.calls.filter(([m]) => m === 'Başlangıç saatini ve süreyi kontrol et.')).toHaveLength(2);
+    fireEvent.changeText(screen.getByTestId('manual-start-hour'), '7');
+    fireEvent.changeText(screen.getByTestId('manual-duration-minutes'), '30');
+    fireEvent.press(screen.getByTestId('manual-add'));
+    expect(announce).toHaveBeenLastCalledWith('Eklendi: 30 dk (elle)');
+    announce.mockRestore();
   });
 });

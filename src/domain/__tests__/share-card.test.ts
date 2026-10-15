@@ -1,5 +1,5 @@
 import type { SessionSpan } from '../daily-totals';
-import { CARD_TOP_SUBJECTS, cardRows, dailyCard, weeklyCard, wholePercents } from '../share-card';
+import { CARD_TOP_SUBJECTS, cardHasStudy, cardRows, dailyCard, weeklyCard, wholePercents } from '../share-card';
 
 const H = 3_600_000;
 const span = (subjectId: string, startIso: string, hours: number): SessionSpan => ({
@@ -77,5 +77,28 @@ describe('daily and weekly card', () => {
     expect(Object.keys(dailyCard(spans, '2026-10-07', null, null)).sort()).toEqual(
       ['activeDays', 'from', 'goalDays', 'goalMinutes', 'goalPercent', 'period', 'rows', 'streakDays', 'to', 'totalMs'].sort(),
     );
+  });
+});
+
+describe('card with nothing to share', () => {
+  const MIN = 60_000;
+  const short = (ms: number): SessionSpan => ({
+    subjectId: 'fizik',
+    startedAt: Date.parse('2026-10-07T07:00:00Z'),
+    endedAt: Date.parse('2026-10-07T07:00:00Z') + ms,
+    pauses: [],
+  });
+
+  it('needs at least one whole minute (the card shows whole minutes, never "0 dk")', () => {
+    expect(cardHasStudy(dailyCard([], '2026-10-07', null, null))).toBe(false);
+    expect(cardHasStudy(dailyCard([short(MIN - 1)], '2026-10-07', null, null))).toBe(false);
+    expect(cardHasStudy(dailyCard([short(MIN)], '2026-10-07', null, null))).toBe(true);
+  });
+
+  it('day and week are judged on their own totals', () => {
+    // Monday's minute: an empty Wednesday, but the week has something to share.
+    const monday = { ...short(MIN), startedAt: Date.parse('2026-10-05T07:00:00Z'), endedAt: Date.parse('2026-10-05T07:01:00Z') };
+    expect(cardHasStudy(dailyCard([monday], '2026-10-07', null, null))).toBe(false);
+    expect(cardHasStudy(weeklyCard([monday], '2026-10-05', null, null))).toBe(true);
   });
 });

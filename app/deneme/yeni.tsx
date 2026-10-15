@@ -1,13 +1,15 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 
-import { examKindsFor } from '@/domain/net';
+import { examKindsFor, formatNet, totalNet } from '@/domain/net';
 import { useAppState } from '@/state/app-state';
+import { setSavedExamNotice } from '@/state/saved-exam-notice';
 import { newId } from '@/storage/db';
 import { saveMockExam } from '@/storage/mock-exams';
 import { tr } from '@/strings';
 import { Label, Screen } from '@/ui/components';
 import { ExamForm } from '@/ui/exam-form';
+import { announce, hapticSuccess } from '@/ui/feedback';
 
 export default function NewExamScreen() {
   const { profile, notifyDataChanged } = useAppState();
@@ -34,7 +36,11 @@ export default function NewExamScreen() {
           { id, kind: v.kind, scope: v.scope, bransSectionId: v.bransSectionId, takenOn: v.takenOn, createdAt: Date.now() },
           v.scores,
         );
+        // The list confirms the save ("11,5 net kaydedildi") and offers the analysis.
+        setSavedExamNotice(id);
         notifyDataChanged();
+        hapticSuccess();
+        announce(tr.exams.saved(formatNet(totalNet(v.scores, v.kind))));
         router.back();
       }}
     />

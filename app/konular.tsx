@@ -57,7 +57,7 @@ export default function TopicsScreen() {
 
   return (
     <Screen testID="topics-screen">
-      {firstUse ? <EmptyState testID="topics-empty" body={tr.empty.topicsBody} /> : null}
+      {firstUse ? <EmptyState testID="topics-empty" icon="topics" body={tr.empty.topicsBody} /> : null}
       <Card>
         <Label variant="heading">{tr.topics.pickSubject}</Label>
         <ChipRow>
@@ -109,12 +109,14 @@ export default function TopicsScreen() {
                     <Chip
                       testID={`topic-done-${t.id}`}
                       title={tr.topics.done}
+                      accessibilityLabel={tr.topics.markA11y(t.name, tr.topics.done, g.paper)}
                       selected={status === 'done'}
                       onPress={() => mark(t.id, 'done')}
                     />
                     <Chip
                       testID={`topic-review-${t.id}`}
                       title={tr.topics.review}
+                      accessibilityLabel={tr.topics.markA11y(t.name, tr.topics.review, g.paper)}
                       selected={status === 'review'}
                       onPress={() => mark(t.id, 'review')}
                     />

@@ -5,7 +5,7 @@ import { captureRef, releaseCapture } from 'react-native-view-shot';
 
 import { activeSpan, type SessionSpan } from '@/domain/daily-totals';
 import { DAY_MS, dayStartMs } from '@/domain/istanbul-day';
-import { canShareCard, type CardPeriod, dailyCard, weeklyCard } from '@/domain/share-card';
+import { canShareCard, cardHasStudy, type CardPeriod, dailyCard, weeklyCard } from '@/domain/share-card';
 import { weekStartOf } from '@/domain/streak';
 import { isPaused } from '@/domain/timer';
 import { useAppState, useNow, useStored } from '@/state/app-state';
@@ -43,9 +43,11 @@ export default function ShareCardScreen() {
     period === 'day'
       ? dailyCard(spans, stats.today, stats.goal, streak)
       : weeklyCard(spans, weekStart, stats.goal, streak);
+  // "0 dk" is nothing to share: the button is off and the screen says why.
+  const shareable = cardHasStudy(card);
 
   const share = async () => {
-    if (cardRef.current === null || busy) return;
+    if (cardRef.current === null || busy || !shareable) return;
     setBusy(true);
     setMessage(null);
     let uri: string | null = null;
@@ -56,7 +58,8 @@ export default function ShareCardScreen() {
         result: Platform.OS === 'web' ? 'data-uri' : 'tmpfile',
         ...CARD_EXPORT,
       });
-      if ((await shareImage(uri, tr.share.shareTitle)) === 'unavailable') setMessage(tr.share.unavailable);
+      const name = tr.share.fileName(stats.today);
+      if ((await shareImage(uri, name, tr.share.shareTitle)) === 'unavailable') setMessage(tr.share.unavailable);
     } catch {
       setMessage(tr.share.failed);
     } finally {
@@ -110,11 +113,23 @@ export default function ShareCardScreen() {
       </View>
 
       {message !== null ? (
-        <Label testID="share-message" variant="muted">
+        <Label testID="share-message" variant="muted" live>
           {message}
         </Label>
       ) : null}
-      <Button large testID="share-card-share" title={tr.share.share} disabled={busy} onPress={share} />
+      {!shareable ? (
+        <Label testID="share-nothing" variant="muted">
+          {tr.share.nothingToShare}
+        </Label>
+      ) : null}
+      <Button
+        large
+        testID="share-card-share"
+        title={tr.share.share}
+        disabled={busy || !shareable}
+        accessibilityHint={shareable ? undefined : tr.share.nothingToShare}
+        onPress={share}
+      />
     </Screen>
   );
 }

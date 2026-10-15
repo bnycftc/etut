@@ -32,12 +32,15 @@ tags:
 # Before the student has confirmed reminders once, every reminder is off; no permission yet.
 - assertVisible:
     id: reminders-permission-missing
+# The toggles are switches named by their reminder (VoiceOver: "…, anahtar, kapalı").
 - assertVisible:
     id: reminder-daily-toggle
-    text: "Kapalı"
+    text: "Günlük çalışma hatırlatıcısı"
+    checked: false
 - assertVisible:
     id: reminder-long-toggle
-    text: "Kapalı"
+    text: "Uzun oturum uyarısı"
+    checked: false
 - takeScreenshot: l-hatirlaticilar-02-liste
 # Turning a reminder on opens the explanation, never the system prompt directly.
 - tapOn:
@@ -79,12 +82,15 @@ tags:
     visible:
       id: reminder-daily-toggle
     timeout: 10000
+# The toggles are switches named by their reminder (VoiceOver: "…, anahtar, kapalı").
 - assertVisible:
     id: reminder-daily-toggle
-    text: "Kapalı"
+    text: "Günlük çalışma hatırlatıcısı"
+    checked: false
 - assertVisible:
     id: reminder-long-toggle
-    text: "Kapalı"
+    text: "Uzun oturum uyarısı"
+    checked: false
 - assertVisible:
     id: reminders-permission-missing
 - takeScreenshot: l-hatirlaticilar-04-izinsiz

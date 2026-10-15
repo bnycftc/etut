@@ -1,0 +1,335 @@
+# Uploads the App Store screenshots of Etüt (App Store Connect app 6818980777) made by
+# store-screenshots.yml: the PNGs in the artifact app-store-screenshots-6.9 of the given run go to
+# the tr localization of the editable App Store version, display type APP_IPHONE_67.
+# ScreenshotDisplayType has no 6.9-inch value: APP_IPHONE_67 is the largest iPhone one, the slot
+# App Store Connect calls "iPhone with Dynamic Island (large display)", which takes 1320 × 2868
+# (iPhone 17 Pro Max, 16 Pro Max) next to 1290 × 2796 and 1260 × 2736.
+# Default is a dry run: it prints the screenshots in the set now, the files and their order, and
+# writes nothing. With apply=true it replaces the set: it uploads the first file, deletes the
+# screenshots that were there, uploads the rest in filename order (01-…), waits until App Store
+# Connect has processed each one and fixes the order. If nothing differs it writes nothing. It writes
+# only screenshot endpoints: never metadata, builds, review submission, pricing or availability.
+# Same API key secrets as asc-key-check.yml.
+# API 4.5.1 deprecated appScreenshotSets/appScreenshots in favour of the App Asset Library and its
+# placements; this uses the set-based flow, which is still documented. The dry run also prints the
+# localization's library placements, read only, so a mismatch between the two shows before a write.
+name: ASC screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Run ID of a successful store-screenshots.yml run (the number in its URL)
+        required: true
+        type: string
+      apply:
+        description: Replace the screenshots (false = dry run, print only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: asc-screenshots
+  cancel-in-progress: false
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check the screenshot run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          case "$RUN_ID" in
+            ''|*[!0-9]*) echo "::error::run_id must be a number"; exit 1 ;;
+          esac
+          info="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+            --jq '[.path, (.conclusion // "none"), (.head_branch // "-"), .head_sha, .created_at] | @tsv')"
+          IFS=$'\t' read -r path conclusion branch sha created <<< "$info"
+          echo "run $RUN_ID: $path, $conclusion, branch $branch, commit $sha, $created"
+          case "$path" in
+            .github/workflows/store-screenshots.yml|.github/workflows/store-screenshots.yml@*) ;;
+            *) echo "::error::run $RUN_ID is not a store-screenshots.yml run"; exit 1 ;;
+          esac
+          [ "$conclusion" = "success" ] || { echo "::error::run $RUN_ID did not succeed ($conclusion)"; exit 1; }
+
+      - name: Download the screenshots
+        uses: actions/download-artifact@v4
+        with:
+          name: app-store-screenshots-6.9
+          path: shots
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Sync the screenshots with App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          APPLY: ${{ inputs.apply }}
+          SHOTS_DIR: shots
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import base64, glob, hashlib, os, re, struct, sys, time, jwt, requests
+          from urllib.parse import urlparse
+
+          APP = "6818980777"
+          LOCALE = "tr"
+          DISPLAY_TYPE = "APP_IPHONE_67"
+          WIDTH, HEIGHT = 1320, 2868
+          MAX_SHOTS = 10
+          APPLY = os.environ.get("APPLY") == "true"
+          API = "https://api.appstoreconnect.apple.com/v1"
+          print("mode:", "APPLY (writes)" if APPLY else "DRY RUN (no writes)")
+
+          # ---- Files (checked before any API call) ----
+          def png_size(data):
+              """(width, height, colour type) from the IHDR chunk, or None for a non-PNG."""
+              if data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR":
+                  return None
+              width, height = struct.unpack(">II", data[16:24])
+              return width, height, data[25]
+
+          files, problems = [], []
+          for path in sorted(glob.glob(os.path.join(os.environ["SHOTS_DIR"], "*.png"))):
+              name = os.path.basename(path)
+              with open(path, "rb") as f:
+                  data = f.read()
+              info = png_size(data)
+              if not re.fullmatch(r"\d\d-[a-z0-9-]+\.png", name):
+                  problems.append(f"{name}: not an NN-name.png store image")
+              elif info is None:
+                  problems.append(f"{name}: not a PNG")
+              elif info[:2] != (WIDTH, HEIGHT):
+                  problems.append(f"{name}: {info[0]}x{info[1]}, expected {WIDTH}x{HEIGHT}")
+              elif info[2] in (4, 6):
+                  problems.append(f"{name}: has an alpha channel")
+              files.append({"name": name, "data": data, "size": len(data), "md5": hashlib.md5(data).hexdigest()})
+          numbers = [f["name"][:2] for f in files]
+          if len(set(numbers)) != len(numbers):
+              problems.append("two files share a number")
+          if not 1 <= len(files) <= MAX_SHOTS:
+              problems.append(f"{len(files)} files, App Store Connect takes 1 to {MAX_SHOTS}")
+          if problems:
+              sys.exit("screenshot files invalid:\n  " + "\n  ".join(problems))
+          print(f"\nfiles: {len(files)}, {WIDTH}x{HEIGHT} PNG without alpha, upload order:")
+          for i, f in enumerate(files, 1):
+              print(f"  {i}. {f['name']}  {f['size']} bytes  md5 {f['md5']}")
+
+          # ---- API ----
+          raw = os.environ["ASC_PRIVATE_KEY"]
+          key = raw if "BEGIN PRIVATE KEY" in raw else base64.b64decode(raw).decode()
+          http = requests.Session()
+          token_at = 0
+
+          def authorize():
+              # A token lives 20 minutes at most; uploads and processing can take longer.
+              global token_at
+              now = int(time.time())
+              if now - token_at < 900:
+                  return
+              token = jwt.encode(
+                  {"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 1200, "aud": "appstoreconnect-v1"},
+                  key, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+              http.headers["Authorization"] = "Bearer " + token
+              token_at = now
+
+          def errors(r):
+              try:
+                  return [(e.get("code"), e.get("title"), e.get("detail")) for e in r.json().get("errors", [])]
+              except ValueError:
+                  return []
+
+          def get(path, params=None):
+              authorize()
+              r = http.get(API + path, params=params, timeout=30)
+              if not r.ok:
+                  sys.exit(f"GET {path} HTTP {r.status_code} errors: {errors(r)}")
+              return r.json()
+
+          # The only writes this workflow makes. Anything else (metadata, builds, submissions,
+          # prices, availability, App Privacy) is refused before a request is made.
+          WRITABLE = (
+              ("POST", r"/appScreenshotSets"),
+              ("POST", r"/appScreenshots"),
+              ("PATCH", r"/appScreenshots/[\w-]+"),
+              ("DELETE", r"/appScreenshots/[\w-]+"),
+              ("PATCH", r"/appScreenshotSets/[\w-]+/relationships/appScreenshots"),
+          )
+
+          def write(method, path, body=None):
+              if not APPLY or not any(method == m and re.fullmatch(p, path) for m, p in WRITABLE):
+                  sys.exit(f"refusing to write {method} {path}")
+              authorize()
+              r = http.request(method, API + path, json=body, timeout=60)
+              print(f"    {method} {path} HTTP {r.status_code}")
+              if not r.ok:
+                  sys.exit(f"{method} {path} failed, HTTP {r.status_code} errors: {errors(r)}")
+              return r.json() if r.content else {}
+
+          def upload_part(op, data, label):
+              # Pre-signed, time-limited blob store URL: sent without the API token, never printed.
+              method, url = op["method"].upper(), op["url"]
+              host = urlparse(url).hostname or ""
+              if not APPLY or not url.startswith("https://") or host.endswith("appstoreconnect.apple.com") \
+                      or method not in ("PUT", "POST"):
+                  sys.exit(f"refusing upload operation {method} to {host}")
+              part = data[op["offset"]:op["offset"] + op["length"]]
+              headers = {h["name"]: h["value"] for h in op.get("requestHeaders") or []}
+              r = requests.request(method, url, data=part, headers=headers, timeout=120)
+              print(f"    {label}: {method} {host} {len(part)} bytes HTTP {r.status_code}")
+              if not r.ok:
+                  sys.exit(f"{label}: upload failed, HTTP {r.status_code}")
+
+          def delivery(shot):
+              return shot["attributes"].get("assetDeliveryState") or {}
+
+          def set_screenshots(set_id):
+              return get(f"/appScreenshotSets/{set_id}/appScreenshots", {"limit": "50"})["data"]
+
+          # ---- Editable App Store version and its tr localization ----
+          EDITABLE_VERSION = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED",
+                              "METADATA_REJECTED", "INVALID_BINARY"}
+          versions = get(f"/apps/{APP}/appStoreVersions", {"filter[platform]": "IOS", "limit": "50"})["data"]
+          def version_state(v):
+              return v["attributes"].get("appVersionState") or v["attributes"].get("appStoreState")
+          for v in versions:
+              print("version", v["attributes"].get("versionString"), "state", version_state(v))
+          version = next((v for v in versions if version_state(v) in EDITABLE_VERSION), None)
+          if version is None:
+              print("no editable App Store version (asc-metadata.yml with apply=true creates one)")
+              sys.exit(1 if APPLY else 0)
+          print("editable version:", version["attributes"].get("versionString"), "id", version["id"])
+          locs = get(f"/appStoreVersions/{version['id']}/appStoreVersionLocalizations", {"limit": "50"})["data"]
+          print("locales:", sorted(l["attributes"]["locale"] for l in locs))
+          loc = next((l for l in locs if l["attributes"]["locale"] == LOCALE), None)
+          if loc is None:
+              print(f"no {LOCALE} localization on this version (asc-metadata.yml with apply=true creates it)")
+              sys.exit(1 if APPLY else 0)
+
+          # ---- Screenshot set and what it holds now ----
+          sets = get(f"/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets", {"limit": "50"})["data"]
+          print(f"\n[{LOCALE} screenshot sets]", sorted(str(s["attributes"].get("screenshotDisplayType")) for s in sets))
+          shot_set = next((s for s in sets if s["attributes"].get("screenshotDisplayType") == DISPLAY_TYPE), None)
+          existing = set_screenshots(shot_set["id"]) if shot_set else []
+          local_names = {f["md5"]: f["name"] for f in files}
+          if shot_set is None:
+              print(f"{DISPLAY_TYPE}: no set yet (apply creates it)")
+          else:
+              print(f"{DISPLAY_TYPE}: set {shot_set['id']}, {len(existing)} screenshot(s) now:")
+          for i, s in enumerate(existing, 1):
+              a = s["attributes"]
+              same = local_names.get(a.get("sourceFileChecksum"))
+              print(f"  {i}. {a.get('fileName')}  {a.get('fileSize')} bytes  {delivery(s).get('state')}"
+                    + (f"  (same file as {same})" if same else ""))
+
+          # Read only: media placed through the App Asset Library, which the set resources may not show.
+          authorize()
+          r = http.get(f"{API}/appStoreVersionLocalizations/{loc['id']}/placements", params={"limit": "200"}, timeout=30)
+          if r.ok:
+              groups = {}
+              for p in r.json().get("data", []):
+                  a = p.get("attributes") or {}
+                  k = f"{a.get('placementType')}/{a.get('placementGroup')}"
+                  groups[k] = groups.get(k, 0) + 1
+              print("asset library placements:", ", ".join(f"{k}: {n}" for k, n in sorted(groups.items())) or "none")
+          else:
+              print(f"asset library placements: not read (HTTP {r.status_code})")
+
+          if [s["attributes"].get("sourceFileChecksum") for s in existing] == [f["md5"] for f in files] \
+                  and all(delivery(s).get("state") == "COMPLETE" for s in existing):
+              print("\nunchanged: the set already holds these files in this order")
+              sys.exit(0)
+
+          print(f"\nplan: delete the {len(existing)} screenshot(s) above, upload {len(files)} in this order:")
+          for i, f in enumerate(files, 1):
+              print(f"  {i}. {f['name']}")
+          if not APPLY:
+              print("\ndry run, nothing written")
+              sys.exit(0)
+
+          # ---- Apply ----
+          if shot_set is None:
+              print(f"\n[create set {DISPLAY_TYPE}]")
+              shot_set = write("POST", "/appScreenshotSets", {"data": {
+                  "type": "appScreenshotSets",
+                  "attributes": {"screenshotDisplayType": DISPLAY_TYPE},
+                  "relationships": {"appStoreVersionLocalization": {
+                      "data": {"type": "appStoreVersionLocalizations", "id": loc["id"]}}}}})["data"]
+
+          # Reserve, upload the parts, commit with the MD5 of the whole file.
+          uploaded = []
+          def upload(f):
+              print(f"  {f['name']}")
+              shot = write("POST", "/appScreenshots", {"data": {
+                  "type": "appScreenshots",
+                  "attributes": {"fileName": f["name"], "fileSize": f["size"]},
+                  "relationships": {"appScreenshotSet": {"data": {"type": "appScreenshotSets", "id": shot_set["id"]}}}}})["data"]
+              ops = shot["attributes"].get("uploadOperations") or []
+              if not ops:
+                  sys.exit(f"{f['name']}: the reservation has no upload operations")
+              for n, op in enumerate(ops, 1):
+                  upload_part(op, f["data"], f"part {n}/{len(ops)}")
+              write("PATCH", f"/appScreenshots/{shot['id']}", {"data": {
+                  "type": "appScreenshots", "id": shot["id"],
+                  "attributes": {"uploaded": True, "sourceFileChecksum": f["md5"]}}})
+              uploaded.append((f["name"], shot["id"]))
+
+          # The first file goes up before anything is deleted (if the set has room), so a refused
+          # write (deprecated resources) leaves the current screenshots in place.
+          queue = list(files)
+          if len(existing) < MAX_SHOTS:
+              print("\n[upload, first file before deleting]")
+              upload(queue.pop(0))
+          print("\n[delete]")
+          for s in existing:
+              write("DELETE", f"/appScreenshots/{s['id']}")
+          print("\n[upload]")
+          for f in queue:
+              upload(f)
+
+          # App Store Connect checks checksum, format and size: UPLOAD_COMPLETE, then COMPLETE or FAILED.
+          print("\n[processing]")
+          failed = []
+          pending = dict(uploaded)
+          deadline = time.time() + 900
+          while pending and time.time() < deadline:
+              time.sleep(5)
+              for name, shot_id in list(pending.items()):
+                  state = delivery(get(f"/appScreenshots/{shot_id}")["data"])
+                  if state.get("state") == "COMPLETE":
+                      print(f"  {name}: COMPLETE")
+                      del pending[name]
+                  elif state.get("state") == "FAILED":
+                      print(f"  {name}: FAILED", [(e.get("code"), e.get("description")) for e in state.get("errors") or []])
+                      failed.append(name)
+                      del pending[name]
+          for name in pending:
+              print(f"  {name}: not processed after 15 minutes")
+              failed.append(name)
+
+          print("\n[order]")
+          want = [shot_id for _, shot_id in uploaded]
+          have = [s["id"] for s in set_screenshots(shot_set["id"])]
+          if have != want:
+              print("  differs from the file order: setting it")
+              write("PATCH", f"/appScreenshotSets/{shot_set['id']}/relationships/appScreenshots",
+                    {"data": [{"type": "appScreenshots", "id": shot_id} for shot_id in want]})
+              have = [s["id"] for s in set_screenshots(shot_set["id"])]
+          names = {shot_id: name for name, shot_id in uploaded}
+          for i, shot_id in enumerate(have, 1):
+              print(f"  {i}. {names.get(shot_id, 'unexpected screenshot ' + shot_id)}")
+          if have != want:
+              failed.append("order")
+
+          if failed:
+              sys.exit("not finished: " + ", ".join(failed) + " (a rerun replaces the whole set again)")
+          print(f"\ndone: {len(files)} screenshots in {DISPLAY_TYPE} ({LOCALE})")
+          print("not touched: metadata, builds, review submission, pricing, availability, App Privacy")
+          PY

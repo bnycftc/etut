@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, type TextStyle, View } from 'react-native';
 
 import { tr } from '../strings';
+import { announce } from './feedback';
 import { Icon, type IconName } from './icon';
 import { MAX_FONT_SCALE, space, useLargeText, usePalette } from './theme';
 
@@ -78,15 +79,26 @@ export function Label({
   style,
   testID,
   maxFontSizeMultiplier,
+  live = false,
 }: {
   children: ReactNode;
   variant?: TextVariant;
   style?: TextStyle;
   testID?: string;
   maxFontSizeMultiplier?: number;
+  /**
+   * A message that appears after an action (saved, an error): screen readers read it out when it
+   * appears or changes, without the student having to find it. A number (a count of attempts)
+   * also reads out an unchanged message again when it goes up: a second failed "Kaydet".
+   */
+  live?: boolean | number;
 }) {
   const c = usePalette();
   const color = variant === 'muted' || variant === 'small' ? c.textMuted : c.text;
+  const spoken = live !== false && typeof children === 'string' ? children : null;
+  useEffect(() => {
+    if (spoken !== null) announce(spoken);
+  }, [spoken, live]);
   return (
     <Text
       testID={testID}
@@ -221,7 +233,10 @@ export function HeaderButton({
   );
 }
 
-/** Selectable chip; announced as a button with its selected state. */
+/**
+ * Selectable chip; announced as a button with its selected state. With `toggle` it is an on/off
+ * control instead: announced as a switch ("açık"/"kapalı") named by `accessibilityLabel`.
+ */
 export function Chip({
   title,
   selected,
@@ -229,6 +244,7 @@ export function Chip({
   testID,
   accessibilityLabel,
   color,
+  toggle = false,
 }: {
   title: string;
   selected: boolean;
@@ -237,14 +253,15 @@ export function Chip({
   accessibilityLabel?: string;
   /** Leading colour dot (the subject colour). */
   color?: string;
+  toggle?: boolean;
 }) {
   const c = usePalette();
   return (
     <Pressable
       testID={testID}
-      accessibilityRole="button"
+      accessibilityRole={toggle ? 'switch' : 'button'}
       accessibilityLabel={accessibilityLabel ?? title}
-      accessibilityState={{ selected }}
+      accessibilityState={toggle ? { checked: selected } : { selected }}
       onPress={onPress}
       // Same layout as before; the touch target grows to ≥ 44 pt (the row gap is 8).
       hitSlop={4}
@@ -313,7 +330,9 @@ export function Field({
   placeholder,
   maxLength = 3,
   numeric = true,
+  onBlur,
   testID,
+  accessibilityLabel = label,
 }: {
   label: string;
   value: string;
@@ -321,7 +340,11 @@ export function Field({
   placeholder?: string;
   maxLength?: number;
   numeric?: boolean;
+  /** The field lost focus (the student is done with it). */
+  onBlur?: () => void;
   testID?: string;
+  /** Defaults to `label`; add the group when one screen has two "Saat" fields. */
+  accessibilityLabel?: string;
 }) {
   const c = usePalette();
   return (
@@ -331,9 +354,10 @@ export function Field({
       </Text>
       <TextInput
         testID={testID}
-        accessibilityLabel={label}
+        accessibilityLabel={accessibilityLabel}
         value={value}
         onChangeText={onChange}
+        onBlur={onBlur}
         keyboardType={numeric ? 'number-pad' : 'numbers-and-punctuation'}
         inputMode={numeric ? 'numeric' : 'text'}
         maxLength={maxLength}
@@ -434,23 +458,36 @@ export function Stepper({
   );
 }
 
-/** Title, short explanation and an optional action, for screens without data yet. */
+/** Icon, title, short explanation and an optional action, for screens without data yet. */
 export function EmptyState({
+  icon,
   title,
   body,
   action,
   onAction,
   testID,
 }: {
+  /** Small decorative symbol of the screen (e.g. the tab icon) in front of the title. */
+  icon?: IconName;
   title?: string;
   body: string;
   action?: string;
   onAction?: () => void;
   testID?: string;
 }) {
+  const c = usePalette();
   return (
     <Card testID={testID}>
-      {title ? <Label variant="heading">{title}</Label> : null}
+      {icon || title ? (
+        <View style={styles.row}>
+          {icon ? <Icon name={icon} color={c.accent} size={28} /> : null}
+          {title ? (
+            <Label variant="heading" style={{ flex: 1 }}>
+              {title}
+            </Label>
+          ) : null}
+        </View>
+      ) : null}
       <Label variant="muted">{body}</Label>
       {action && onAction ? (
         <Row>

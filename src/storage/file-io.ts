@@ -39,11 +39,25 @@ export async function shareTextFile(
   return 'shared';
 }
 
-/** Shares a captured image (`react-native-view-shot` temporary file). */
-export async function shareImage(uri: string, dialogTitle: string): Promise<ShareResult> {
+/**
+ * Shares a captured image (`react-native-view-shot` temporary file) as `name`. The capture has a
+ * random (UUID) name that the share sheet would show, so a copy with our name is shared and then
+ * deleted; the caller still releases the capture itself.
+ */
+export async function shareImage(uri: string, name: string, dialogTitle: string): Promise<ShareResult> {
   if (!(await Sharing.isAvailableAsync())) return 'unavailable';
-  const fileUri = uri.startsWith('file://') ? uri : `file://${uri}`;
-  await Sharing.shareAsync(fileUri, { mimeType: 'image/png', UTI: 'public.png', dialogTitle });
+  const capture = new File(uri.startsWith('file://') ? uri : `file://${uri}`);
+  const named = new File(Paths.cache, name);
+  await capture.copy(named, { overwrite: true });
+  try {
+    await Sharing.shareAsync(named.uri, { mimeType: 'image/png', UTI: 'public.png', dialogTitle });
+  } finally {
+    try {
+      named.delete();
+    } catch {
+      // The cache directory is cleaned by the system anyway.
+    }
+  }
   return 'shared';
 }
 

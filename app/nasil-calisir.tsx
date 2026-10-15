@@ -62,9 +62,13 @@ export default function GuideScreen() {
       section(
         'sayac',
         g.timer.title,
-        paragraphs(
-          g.timer.paragraphs(BACKGROUND_TOLERANCE_MS / 1000, UNDO_FINISH_MS / 1000, LONG_SESSION_MS / HOUR_MS),
-        ),
+        <>
+          {paragraphs(
+            g.timer.paragraphs(BACKGROUND_TOLERANCE_MS / 1000, UNDO_FINISH_MS / 1000, LONG_SESSION_MS / HOUR_MS),
+          )}
+          <Label variant="heading">{g.timer.focusTitle}</Label>
+          {paragraphs(g.timer.focus)}
+        </>,
       ),
     ],
     [

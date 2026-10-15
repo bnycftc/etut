@@ -169,7 +169,10 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   (varsayılan 3 saat) duraklatılmadan açık kalınca "Hâlâ çalışıyor musun?" (pomodoro molaları
   sayacı duraklatmaz); (b) pomodoro aşama sonu: sıradaki 40 aşama (25/5/15 ile ≈ 10 sa 50 dk)
   kurulur, plan uygulama açıkken her aşama değişiminde ve arka plana geçerken yenilenir;
-  (c) günlük çalışma hatırlatıcısı (saat seçilir, varsayılan kapalı; o gün çalışıldıysa gelmez);
+  (c) günlük çalışma hatırlatıcısı (saat seçilir, varsayılan kapalı; o gün çalışıldıysa gelmez).
+  Haftanın her günü için bir haftalık tekrarlayan bildirimdir, uygulama açılmasa da her gün gelir;
+  atlanan günün yerine o hafta gününe 4 hafta tekil bildirim kurulur, uygulama bir sonraki açılışta
+  tekrarlayanı geri koyar (uygulama 4 haftadan uzun açılmazsa yalnız o hafta günü susar);
   (d) analizi bekleyen deneme için, denemenin kaydedildiği günün ertesinde 18:00'de tek hatırlatma.
   **Öğrenci hatırlatıcıları açıklama ekranından bir kez onaylamadan hiçbir bildirim kurulmaz**
   (`etut.remindersConfirmed.v1`; o zamana kadar ekranda hepsi "Kapalı" görünür). Bu, sistem izni
@@ -184,7 +187,7 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   aynı bildirim iki kez kurulmaz, biten oturumun bildirimleri iptal edilir. Uygulama açıkken
   bildirim gösterilmez (pomodoro'da mevcut titreşim). Metinler her yaş için nötrdür; kilit ekranında
   göründükleri için ad, süre ve net içermez (deneme hatırlatıcısı yalnız bekleyen deneme sayısını söyler).
-  iOS en çok 64 bekleyen bildirim tutar; plan en çok 60 (40 pomodoro + 10 günlük + 1 uzun oturum +
+  iOS en çok 64 bekleyen bildirim tutar; plan en çok 60 (40 pomodoro + en çok 10 günlük + 1 uzun oturum +
   en çok 2 deneme günü).
 - **Push yok:** expo-widgets 57.0.x `enablePushNotifications: false` olsa bile `aps-environment`
   ekliyor; expo-notifications da ekliyor. `plugins/with-etut-ios.js` bunu kaldırır ve **plugins
@@ -298,7 +301,7 @@ macOS 26 koşucusu:
     çalıştırmayın (biri diğerinin arşiv sertifikasını iptal edebilir).
 
 Sürüm numarası (`CFBundleShortVersionString`) `app.json` → `expo.version` alanından gelir
-(şu an `0.3.0`). Derleme numarası `<çalıştırma numarası>.<deneme numarası>` biçimindedir (ör. `12.1`); "Re-run jobs" deneme numarasını artırdığı için aynı numara iki kez yüklenmez.
+(şu an `0.4.0`). Derleme numarası `<çalıştırma numarası>.<deneme numarası>` biçimindedir (ör. `12.1`); "Re-run jobs" deneme numarasını artırdığı için aynı numara iki kez yüklenmez.
 
 ### GitHub gizli değişkenleri (Settings → Secrets and variables → Actions)
 

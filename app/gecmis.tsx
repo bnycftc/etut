@@ -64,6 +64,7 @@ export default function HistoryScreen() {
       {listed.length === 0 ? (
         <EmptyState
           testID="history-empty"
+          icon="history"
           title={tr.empty.historyTitle}
           body={tr.empty.historyBody}
           action={tr.empty.startTimer}

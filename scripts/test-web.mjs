@@ -10,9 +10,10 @@
  * request outside the dev server; onboarding (+ short notice) → first-use tips → timer (start,
  * pause, resume, finish, summary and "Geri al"; Sayısal subjects only) → no groups tab, the
  * groups route opens the timer → reload keeps the profile → share card (1080x1920 PNG) → mock exam with the right
- * net (area papers only) → reload keeps the exam → area change → "Sayaç çalışırken" settings
+ * net (area papers only) and the save confirmation → reload keeps the exam → area change → "Sayaç çalışırken" settings
  * (kept across a reload) → backup + CSV download → about / legal / licenses → reminders screen
- * renders → "delete all data" returns to onboarding → empty states → restore the backup
+ * renders → "delete all data" offers a backup first (deletes nothing), then returns to
+ * onboarding → empty states → restore the backup
  * twice (no duplicates) → dark theme with reduced motion.
  *
  * Environment:
@@ -223,6 +224,8 @@ async function runScenario(page, baseUrl) {
   await waitUntil(() => text('timer-status'), (s) => s === 'Moladasın', 'paused status');
   await byId('timer-resume').click();
   await waitUntil(() => text('timer-status'), (s) => s === 'Çalışıyorsun', 'running status');
+  // Study past one minute: the study card (3b) is not shared at "0 dk".
+  await waitUntil(() => text('timer-clock'), (clock) => seconds(clock) >= 61, 'clock past one minute', 90_000);
   await byId('timer-finish').click();
   await visible('timer-saved');
   check((await text('timer-saved')).startsWith('Kaydedildi'), 'finished session was not saved');
@@ -276,6 +279,7 @@ async function runScenario(page, baseUrl) {
   log('step: share card');
   await byId('open-share').click();
   await visible('share-card-preview');
+  check((await byId('share-nothing').count()) === 0, 'a minute of study must be shareable');
   await screenshot('share-day-light');
   await byId('share-period-week').click();
   await byId('share-theme-dark').click();
@@ -284,6 +288,10 @@ async function runScenario(page, baseUrl) {
     page.waitForEvent('download', { timeout: STEP_TIMEOUT_MS }),
     byId('share-card-share').click(),
   ]);
+  check(
+    /^etut-calisma-\d{4}-\d{2}-\d{2}\.png$/.test(cardDownload.suggestedFilename()),
+    `card file name: ${cardDownload.suggestedFilename()}`,
+  );
   const cardPath = path.join(OUT_DIR, 'shared-card.png');
   await cardDownload.saveAs(cardPath);
   const png = readFileSync(cardPath);
@@ -311,6 +319,10 @@ async function runScenario(page, baseUrl) {
   await visible('exam-item-0-net');
   check((await text('exam-item-0-net')) === '27 net', 'saved exam should show 27 net');
   check((await text('exam-item-0-kind')) === 'TYT', 'saved exam should be TYT');
+  // The list confirms the save and offers the analysis (blank questions are left).
+  await visible('exams-saved-title');
+  check((await text('exams-saved-title')) === '27 net kaydedildi', 'the list should confirm 27 net');
+  check(await byId('exams-saved-analysis').isVisible(), 'the confirmation should offer the analysis');
   await screenshot('exam-list');
 
   // 5. Reload: the exam comes back from SQLite.
@@ -429,6 +441,18 @@ async function runScenario(page, baseUrl) {
   await byId('tab-settings').click();
   await visible('settings-delete-all');
   await byId('settings-delete-all').click();
+  // "Önce yedek al" makes the backup (a download on web) and deletes nothing: the dialog stays.
+  const [deleteBackup] = await Promise.all([
+    page.waitForEvent('download', { timeout: STEP_TIMEOUT_MS }),
+    byId('settings-delete-all-backup').click(),
+  ]);
+  check(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/.test(deleteBackup.suggestedFilename()), 'backup before delete: wrong file name');
+  await visible('settings-delete-all-backup-note');
+  check(
+    (await text('settings-delete-all-backup-note')).startsWith('Yedek dosyası hazırlandı.'),
+    'backup before delete: no message',
+  );
+  await screenshot('delete-all-backup-first');
   await byId('settings-delete-all-confirm').click();
   await visible('onboarding-start');
   await screenshot('after-delete-all');
@@ -440,6 +464,13 @@ async function runScenario(page, baseUrl) {
   await onboard();
   await visible('tips-card');
   await byId('tips-skip').click();
+  // Nothing studied yet: the study card is not shared ("0 dk") and the screen says why.
+  await byId('open-share').click();
+  await visible('share-nothing');
+  check((await byId('share-card-share').getAttribute('aria-disabled')) === 'true', 'Paylaş must be off at 0 dk');
+  await screenshot('share-nothing');
+  await page.goBack();
+  await visible('open-history');
   await byId('open-history').click();
   await visible('history-empty');
   await screenshot('empty-history');
@@ -452,6 +483,7 @@ async function runScenario(page, baseUrl) {
   await page.goBack();
   await byId('tab-exams').click();
   await visible('exams-empty');
+  check(await byId('exams-empty-action').isVisible(), 'the empty exam list should offer its own add button');
   await screenshot('empty-exams');
 
   for (let round = 1; round <= 2; round++) {

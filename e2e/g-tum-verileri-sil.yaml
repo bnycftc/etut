@@ -41,6 +41,9 @@ tags:
     visibilityPercentage: 100
     centerElement: true
 - takeScreenshot: g-sil-02-onay
+# A backup is offered first ("Önce yedek al" opens the share sheet; not tapped here).
+- assertVisible:
+    id: settings-delete-all-backup
 - tapOn:
     id: settings-delete-all-confirm
 - extendedWaitUntil:

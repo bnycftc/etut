@@ -1,7 +1,7 @@
-import { dayStartMs } from '../istanbul-day';
+import { addDays, dayStartMs, istanbulDayKey, istanbulTimeOfDay, istanbulWeekday } from '../istanbul-day';
 import { DEFAULT_POMODORO } from '../pomodoro';
 import {
-  DAILY_DAYS_AHEAD,
+  DAILY_SKIPPED_WEEKS_AHEAD,
   DEFAULT_REMINDER_PREFS,
   diffNotifications,
   effectiveReminderPrefs,
@@ -9,6 +9,7 @@ import {
   MAX_PLANNED,
   normalizeReminderPrefs,
   notificationSignature,
+  type PlannedNotification,
   planNotifications,
   POMODORO_CHANGES_AHEAD,
   type ReminderInput,
@@ -143,7 +144,8 @@ describe('pomodoro phase ends', () => {
     );
     const count = (kind: string) => plan.filter((n) => n.kind === kind).length;
     expect(count('pomodoro')).toBe(POMODORO_CHANGES_AHEAD);
-    expect(count('daily')).toBe(DAILY_DAYS_AHEAD - 1); // today skipped: a session runs
+    // Today skipped (a session runs): 6 repeating + the skipped weekday's single ones.
+    expect(count('daily')).toBe(6 + DAILY_SKIPPED_WEEKS_AHEAD);
     expect(count('long_session')).toBe(1);
     expect(count('exam_analysis')).toBe(2);
     expect(plan.length).toBeLessThanOrEqual(MAX_PLANNED);
@@ -161,23 +163,93 @@ describe('pomodoro phase ends', () => {
 describe('daily reminder', () => {
   const prefs = { ...OFF, daily: { enabled: true, hour: 20, minute: 30 } };
   const evening = (day: string) => dayStartMs(day) + 20 * HOUR + 30 * MIN;
+  const DAY = 24 * HOUR;
+  const TODAY = '2026-10-04'; // a Sunday
+  const SUNDAY = 6;
 
-  it('every day at the chosen Istanbul time, starting today', () => {
+  /**
+   * How many daily reminders arrive on each Istanbul day of the `days` days from `TODAY` if the
+   * app is never opened again: a repeating one comes back every 7 days by itself.
+   */
+  function deliveries(plan: PlannedNotification[], days: number): Map<string, number> {
+    const end = dayStartMs(addDays(TODAY, days));
+    const out = new Map<string, number>();
+    for (const n of plan) {
+      if (n.kind !== 'daily') continue;
+      for (let at = n.at; at < end; at += 7 * DAY) {
+        expect(istanbulTimeOfDay(at)).toEqual({ hours: 20, minutes: 30 });
+        const day = istanbulDayKey(at);
+        out.set(day, (out.get(day) ?? 0) + 1);
+        if (n.repeats !== 'weekly') break;
+      }
+    }
+    return out;
+  }
+
+  it('one repeating reminder per weekday at the chosen Istanbul time, the first today', () => {
     const plan = planNotifications(input({ prefs }));
-    expect(plan).toHaveLength(DAILY_DAYS_AHEAD);
-    expect(plan[0]).toEqual({ id: 'etut:daily:2026-10-04', at: evening('2026-10-04'), kind: 'daily' });
-    expect(plan[1].at).toBe(evening('2026-10-05'));
+    expect(plan[0]).toEqual({ id: 'etut:daily:weekly:6', at: evening(TODAY), kind: 'daily', repeats: 'weekly' });
+    expect(plan.map((n) => n.id)).toEqual([6, 0, 1, 2, 3, 4, 5].map((w) => `etut:daily:weekly:${w}`));
+    expect(plan.map((n) => n.at)).toEqual([0, 1, 2, 3, 4, 5, 6].map((i) => evening(addDays(TODAY, i))));
   });
 
-  it('skips today once the student has studied or a session runs', () => {
-    expect(planNotifications(input({ prefs, studiedToday: true }))[0].id).toBe('etut:daily:2026-10-05');
-    const active = startSession('s', 'fizik', NOW);
-    expect(planNotifications(input({ prefs, active }))[0].id).toBe('etut:daily:2026-10-05');
+  it('keeps coming every day without the app being opened: day 11 and months later', () => {
+    const got = deliveries(planNotifications(input({ prefs })), 120);
+    expect(got.get(addDays(TODAY, 11))).toBe(1);
+    for (let i = 0; i < 120; i++) expect(got.get(addDays(TODAY, i))).toBe(1);
   });
 
-  it('after today\'s time has passed, starts tomorrow', () => {
-    const plan = planNotifications(input({ prefs, now: evening('2026-10-04') + MIN }));
-    expect(plan[0].id).toBe('etut:daily:2026-10-05');
+  it('studied today: today\'s reminder is left out, tomorrow\'s and the later ones still come', () => {
+    for (const studied of [{ studiedToday: true }, { active: startSession('s', 'fizik', NOW) }]) {
+      const plan = planNotifications(input({ prefs, ...studied }));
+      expect(plan).toHaveLength(6 + DAILY_SKIPPED_WEEKS_AHEAD);
+      const got = deliveries(plan, 120);
+      expect(got.has(TODAY)).toBe(false);
+      expect(got.get(addDays(TODAY, 1))).toBe(1);
+      // Never opened again: every day of the next weeks (day 11 included).
+      const covered = 7 * DAILY_SKIPPED_WEEKS_AHEAD + 6;
+      for (let i = 1; i <= covered; i++) expect(got.get(addDays(TODAY, i))).toBe(1);
+      // The trade-off after that: only the skipped weekday falls silent, the others keep coming.
+      for (let i = covered + 1; i < 120; i++) {
+        const day = addDays(TODAY, i);
+        expect(got.get(day)).toBe(istanbulWeekday(day) === SUNDAY ? undefined : 1);
+      }
+    }
+  });
+
+  it('the next opening of the app gives the skipped weekday its repeating reminder back', () => {
+    const skipped = planNotifications(input({ prefs, studiedToday: true }));
+    const scheduled = skipped.map((n) => ({ id: n.id, signature: notificationSignature(n) }));
+    const singles = [1, 2, 3, 4].map((w) => `etut:daily:${addDays(TODAY, 7 * w)}`);
+    const sunday = { id: 'etut:daily:weekly:6', kind: 'daily', repeats: 'weekly' };
+    // Tomorrow morning: the six other weekdays stay as they are.
+    expect(diffNotifications(scheduled, planNotifications(input({ prefs, now: NOW + DAY })))).toEqual({
+      cancel: singles,
+      schedule: [{ ...sunday, at: evening(addDays(TODAY, 7)) }],
+    });
+    // Or later today, once its time has passed (studied or not).
+    const tonight = planNotifications(input({ prefs, studiedToday: true, now: evening(TODAY) + MIN }));
+    expect(diffNotifications(scheduled, tonight)).toEqual({
+      cancel: singles,
+      schedule: [{ ...sunday, at: evening(addDays(TODAY, 7)) }],
+    });
+  });
+
+  it('after today\'s time has passed, the first is tomorrow; studying today no longer matters', () => {
+    const later = evening(TODAY) + MIN;
+    const plan = planNotifications(input({ prefs, now: later }));
+    expect(plan).toHaveLength(7);
+    expect(plan[0]).toMatchObject({ id: 'etut:daily:weekly:0', at: evening(addDays(TODAY, 1)) });
+    expect(plan[6]).toMatchObject({ id: 'etut:daily:weekly:6', at: evening(addDays(TODAY, 7)) });
+    expect(planNotifications(input({ prefs, now: later, studiedToday: true }))).toEqual(plan);
+  });
+
+  it('a new time moves every weekday; off plans nothing', () => {
+    const before = planNotifications(input({ prefs }));
+    const scheduled = before.map((n) => ({ id: n.id, signature: notificationSignature(n) }));
+    const moved = planNotifications(input({ prefs: { ...OFF, daily: { enabled: true, hour: 7, minute: 0 } } }));
+    expect(diffNotifications(scheduled, moved).cancel).toHaveLength(7);
+    expect(diffNotifications(scheduled, planNotifications(input({}))).cancel).toHaveLength(7);
   });
 });
 

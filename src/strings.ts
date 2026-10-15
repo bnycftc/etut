@@ -30,7 +30,7 @@ export const DATA_CONTROLLER = {
 };
 
 /** Date shown as "Son güncelleme" on the legal texts. */
-export const LEGAL_UPDATED = '12 Ekim 2026';
+export const LEGAL_UPDATED = '15 Ekim 2026';
 
 export interface LegalSection {
   heading: string;
@@ -46,7 +46,7 @@ const C = DATA_CONTROLLER;
 
 const legalDocs = {
   aydinlatma: {
-    title: 'Kısaca bilgilerin',
+    title: 'Aydınlatma metni',
     sections: [
       {
         heading: 'Kim sorumlu?',
@@ -139,7 +139,7 @@ const legalDocs = {
         heading: '3. Paylaşım',
         paragraphs: [
           'Uygulama bize veri göndermez; senin hakkında elimize geçebilecek tek şey bize kendin yazdığın e-postalardır. Onları yalnız sana cevap vermek ve KVKK başvurunu sonuçlandırmak için kullanırız. Hiçbir bilgiyi satmayız, reklam ya da başka bir amaçla kimseyle paylaşmayız.',
-          // [AVUKAT TEYİDİ] KVKK m.9 dayanağı: "Kısaca bilgilerin" → "Nerede duruyor" altındaki nota bak.
+          // [AVUKAT TEYİDİ] KVKK m.9 dayanağı: "Aydınlatma metni" → "Nerede duruyor" altındaki nota bak.
           `E-posta adresimiz Gmail’de olduğu için bu e-postalar Google’ın (Google LLC, ABD) Türkiye dışındaki sunucularında saklanır; bu, KVKK m.9 kapsamında yurt dışına aktarımdır ve yalnız sen bize e-postayla yazmayı seçersen olur. İstemezsen imzalı bir mektupla ${C.address} adresine yazabilirsin; o zaman yurt dışına hiçbir şey gitmez.`,
           'Yedek, CSV ya da çalışma kartı yalnız sen dokunduğunda, telefonunun paylaşım ekranıyla dışarı çıkar. Seçtiğin uygulama ya da servis (ör. Dosyalar, AirDrop, bir mesajlaşma uygulaması) kendi kurallarına tabidir. Yedek dosyasında doğum yılın, sınav türün, tüm çalışma kayıtların (soru sayıları dahil), denemelerin, konu işaretlerin ve hedeflerin bulunur; CSV dosyaları çalışma kayıtlarını (girdiysen soru sayısıyla) ve denemeleri içerir. Çalışma kartında ad, yaş, okul gibi seni tanıtan bilgi yer almaz.',
         ],
@@ -196,7 +196,7 @@ const legalDocs = {
       {
         heading: '1. Taraflar',
         paragraphs: [
-          `Bu şartlar Etüt’ü geliştiren ${C.name} ile uygulamayı kullanan sen arasındadır. Kişisel verilerin nasıl işlendiği ayrı metinde (Kısaca bilgilerin) anlatılır.`,
+          `Bu şartlar Etüt’ü geliştiren ${C.name} ile uygulamayı kullanan sen arasındadır. Kişisel verilerin nasıl işlendiği ayrı metinde (Aydınlatma metni) anlatılır.`,
         ],
       },
       {
@@ -403,12 +403,14 @@ export const tr = {
       'Sayacı açmayı unuttuysan çalıştığın süreyi sonradan ekle. Bu kayıtlar her yerde “elle” etiketiyle görünür.',
     subject: 'Ders',
     day: 'Gün',
-    start: 'Başlangıç',
+    start: 'Başlangıç (Türkiye saati)',
     duration: 'Süre',
     hour: 'Saat',
     minute: 'Dakika',
     hours: 'Saat',
     minutes: 'Dakika',
+    /** Screen-reader name of a time box: `Başlangıç, Saat` / `Süre, Saat`. */
+    fieldA11y: (group: string, field: string) => `${group}, ${field}`,
     add: 'Ekle',
     added: (duration: string) => `Eklendi: ${duration} (elle)`,
     limits:
@@ -459,7 +461,6 @@ export const tr = {
     none: 'Tarih yok',
     input: 'Tarih (GG.AA.YYYY)',
     placeholder: 'GG.AA.YYYY',
-    save: 'Tarihi kaydet',
     reset: 'Tahmini tarihe dön',
     invalid: 'Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.',
   },
@@ -528,6 +529,12 @@ export const tr = {
     reviewCount: (n: number) => `${n} konu tekrar bekliyor`,
     done: 'Bitti',
     review: 'Tekrar lazım',
+    /**
+     * Screen-reader name of a topic's mark chip: which topic it marks. TYT and AYT share topic
+     * names (Fonksiyonlar, Olasılık…), so the paper comes first when there is one.
+     */
+    markA11y: (topic: string, mark: string, paper: string | null) =>
+      paper === null ? `${topic}: ${mark}` : `${paper} ${topic}: ${mark}`,
     noTime: 'Henüz süre yok',
     unsupported: 'Konu listeleri YKS, LGS ve KPSS için var.',
   },
@@ -555,6 +562,10 @@ export const tr = {
     scopeGenel: 'Genel',
     scopeBrans: 'Branş',
     bransLabel: (subject: string) => `Branş: ${subject}`,
+    /** Screen-reader name of an exam in the list: one sentence instead of its pieces. */
+    itemA11y: (kind: string, net: string, day: string, scope: string, pending: boolean) =>
+      `${kind}, ${net} net, ${day}, ${scope}${pending ? ', analiz bekliyor' : ''}`,
+    itemHint: 'Denemenin ayrıntısını açar',
     newTitle: 'Yeni deneme',
     detailTitle: 'Deneme',
     kind: 'Sınav',
@@ -591,6 +602,13 @@ export const tr = {
     chartChange: (last: string, change: string) => `Son deneme: ${last} net · öncekinden ${change}`,
     chartBransLegend: 'Dolu nokta genel, içi boş nokta branş denemesi.',
     chartTargetLegend: 'Kesik çizgi: hedef net.',
+    /** Confirmation on the list right after "Kaydet" in the new-exam form. */
+    saved: (net: string) => `${net} net kaydedildi`,
+    savedAnalysisHint: 'Kitapçık elindeyse şimdi analize başla; değilse sonra bu sekmeden de başlayabilirsin.',
+    savedDismiss: 'Kapat',
+    savedDismissA11y: 'Kaydedildi bilgisini kapat',
+    /** The list shows the newest exams first, a page at a time. */
+    showMore: 'Daha fazla göster',
   },
 
   analysis: {
@@ -605,6 +623,8 @@ export const tr = {
     tagged: (wrongTagged: number, wrong: number, blankTagged: number, blank: number) =>
       `İşaretlenen: ${wrongTagged}/${wrong} yanlış · ${blankTagged}/${blank} boş`,
     addTopic: 'Konu ekle',
+    /** Screen-reader name of a section's "Konu ekle" (one per section on the screen). */
+    addTopicFor: (section: string) => `${section} dersine konu ekle`,
     close: 'Kapat',
     wrong: 'Yanlış',
     blank: 'Boş',
@@ -638,6 +658,9 @@ export const tr = {
     title: (kind: string) => `${kind} ders bazlı net`,
     empty: 'Bu ders için henüz net yok.',
     target: 'Hedef net',
+    /** How a target net is checked (`TARGET_WINDOW` in domain/exam-analysis.ts). */
+    targetRule: (window: number) =>
+      `Hedef netin, bu dersteki son ${window} denemedeki (genel ya da branş) netlerinin ortalamasıyla kıyaslanır.`,
     targetPlaceholder: 'ör. 30',
     targetNone: 'Bu ders için hedef koymadın.',
     targetCurrent: (target: string) => `Hedef: ${target} net`,
@@ -676,7 +699,7 @@ export const tr = {
     pomodoro: 'Pomodoro aşama sonu',
     pomodoroInfo: 'Uygulama kapalıyken çalışma ya da mola bitince haber verir.',
     daily: 'Günlük çalışma hatırlatıcısı',
-    dailyInfo: 'Seçtiğin saatte bir kez hatırlatır; o gün çalıştıysan hatırlatmaz.',
+    dailyInfo: 'Seçtiğin saatte (Türkiye saati) bir kez hatırlatır; o gün çalıştıysan hatırlatmaz.',
     dailyHour: 'Saat',
     dailyMinute: 'Dakika',
     /** `20:30` */
@@ -996,6 +1019,12 @@ export const tr = {
     deleteAllAgeNote:
       '15 yaş altı beyanı yapıldıysa, yaş kuralı gereği yalnız o doğum yılı 15 yaşına gelene kadar bu cihazda ayrıca kalır; uygulamayı kaldırınca o da silinir.',
     deleteAllYes: 'Evet, hepsini sil',
+    /** Runs the backup export of the Yedek screen; deletes nothing. */
+    deleteAllBackupFirst: 'Önce yedek al',
+    deleteAllBackupDone: (exported: string) =>
+      `${exported} Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez.`,
+    deleteAllBackupCheckFailed:
+      'Yedek dosyası doğrulanamadı, bu yüzden oluşturulmadı. Çalışma kayıtlarını “Yedekle ve geri yükle” ekranından CSV olarak dışa aktarabilirsin.',
     dataInfoGroups:
       'Kayıtların bu cihazda tutulur. Grupları açtıysan takma adın ve çalışma sürelerin ayrıca Türkiye’deki sunucumuzda durur; “Tüm verileri sil” sunucudaki grup hesabını da siler.',
     deleteAllServerFailed:
@@ -1089,11 +1118,16 @@ export const tr = {
     shareTitle: 'Çalışma kartını paylaş',
     unavailable: 'Bu cihazda paylaşım ekranı açılamadı.',
     failed: 'Kart hazırlanamadı. Yeniden dene.',
+    /** Under the disabled button when the card would show "0 dk". */
+    nothingToShare: 'Paylaşmak için bu dönemde en az 1 dakika çalışmış olmalısın.',
+    /** Name of the shared image (Istanbul day of sharing). */
+    fileName: (day: string) => `etut-calisma-${day}.png`,
     cardDay: 'Bugünkü çalışmam',
     cardWeek: 'Bu haftaki çalışmam',
     total: 'Toplam çalışma',
     subjects: 'Ders dağılımı',
-    noStudy: 'Henüz çalışma yok. İlk oturumu başlat!',
+    /** On the card itself (it may be shared): a plain fact, no in-app call to action. */
+    noStudy: 'Bu dönemde kayıtlı çalışma yok.',
     otherSubjects: 'Diğer dersler',
     streak: (days: number) => `Seri: ${days} gün`,
     goalDay: (percent: number) => (percent >= 100 ? 'Günlük hedef tamam' : `Günlük hedefin %${percent}’i`),
@@ -1129,6 +1163,8 @@ export const tr = {
     chart: (items: string) => `Grafik. ${items}`,
     chartItem: (label: string, value: string) => `${label}: ${value || '0'}`,
     progress: 'İlerleme',
+    /** An on/off button named by what it switches: `Görünmez ol: Kapalı`. */
+    toggle: (label: string, state: string) => `${label}: ${state}`,
   },
 
   empty: {
@@ -1136,10 +1172,13 @@ export const tr = {
     historyBody: 'Sayaç sekmesinde bir ders seçip Başla’ya dokun; bitirdiğin her oturum burada günlere göre görünür.',
     examsTitle: 'Henüz deneme eklemedin',
     examsBody: 'Bir deneme çözdükten sonra “Deneme ekle” ile doğru ve yanlışlarını gir; netin hemen hesaplanır, grafikler burada oluşur.',
+    /** Exam type "Diğer": no form, so no "Deneme ekle" to point at (the note above says why). */
+    examsBodyNoForm: 'Denemelerin ve grafiklerin, deneme formu olan bir sınav türünde burada görünür.',
     topicsBody: 'Bir konuyu bitirdiğinde “Bitti”, yeniden bakman gerekiyorsa “Tekrar lazım” de. Sayaçta konu seçersen süresi de burada toplanır.',
     weeklyTitle: 'Bu hafta kayıtlı çalışma yok',
     weeklyBody: 'Haftanın her günü (Pazartesi–Pazar) çalıştığın süre burada toplanır. Önceki haftalara oklarla bakabilirsin.',
     startTimer: 'Sayaca git',
+    addFirstExam: 'İlk denemeni ekle',
   },
 
   tips: {
@@ -1295,8 +1334,18 @@ export const tr = {
         'Ders seç, Başla’ya dokun. Süre, başladığın andan itibaren saate bakılarak hesaplanır; “Mola” sayacı durdurur, “Devam” sürdürür.',
         `Uygulamadan ${toleranceSeconds} saniyeden uzun çıkarsan ya da telefon kilitlenirse o süre mola sayılır. Dönünce “… uygulamanın dışındaydın” kartı çıkar: “Çalışıyordum, süreye ekle” dersen süre eklenir, “Tamam, mola kalsın” dersen eklenmez. Cevaplamadan Bitir’e dokunursan önce bu sorulur.`,
         'Kitaptan çalışırken telefonu kilitliyorsan Ayarlar → Sayaç çalışırken → Uygulamadan çıkınca bölümünde “Çalışmaya devam say”ı seç: dışarıda geçen süre sorulmadan çalışma sayılır. O zaman mola verirken “Mola”ya dokunmayı unutma.',
+        'Uygulamayı tamamen kapatırsan sayaç kaybolmaz: yeniden açınca, uygulamanın kapandığı andan sonraki süre de “Uygulamadan çıkınca” ayarına göre sorulur ya da çalışma sayılır.',
         'Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez, böylece süren molaya dönmez. Pili biraz daha çok kullanır; Ayarlar’dan kapatabilirsin.',
         `Bitir’e dokununca oturum kaydedilir ve kısa bir özet görürsün. Yanlışlıkla dokunduysan ${undoSeconds} saniye içinde “Geri al”: kayıt silinir, sayaç kaldığı yerden sürer. ${longHours} saati aşan bir oturumda hepsini mi yoksa ilk ${longHours} saati mi kaydedeceğin sorulur.`,
+      ],
+      /** iOS Focus: the app never turns it on itself; only how to set it up next to the timer. */
+      focusTitle: 'iPhone’da Odak ile çalışmak',
+      focus: [
+        'Bildirimler dikkatini dağıtıyorsa iPhone’un Odak özelliğini kullanabilirsin. Etüt Odak’ı kendisi açıp kapatmaz; sayaç Odak açıkken de aynı çalışır.',
+        '1. iPhone’un Ayarlar → Odak bölümünde “Rahatsız Etme”yi seç ya da “+” ile kendine yeni bir Odak oluştur.',
+        '2. Bu Odak’ta bildirimlerine izin verilen uygulamalara Etüt’ü ekle; yoksa Odak açıkken pomodoro ve hatırlatıcı bildirimlerin de sessize alınır.',
+        '3. Çalışmaya başlarken Odak’ı Denetim Merkezi’nden aç, bitirince kapat.',
+        'Odak açıkken de başka bir uygulamaya (ör. ders videosu ya da PDF için) geçersen o süre yukarıdaki uzakta kuralına girer.',
       ],
     },
     pomodoro: {
@@ -1407,7 +1456,7 @@ export const tr = {
   /** Hakkında → İletişim (e-mail with the app and OS version in the subject, nothing else). */
   contact: {
     title: 'İletişim',
-    info: 'Soru, hata, öneri ya da KVKK başvurun için bize e-posta gönderebilirsin. Konu satırına yalnız uygulama ve işletim sistemi sürümü eklenir. E-posta adresin ve yazdıkların bize ulaşır; e-postalarımız Gmail’de, yani Google’ın yurt dışındaki sunucularında durur. İstemezsen aşağıdaki adrese mektupla yazabilirsin. Ayrıntılar “Kısaca bilgilerin” metninde.',
+    info: 'Soru, hata, öneri ya da KVKK başvurun için bize e-posta gönderebilirsin. Konu satırına yalnız uygulama ve işletim sistemi sürümü eklenir. E-posta adresin ve yazdıkların bize ulaşır; e-postalarımız Gmail’de, yani Google’ın yurt dışındaki sunucularında durur. İstemezsen aşağıdaki adrese mektupla yazabilirsin. Ayrıntılar “Aydınlatma metni”nde.',
     send: 'E-posta gönder',
     soon: 'E-posta · Yakında',
     soonInfo: 'İletişim adresi yayından önce eklenecek.',
