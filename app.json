@@ -17,7 +17,9 @@
       },
       "infoPlist": {
         "CFBundleDevelopmentRegion": "tr",
-        "CFBundleLocalizations": ["tr"],
+        "CFBundleLocalizations": [
+          "tr"
+        ],
         "NSPhotoLibraryAddUsageDescription": "Paylaşım ekranında “Görüntüyü Kaydet”i seçersen çalışma kartın Fotoğraflar’a eklenir. Etüt fotoğraflarını göremez."
       },
       "privacyManifests": {
@@ -25,7 +27,10 @@
         "NSPrivacyAccessedAPITypes": [
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
-            "NSPrivacyAccessedAPITypeReasons": ["CA92.1", "1C8F.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1",
+              "1C8F.1"
+            ]
           }
         ]
       }
@@ -71,12 +76,17 @@
               "displayName": "Etüt: Bugün",
               "description": "Bugünkü çalışma süren, serin ve günlük hedefin.",
               "ios": {
-                "supportedFamilies": ["systemSmall", "systemMedium", "accessoryRectangular"]
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "accessoryRectangular"
+                ]
               }
             }
           ]
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": false,
