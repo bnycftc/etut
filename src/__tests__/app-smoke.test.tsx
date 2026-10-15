@@ -279,7 +279,9 @@ jest.mock('../storage/backup', () => ({
     settings: { dailyGoalMinutes: number | null; netTargets: Record<string, number> };
   }) => {
     memory.sessions = [...data.sessions];
-    memory.exams = data.exams.map(({ marks, ...e }) => e);
+    // Like the real write: the total net is recomputed from the scores.
+    const { totalNet } = jest.requireActual('../domain/net');
+    memory.exams = data.exams.map(({ marks, ...e }) => ({ ...e, totalNet: totalNet(e.scores, e.kind) }));
     memory.marks = Object.fromEntries(data.exams.map((e) => [e.id, e.marks]));
     memory.topicStatuses = Object.fromEntries(data.topicProgress.map((t) => [t.topicId, t.status]));
     memory.dailyGoal = data.settings.dailyGoalMinutes;
@@ -2459,6 +2461,7 @@ describe('timer and data safety', () => {
   });
 
   it('a mock exam, its analysis and a net target read no sessions; the exam reminder still follows them', async () => {
+    jest.useFakeTimers();
     jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // 12:00 Istanbul
     memory.permission = 'granted';
     memory.remindersConfirmed = true;
@@ -2480,7 +2483,8 @@ describe('timer and data safety', () => {
     fireEvent.press(screen.getByTestId('trend-target-save'));
     expect(screen.getByTestId('trend-target').props.children).toBe('Hedef: 35 net');
 
-    fireEvent.press(screen.getByTestId('analysis-reminder-start'));
+    // The card for the exam just saved offers its analysis.
+    fireEvent.press(screen.getByTestId('exams-saved-analysis'));
     fireEvent.press(screen.getByTestId('analysis-save'));
     await settle();
     expect(screen.queryByTestId('analysis-reminder')).toBeNull();
@@ -2489,6 +2493,7 @@ describe('timer and data safety', () => {
   });
 
   it('a setting reads no sessions; the timer screen and the widget still show the new goal', async () => {
+    jest.useFakeTimers();
     jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z'));
     renderRouter(APP_DIR, { initialUrl: '/' });
     await settle();
@@ -2505,18 +2510,38 @@ describe('timer and data safety', () => {
     expect(memory.sessionLoads).toBe(before);
   });
 
-  it('a restore reloads every open screen and the widget', async () => {
+  it('a restore reloads every open screen (each kind of data) and the widget', async () => {
+    jest.useFakeTimers();
     jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // 12:00 Istanbul
     const studied = { ...sessionAt('today'), startedAt: Date.parse('2026-10-07T07:00:00Z'), endedAt: Date.parse('2026-10-07T08:00:00Z') };
     memory.pickText = backupText({
       exportedAt: Date.parse('2026-10-07T08:30:00Z'),
       profile: { birthYear: 2000, examType: 'YKS', yksArea: 'sayisal' },
       sessions: [studied],
+      exams: [
+        {
+          id: 'restored',
+          kind: 'TYT',
+          scope: 'brans',
+          bransSectionId: 'turkce',
+          takenOn: '2026-10-06',
+          createdAt: Date.parse('2026-10-06T12:00:00Z'),
+          analysisDoneAt: Date.parse('2026-10-06T12:00:00Z'),
+          scores: [{ sectionId: 'turkce', questions: 40, correct: 30, wrong: 4 }],
+          marks: [],
+        },
+      ],
       topicProgress: [{ topicId: 'tyt.fizik.basinc', status: 'done', updatedAt: Date.parse('2026-10-07T08:30:00Z') }],
+      settings: { dailyGoalMinutes: 120 },
     });
     renderRouter(APP_DIR, { initialUrl: '/' });
     await settle();
+    // Open before the restore, each one reading one kind: sessions and the goal (settings) on the
+    // timer, the exam detail (exams), the topic marks (topics).
     expect(screen.getByTestId('today-total').props.children).toBe('0 dk');
+    expect(screen.queryByTestId('goal-progress')).toBeNull();
+    act(() => router.push('/deneme/restored'));
+    expect(screen.getByText('Deneme bulunamadı.')).toBeTruthy();
     act(() => router.push('/konular'));
     fireEvent.press(screen.getByTestId('topics-subject-fizik'));
     expect(screen.getByTestId('topic-done-tyt.fizik.basinc').props.accessibilityState).toMatchObject({ selected: false });
@@ -2529,12 +2554,15 @@ describe('timer and data safety', () => {
     fireEvent.press(screen.getByTestId('backup-confirm'));
     fireEvent.press(screen.getByTestId('backup-replace-yes'));
     await settle();
-    expect(memory.widget[0].props.total).toBe('1 sa 0 dk');
+    expect(memory.widget[0].props).toMatchObject({ total: '1 sa 0 dk', goalLine: 'Hedef 2 sa 0 dk' });
 
     act(() => router.back());
     expect(screen.getByTestId('topic-done-tyt.fizik.basinc').props.accessibilityState).toMatchObject({ selected: true });
     act(() => router.back());
+    expect(screen.getByTestId('exam-detail-total').props.children).toBe('29');
+    act(() => router.back());
     expect(screen.getByTestId('today-total').props.children).toBe('1 sa 0 dk');
+    expect(screen.getByTestId('goal-progress').props.children).toBe('Hedef 2 sa 0 dk · %50');
   });
 });
 

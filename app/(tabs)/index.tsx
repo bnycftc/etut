@@ -94,14 +94,15 @@ export default function TimerScreen() {
   const topicId = topicOfSubject(examType, yksArea, subjectId, pickedTopic);
   const [finished, setFinished] = useState<Finished | null>(null);
   const [goalOpen, setGoalOpen] = useState(false);
-  const [mode, setModeState] = useState<TimerMode>(loadTimerMode);
+  // Stored, not screen state: a restored backup brings its own timer mode.
+  const mode = useStored(`timerMode|${app.dataVersions.settings}`, loadTimerMode);
   const setSubjectId = (id: string) => {
     if (id !== subjectId) setTopicId(null);
     setSubjectIdState(id);
   };
   const setMode = (m: TimerMode) => {
     storeTimerMode(m);
-    setModeState(m);
+    app.notifyDataChanged('settings');
   };
   const pomodoroConfig = useStored(`pomodoro|${app.dataVersions.settings}`, loadPomodoroConfig);
 

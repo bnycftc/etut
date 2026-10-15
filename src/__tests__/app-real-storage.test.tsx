@@ -506,6 +506,25 @@ describe('backup screen on the real storage', () => {
     expect(allSessions().map((s) => s.id)).toEqual(['a']);
     expect(kv.loadProfile()?.yksArea).toBe('sayisal');
   });
+
+  it('a restore made in pomodoro mode shows pomodoro on the open timer screen; a tap is stored', async () => {
+    mockSurfaces.pickText = backup({ settings: { timerMode: 'pomodoro' } });
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.getByTestId('mode-stopwatch').props.accessibilityState).toMatchObject({ selected: true });
+    act(() => router.push('/yedek'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-import'));
+    });
+    fireEvent.press(screen.getByTestId('backup-mode-replace'));
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
+    expect(kv.loadTimerMode()).toBe('pomodoro');
+    act(() => router.back());
+    expect(screen.getByTestId('mode-pomodoro').props.accessibilityState).toMatchObject({ selected: true });
+    fireEvent.press(screen.getByTestId('mode-stopwatch'));
+    expect(kv.loadTimerMode()).toBe('stopwatch');
+    expect(screen.getByTestId('mode-stopwatch').props.accessibilityState).toMatchObject({ selected: true });
+  });
 });
 
 describe('timer on the real storage', () => {
