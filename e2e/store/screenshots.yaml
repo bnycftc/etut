@@ -166,14 +166,25 @@ tags:
     visible:
       id: report-screen
     timeout: 15000
-# Down to the net charts (centred, so the card's title shows) and the most missed topics: the
-# "this week" figures above depend on the weekday of the run (little on a Monday).
+# Down to the net charts and the most missed topics: the "this week" figures above depend on the
+# weekday of the run (little on a Monday). Maestro scrolls in 40 % swipes (about 550 pt with the
+# fling on CI) and "centerElement" stops as soon as the card's centre is above 70 % of the screen,
+# so where the card lands is chance: run 38303014516 ended at the bottom with the card's top at
+# y = 7, its title under the 116 pt header. Instead: to the end of the screen (last card, one more
+# scroll), a position set only by the demo data of the two bottom cards (card top ≈ 7), then a
+# 17 % swipe back (≈ 160 pt, up to ≈ 330 with a fling): the card's top lands between ≈ 165 and
+# ≈ 340, its bottom above the home indicator.
 - scrollUntilVisible:
     element:
-      id: report-exams
+      id: report-missed
     direction: DOWN
-    centerElement: true
     timeout: 20000
+- scroll
+- takeScreenshot: debug-karne-sonu
+- swipe:
+    start: 50%, 35%
+    end: 50%, 52%
+    duration: 1000
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 05-ders-karnesi
