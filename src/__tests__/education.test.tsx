@@ -287,6 +287,11 @@ describe('"Nasıl çalışır"', () => {
     expect(screen.getByText(/10 saniyeden uzun çıkarsan/)).toBeTruthy();
     expect(screen.getByText(/8 saniye içinde “Geri al”/)).toBeTruthy();
     expect(screen.getByText(/Uygulamadan çıkınca bölümünde “Çalışmaya devam say”/)).toBeTruthy();
+    // A force-closed app: the Lock Screen timer kept counting, the away setting decides (onAppLaunch).
+    expect(screen.getByText(/^Uygulamayı tamamen kapatırsan .*“Uygulamadan çıkınca” ayarına göre/)).toBeTruthy();
+    // iOS Focus is only explained; the app never turns it on.
+    expect(screen.getByText('iPhone’da Odak ile çalışmak')).toBeTruthy();
+    expect(screen.getByText(/Etüt Odak’ı kendisi açıp kapatmaz/)).toBeTruthy();
     // Nothing is outlined without a section.
     expect(outlined('guide-section-seri')).toBe(false);
   });

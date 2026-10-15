@@ -137,6 +137,13 @@ export default function OnboardingScreen() {
           <Label variant="small">{tr.goalSheet.onboardingHint}</Label>
         </Card>
 
+        {/* Aydınlatma before anything is saved, right above the start button. */}
+        <Button
+          testID="onboarding-privacy"
+          kind="secondary"
+          title={tr.onboarding.privacyLink}
+          onPress={() => router.push({ pathname: '/yasal/[doc]', params: { doc: 'aydinlatma' } })}
+        />
         {blocked ? (
           <Label testID="onboarding-age-blocked" style={{ color: c.danger }}>
             {tr.onboarding.ageBlocked}
@@ -162,13 +169,6 @@ export default function OnboardingScreen() {
             {missing}
           </Label>
         ) : null}
-        {/* Aydınlatma before anything is saved; below the start button so the layout above stays. */}
-        <Button
-          testID="onboarding-privacy"
-          kind="secondary"
-          title={tr.onboarding.privacyLink}
-          onPress={() => router.push({ pathname: '/yasal/[doc]', params: { doc: 'aydinlatma' } })}
-        />
       </ScrollView>
     </SafeAreaView>
   );

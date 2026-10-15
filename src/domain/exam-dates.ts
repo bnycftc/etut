@@ -70,6 +70,26 @@ export function isValidCustomExamDay(day: DayKey, today: DayKey): boolean {
   return days >= 0 && days <= 5 * 366;
 }
 
+/**
+ * The exam date field of Ayarlar saves without a Kaydet button (settings save on change): a date the
+ * student may set is returned (= save it) as soon as it is typed, or when the field is left (`left`).
+ * Any other edit than typing on after `previous` (deleting, correcting in the middle) waits for the
+ * field to be left, so a half-corrected date (31.06 → 3.06) is never saved.
+ * `null` = nothing to say yet; `'invalid'` = finished (the year typed, or the field left) but not
+ * such a date.
+ */
+export function readExamDayInput(
+  text: string,
+  previous: string,
+  today: DayKey,
+  left: boolean,
+): DayKey | 'invalid' | null {
+  const day = parseDayInput(text);
+  if (day !== null && isValidCustomExamDay(day, today)) return left || text.startsWith(previous) ? day : null;
+  if (text.trim() === '') return null;
+  return left || /\d{4}\s*$/.test(text) ? 'invalid' : null;
+}
+
 /** Day key → `GG.AA.YYYY` for the edit field. */
 export function formatDayInput(day: DayKey): string {
   const [y, m, d] = day.split('-');

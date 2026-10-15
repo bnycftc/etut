@@ -10,9 +10,10 @@
  * request outside the dev server; onboarding (+ short notice) → first-use tips → timer (start,
  * pause, resume, finish, summary and "Geri al"; Sayısal subjects only) → no groups tab, the
  * groups route opens the timer → reload keeps the profile → share card (1080x1920 PNG) → mock exam with the right
- * net (area papers only) → reload keeps the exam → area change → "Sayaç çalışırken" settings
+ * net (area papers only) and the save confirmation → reload keeps the exam → area change → "Sayaç çalışırken" settings
  * (kept across a reload) → backup + CSV download → about / legal / licenses → reminders screen
- * renders → "delete all data" returns to onboarding → empty states → restore the backup
+ * renders → "delete all data" offers a backup first (deletes nothing), then returns to
+ * onboarding → empty states → restore the backup
  * twice (no duplicates) → dark theme with reduced motion.
  *
  * Environment:
@@ -311,6 +312,10 @@ async function runScenario(page, baseUrl) {
   await visible('exam-item-0-net');
   check((await text('exam-item-0-net')) === '27 net', 'saved exam should show 27 net');
   check((await text('exam-item-0-kind')) === 'TYT', 'saved exam should be TYT');
+  // The list confirms the save and offers the analysis (blank questions are left).
+  await visible('exams-saved-title');
+  check((await text('exams-saved-title')) === '27 net kaydedildi', 'the list should confirm 27 net');
+  check(await byId('exams-saved-analysis').isVisible(), 'the confirmation should offer the analysis');
   await screenshot('exam-list');
 
   // 5. Reload: the exam comes back from SQLite.
@@ -429,6 +434,18 @@ async function runScenario(page, baseUrl) {
   await byId('tab-settings').click();
   await visible('settings-delete-all');
   await byId('settings-delete-all').click();
+  // "Önce yedek al" makes the backup (a download on web) and deletes nothing: the dialog stays.
+  const [deleteBackup] = await Promise.all([
+    page.waitForEvent('download', { timeout: STEP_TIMEOUT_MS }),
+    byId('settings-delete-all-backup').click(),
+  ]);
+  check(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/.test(deleteBackup.suggestedFilename()), 'backup before delete: wrong file name');
+  await visible('settings-delete-all-backup-note');
+  check(
+    (await text('settings-delete-all-backup-note')).startsWith('Yedek dosyası hazırlandı.'),
+    'backup before delete: no message',
+  );
+  await screenshot('delete-all-backup-first');
   await byId('settings-delete-all-confirm').click();
   await visible('onboarding-start');
   await screenshot('after-delete-all');
@@ -452,6 +469,7 @@ async function runScenario(page, baseUrl) {
   await page.goBack();
   await byId('tab-exams').click();
   await visible('exams-empty');
+  check(await byId('exams-empty-action').isVisible(), 'the empty exam list should offer its own add button');
   await screenshot('empty-exams');
 
   for (let round = 1; round <= 2; round++) {

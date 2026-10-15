@@ -825,6 +825,10 @@ describe('mock exam analysis', () => {
   it('per-section net trend with a target and the distance to it', () => {
     renderRouter(APP_DIR, { initialUrl: '/denemeler' });
     fireEvent.press(screen.getByTestId('trend-section-matematik'));
+    // The rule is said before a target is set (TARGET_WINDOW = 3).
+    expect(screen.getByTestId('trend-target-rule').props.children).toBe(
+      'Hedef netin, bu dersteki son 3 denemedeki (genel ya da branş) netlerinin ortalamasıyla kıyaslanır.',
+    );
     expect(screen.getByTestId('trend-target').props.children).toBe('Bu ders için hedef koymadın.');
     fireEvent.changeText(screen.getByTestId('trend-target-input'), '45');
     fireEvent.press(screen.getByTestId('trend-target-save'));
@@ -871,6 +875,76 @@ describe('mock exam entry, editing and charts', () => {
     expect(memory.exams[0]).toMatchObject({ kind: 'TYT', totalNet: 10 });
     // Back on the list (the form closed after the first tap).
     expect(screen.getByTestId('exam-item-0-net').props.children).toEqual(['10', ' ', 'net']);
+  });
+
+  it('after Kaydet the list confirms the net and offers the analysis once', () => {
+    jest.mocked(Haptics.notificationAsync).mockClear();
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    // Türkçe 10 doğru 6 yanlış = 8,5 net; the other sections stay blank, so there is something to analyse.
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '10');
+    fireEvent.changeText(screen.getByTestId('exam-wrong-turkce'), '6');
+    fireEvent.press(screen.getByTestId('exam-save'));
+
+    expect(screen.getByTestId('exams-saved-title').props.children).toBe('8,5 net kaydedildi');
+    expect(Haptics.notificationAsync).toHaveBeenCalledWith('success');
+    expect(announce).toHaveBeenCalledWith('8,5 net kaydedildi');
+    // The reminder card would repeat the same offer for the same exam.
+    expect(screen.queryByTestId('analysis-reminder')).toBeNull();
+    fireEvent.press(screen.getByTestId('exams-saved-analysis'));
+    expect(screen.getByTestId('analysis-tagged-turkce')).toBeTruthy();
+
+    // Back on the list: the confirmation was a moment; the usual reminder takes over.
+    act(() => router.back());
+    expect(screen.queryByTestId('exams-saved')).toBeNull();
+    expect(screen.getByTestId('analysis-reminder').props.children).toBe('Analizi bekleyen 1 deneme var');
+    announce.mockRestore();
+  });
+
+  it('an exam with nothing to analyse is only confirmed; "Kapat" removes the card', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.press(screen.getByTestId('exam-scope-brans'));
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '40');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    expect(screen.getByTestId('exams-saved-title').props.children).toBe('40 net kaydedildi');
+    expect(screen.queryByTestId('exams-saved-analysis')).toBeNull();
+    fireEvent.press(screen.getByLabelText('Kaydedildi bilgisini kapat'));
+    expect(screen.queryByTestId('exams-saved')).toBeNull();
+  });
+
+  it('the confirmation is gone once the student leaves the list and comes back', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '5');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    expect(screen.getByTestId('exams-saved')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('exam-item-0'));
+    expect(screen.getByTestId('exam-detail-total')).toBeTruthy();
+    act(() => router.back());
+    expect(screen.getByTestId('exam-item-0')).toBeTruthy();
+    expect(screen.queryByTestId('exams-saved')).toBeNull();
+  });
+
+  it('the list draws 20 exams at a time; "Daha fazla göster" adds the next 20', () => {
+    memory.exams = Array.from({ length: 45 }, (_, i) => ({ ...TYT_E1, id: `e${i}`, totalNet: i }));
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exam-item-19-net').props.children).toEqual(['19', ' ', 'net']);
+    expect(screen.queryByTestId('exam-item-20')).toBeNull();
+    fireEvent.press(screen.getByTestId('exams-more'));
+    expect(screen.getByTestId('exam-item-39')).toBeTruthy();
+    expect(screen.queryByTestId('exam-item-40')).toBeNull();
+    fireEvent.press(screen.getByTestId('exams-more'));
+    expect(screen.getByTestId('exam-item-44-net').props.children).toEqual(['44', ' ', 'net']);
+    expect(screen.queryByTestId('exams-more')).toBeNull();
+  });
+
+  it('20 exams or fewer: no "Daha fazla göster"', () => {
+    memory.exams = Array.from({ length: 20 }, (_, i) => ({ ...TYT_E1, id: `e${i}` }));
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exam-item-19')).toBeTruthy();
+    expect(screen.queryByTestId('exams-more')).toBeNull();
   });
 
   it('"Dün" picks yesterday in one tap; the boxes move on with the return key / keyboard bar', () => {
@@ -1160,13 +1234,24 @@ describe('exam countdown', () => {
 
   it('the student can set the exact date and go back to the estimate', () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    const invalid = 'Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.';
+    const input = () => screen.getByTestId('settings-exam-date-input');
     expect(screen.getByTestId('settings-exam-date').props.children).toBe('19 Haziran 2027');
-    fireEvent.changeText(screen.getByTestId('settings-exam-date-input'), '01.01.2020');
-    fireEvent.press(screen.getByTestId('settings-exam-date-save'));
-    expect(screen.getByText('Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.')).toBeTruthy();
-    fireEvent.changeText(screen.getByTestId('settings-exam-date-input'), '26.06.2027');
-    fireEvent.press(screen.getByTestId('settings-exam-date-save'));
+    // Saved as it is typed, no Kaydet button; an error only once the entry is finished.
+    expect(screen.queryByTestId('settings-exam-date-save')).toBeNull();
+    fireEvent.changeText(input(), '01.01.2020');
+    expect(screen.getByText(invalid)).toBeTruthy();
+    expect(memory.examDates.YKS).toBeUndefined();
+    fireEvent.changeText(input(), '26.06');
+    expect(screen.queryByText(invalid)).toBeNull();
+    fireEvent(input(), 'blur');
+    expect(screen.getByText(invalid)).toBeTruthy();
+    fireEvent.changeText(input(), '26.06.202');
+    expect(screen.queryByText(invalid)).toBeNull();
+    expect(memory.examDates.YKS).toBeUndefined();
+    fireEvent.changeText(input(), '26.06.2027');
     expect(memory.examDates.YKS).toBe('2027-06-26');
+    expect(input().props.value).toBe('');
     expect(screen.getByTestId('settings-exam-date').props.children).toBe('26 Haziran 2027');
     expect(screen.getByText('senin girdiğin tarih')).toBeTruthy();
     fireEvent.press(screen.getByTestId('settings-exam-date-reset'));
@@ -1306,6 +1391,40 @@ describe('other screens render', () => {
     expect(memory.profile).toBeNull();
     expect(screen.getByText('Doğum yılın')).toBeTruthy();
   });
+
+  it('"Önce yedek al" in the delete dialog shares the backup and deletes nothing; deleting stays a choice of its own', async () => {
+    memory.sessions = [
+      {
+        id: 'a',
+        subjectId: 'fizik',
+        topicId: null,
+        startedAt: Date.parse('2026-10-01T07:00:00Z'),
+        endedAt: Date.parse('2026-10-01T08:00:00Z'),
+        pauses: [],
+        durationMs: 3_600_000,
+        source: 'timer',
+      },
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
+    await act(async () => {
+      fireEvent.press(screen.getByRole('button', { name: 'Önce yedek al' }));
+    });
+    expect(memory.shared).toHaveLength(1);
+    expect(memory.shared[0].name).toMatch(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(JSON.parse(memory.shared[0].content)).toMatchObject({ format: 'etut-yedek', sessions: [{ id: 'a' }] });
+    expect(memory.lastBackupAt).not.toBeNull();
+    // The share sheet does not tell whether the file was saved: the note says so.
+    expect(screen.getByTestId('settings-delete-all-backup-note').props.children).toBe(
+      'Yedek dosyası hazırlandı. Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez.',
+    );
+    // Nothing deleted, the dialog still open.
+    expect(memory.profile).not.toBeNull();
+    expect(memory.sessions).toHaveLength(1);
+    expect(screen.getByTestId('settings-delete-all-dialog')).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    expect(memory.profile).toBeNull();
+  });
 });
 
 describe('subjects and papers follow the exam and YKS area', () => {
@@ -1403,6 +1522,30 @@ describe('empty states', () => {
   ])('%s explains what will appear', (url, id) => {
     renderRouter(APP_DIR, { initialUrl: url });
     expect(screen.getByTestId(id)).toBeTruthy();
+  });
+
+  it('the empty exam list has its own add button (the top one is out of sight down there)', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByRole('button', { name: 'İlk denemeni ekle' })).toBeTruthy();
+    fireEvent.press(screen.getByTestId('exams-empty-action'));
+    expect(screen.getByTestId('exam-kind-TYT')).toBeTruthy();
+  });
+
+  it('no exam form ("Diğer"): the empty card offers no add button', () => {
+    memory.profile = { ...ADULT_SAYISAL, examType: 'DIGER', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exams-empty')).toBeTruthy();
+    expect(screen.queryByTestId('exams-empty-action')).toBeNull();
+  });
+
+  it('an empty week leads to the timer; a past week does not', () => {
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    fireEvent.press(screen.getByTestId('weekly-prev'));
+    expect(screen.getByTestId('weekly-empty')).toBeTruthy();
+    expect(screen.queryByTestId('weekly-empty-action')).toBeNull();
+    fireEvent.press(screen.getByTestId('weekly-next'));
+    fireEvent.press(screen.getByTestId('weekly-empty-action'));
+    expect(screen.getByTestId('timer-start')).toBeTruthy();
   });
 });
 
@@ -1613,14 +1756,21 @@ describe('about and legal texts', () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
     fireEvent.press(screen.getByTestId('settings-open-about'));
     expect(screen.getByTestId('about-controller').props.children).toBe('[DOLDURULACAK]');
+    expect(screen.getByText('Aydınlatma metni')).toBeTruthy();
+    expect(screen.queryByText(/Kısaca bilgilerin/)).toBeNull();
     fireEvent.press(screen.getByTestId('about-doc-gizlilik'));
     expect(screen.getByTestId('legal-gizlilik')).toBeTruthy();
   });
 
   it('the short notice is reachable from onboarding before anything is saved', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
+    // It sits right above Başla.
+    const buttons = screen.getAllByRole('button').map((b) => b.props.testID);
+    expect(buttons.indexOf('onboarding-privacy')).toBe(buttons.indexOf('onboarding-start') - 1);
     fireEvent.press(screen.getByTestId('onboarding-privacy'));
     expect(screen.getByTestId('legal-aydinlatma')).toBeTruthy();
+    expect(screen.getAllByText('Aydınlatma metni').length).toBeGreaterThan(0);
+    expect(screen.getByText('Son güncelleme: 15 Ekim 2026')).toBeTruthy();
     expect(memory.profile).toBeNull();
   });
 

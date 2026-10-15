@@ -136,7 +136,15 @@ export default function WeeklyScreen() {
       </Card>
 
       {week.totalMs === 0 ? (
-        <EmptyState testID="weekly-empty" title={tr.empty.weeklyTitle} body={tr.empty.weeklyBody} />
+        <EmptyState
+          testID="weekly-empty"
+          icon="weekly"
+          title={tr.empty.weeklyTitle}
+          body={tr.empty.weeklyBody}
+          // Only this week can still be filled by studying now.
+          action={offset === 0 ? tr.empty.startTimer : undefined}
+          onAction={() => router.navigate('/')}
+        />
       ) : offset === 0 && canShareCard(profile) ? (
         <Button
           testID="weekly-share"
