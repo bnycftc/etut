@@ -361,7 +361,7 @@ export default function ExamsScreen() {
           testID="exams-empty"
           icon="exams"
           title={tr.empty.examsTitle}
-          body={tr.empty.examsBody}
+          body={ownKinds.length > 0 ? tr.empty.examsBody : tr.empty.examsBodyNoForm}
           // "Deneme ekle" sits at the top, out of sight once the student scrolls down to here.
           action={ownKinds.length > 0 ? tr.empty.addFirstExam : undefined}
           onAction={() => router.push('/deneme/yeni')}

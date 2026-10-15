@@ -1140,6 +1140,8 @@ export const tr = {
     historyBody: 'Sayaç sekmesinde bir ders seçip Başla’ya dokun; bitirdiğin her oturum burada günlere göre görünür.',
     examsTitle: 'Henüz deneme eklemedin',
     examsBody: 'Bir deneme çözdükten sonra “Deneme ekle” ile doğru ve yanlışlarını gir; netin hemen hesaplanır, grafikler burada oluşur.',
+    /** Exam type "Diğer": no form, so no "Deneme ekle" to point at (the note above says why). */
+    examsBodyNoForm: 'Denemelerin ve grafiklerin, deneme formu olan bir sınav türünde burada görünür.',
     topicsBody: 'Bir konuyu bitirdiğinde “Bitti”, yeniden bakman gerekiyorsa “Tekrar lazım” de. Sayaçta konu seçersen süresi de burada toplanır.',
     weeklyTitle: 'Bu hafta kayıtlı çalışma yok',
     weeklyBody: 'Haftanın her günü (Pazartesi–Pazar) çalıştığın süre burada toplanır. Önceki haftalara oklarla bakabilirsin.',
