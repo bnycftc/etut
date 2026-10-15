@@ -17,6 +17,7 @@ import { type CsvLabels, examRows, sessionRows, toCsv } from '@/domain/csv';
 import { istanbulDayKey, istanbulTimeOfDay } from '@/domain/istanbul-day';
 import { useAppState, useNow, useStored } from '@/state/app-state';
 import { backupExportText, shareBackup } from '@/state/backup-export';
+import { DATA_KINDS } from '@/state/data-kinds';
 import { readBackupData } from '@/storage/backup';
 import { pickTextFile, type ShareResult, shareTextFile } from '@/storage/file-io';
 import { loadReplaceUndo, storeReplaceUndo } from '@/storage/kv';
@@ -43,7 +44,7 @@ function formatMoment(ms: number): string {
 
 /** Backup to a JSON file, restore from it (merge or replace), and CSV export. */
 export default function BackupScreen() {
-  const { createBackup, importBackup, undoReplace, dataVersion, notifyDataChanged } = useAppState();
+  const { createBackup, importBackup, undoReplace, dataVersions, notifyDataChanged } = useAppState();
   const c = usePalette();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +59,7 @@ export default function BackupScreen() {
     setModeState(m);
     setReplaceSure(null);
   };
-  const undo = useStored(`undo|${dataVersion}`, loadReplaceUndo);
+  const undo = useStored(`undo|${dataVersions.settings}`, loadReplaceUndo);
   // A render clock, not Date.now(): the React Compiler would keep the first result while `undo`
   // stays. Never before the copy itself (it may be newer than the clock's last tick).
   const clock = useNow(false);
@@ -149,12 +150,12 @@ export default function BackupScreen() {
     } catch {
       setError(tr.backup.failed);
     }
-    notifyDataChanged();
+    notifyDataChanged(...DATA_KINDS);
   };
 
   const discardUndo = () => {
     storeReplaceUndo(null);
-    notifyDataChanged();
+    notifyDataChanged('settings');
   };
 
   const exportCsv = (which: 'sessions' | 'exams') =>

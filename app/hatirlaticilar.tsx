@@ -16,9 +16,9 @@ import { Button, Card, Chip, Label, Row, Screen, Stepper } from '@/ui/components
 import { usePalette } from '@/ui/theme';
 
 export default function RemindersScreen() {
-  const { dataVersion, notifyDataChanged } = useAppState();
-  const stored = useStored(`reminders|${dataVersion}`, loadReminderPrefs);
-  const confirmed = useStored(`reminders-confirmed|${dataVersion}`, loadRemindersConfirmed);
+  const { dataVersions, notifyDataChanged } = useAppState();
+  const stored = useStored(`reminders|${dataVersions.settings}`, loadReminderPrefs);
+  const confirmed = useStored(`reminders-confirmed|${dataVersions.settings}`, loadRemindersConfirmed);
   // Before the first confirmation every reminder is shown (and is) off.
   const prefs = effectiveReminderPrefs(stored, confirmed);
   const permission = useNotificationPermission();

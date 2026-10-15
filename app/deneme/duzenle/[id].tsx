@@ -39,7 +39,7 @@ export default function EditExamScreen() {
           v.scores,
           Date.now(),
         );
-        notifyDataChanged();
+        notifyDataChanged('exams');
         router.back();
       }}
     />

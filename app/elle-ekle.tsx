@@ -34,7 +34,7 @@ const RECENT_LIMIT = 10;
 
 /** "Sayacı açmayı unuttum": add a past session by hand (saved as `source = 'manual'`). */
 export default function ManualEntryScreen() {
-  const { profile, active, dataVersion, notifyDataChanged } = useAppState();
+  const { profile, active, dataVersions, notifyDataChanged } = useAppState();
   const c = usePalette();
   const examType = profile?.examType ?? 'DIGER';
   const yksArea = profile?.yksArea ?? null;
@@ -60,7 +60,7 @@ export default function ManualEntryScreen() {
   const [attempt, setAttempt] = useState(0);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
-  const recent = useStored(String(dataVersion), () => recentManualSessions(RECENT_LIMIT));
+  const recent = useStored(String(dataVersions.sessions), () => recentManualSessions(RECENT_LIMIT));
 
   const add = () => {
     setAttempt((n) => n + 1);

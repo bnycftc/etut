@@ -15,7 +15,7 @@ import { formatDuration } from '@/ui/format';
 
 /** Topic tracking: time per topic, "bitti / tekrar lazım" and progress per subject. */
 export default function TopicsScreen() {
-  const { profile, dataVersion, notifyDataChanged } = useAppState();
+  const { profile, dataVersions, notifyDataChanged } = useAppState();
   const examType = profile?.examType ?? 'DIGER';
   const yksArea = profile?.yksArea ?? null;
   const subjects = subjectsFor(examType, yksArea).filter(
@@ -32,7 +32,7 @@ export default function TopicsScreen() {
   const subjectId =
     pickedSubject !== null && subjects.includes(pickedSubject) ? pickedSubject : (subjects[0] ?? null);
 
-  const data = useStored(String(dataVersion), () => ({
+  const data = useStored(`${dataVersions.topics}|${dataVersions.sessions}`, () => ({
     statuses: loadTopicStatuses(),
     totals: topicTotals(),
   }));

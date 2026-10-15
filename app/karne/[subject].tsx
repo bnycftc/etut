@@ -61,7 +61,7 @@ function shortDay(day: string): string {
  * mock-exam nets of one subject on one screen. Only the student's own data, no comparison.
  */
 export default function ReportCardScreen() {
-  const { profile, active, dataVersion, notifyDataChanged } = useAppState();
+  const { profile, active, dataVersions, notifyDataChanged } = useAppState();
   const c = usePalette();
   const params = useLocalSearchParams<{ subject?: string }>();
   const examType = profile?.examType ?? 'DIGER';
@@ -79,7 +79,9 @@ export default function ReportCardScreen() {
   const weekStart = weekStartOf(today);
   const trendFrom = addDays(weekStart, -7 * (REPORT_TREND_WEEKS - 1));
 
-  const data = useStored(`${subjectId}|${today}|${dataVersion}`, () => {
+  // Every kind of data is read here, and the papers shown follow the exam and area.
+  const version = `${dataVersions.sessions}|${dataVersions.exams}|${dataVersions.topics}|${dataVersions.settings}`;
+  const data = useStored(`${subjectId}|${today}|${examType}|${yksArea}|${version}`, () => {
     const exams = listMockExams();
     const kinds = examKindsToShow(
       examType,

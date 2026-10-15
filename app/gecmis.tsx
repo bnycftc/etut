@@ -17,13 +17,13 @@ import { usePalette } from '@/ui/theme';
 const LIST_DAYS = 30;
 
 export default function HistoryScreen() {
-  const { active, dataVersion } = useAppState();
+  const { active, dataVersions } = useAppState();
   const c = usePalette();
   const now = useNow(active !== null, 30_000);
   const today = istanbulDayKey(now);
   const days = lastDays(now, LIST_DAYS);
 
-  const stored = useStored(`${today}|${dataVersion}`, () =>
+  const stored = useStored(`${today}|${dataVersions.sessions}`, () =>
     sessionsOverlapping(dayStartMs(days[0]), dayStartMs(today) + DAY_MS),
   );
   const spans: SessionSpan[] = [...stored];

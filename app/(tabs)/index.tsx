@@ -94,19 +94,20 @@ export default function TimerScreen() {
   const topicId = topicOfSubject(examType, yksArea, subjectId, pickedTopic);
   const [finished, setFinished] = useState<Finished | null>(null);
   const [goalOpen, setGoalOpen] = useState(false);
-  const [mode, setModeState] = useState<TimerMode>(loadTimerMode);
+  // Stored, not screen state: a restored backup brings its own timer mode.
+  const mode = useStored(`timerMode|${app.dataVersions.settings}`, loadTimerMode);
   const setSubjectId = (id: string) => {
     if (id !== subjectId) setTopicId(null);
     setSubjectIdState(id);
   };
   const setMode = (m: TimerMode) => {
     storeTimerMode(m);
-    setModeState(m);
+    app.notifyDataChanged('settings');
   };
-  const pomodoroConfig = useStored(`pomodoro|${app.dataVersion}`, loadPomodoroConfig);
+  const pomodoroConfig = useStored(`pomodoro|${app.dataVersions.settings}`, loadPomodoroConfig);
 
   const { today, todayTotal, todayManual, comparison, goal, streak, studyDays } = useStudyStats(now);
-  const customExamDay = useStored(`examDate|${examType}|${app.dataVersion}`, () =>
+  const customExamDay = useStored(`examDate|${examType}|${app.dataVersions.settings}`, () =>
     loadCustomExamDate(examType),
   );
   const examDate = resolveExamDate(examType, customExamDay);
@@ -201,7 +202,7 @@ export default function TimerScreen() {
 
   const setGoal = (minutes: number | null) => {
     storeDailyGoal(minutes);
-    app.notifyDataChanged();
+    app.notifyDataChanged('settings');
   };
 
   const goalStreak = goal !== null && streak !== null ? { goal, streak } : null;

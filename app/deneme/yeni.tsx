@@ -38,7 +38,7 @@ export default function NewExamScreen() {
         );
         // The list confirms the save ("11,5 net kaydedildi") and offers the analysis.
         setSavedExamNotice(id);
-        notifyDataChanged();
+        notifyDataChanged('exams');
         hapticSuccess();
         announce(tr.exams.saved(formatNet(totalNet(v.scores, v.kind))));
         router.back();

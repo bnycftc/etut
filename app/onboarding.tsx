@@ -160,7 +160,7 @@ export default function OnboardingScreen() {
             setBlocked(result === 'age_blocked');
             if (result === 'ok' && goal !== null) {
               storeDailyGoal(goal);
-              notifyDataChanged();
+              notifyDataChanged('settings');
             }
           }}
         />
