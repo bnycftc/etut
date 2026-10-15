@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, type TextStyle, View } from 'react-native';
 
 import { tr } from '../strings';
+import { announce } from './feedback';
 import { Icon, type IconName } from './icon';
 import { MAX_FONT_SCALE, space, useLargeText, usePalette } from './theme';
 
@@ -78,15 +79,26 @@ export function Label({
   style,
   testID,
   maxFontSizeMultiplier,
+  live = false,
 }: {
   children: ReactNode;
   variant?: TextVariant;
   style?: TextStyle;
   testID?: string;
   maxFontSizeMultiplier?: number;
+  /**
+   * A message that appears after an action (saved, an error): screen readers read it out when it
+   * appears or changes, without the student having to find it. A number (a count of attempts)
+   * also reads out an unchanged message again when it goes up: a second failed "Kaydet".
+   */
+  live?: boolean | number;
 }) {
   const c = usePalette();
   const color = variant === 'muted' || variant === 'small' ? c.textMuted : c.text;
+  const spoken = live !== false && typeof children === 'string' ? children : null;
+  useEffect(() => {
+    if (spoken !== null) announce(spoken);
+  }, [spoken, live]);
   return (
     <Text
       testID={testID}
@@ -221,7 +233,10 @@ export function HeaderButton({
   );
 }
 
-/** Selectable chip; announced as a button with its selected state. */
+/**
+ * Selectable chip; announced as a button with its selected state. With `toggle` it is an on/off
+ * control instead: announced as a switch ("açık"/"kapalı") named by `accessibilityLabel`.
+ */
 export function Chip({
   title,
   selected,
@@ -229,6 +244,7 @@ export function Chip({
   testID,
   accessibilityLabel,
   color,
+  toggle = false,
 }: {
   title: string;
   selected: boolean;
@@ -237,14 +253,15 @@ export function Chip({
   accessibilityLabel?: string;
   /** Leading colour dot (the subject colour). */
   color?: string;
+  toggle?: boolean;
 }) {
   const c = usePalette();
   return (
     <Pressable
       testID={testID}
-      accessibilityRole="button"
+      accessibilityRole={toggle ? 'switch' : 'button'}
       accessibilityLabel={accessibilityLabel ?? title}
-      accessibilityState={{ selected }}
+      accessibilityState={toggle ? { checked: selected } : { selected }}
       onPress={onPress}
       // Same layout as before; the touch target grows to ≥ 44 pt (the row gap is 8).
       hitSlop={4}
@@ -314,6 +331,7 @@ export function Field({
   maxLength = 3,
   numeric = true,
   testID,
+  accessibilityLabel = label,
 }: {
   label: string;
   value: string;
@@ -322,6 +340,8 @@ export function Field({
   maxLength?: number;
   numeric?: boolean;
   testID?: string;
+  /** Defaults to `label`; add the group when one screen has two "Saat" fields. */
+  accessibilityLabel?: string;
 }) {
   const c = usePalette();
   return (
@@ -331,7 +351,7 @@ export function Field({
       </Text>
       <TextInput
         testID={testID}
-        accessibilityLabel={label}
+        accessibilityLabel={accessibilityLabel}
         value={value}
         onChangeText={onChange}
         keyboardType={numeric ? 'number-pad' : 'numbers-and-punctuation'}

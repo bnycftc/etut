@@ -111,6 +111,8 @@ export function ExamForm({
     initial ? entriesOf(initial.scores) : {},
   );
   const [showErrors, setShowErrors] = useState(false);
+  // Each refused Kaydet reads "fix the fields" out again.
+  const [saveAttempt, setSaveAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const inputs = useRef<Record<string, TextInput | null>>({});
@@ -160,6 +162,7 @@ export function ExamForm({
     if (savingRef.current) return;
     if (hasErrors || sections.length === 0) {
       setShowErrors(true);
+      setSaveAttempt((n) => n + 1);
       return;
     }
     savingRef.current = true;
@@ -326,7 +329,7 @@ export function ExamForm({
         </Card>
 
         {showErrors && hasErrors ? (
-          <Label style={{ color: c.danger }}>{tr.exams.fixErrors}</Label>
+          <Label live={saveAttempt} style={{ color: c.danger }}>{tr.exams.fixErrors}</Label>
         ) : null}
       </ScrollView>
 

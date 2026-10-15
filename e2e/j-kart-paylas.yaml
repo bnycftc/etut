@@ -9,6 +9,24 @@ tags:
     file: subflows/onboarding-yks.yaml
     env:
       AGE: "20"
+# Paylaş is off at "0 dk" (nothing to share): study past one minute first.
+- tapOn:
+    id: subject-fizik
+- tapOn:
+    id: timer-start
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      # Past one minute; a slow CI simulator may poll the clock late (still "1 dk" below 2:00).
+      text: "1:[0-5][0-9]"
+    timeout: 90000
+- tapOn:
+    id: timer-finish
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: timer-saved
+    timeout: 10000
 # The card button sits in the "Kendinle kıyas" card at the bottom of the timer screen.
 - scrollUntilVisible:
     element:
@@ -21,6 +39,8 @@ tags:
     visible:
       id: share-card-preview
     timeout: 10000
+- assertNotVisible:
+    id: share-nothing
 - takeScreenshot: j-kart-01-gunluk-acik
 - tapOn:
     id: share-period-week

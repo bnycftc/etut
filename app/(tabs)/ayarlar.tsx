@@ -100,7 +100,9 @@ export default function SettingsScreen() {
   const examDate = resolveExamDate(examType, customDay);
   const [dateText, setDateText] = useState('');
   const [dateError, setDateError] = useState(false);
+  const [dateAttempt, setDateAttempt] = useState(0);
   const saveDate = () => {
+    setDateAttempt((n) => n + 1);
     const day = parseDayInput(dateText);
     const ok = day !== null && isValidCustomExamDay(day, istanbulDayKey(Date.now()));
     setDateError(!ok);
@@ -232,7 +234,7 @@ export default function SettingsScreen() {
             />
           </Row>
           {dateError ? (
-            <Label variant="small" style={{ color: c.danger }}>
+            <Label variant="small" live={dateAttempt} style={{ color: c.danger }}>
               {tr.countdown.invalid}
             </Label>
           ) : null}
