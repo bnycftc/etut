@@ -1160,13 +1160,24 @@ describe('exam countdown', () => {
 
   it('the student can set the exact date and go back to the estimate', () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    const invalid = 'Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.';
+    const input = () => screen.getByTestId('settings-exam-date-input');
     expect(screen.getByTestId('settings-exam-date').props.children).toBe('19 Haziran 2027');
-    fireEvent.changeText(screen.getByTestId('settings-exam-date-input'), '01.01.2020');
-    fireEvent.press(screen.getByTestId('settings-exam-date-save'));
-    expect(screen.getByText('Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.')).toBeTruthy();
-    fireEvent.changeText(screen.getByTestId('settings-exam-date-input'), '26.06.2027');
-    fireEvent.press(screen.getByTestId('settings-exam-date-save'));
+    // Saved as it is typed, no Kaydet button; an error only once the entry is finished.
+    expect(screen.queryByTestId('settings-exam-date-save')).toBeNull();
+    fireEvent.changeText(input(), '01.01.2020');
+    expect(screen.getByText(invalid)).toBeTruthy();
+    expect(memory.examDates.YKS).toBeUndefined();
+    fireEvent.changeText(input(), '26.06');
+    expect(screen.queryByText(invalid)).toBeNull();
+    fireEvent(input(), 'blur');
+    expect(screen.getByText(invalid)).toBeTruthy();
+    fireEvent.changeText(input(), '26.06.202');
+    expect(screen.queryByText(invalid)).toBeNull();
+    expect(memory.examDates.YKS).toBeUndefined();
+    fireEvent.changeText(input(), '26.06.2027');
     expect(memory.examDates.YKS).toBe('2027-06-26');
+    expect(input().props.value).toBe('');
     expect(screen.getByTestId('settings-exam-date').props.children).toBe('26 Haziran 2027');
     expect(screen.getByText('senin girdiğin tarih')).toBeTruthy();
     fireEvent.press(screen.getByTestId('settings-exam-date-reset'));
@@ -1305,6 +1316,37 @@ describe('other screens render', () => {
   fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
     expect(memory.profile).toBeNull();
     expect(screen.getByText('Doğum yılın')).toBeTruthy();
+  });
+
+  it('"Önce yedek al" in the delete dialog shares the backup and deletes nothing; deleting stays a choice of its own', async () => {
+    memory.sessions = [
+      {
+        id: 'a',
+        subjectId: 'fizik',
+        topicId: null,
+        startedAt: Date.parse('2026-10-01T07:00:00Z'),
+        endedAt: Date.parse('2026-10-01T08:00:00Z'),
+        pauses: [],
+        durationMs: 3_600_000,
+        source: 'timer',
+      },
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
+    await act(async () => {
+      fireEvent.press(screen.getByRole('button', { name: 'Önce yedek al' }));
+    });
+    expect(memory.shared).toHaveLength(1);
+    expect(memory.shared[0].name).toMatch(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(JSON.parse(memory.shared[0].content)).toMatchObject({ format: 'etut-yedek', sessions: [{ id: 'a' }] });
+    expect(memory.lastBackupAt).not.toBeNull();
+    expect(screen.getByTestId('settings-delete-all-backup-note').props.children).toBe('Yedek dosyası hazırlandı.');
+    // Nothing deleted, the dialog still open.
+    expect(memory.profile).not.toBeNull();
+    expect(memory.sessions).toHaveLength(1);
+    expect(screen.getByTestId('settings-delete-all-dialog')).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    expect(memory.profile).toBeNull();
   });
 });
 

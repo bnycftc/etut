@@ -459,7 +459,6 @@ export const tr = {
     none: 'Tarih yok',
     input: 'Tarih (GG.AA.YYYY)',
     placeholder: 'GG.AA.YYYY',
-    save: 'Tarihi kaydet',
     reset: 'Tahmini tarihe dön',
     invalid: 'Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.',
   },
@@ -990,6 +989,10 @@ export const tr = {
     deleteAllAgeNote:
       '15 yaş altı beyanı yapıldıysa, yaş kuralı gereği yalnız o doğum yılı 15 yaşına gelene kadar bu cihazda ayrıca kalır; uygulamayı kaldırınca o da silinir.',
     deleteAllYes: 'Evet, hepsini sil',
+    /** Runs the backup export of the Yedek screen; deletes nothing. */
+    deleteAllBackupFirst: 'Önce yedek al',
+    deleteAllBackupCheckFailed:
+      'Yedek dosyası doğrulanamadı, bu yüzden oluşturulmadı. Çalışma kayıtlarını “Yedekle ve geri yükle” ekranından CSV olarak dışa aktarabilirsin.',
     dataInfoGroups:
       'Kayıtların bu cihazda tutulur. Grupları açtıysan takma adın ve çalışma sürelerin ayrıca Türkiye’deki sunucumuzda durur; “Tüm verileri sil” sunucudaki grup hesabını da siler.',
     deleteAllServerFailed:

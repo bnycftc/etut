@@ -4,6 +4,7 @@ import {
   formatDayInput,
   isValidCustomExamDay,
   parseDayInput,
+  readExamDayInput,
   resolveExamDate,
 } from '../exam-dates';
 import { istanbulWeekday } from '../istanbul-day';
@@ -48,6 +49,22 @@ describe('exam countdown', () => {
     expect(isValidCustomExamDay('2026-10-04', '2026-10-04')).toBe(true);
     expect(isValidCustomExamDay('2026-10-03', '2026-10-04')).toBe(false);
     expect(isValidCustomExamDay('2035-01-01', '2026-10-04')).toBe(false);
+  });
+
+  it('the Ayarlar field: a date once valid, an error only for a finished entry', () => {
+    const today = '2026-10-04';
+    expect(readExamDayInput('26.06.2027', today, false)).toBe('2027-06-26');
+    expect(readExamDayInput('4.10.2026', today, true)).toBe('2026-10-04');
+    // Still being typed: no error before the year is complete.
+    for (const text of ['', '2', '26.0', '26.06.', '26.06.202']) expect(readExamDayInput(text, today, false)).toBeNull();
+    // The year is typed: a past, too far or impossible date is an error at once.
+    expect(readExamDayInput('01.01.2020', today, false)).toBe('invalid');
+    expect(readExamDayInput('01.01.2035', today, false)).toBe('invalid');
+    expect(readExamDayInput('31.02.2027', today, false)).toBe('invalid');
+    // The field left unfinished: an error; an empty field says nothing.
+    expect(readExamDayInput('26.06', today, true)).toBe('invalid');
+    expect(readExamDayInput('2027-06-26', today, true)).toBe('invalid');
+    expect(readExamDayInput('  ', today, true)).toBeNull();
   });
 });
 

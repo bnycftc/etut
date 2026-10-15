@@ -15,7 +15,7 @@ import type { NotificationText } from '../types';
 interface MockRequest {
   identifier: string;
   content: { title: string; body: string; data: Record<string, unknown> };
-  trigger: { type: string; date: number; channelId?: string };
+  trigger: { type: string; date?: number; weekday?: number; hour?: number; minute?: number; channelId?: string };
 }
 
 type MockPermission = 'granted' | 'denied' | 'undetermined' | 'provisional';
@@ -66,7 +66,7 @@ jest.mock('expo-notifications', () => ({
   setNotificationHandler: () => {},
   IosAuthorizationStatus: { PROVISIONAL: 3, EPHEMERAL: 4 },
   AndroidImportance: { DEFAULT: 3 },
-  SchedulableTriggerInputTypes: { DATE: 'date' },
+  SchedulableTriggerInputTypes: { DATE: 'date', WEEKLY: 'weekly' },
   DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
   getPermissionsAsync: async () => {
     if (mockOs.failGet) throw new Error('no native module');
@@ -177,6 +177,26 @@ it('several syncs in a row end with the last plan', async () => {
     notifications.sync([daily('3', now + 30 * MIN)], text),
   ]);
   expect(ours()).toEqual([['etut:daily:3', now + 30 * MIN]]);
+});
+
+it('a repeating daily reminder becomes a weekly trigger on the phone clock, kept while single ones come and go', async () => {
+  // Tuesday 1 January 2030, 20:30 on this computer's clock.
+  const at = new Date(2030, 0, 1, 20, 30).getTime();
+  const weekly: PlannedNotification = { id: 'etut:daily:weekly:1', at, kind: 'daily', repeats: 'weekly' };
+  await notifications.sync([weekly], text);
+  const trigger = () => mockOs.scheduled.find((r) => r.identifier === weekly.id)?.trigger;
+  expect(trigger()).toEqual({ type: 'weekly', weekday: 3, hour: 20, minute: 30 });
+  const now = Date.now();
+  await notifications.sync([weekly, daily('a', now + 10 * MIN)], text);
+  await notifications.sync([weekly], text);
+  expect(mockOs.schedules).toBe(2);
+  expect(trigger()).toEqual({ type: 'weekly', weekday: 3, hour: 20, minute: 30 });
+});
+
+it('a repeating one due within two seconds is still scheduled (its later deliveries count)', async () => {
+  const soon: PlannedNotification = { id: 'etut:daily:weekly:2', at: Date.now() + 500, kind: 'daily', repeats: 'weekly' };
+  await notifications.sync([soon], text);
+  expect(mockOs.scheduled.find((r) => r.identifier === soon.id)?.trigger.type).toBe('weekly');
 });
 
 it('cancelAll removes only ours', async () => {

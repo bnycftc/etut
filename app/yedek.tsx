@@ -7,20 +7,19 @@ import {
   type BackupCounts,
   type BackupFile,
   backupCounts,
-  backupFileName,
   canUndoReplace,
   type ImportMode,
   parseBackup,
   replaceUndoExpired,
-  serializeBackup,
 } from '@/domain/backup';
 import { topicName } from '@/domain/curriculum';
 import { type CsvLabels, examRows, sessionRows, toCsv } from '@/domain/csv';
 import { istanbulDayKey, istanbulTimeOfDay } from '@/domain/istanbul-day';
 import { useAppState, useNow, useStored } from '@/state/app-state';
+import { backupExportText, shareBackup } from '@/state/backup-export';
 import { readBackupData } from '@/storage/backup';
 import { pickTextFile, type ShareResult, shareTextFile } from '@/storage/file-io';
-import { loadReplaceUndo, storeLastBackupAt, storeReplaceUndo } from '@/storage/kv';
+import { loadReplaceUndo, storeReplaceUndo } from '@/storage/kv';
 import { tr } from '@/strings';
 import { LastBackupLabel } from '@/ui/backup-reminder';
 import { Button, Card, Chip, ChipRow, Label, Screen } from '@/ui/components';
@@ -95,25 +94,11 @@ export default function BackupScreen() {
 
   const exportBackup = () =>
     run(async () => {
-      const today = istanbulDayKey(Date.now());
-      const json = serializeBackup(createBackup(appVersion));
-      // The file must read back on the new phone; check it here, not after the old one is reset.
-      const check = parseBackup(json);
-      if (!check.ok) {
-        setError(tr.backup.exportCheckFailed);
-        return;
-      }
-      const result = await shareTextFile(backupFileName(today), json, {
-        mimeType: 'application/json',
-        uti: 'public.json',
-        dialogTitle: tr.backup.shareTitle,
-      });
-      // "Son yedek": the file was made and handed to the share sheet (where it went is not known).
-      if (result === 'shared') {
-        storeLastBackupAt(Date.now());
-        notifyDataChanged('settings');
-      }
-      report(result, check.skippedSessions > 0 ? tr.backup.exportSkipped(check.skippedSessions) : tr.backup.exported);
+      const result = await shareBackup(createBackup(appVersion));
+      if (result.kind === 'shared') notifyDataChanged('settings');
+      const shown = backupExportText(result);
+      if ('error' in shown) setError(shown.error);
+      else setMessage(shown.message);
     });
 
   const pick = () =>

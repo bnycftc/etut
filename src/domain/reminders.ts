@@ -13,13 +13,16 @@
  *   Pomodoro breaks do not pause the timer, so the text never says "without a break".
  * - `pomodoro`: a pomodoro phase ends (the in-app vibration covers the foreground case).
  * - `daily`: the student's daily study reminder at a chosen Istanbul time; skipped today once
- *   the student has studied today or a session is running.
+ *   the student has studied today or a session is running. One repeating (weekly) notification
+ *   per weekday, so it keeps coming however long the app stays closed (single notifications for
+ *   the next 10 days ran out when the app was not opened). See `planNotifications` for the
+ *   skipped day.
  * - `exam_analysis`: one reminder the day after a mock exam was saved with its analysis pending.
  *
  * Nothing is planned before the student has confirmed reminders once (`effectiveReminderPrefs`).
  */
 
-import { addDays, type DayKey, dayStartMs, istanbulDayKey } from './istanbul-day';
+import { addDays, type DayKey, dayStartMs, istanbulDayKey, istanbulWeekday } from './istanbul-day';
 import { type PomodoroPhase, upcomingPhaseChanges } from './pomodoro';
 import { type ActiveSession, isPaused } from './timer';
 
@@ -30,13 +33,16 @@ export const LONG_SESSION_HOURS = { min: 1, max: 8, default: 3 } as const;
 export const DAILY_MINUTE_STEP = 15;
 /** Istanbul hour of the "analizi bekleyen deneme" reminder on the next day. */
 export const EXAM_REMINDER_HOUR = 18;
-/** Days of daily reminders kept scheduled ahead (refreshed whenever the app is opened). */
-export const DAILY_DAYS_AHEAD = 10;
+/**
+ * Weeks of single daily reminders that stand in for a skipped weekday's repeating one (see
+ * `planNotifications`): 6 repeating + 4 single = 10 daily notifications at most.
+ */
+export const DAILY_SKIPPED_WEEKS_AHEAD = 4;
 /**
  * Pomodoro phase changes kept scheduled ahead: ≈ 10 h 50 min with the default 25/5/15 rhythm,
  * so a locked phone keeps getting them. The plan moves on at every phase change while the app is
- * open and when it goes to the background. With 10 daily reminders, 1 long-session reminder and at
- * most 2 exam days (yesterday's and today's exams) it stays under `MAX_PLANNED`.
+ * open and when it goes to the background. With at most 10 daily notifications, 1 long-session
+ * reminder and at most 2 exam days (yesterday's and today's exams) it stays under `MAX_PLANNED`.
  */
 export const POMODORO_CHANGES_AHEAD = 40;
 /** iOS keeps at most 64 pending local notifications per app. */
@@ -118,7 +124,8 @@ export function normalizeReminderPrefs(value: unknown): ReminderPrefs {
 export type PlannedNotification =
   | { id: string; at: number; kind: 'long_session'; hours: number }
   | { id: string; at: number; kind: 'pomodoro'; ended: PomodoroPhase; next: PomodoroPhase }
-  | { id: string; at: number; kind: 'daily' }
+  /** `at` = next delivery; `repeats: 'weekly'` = then again every 7 days at the same time. */
+  | { id: string; at: number; kind: 'daily'; repeats?: 'weekly' }
   | { id: string; at: number; kind: 'exam_analysis'; count: number };
 
 /** All identifiers of this app start with this prefix. */
@@ -179,12 +186,30 @@ export function planNotifications(input: ReminderInput): PlannedNotification[] {
   }
 
   if (prefs.daily.enabled) {
+    const { hour, minute } = prefs.daily;
     const today = istanbulDayKey(now);
-    for (let i = 0; i < DAILY_DAYS_AHEAD; i++) {
+    // The next delivery of each weekday: from today, or from tomorrow once today's time has passed.
+    const first = istanbulTime(today, hour, minute) > now ? 0 : 1;
+    for (let i = first; i < first + 7; i++) {
       const day = addDays(today, i);
-      if (i === 0 && (studiedToday || active !== null)) continue;
-      const at = istanbulTime(day, prefs.daily.hour, prefs.daily.minute);
-      if (at > now) out.push({ id: `${NOTIFICATION_ID_PREFIX}daily:${day}`, at, kind: 'daily' });
+      if (i === 0 && (studiedToday || active !== null)) {
+        // Today is skipped, and a repeating notification can not leave out one delivery: this
+        // weekday gets single ones for the next weeks instead. The next sync (any opening of the
+        // app, also later today) puts its repeating one back. Trade-off: if the app then stays
+        // closed for more than DAILY_SKIPPED_WEEKS_AHEAD weeks, this weekday falls silent; the
+        // six other days keep coming.
+        for (let week = 1; week <= DAILY_SKIPPED_WEEKS_AHEAD; week++) {
+          const later = addDays(day, 7 * week);
+          out.push({ id: `${NOTIFICATION_ID_PREFIX}daily:${later}`, at: istanbulTime(later, hour, minute), kind: 'daily' });
+        }
+        continue;
+      }
+      out.push({
+        id: `${NOTIFICATION_ID_PREFIX}daily:weekly:${istanbulWeekday(day)}`,
+        at: istanbulTime(day, hour, minute),
+        kind: 'daily',
+        repeats: 'weekly',
+      });
     }
   }
 

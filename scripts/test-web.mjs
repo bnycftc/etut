@@ -12,7 +12,8 @@
  * groups route opens the timer → reload keeps the profile → share card (1080x1920 PNG) → mock exam with the right
  * net (area papers only) → reload keeps the exam → area change → "Sayaç çalışırken" settings
  * (kept across a reload) → backup + CSV download → about / legal / licenses → reminders screen
- * renders → "delete all data" returns to onboarding → empty states → restore the backup
+ * renders → "delete all data" offers a backup first (deletes nothing), then returns to
+ * onboarding → empty states → restore the backup
  * twice (no duplicates) → dark theme with reduced motion.
  *
  * Environment:
@@ -429,6 +430,15 @@ async function runScenario(page, baseUrl) {
   await byId('tab-settings').click();
   await visible('settings-delete-all');
   await byId('settings-delete-all').click();
+  // "Önce yedek al" makes the backup (a download on web) and deletes nothing: the dialog stays.
+  const [deleteBackup] = await Promise.all([
+    page.waitForEvent('download', { timeout: STEP_TIMEOUT_MS }),
+    byId('settings-delete-all-backup').click(),
+  ]);
+  check(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/.test(deleteBackup.suggestedFilename()), 'backup before delete: wrong file name');
+  await visible('settings-delete-all-backup-note');
+  check((await text('settings-delete-all-backup-note')) === 'Yedek dosyası hazırlandı.', 'backup before delete: no message');
+  await screenshot('delete-all-backup-first');
   await byId('settings-delete-all-confirm').click();
   await visible('onboarding-start');
   await screenshot('after-delete-all');
