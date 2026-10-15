@@ -991,6 +991,8 @@ export const tr = {
     deleteAllYes: 'Evet, hepsini sil',
     /** Runs the backup export of the Yedek screen; deletes nothing. */
     deleteAllBackupFirst: 'Önce yedek al',
+    deleteAllBackupDone: (exported: string) =>
+      `${exported} Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez.`,
     deleteAllBackupCheckFailed:
       'Yedek dosyası doğrulanamadı, bu yüzden oluşturulmadı. Çalışma kayıtlarını “Yedekle ve geri yükle” ekranından CSV olarak dışa aktarabilirsin.',
     dataInfoGroups:

@@ -100,7 +100,7 @@ export default function SettingsScreen() {
   const [dateError, setDateError] = useState(false);
   // Saved as soon as the field holds a valid date: settings have no Kaydet button (bny, 12 Oct 2026).
   const changeDate = (text: string, left = false) => {
-    const day = readExamDayInput(text, istanbulDayKey(Date.now()), left);
+    const day = readExamDayInput(text, dateText, istanbulDayKey(Date.now()), left);
     setDateError(day === 'invalid');
     if (day === null || day === 'invalid') {
       setDateText(text);
@@ -153,9 +153,10 @@ export default function SettingsScreen() {
       const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '';
       const result = await shareBackup(createBackup(appVersion));
       if (result.kind === 'shared') notifyDataChanged('settings');
-      setBackupNote(
-        result.kind === 'check_failed' ? { error: tr.settings.deleteAllBackupCheckFailed } : backupExportText(result),
-      );
+      const shown =
+        result.kind === 'check_failed' ? { error: tr.settings.deleteAllBackupCheckFailed } : backupExportText(result);
+      // Closing the share sheet without saving also counts as shared: say so above "Evet, hepsini sil".
+      setBackupNote('message' in shown ? { message: tr.settings.deleteAllBackupDone(shown.message) } : shown);
     } catch {
       setBackupNote({ error: tr.backup.failed });
     } finally {

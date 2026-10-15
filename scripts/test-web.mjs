@@ -437,7 +437,10 @@ async function runScenario(page, baseUrl) {
   ]);
   check(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/.test(deleteBackup.suggestedFilename()), 'backup before delete: wrong file name');
   await visible('settings-delete-all-backup-note');
-  check((await text('settings-delete-all-backup-note')) === 'Yedek dosyası hazırlandı.', 'backup before delete: no message');
+  check(
+    (await text('settings-delete-all-backup-note')).startsWith('Yedek dosyası hazırlandı.'),
+    'backup before delete: no message',
+  );
   await screenshot('delete-all-backup-first');
   await byId('settings-delete-all-confirm').click();
   await visible('onboarding-start');

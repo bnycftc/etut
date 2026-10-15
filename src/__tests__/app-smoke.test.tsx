@@ -1340,7 +1340,10 @@ describe('other screens render', () => {
     expect(memory.shared[0].name).toMatch(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/);
     expect(JSON.parse(memory.shared[0].content)).toMatchObject({ format: 'etut-yedek', sessions: [{ id: 'a' }] });
     expect(memory.lastBackupAt).not.toBeNull();
-    expect(screen.getByTestId('settings-delete-all-backup-note').props.children).toBe('Yedek dosyası hazırlandı.');
+    // The share sheet does not tell whether the file was saved: the note says so.
+    expect(screen.getByTestId('settings-delete-all-backup-note').props.children).toBe(
+      'Yedek dosyası hazırlandı. Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez.',
+    );
     // Nothing deleted, the dialog still open.
     expect(memory.profile).not.toBeNull();
     expect(memory.sessions).toHaveLength(1);

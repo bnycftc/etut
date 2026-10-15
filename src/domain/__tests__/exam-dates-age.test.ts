@@ -53,18 +53,29 @@ describe('exam countdown', () => {
 
   it('the Ayarlar field: a date once valid, an error only for a finished entry', () => {
     const today = '2026-10-04';
-    expect(readExamDayInput('26.06.2027', today, false)).toBe('2027-06-26');
-    expect(readExamDayInput('4.10.2026', today, true)).toBe('2026-10-04');
+    const typed = (text: string, left = false) => readExamDayInput(text, text.slice(0, -1), today, left);
+    expect(typed('26.06.2027')).toBe('2027-06-26');
+    expect(readExamDayInput('26.06.2027', '', today, false)).toBe('2027-06-26'); // pasted
+    expect(typed('4.10.2026', true)).toBe('2026-10-04');
     // Still being typed: no error before the year is complete.
-    for (const text of ['', '2', '26.0', '26.06.', '26.06.202']) expect(readExamDayInput(text, today, false)).toBeNull();
+    for (const text of ['', '2', '26.0', '26.06.', '26.06.202']) expect(typed(text)).toBeNull();
     // The year is typed: a past, too far or impossible date is an error at once.
-    expect(readExamDayInput('01.01.2020', today, false)).toBe('invalid');
-    expect(readExamDayInput('01.01.2035', today, false)).toBe('invalid');
-    expect(readExamDayInput('31.02.2027', today, false)).toBe('invalid');
+    expect(typed('01.01.2020')).toBe('invalid');
+    expect(typed('01.01.2035')).toBe('invalid');
+    expect(typed('31.02.2027')).toBe('invalid');
     // The field left unfinished: an error; an empty field says nothing.
-    expect(readExamDayInput('26.06', today, true)).toBe('invalid');
-    expect(readExamDayInput('2027-06-26', today, true)).toBe('invalid');
-    expect(readExamDayInput('  ', today, true)).toBeNull();
+    expect(typed('26.06', true)).toBe('invalid');
+    expect(typed('2027-06-26', true)).toBe('invalid');
+    expect(typed('  ', true)).toBeNull();
+  });
+
+  it('the Ayarlar field: a half-corrected date is not saved before the field is left', () => {
+    const today = '2026-10-04';
+    // 31.06 is impossible; deleting the 1 to type a 0 passes through 3.06.2027.
+    expect(readExamDayInput('3.06.2027', '31.06.2027', today, false)).toBeNull();
+    expect(readExamDayInput('30.06.2027', '3.06.2027', today, false)).toBeNull();
+    expect(readExamDayInput('30.06.2027', '30.06.2027', today, true)).toBe('2027-06-30');
+    expect(readExamDayInput('12.1.2027', '12.13.2027', today, false)).toBeNull();
   });
 });
 
