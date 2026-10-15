@@ -591,6 +591,13 @@ export const tr = {
     chartChange: (last: string, change: string) => `Son deneme: ${last} net · öncekinden ${change}`,
     chartBransLegend: 'Dolu nokta genel, içi boş nokta branş denemesi.',
     chartTargetLegend: 'Kesik çizgi: hedef net.',
+    /** Confirmation on the list right after "Kaydet" in the new-exam form. */
+    saved: (net: string) => `${net} net kaydedildi`,
+    savedAnalysisHint: 'Kitapçık elindeyse şimdi analize başla; değilse sonra bu sekmeden de başlayabilirsin.',
+    savedDismiss: 'Kapat',
+    savedDismissA11y: 'Kaydedildi bilgisini kapat',
+    /** The list shows the newest exams first, a page at a time. */
+    showMore: 'Daha fazla göster',
   },
 
   analysis: {
@@ -1134,6 +1141,7 @@ export const tr = {
     weeklyTitle: 'Bu hafta kayıtlı çalışma yok',
     weeklyBody: 'Haftanın her günü (Pazartesi–Pazar) çalıştığın süre burada toplanır. Önceki haftalara oklarla bakabilirsin.',
     startTimer: 'Sayaca git',
+    addFirstExam: 'İlk denemeni ekle',
   },
 
   tips: {

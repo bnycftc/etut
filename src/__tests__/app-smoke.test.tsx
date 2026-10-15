@@ -873,6 +873,76 @@ describe('mock exam entry, editing and charts', () => {
     expect(screen.getByTestId('exam-item-0-net').props.children).toEqual(['10', ' ', 'net']);
   });
 
+  it('after Kaydet the list confirms the net and offers the analysis once', () => {
+    jest.mocked(Haptics.notificationAsync).mockClear();
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    // Türkçe 10 doğru 6 yanlış = 8,5 net; the other sections stay blank, so there is something to analyse.
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '10');
+    fireEvent.changeText(screen.getByTestId('exam-wrong-turkce'), '6');
+    fireEvent.press(screen.getByTestId('exam-save'));
+
+    expect(screen.getByTestId('exams-saved-title').props.children).toBe('8,5 net kaydedildi');
+    expect(Haptics.notificationAsync).toHaveBeenCalledWith('success');
+    expect(announce).toHaveBeenCalledWith('8,5 net kaydedildi');
+    // The reminder card would repeat the same offer for the same exam.
+    expect(screen.queryByTestId('analysis-reminder')).toBeNull();
+    fireEvent.press(screen.getByTestId('exams-saved-analysis'));
+    expect(screen.getByTestId('analysis-tagged-turkce')).toBeTruthy();
+
+    // Back on the list: the confirmation was a moment; the usual reminder takes over.
+    act(() => router.back());
+    expect(screen.queryByTestId('exams-saved')).toBeNull();
+    expect(screen.getByTestId('analysis-reminder').props.children).toBe('Analizi bekleyen 1 deneme var');
+    announce.mockRestore();
+  });
+
+  it('an exam with nothing to analyse is only confirmed; "Kapat" removes the card', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.press(screen.getByTestId('exam-scope-brans'));
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '40');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    expect(screen.getByTestId('exams-saved-title').props.children).toBe('40 net kaydedildi');
+    expect(screen.queryByTestId('exams-saved-analysis')).toBeNull();
+    fireEvent.press(screen.getByLabelText('Kaydedildi bilgisini kapat'));
+    expect(screen.queryByTestId('exams-saved')).toBeNull();
+  });
+
+  it('the confirmation is gone once the student leaves the list and comes back', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '5');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    expect(screen.getByTestId('exams-saved')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('exam-item-0'));
+    expect(screen.getByTestId('exam-detail-total')).toBeTruthy();
+    act(() => router.back());
+    expect(screen.getByTestId('exam-item-0')).toBeTruthy();
+    expect(screen.queryByTestId('exams-saved')).toBeNull();
+  });
+
+  it('the list draws 20 exams at a time; "Daha fazla göster" adds the next 20', () => {
+    memory.exams = Array.from({ length: 45 }, (_, i) => ({ ...TYT_E1, id: `e${i}`, totalNet: i }));
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exam-item-19-net').props.children).toEqual(['19', ' ', 'net']);
+    expect(screen.queryByTestId('exam-item-20')).toBeNull();
+    fireEvent.press(screen.getByTestId('exams-more'));
+    expect(screen.getByTestId('exam-item-39')).toBeTruthy();
+    expect(screen.queryByTestId('exam-item-40')).toBeNull();
+    fireEvent.press(screen.getByTestId('exams-more'));
+    expect(screen.getByTestId('exam-item-44-net').props.children).toEqual(['44', ' ', 'net']);
+    expect(screen.queryByTestId('exams-more')).toBeNull();
+  });
+
+  it('20 exams or fewer: no "Daha fazla göster"', () => {
+    memory.exams = Array.from({ length: 20 }, (_, i) => ({ ...TYT_E1, id: `e${i}` }));
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exam-item-19')).toBeTruthy();
+    expect(screen.queryByTestId('exams-more')).toBeNull();
+  });
+
   it('"Dün" picks yesterday in one tap; the boxes move on with the return key / keyboard bar', () => {
     const keyboardListeners: { show?: (e: object) => void; hide?: (e: object) => void } = {};
     const keyboardSpy = jest.spyOn(Keyboard, 'addListener').mockImplementation(((event: string, cb: (e: object) => void) => {
@@ -1403,6 +1473,30 @@ describe('empty states', () => {
   ])('%s explains what will appear', (url, id) => {
     renderRouter(APP_DIR, { initialUrl: url });
     expect(screen.getByTestId(id)).toBeTruthy();
+  });
+
+  it('the empty exam list has its own add button (the top one is out of sight down there)', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByRole('button', { name: 'İlk denemeni ekle' })).toBeTruthy();
+    fireEvent.press(screen.getByTestId('exams-empty-action'));
+    expect(screen.getByTestId('exam-kind-TYT')).toBeTruthy();
+  });
+
+  it('no exam form ("Diğer"): the empty card offers no add button', () => {
+    memory.profile = { ...ADULT_SAYISAL, examType: 'DIGER', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('exams-empty')).toBeTruthy();
+    expect(screen.queryByTestId('exams-empty-action')).toBeNull();
+  });
+
+  it('an empty week leads to the timer; a past week does not', () => {
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    fireEvent.press(screen.getByTestId('weekly-prev'));
+    expect(screen.getByTestId('weekly-empty')).toBeTruthy();
+    expect(screen.queryByTestId('weekly-empty-action')).toBeNull();
+    fireEvent.press(screen.getByTestId('weekly-next'));
+    fireEvent.press(screen.getByTestId('weekly-empty-action'));
+    expect(screen.getByTestId('timer-start')).toBeTruthy();
   });
 });
 

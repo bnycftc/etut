@@ -57,7 +57,7 @@ export default function TopicsScreen() {
 
   return (
     <Screen testID="topics-screen">
-      {firstUse ? <EmptyState testID="topics-empty" body={tr.empty.topicsBody} /> : null}
+      {firstUse ? <EmptyState testID="topics-empty" icon="topics" body={tr.empty.topicsBody} /> : null}
       <Card>
         <Label variant="heading">{tr.topics.pickSubject}</Label>
         <ChipRow>

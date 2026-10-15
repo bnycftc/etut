@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { topicName } from '@/domain/curriculum';
@@ -13,6 +13,7 @@ import {
 import { EXAM_SECTIONS, type ExamKind, examKindsFor, examKindsToShow, formatNet } from '@/domain/net';
 import { toggleStatus } from '@/domain/topics';
 import { useAppState, useStored } from '@/state/app-state';
+import { setSavedExamNotice, useSavedExamNotice } from '@/state/saved-exam-notice';
 import { loadNetTargets, loadPomodoroConfig, loadTimerMode, storeNetTarget } from '@/storage/kv';
 import {
   listAllMarks,
@@ -30,15 +31,19 @@ import {
   EmptyState,
   Field,
   Label,
+  ResponsiveRow,
   Row,
   Screen,
   Tag,
 } from '@/ui/components';
 import { formatDay } from '@/ui/format';
+import { Icon } from '@/ui/icon';
 import { NetChart } from '@/ui/net-chart';
-import { usePalette } from '@/ui/theme';
+import { space, usePalette } from '@/ui/theme';
 
 const CHART_LIMIT = 10;
+/** Exam rows drawn at first and per "Daha fazla göster" (the list is not virtualised). */
+const LIST_PAGE = 20;
 
 function shortDay(day: string): string {
   return day.slice(8, 10) + '.' + day.slice(5, 7);
@@ -78,6 +83,13 @@ export default function ExamsScreen() {
     chartKind === null || section === null ? [] : sectionNetHistory(chartKind, section.id),
   );
   const pendingIds = new Set(pending.map((e) => e.id));
+  const [listLimit, setListLimit] = useState(LIST_PAGE);
+
+  // "11,5 net kaydedildi" right after the new-exam form closes; gone once the student leaves the list.
+  const savedId = useSavedExamNotice();
+  useFocusEffect(useCallback(() => () => setSavedExamNotice(null), []));
+  const saved = savedId === null ? null : (exams.find((e) => e.id === savedId) ?? null);
+  const savedPending = saved !== null && pendingIds.has(saved.id);
 
   const setChartKind = (k: ExamKind) => {
     setChartKindState(k);
@@ -129,7 +141,42 @@ export default function ExamsScreen() {
         <Button large testID="exams-add" title={tr.exams.add} onPress={() => router.push('/deneme/yeni')} />
       )}
 
-      {pending.length > 0 ? (
+      {saved !== null ? (
+        <Card testID="exams-saved">
+          <ResponsiveRow>
+            <View style={{ flexGrow: 1, flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+              <Icon name="saved" color={c.success} />
+              <Label variant="heading" testID="exams-saved-title" style={{ color: c.success, flexShrink: 1 }}>
+                {tr.exams.saved(formatNet(saved.totalNet))}
+              </Label>
+            </View>
+            <Button
+              compact
+              testID="exams-saved-dismiss"
+              kind="secondary"
+              title={tr.exams.savedDismiss}
+              accessibilityLabel={tr.exams.savedDismissA11y}
+              onPress={() => setSavedExamNotice(null)}
+            />
+          </ResponsiveRow>
+          {savedPending ? (
+            <>
+              <Label variant="muted">{tr.exams.savedAnalysisHint}</Label>
+              <Button
+                testID="exams-saved-analysis"
+                title={tr.analysis.start}
+                onPress={() => {
+                  setSavedExamNotice(null);
+                  router.push({ pathname: '/analiz/[id]', params: { id: saved.id } });
+                }}
+              />
+            </>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {/* The card above already offers the analysis of the exam just saved. */}
+      {pending.length > 0 && !savedPending ? (
         <Card>
           <Label testID="analysis-reminder" variant="heading" style={{ color: c.warning }}>
             {tr.analysis.pendingTitle(pending.length)}
@@ -306,9 +353,17 @@ export default function ExamsScreen() {
 
       <Label variant="heading">{tr.exams.listTitle}</Label>
       {exams.length === 0 ? (
-        <EmptyState testID="exams-empty" title={tr.empty.examsTitle} body={tr.empty.examsBody} />
+        <EmptyState
+          testID="exams-empty"
+          icon="exams"
+          title={tr.empty.examsTitle}
+          body={tr.empty.examsBody}
+          // "Deneme ekle" sits at the top, out of sight once the student scrolls down to here.
+          action={ownKinds.length > 0 ? tr.empty.addFirstExam : undefined}
+          onAction={() => router.push('/deneme/yeni')}
+        />
       ) : null}
-      {exams.map((e, index) => (
+      {exams.slice(0, listLimit).map((e, index) => (
         <Pressable
           key={e.id}
           testID={`exam-item-${index}`}
@@ -335,6 +390,14 @@ export default function ExamsScreen() {
           </Card>
         </Pressable>
       ))}
+      {exams.length > listLimit ? (
+        <Button
+          testID="exams-more"
+          kind="secondary"
+          title={tr.exams.showMore}
+          onPress={() => setListLimit((n) => n + LIST_PAGE)}
+        />
+      ) : null}
     </Screen>
   );
 }

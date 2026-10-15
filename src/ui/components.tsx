@@ -434,23 +434,36 @@ export function Stepper({
   );
 }
 
-/** Title, short explanation and an optional action, for screens without data yet. */
+/** Icon, title, short explanation and an optional action, for screens without data yet. */
 export function EmptyState({
+  icon,
   title,
   body,
   action,
   onAction,
   testID,
 }: {
+  /** Small decorative symbol of the screen (e.g. the tab icon) in front of the title. */
+  icon?: IconName;
   title?: string;
   body: string;
   action?: string;
   onAction?: () => void;
   testID?: string;
 }) {
+  const c = usePalette();
   return (
     <Card testID={testID}>
-      {title ? <Label variant="heading">{title}</Label> : null}
+      {icon || title ? (
+        <View style={styles.row}>
+          {icon ? <Icon name={icon} color={c.accent} size={28} /> : null}
+          {title ? (
+            <Label variant="heading" style={{ flex: 1 }}>
+              {title}
+            </Label>
+          ) : null}
+        </View>
+      ) : null}
       <Label variant="muted">{body}</Label>
       {action && onAction ? (
         <Row>
