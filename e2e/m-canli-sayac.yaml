@@ -1,7 +1,7 @@
 # m. Canlı sayaç (Live Activity: Dynamic Island ve Bildirim Merkezi) + uzakta görünümü + pomodoro
-# Kilit ekranı görünümünde ders ve durum metni zorunlu denetlenir (boş çizilen Live Activity akışı
-# düşürür); "Sor" kuralıyla uygulamadan 10 sn'den uzun çıkınca etkinliğin kendiliğinden (staleDate →
-# isStale) "Uygulamadan çıktın" görünümüne geçtiği de zorunlu denetlenir. Dynamic Island, mola ve
+# Kilit ekranı görünümünde ders adı zorunlu denetlenir (boş çizilen Live Activity akışı düşürür);
+# "Sor" kuralıyla uygulamadan 10 sn'den uzun çıkınca etkinliğin kendiliğinden (staleDate → isStale)
+# "Uygulamadan çıktın" görünümüne geçtiği de zorunlu denetlenir. Dynamic Island, mola ve
 # pomodoro görünümleri yalnız ekran görüntüsüyle kanıtlanır: m-canli-sayac-0x görüntüleri
 # artifact'ta elle incelenmelidir (README).
 appId: com.bnycftc.etut
@@ -23,23 +23,30 @@ tags:
       id: timer-clock
       text: "0:(0[2-9]|[1-5][0-9])"
     timeout: 15000
-# Notification Center pulled down over the app (top-left edge) shows the Lock Screen
-# presentation. Over the app it only makes the app 'inactive', which is not leaving it: the running
-# state is checked here, without racing the 10 s tolerance (on the CI simulator a Home press and
-# one swipe alone take more than 10 s, run e2e-ios-35-1).
+# Home screen: the system draws the running clock in the Dynamic Island (no app code runs).
+- pressKey: Home
+# Maestro has no sleep command: wait for an id that never exists and carry on (optional).
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 3000
+    optional: true
+- takeScreenshot: m-canli-sayac-01-dynamic-island
+# Notification Center (pulled down from the top-left edge) shows the Lock Screen presentation.
+# Only with the app in the background: pulled over the app, Maestro reads the app's own screen
+# ("Fizik" and "Çalışıyorsun" are on it too) and cannot reach the permission prompt (run e2e-ios-36-1).
 - swipe:
     start: 15%, 0%
     end: 15%, 70%
     duration: 600
-# Maestro has no sleep command: wait for an id that never exists and carry on (optional).
 - extendedWaitUntil:
     visible:
       id: e2e-never-present
     timeout: 2000
     optional: true
 - takeScreenshot: m-canli-sayac-02-kilit-ekrani
-# First Live Activity: iOS asks on the Lock Screen ("Canlı Etkinliklere İzin Verilsin mi?") and
-# draws nothing until it is allowed. Text is matched in full, so "İzin Ver" does not hit "İzin Verme".
+# First Live Activity: iOS asks on the Lock Screen ("Canlı Etkinliklere İzin Verilsin mi?").
+# Text is matched in full, so "İzin Ver" does not hit "İzin Verme".
 - tapOn:
     text: "İzin Ver|Allow"
     optional: true
@@ -49,23 +56,21 @@ tags:
     timeout: 2000
     optional: true
 - takeScreenshot: m-canli-sayac-02b-izin-sonrasi
-# The Lock Screen presentation must show the subject and the status. Maestro does read
-# SpringBoard here: in runs e2e-ios-15-2 and 21-1 both checks passed while the Live Activity was
-# drawn, and in run 13-1 (App Group entitlement lost, the activity drawn empty) both failed. So a
-# blank or missing Live Activity now fails the flow; the screenshots stay the visual evidence.
+# The Lock Screen presentation must be drawn with the subject. Maestro does read SpringBoard here:
+# in runs e2e-ios-15-2 and 21-1 the checks passed while the Live Activity was drawn, and in run
+# 13-1 (App Group entitlement lost, the activity drawn empty) they failed. "Çalışıyorsun" can not
+# be checked here: on the CI simulator the Home press and one swipe alone take more than the 10 s
+# tolerance (run e2e-ios-35-1), so by now the activity may already show the away presentation.
+# o-ayarlar-sayac checks "Çalışıyorsun" on the Lock Screen ("Çalışmaya devam say").
 - extendedWaitUntil:
     visible:
       text: "Fizik"
-    timeout: 10000
-- extendedWaitUntil:
-    visible:
-      text: "Çalışıyorsun"
     timeout: 10000
 - swipe:
     start: 50%, 99%
     end: 50%, 20%
     duration: 400
-# Back in front for sure (the swipe may have gone to the home screen).
+# Back to the same process; being away > 10 s turned into an automatic break.
 - launchApp:
     stopApp: false
     permissions: {}
@@ -80,22 +85,15 @@ tags:
     commands:
       - tapOn:
           id: away-credit
-# Home screen: the system draws the running clock in the Dynamic Island (no app code runs). This
-# is leaving the app: with the default rule "Sor" the last update before the app is suspended
-# tells the Live Activity where to freeze.
+# Away presentation, now with Live Activities allowed: leave the app again with the default rule
+# "Sor". The last update before the app is suspended carries the away fields and a stale date 10 s
+# later; then the activity switches by itself (isStale): frozen clock, "Uygulamadan çıktın · mola
+# sayılıyor", no "Çalışıyorsun".
 - pressKey: Home
 - extendedWaitUntil:
     visible:
       id: e2e-never-present
-    timeout: 3000
-    optional: true
-- takeScreenshot: m-canli-sayac-01-dynamic-island
-# More than 12 s after leaving: the activity went stale 10 s after the background event and shows
-# the away presentation by itself (frozen clock, "Uygulamadan çıktın · mola sayılıyor").
-- extendedWaitUntil:
-    visible:
-      id: e2e-never-present
-    timeout: 10000
+    timeout: 12000
     optional: true
 - swipe:
     start: 15%, 0%
@@ -108,6 +106,10 @@ tags:
     optional: true
 # Taken before the checks: the evidence is there whether they pass or not.
 - takeScreenshot: m-canli-sayac-02c-uzakta
+- extendedWaitUntil:
+    visible:
+      text: "Fizik"
+    timeout: 10000
 - extendedWaitUntil:
     visible:
       text: "Uygulamadan çıktın.*"
