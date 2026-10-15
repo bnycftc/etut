@@ -796,7 +796,10 @@ describe('system surfaces are not rewritten with the same content', () => {
 
     emitAppState('background', from);
     await settle();
-    expect(mockSurfaces.liveActivities[0]).toMatchObject({ status: 'Çalışıyorsun', awayAt: T0 });
+    expect(mockSurfaces.liveActivities[0]).toMatchObject({
+      status: 'Uygulamadan çıktın · 10 sn içinde dönmezsen mola sayılır',
+      awayAt: T0,
+    });
     expect({ updates: mockSurfaces.liveUpdates, widget: mockSurfaces.widgetWrites }).toEqual({
       updates: before.updates + 1,
       widget: before.widget + 1,
@@ -807,7 +810,7 @@ describe('system surfaces are not rewritten with the same content', () => {
     act(() => jest.setSystemTime(T0 + 3_000));
     emitAppState('active', from);
     await settle();
-    expect(mockSurfaces.liveActivities[0].awayAt).toBeNull();
+    expect(mockSurfaces.liveActivities[0]).toMatchObject({ status: 'Çalışıyorsun', awayAt: null });
     expect(storedActive()?.pendingAway).toBeNull();
     expect({ updates: mockSurfaces.liveUpdates, widget: mockSurfaces.widgetWrites }).toEqual({
       updates: before.updates + 2,

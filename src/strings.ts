@@ -752,6 +752,11 @@ export const tr = {
      */
     phaseEnds: (label: string, time: string) => `${label} · bitiş ${time}`,
     /**
+     * Sent with the update at the moment the app leaves under "Sor" (stopwatch, work block): true
+     * from then on, also while the clock still runs (the simulator never showed the stale layout).
+     */
+    awayPending: (seconds: number) => `Uygulamadan çıktın · ${seconds} sn içinde dönmezsen mola sayılır`,
+    /**
      * Shown once the app has been away longer than the tolerance under "Sor": the clock stops there
      * (the time away becomes a break unless the student answers "Çalışıyordum").
      */
@@ -1413,7 +1418,7 @@ export const tr = {
       title: 'Kilit ekranı sayacı ve widget',
       paragraphs: (maxHours: number) => [
         'iPhone’da Başla’ya dokununca sayaç kilit ekranında ve Dynamic Island’da da görünür. Görmüyorsan iPhone’un Ayarlar → Etüt → Canlı Etkinlikler seçeneğini aç.',
-        '“Sor” seçiliyken uygulamadan çıkınca ya da telefon kilitlenince kilit ekranındaki sayaç 10 saniye sonra durur ve “Uygulamadan çıktın · mola sayılıyor” yazar; dönünce “Çalışıyordum” dersen süre eklenir, sayaç ileri atlar. “Çalışmaya devam say” seçiliyse kilit ekranındaki sayaç saymaya devam eder.',
+        '“Sor” seçiliyken uygulamadan çıkınca ya da telefon kilitlenince kilit ekranındaki sayaçta “Uygulamadan çıktın” yazar: 10 saniye içinde dönmezsen o süre mola sayılır; dönünce “Çalışıyordum” dersen süre eklenir. “Çalışmaya devam say” seçiliyse kilit ekranındaki sayaç saymaya devam eder.',
         `iOS bir canlı sayacı en fazla ${maxHours} saat gösterir; uzun bir oturumda uygulamayı açınca yenilenir.`,
       ],
       widgetTitle: 'Ana ekrana widget eklemek',

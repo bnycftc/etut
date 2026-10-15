@@ -1983,9 +1983,10 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
       emitAppState('background', from);
       await settle();
       const leftAt = memory.active!.backgroundedAt!;
-      // Still the running presentation; the system switches to the away one at the stale date.
+      // The clock still runs (the tolerance) but the status is honest at once; the system may
+      // switch to the frozen away presentation at the stale date.
       expect(memory.liveActivities[0]).toMatchObject({
-        status: 'Çalışıyorsun',
+        status: 'Uygulamadan çıktın · 10 sn içinde dönmezsen mola sayılır',
         pausedAt: null,
         from: startedAt,
         awayAt: leftAt,

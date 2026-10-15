@@ -118,14 +118,20 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   **Uzakta (Ayarlar → "Uygulamadan çıkınca: Sor", varsayılan):** arka plana geçerken giden son
   güncelleme, uzakta kalınan sürenin nereden itibaren mola sayılacağını da taşır
   (`provisionalAwayAt`: kronometrede ve çalışma bloğunda ayrılma anı, pomodoro molasında molanın
-  sonu). Sayaç 10 sn tolerans boyunca (molada mola bitene kadar) saymaya devam eder; `staleDate`
-  gelince etkinlik kendiliğinden (`isStale`) uzakta görünümüne geçer: saat o andaki çalışma
-  süresinde durur (`pauseTime`, elle molayla aynı), simge duraklatma, altında "Uygulamadan çıktın ·
-  mola sayılıyor" ve "Dönünce “Çalışıyordum” dersen süre eklenir." Duran saat en çok 10 sn geri
-  adım atar (bilinçli). Bu görünüm "sıradaki aşama" görünümünden önce gelir; pomodoroda kaybedilen
-  aşamayı (o anki blok, molada çıkıldıysa sıradaki blok tam uzunlukta) donmuş gösterir. Aşama sonu
-  yerel bildirimleri pomodoro planına göre yine gelir (bilinçli). Uygulama dönünce etkinliği
-  günceller; "Çalışıyordum" denirse saat ileri atlar. "Çalışmaya devam say" seçiliyse hiçbir şey
+  sonu). Kronometrede ve çalışma bloğunda durum satırı aynı güncellemeyle hemen "Uygulamadan
+  çıktın · 10 sn içinde dönmezsen mola sayılır" olur (saatin altında, kendi satırında); molada
+  "Kısa mola" kalır. Sayaç 10 sn tolerans boyunca (molada mola bitene kadar) saymaya devam eder;
+  `staleDate` gelince etkinlik kendiliğinden (`isStale`) uzakta görünümüne geçmelidir: saat o andaki
+  çalışma süresinde durur (`pauseTime`, elle molayla aynı), simge duraklatma, altında "Uygulamadan
+  çıktın · mola sayılıyor" ve "Dönünce “Çalışıyordum” dersen süre eklenir." **iOS simülatöründe bu
+  geçiş çizilmedi** (e2e-ios-37-1: Canlı Etkinliklere izin verilmiş, uzakta alanlı güncelleme arka
+  plan olayından 70 ms sonra gitmiş, 19 sn sonra bile çalışan görünüm duruyordu); gerçek cihazda
+  denenmedi. Bu yüzden dürüst durum metni bayat görünüme bağlı değildir; simülatörde saat saymaya
+  devam eder. Geçiş çizilirse duran saat en çok 10 sn geri adım atar (bilinçli). Bu görünüm
+  "sıradaki aşama" görünümünden önce gelir; pomodoroda kaybedilen aşamayı (o anki blok, molada
+  çıkıldıysa sıradaki blok tam uzunlukta) donmuş gösterir. Aşama sonu yerel bildirimleri pomodoro
+  planına göre yine gelir (bilinçli). Uygulama dönünce etkinliği günceller; "Çalışıyordum" denirse
+  saat ileri atlar (simülatörde olduğu gibi saat saymaya devam ettiyse, denmezse geri atlar). "Çalışmaya devam say" seçiliyse hiçbir şey
   değişmez, sayaç saymaya devam eder. Zorla kapatmada iOS uygulamanın etkinliklerini de bitirir,
   yeniden açılışta yukarıdaki yeniden başlatma yolu çalışır. Uygulama ön planda çökerse (arka plan
   olayı yok) etkinlik saymaya devam eder: bu boşluk bilinçli olarak kalır (dönünce `onAppLaunch`
@@ -255,8 +261,9 @@ ulaşamaz (e2e-ios-36-1). Kilit ekranında "Çalışıyorsun" bu akışta denetl
 Home ile tek bir kaydırma bile 10 sn'lik toleranstan uzun sürüyor (e2e-ios-35-1); onu
 `o-ayarlar-sayac` ("Çalışmaya devam say") denetler. Canlı Etkinliklere izin verildikten sonra
 uygulamadan ikinci kez çıkılır ve 12 sn'den sonra "Uygulamadan çıktın" zorunlu, "Çalışıyorsun"
-yasak denetlenir (`m-canli-sayac-02c-uzakta`); uygulamaya dönünce "Çalışıyordum" kartı da
-zorunludur. Dynamic Island, mola ve pomodoro görünümleri hâlâ yalnız `m-canli-sayac-0x` ekran
+yasak denetlenir (`m-canli-sayac-02c-uzakta`; arka plan güncellemesindeki durum metni de, bayat
+görünüm de buna uyar, hangisinin çizildiği görüntüden okunur); uygulamaya dönünce "Çalışıyordum"
+kartı da zorunludur. Dynamic Island, mola ve pomodoro görünümleri hâlâ yalnız `m-canli-sayac-0x` ekran
 görüntüleriyle kanıtlanır; bunlar artifact'ta elle incelenmelidir.
 **Yedekten geri yükleme E2E'de yok (bilinçli):** içe aktarma dosyayı yalnız sistemin belge seçicisinden
 (`expo-document-picker`, UIDocumentPickerViewController) alır. Simülatörün Dosyalar uygulamasına

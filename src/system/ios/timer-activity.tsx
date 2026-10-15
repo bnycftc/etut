@@ -18,7 +18,9 @@
  * once stale, the layout shows those first (frozen clock, pause icon, "Uygulamadan çıktın · mola
  * sayılıyor"), because from then on the time away is a break unless the student says otherwise.
  * The away fields are checked with `typeof`: a Live Activity started by an older app version has
- * none at all (`undefined`, not `null`).
+ * none at all (`undefined`, not `null`). With them, the status has its own line under the clock
+ * (it is long: "Uygulamadan çıktın · 10 sn içinde dönmezsen mola sayılır" until stale). On the iOS
+ * simulator the stale layout was never drawn (E2E run 37): that status is what it shows.
  */
 
 import { HStack, Image, ProgressView, Spacer, Text, VStack } from '@expo/ui/swift-ui';
@@ -29,11 +31,9 @@ import type { TimerActivityProps } from '../surface-props';
 
 export const TimerActivity = (props: TimerActivityProps, environment: LiveActivityEnvironment) => {
   'widget';
-  const away =
-    environment.isStale === true &&
-    typeof props.awayAt === 'number' &&
-    typeof props.awayFrom === 'number' &&
-    typeof props.awayTo === 'number';
+  const awayKnown =
+    typeof props.awayAt === 'number' && typeof props.awayFrom === 'number' && typeof props.awayTo === 'number';
+  const away = environment.isStale === true && awayKnown;
   const showNext =
     !away &&
     environment.isStale === true &&
@@ -81,10 +81,11 @@ export const TimerActivity = (props: TimerActivityProps, environment: LiveActivi
           <Image systemName={icon} size={15} color={accent} />
           <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{props.title}</Text>
           <Spacer />
-          {away ? null : <Text modifiers={[font({ size: 13 }), secondary, lineLimit(1)]}>{status}</Text>}
+          {awayKnown ? null : <Text modifiers={[font({ size: 13 }), secondary, lineLimit(1)]}>{status}</Text>}
         </HStack>
         {clock(40, 0)}
-        {away ? <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{status}</Text> : progress}
+        {awayKnown ? <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{status}</Text> : null}
+        {progress}
         {away ? <Text modifiers={[font({ size: 12 }), secondary, lineLimit(1)]}>{props.awayHint}</Text> : null}
       </VStack>
     ),

@@ -12,7 +12,7 @@ import { istanbulTimeOfDay } from '../domain/istanbul-day';
 import type { LiveTimerView } from '../domain/live-timer';
 import type { PomodoroPhase } from '../domain/pomodoro';
 import type { PlannedNotification } from '../domain/reminders';
-import type { ActiveSession } from '../domain/timer';
+import { type ActiveSession, BACKGROUND_TOLERANCE_MS } from '../domain/timer';
 import type { WidgetEntry } from '../domain/widget-summary';
 import { tr } from '../strings';
 import { formatDuration } from '../ui/format';
@@ -93,8 +93,12 @@ export function timerActivityProps(session: ActiveSession, view: LiveTimerView):
   const title = topic ? `${tr.subject(session.subjectId)} · ${topic}` : tr.subject(session.subjectId);
   const longEvery = session.pomodoro?.config.longEvery ?? 4;
   const { clock } = view;
-  const status =
-    view.phase === null
+  // Away from the app with study time at stake from now on (stopwatch, work block): say so at
+  // once. The stale layout (`away*`) may never be drawn: on the simulator it was not (run 37).
+  const leaving = view.away !== null && view.away.at === session.backgroundedAt;
+  const status = leaving
+    ? tr.liveActivity.awayPending(BACKGROUND_TOLERANCE_MS / 1000)
+    : view.phase === null
       ? view.paused
         ? tr.timer.paused
         : tr.timer.running

@@ -27,11 +27,12 @@ describe('Live Activity props', () => {
     });
   });
 
-  it('away from the app (rule "Sor"): still running for now, the away texts and frozen clock for later', () => {
+  it('away from the app (rule "Sor"): an honest status at once, the away texts and frozen clock for later', () => {
     const s = onAppBackground(startSession('s', 'fizik', T0), T0 + 20 * MIN);
     const props = timerActivityProps(s, liveTimerView(s, T0 + 20 * MIN, provisionalAwayAt(s, 'ask')));
     expect(props).toMatchObject({
-      status: 'Çalışıyorsun',
+      // The clock still runs (the tolerance); the status no longer says "Çalışıyorsun".
+      status: 'Uygulamadan çıktın · 10 sn içinde dönmezsen mola sayılır',
       icon: 'book.fill',
       pausedAt: null,
       awayAt: T0 + 20 * MIN,
@@ -41,7 +42,16 @@ describe('Live Activity props', () => {
     });
     expect(props.awayTo).toBeGreaterThan(props.awayAt!);
     // "Çalışmaya devam say": nothing away.
-    expect(timerActivityProps(s, liveTimerView(s, T0 + 20 * MIN, provisionalAwayAt(s, 'count'))).awayAt).toBeNull();
+    expect(timerActivityProps(s, liveTimerView(s, T0 + 20 * MIN, provisionalAwayAt(s, 'count')))).toMatchObject({
+      status: 'Çalışıyorsun',
+      awayAt: null,
+    });
+  });
+
+  it('away during a pomodoro break: the break stays a break until it ends', () => {
+    const s = onAppBackground(startSession('p', 'kimya', T0, { pomodoro: DEFAULT_POMODORO }), T0 + 26 * MIN);
+    const props = timerActivityProps(s, liveTimerView(s, T0 + 26 * MIN, provisionalAwayAt(s, 'ask')));
+    expect(props).toMatchObject({ status: 'Kısa mola', awayAt: T0 + 30 * MIN, awayFrom: T0 + 30 * MIN });
   });
 
   it('paused pomodoro shows the phase, the pause and a static progress', () => {
