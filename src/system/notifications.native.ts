@@ -97,6 +97,26 @@ async function cancelOurs(): Promise<void> {
   }
 }
 
+const repeats = (n: PlannedNotification) => n.kind === 'daily' && n.repeats === 'weekly';
+
+/**
+ * A single notification at its moment, or a repeating one every week at the weekday and time of
+ * its next delivery on the phone's clock (the same as Istanbul time on a phone set to Turkey).
+ */
+function triggerFor(n: PlannedNotification): Notifications.SchedulableNotificationTriggerInput {
+  const channelId = Platform.OS === 'android' ? ANDROID_CHANNEL : undefined;
+  if (!repeats(n)) return { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at, channelId };
+  const next = new Date(n.at);
+  return {
+    type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+    // 1 = Sunday (expo-notifications), getDay() 0 = Sunday.
+    weekday: next.getDay() + 1,
+    hour: next.getHours(),
+    minute: next.getMinutes(),
+    channelId,
+  };
+}
+
 async function syncNow(
   planned: PlannedNotification[],
   text: (n: PlannedNotification) => NotificationText,
@@ -116,17 +136,14 @@ async function syncNow(
   );
   for (const id of cancel) await Notifications.cancelScheduledNotificationAsync(id);
   for (const n of schedule) {
-    if (n.at < Date.now() + MIN_LEAD_MS) continue;
+    // A repeating one is still wanted for its later deliveries.
+    if (!repeats(n) && n.at < Date.now() + MIN_LEAD_MS) continue;
     const t = text(n);
     try {
       await Notifications.scheduleNotificationAsync({
         identifier: n.id,
         content: { title: t.title, body: t.body, sound: true, data: { sig: notificationSignature(n), url: t.url } },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: n.at,
-          channelId: Platform.OS === 'android' ? ANDROID_CHANNEL : undefined,
-        },
+        trigger: triggerFor(n),
       });
     } catch {
       // One refused notification must not stop the others.

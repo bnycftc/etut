@@ -6,12 +6,7 @@ import { Modal, StyleSheet, View } from 'react-native';
 
 import { GROUPS_ENABLED } from '@/config/features';
 
-import {
-  formatDayInput,
-  isValidCustomExamDay,
-  parseDayInput,
-  resolveExamDate,
-} from '@/domain/exam-dates';
+import { formatDayInput, readExamDayInput, resolveExamDate } from '@/domain/exam-dates';
 import { canUseParentMode } from '@/domain/groups';
 import { istanbulDayKey, istanbulYear } from '@/domain/istanbul-day';
 import type { YksArea } from '@/domain/net';
@@ -25,6 +20,7 @@ import { EXAM_TYPES, type ExamType, YKS_AREAS } from '@/domain/profile';
 import { effectiveReminderPrefs } from '@/domain/reminders';
 import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '@/domain/streak';
 import { useAppState, useStored } from '@/state/app-state';
+import { backupExportText, shareBackup } from '@/state/backup-export';
 import { useNotificationPermission } from '@/state/notification-permission';
 import {
   clearTipsSeen,
@@ -64,10 +60,12 @@ const POMODORO_FIELDS: {
 ];
 
 export default function SettingsScreen() {
-  const { profile, resetAll, dataVersion, notifyDataChanged, updateExam } = useAppState();
+  const { profile, resetAll, dataVersion, notifyDataChanged, updateExam, createBackup } = useAppState();
   const [confirming, setConfirming] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
+  const [backupNote, setBackupNote] = useState<{ message: string } | { error: string } | null>(null);
   // `null` = no unsaved choice: the chips show the profile (which a backup restore can change).
   const [draft, setDraft] = useState<{ exam: ExamType; area: YksArea | null } | null>(null);
   const [examSaved, setExamSaved] = useState(false);
@@ -100,11 +98,14 @@ export default function SettingsScreen() {
   const examDate = resolveExamDate(examType, customDay);
   const [dateText, setDateText] = useState('');
   const [dateError, setDateError] = useState(false);
-  const saveDate = () => {
-    const day = parseDayInput(dateText);
-    const ok = day !== null && isValidCustomExamDay(day, istanbulDayKey(Date.now()));
-    setDateError(!ok);
-    if (!ok) return;
+  // Saved as soon as the field holds a valid date: settings have no Kaydet button (bny, 12 Oct 2026).
+  const changeDate = (text: string, left = false) => {
+    const day = readExamDayInput(text, dateText, istanbulDayKey(Date.now()), left);
+    setDateError(day === 'invalid');
+    if (day === null || day === 'invalid') {
+      setDateText(text);
+      return;
+    }
     storeCustomExamDate(examType, day);
     setDateText('');
     notifyDataChanged('settings');
@@ -140,6 +141,27 @@ export default function SettingsScreen() {
     }
     setConfirming(false);
     resetAll();
+  };
+
+  // "Önce yedek al": the export of the Yedek screen. Nothing is deleted and the dialog stays open,
+  // so deleting is still a choice of its own.
+  const backupFirst = async () => {
+    if (backingUp) return;
+    setBackingUp(true);
+    setBackupNote(null);
+    try {
+      const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '';
+      const result = await shareBackup(createBackup(appVersion));
+      if (result.kind === 'shared') notifyDataChanged('settings');
+      const shown =
+        result.kind === 'check_failed' ? { error: tr.settings.deleteAllBackupCheckFailed } : backupExportText(result);
+      // Closing the share sheet without saving also counts as shared: say so above "Evet, hepsini sil".
+      setBackupNote('message' in shown ? { message: tr.settings.deleteAllBackupDone(shown.message) } : shown);
+    } catch {
+      setBackupNote({ error: tr.backup.failed });
+    } finally {
+      setBackingUp(false);
+    }
   };
 
   return (
@@ -225,7 +247,8 @@ export default function SettingsScreen() {
               testID="settings-exam-date-input"
               label={tr.countdown.input}
               value={dateText}
-              onChange={setDateText}
+              onChange={(text) => changeDate(text)}
+              onBlur={() => changeDate(dateText, true)}
               maxLength={10}
               numeric={false}
               placeholder={examDate === null ? tr.countdown.placeholder : formatDayInput(examDate.day)}
@@ -236,20 +259,17 @@ export default function SettingsScreen() {
               {tr.countdown.invalid}
             </Label>
           ) : null}
-          <Row>
-            <Button testID="settings-exam-date-save" kind="secondary" title={tr.countdown.save} onPress={saveDate} />
-            {examDate?.custom ? (
-              <Button
-                testID="settings-exam-date-reset"
-                kind="secondary"
-                title={tr.countdown.reset}
-                onPress={() => {
-                  storeCustomExamDate(profile.examType, null);
-                  notifyDataChanged('settings');
-                }}
-              />
-            ) : null}
-          </Row>
+          {examDate?.custom ? (
+            <Button
+              testID="settings-exam-date-reset"
+              kind="secondary"
+              title={tr.countdown.reset}
+              onPress={() => {
+                storeCustomExamDate(profile.examType, null);
+                notifyDataChanged('settings');
+              }}
+            />
+          ) : null}
         </Card>
       ) : null}
 
@@ -340,7 +360,10 @@ export default function SettingsScreen() {
           kind="danger"
           testID="settings-delete-all"
           title={tr.settings.deleteAll}
-          onPress={() => setConfirming(true)}
+          onPress={() => {
+            setBackupNote(null);
+            setConfirming(true);
+          }}
         />
       </Card>
 
@@ -360,10 +383,25 @@ export default function SettingsScreen() {
             <Label>{tr.settings.deleteAllConfirm}</Label>
             <Label variant="small">{tr.settings.deleteAllAgeNote}</Label>
             <Button
+              kind="secondary"
+              testID="settings-delete-all-backup"
+              title={tr.settings.deleteAllBackupFirst}
+              disabled={deleting || backingUp}
+              onPress={() => void backupFirst()}
+            />
+            {backupNote !== null ? (
+              <Label
+                testID="settings-delete-all-backup-note"
+                variant="small"
+                style={'error' in backupNote ? { color: c.danger } : undefined}>
+                {'error' in backupNote ? backupNote.error : backupNote.message}
+              </Label>
+            ) : null}
+            <Button
               kind="danger"
               testID="settings-delete-all-confirm"
               title={tr.settings.deleteAllYes}
-              disabled={deleting}
+              disabled={deleting || backingUp}
               onPress={() => void deleteAll()}
             />
             {deleteError ? (

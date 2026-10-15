@@ -313,6 +313,7 @@ export function Field({
   placeholder,
   maxLength = 3,
   numeric = true,
+  onBlur,
   testID,
 }: {
   label: string;
@@ -321,6 +322,8 @@ export function Field({
   placeholder?: string;
   maxLength?: number;
   numeric?: boolean;
+  /** The field lost focus (the student is done with it). */
+  onBlur?: () => void;
   testID?: string;
 }) {
   const c = usePalette();
@@ -334,6 +337,7 @@ export function Field({
         accessibilityLabel={label}
         value={value}
         onChangeText={onChange}
+        onBlur={onBlur}
         keyboardType={numeric ? 'number-pad' : 'numbers-and-punctuation'}
         inputMode={numeric ? 'numeric' : 'text'}
         maxLength={maxLength}
