@@ -46,7 +46,7 @@ function shortDay(day: string): string {
 
 export default function ExamsScreen() {
   const app = useAppState();
-  const { profile, dataVersion, notifyDataChanged } = app;
+  const { profile, dataVersions, notifyDataChanged } = app;
   const c = usePalette();
   const examType = profile?.examType ?? 'YKS';
   const yksArea = profile?.yksArea ?? null;
@@ -54,7 +54,7 @@ export default function ExamsScreen() {
   const [sectionId, setSectionId] = useState<string | null>(null);
   const [targetText, setTargetText] = useState('');
   const [targetError, setTargetError] = useState(false);
-  const data = useStored(String(dataVersion), () => ({
+  const data = useStored(`${dataVersions.exams}|${dataVersions.topics}|${dataVersions.settings}`, () => ({
     exams: listMockExams(),
     pending: listExamsNeedingAnalysis(),
     missed: topMissedTopics(listAllMarks()),
@@ -74,7 +74,7 @@ export default function ExamsScreen() {
   // When the paper falls back (area changed, exams replaced), the picked section may not exist in it.
   const sections = chartKind === null ? [] : EXAM_SECTIONS[chartKind];
   const section = sections.find((s) => s.id === sectionId) ?? sections[0] ?? null;
-  const history = useStored(`${chartKind}|${section?.id}|${dataVersion}`, () =>
+  const history = useStored(`${chartKind}|${section?.id}|${dataVersions.exams}`, () =>
     chartKind === null || section === null ? [] : sectionNetHistory(chartKind, section.id),
   );
   const pendingIds = new Set(pending.map((e) => e.id));
@@ -105,7 +105,7 @@ export default function ExamsScreen() {
     if (value === null) return;
     storeNetTarget(key, value);
     setTargetText('');
-    notifyDataChanged();
+    notifyDataChanged('settings');
   };
 
   const studyTopic = (subjectId: string, topicId: string) => {
@@ -246,7 +246,7 @@ export default function ExamsScreen() {
                   title={tr.trend.targetClear}
                   onPress={() => {
                     storeNetTarget(key, null);
-                    notifyDataChanged();
+                    notifyDataChanged('settings');
                   }}
                 />
               ) : null}
@@ -276,7 +276,7 @@ export default function ExamsScreen() {
                   selected={status === 'review'}
                   onPress={() => {
                     setTopicStatus(m.topicId, toggleStatus(status, 'review'), Date.now());
-                    notifyDataChanged();
+                    notifyDataChanged('topics');
                   }}
                 />
                 {m.study !== null ? (

@@ -65,12 +65,9 @@ import {
 import { deleteSessionForUndo, saveSession } from '../storage/sessions';
 import { wipeAllData } from '../storage/wipe';
 import { flushPending, isSyncActive, stopSync, syncFinishedSession, syncPresence } from '../sync/session-sync';
+import { bumpVersions, type ChangedKinds, DATA_KINDS, type DataVersions, NO_CHANGES } from './data-kinds';
 
 export type SaveProfileResult = 'ok' | 'age_blocked';
-
-/** What a `notifyDataChanged` call changed; screens that do not read it skip the reload. */
-export type DataKind = 'sessions' | 'exams' | 'topics' | 'settings';
-export type DataVersions = Record<DataKind, number>;
 
 export interface FinishOptions {
   /** Save only this much study time (the student said a very long session was not all study). */
@@ -96,12 +93,13 @@ interface AppStateValue {
   undoFinish: () => boolean;
   creditAway: () => void;
   dismissAway: () => void;
-  /** Increases whenever stored sessions or mock exams change; screens reload on change. */
-  dataVersion: number;
-  /** The same per kind of data, for screens that read only some of it. */
+  /**
+   * One version per kind of stored data (data-kinds.ts). A storage read keys on the versions of
+   * the kinds it reads, so a change to another kind reloads nothing there.
+   */
   dataVersions: DataVersions;
-  /** No `kind` = anything may have changed. */
-  notifyDataChanged: (kind?: DataKind) => void;
+  /** Call after writing stored data, naming every kind written (`...DATA_KINDS`: all of them). */
+  notifyDataChanged: (...kinds: ChangedKinds) => void;
   resetAll: () => void;
   /** Everything on this device as a backup file (nothing is written or sent). */
   createBackup: (appVersion: string) => BackupFile;
@@ -143,8 +141,6 @@ function initialProfile(): Profile | null {
   return refreshed;
 }
 
-const NO_CHANGES: DataVersions = { sessions: 0, exams: 0, topics: 0, settings: 0 };
-
 /** How often a running timer records `lastSeenAt` (must stay below the 10 s tolerance). */
 const HEARTBEAT_MS = 5_000;
 
@@ -161,7 +157,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(initialProfile);
   const [active, setActiveState] = useState<ActiveSession | null>(initialActive);
   const [dataVersions, setDataVersions] = useState<DataVersions>(NO_CHANGES);
-  const dataVersion = dataVersions.sessions + dataVersions.exams + dataVersions.topics + dataVersions.settings;
   const activeRef = useRef(active);
   const lastFinish = useRef<{ previous: ActiveSession; completed: CompletedSession; at: number } | null>(null);
 
@@ -177,12 +172,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     if (current !== null) setActive(fn(current));
   }
 
-  const notifyDataChanged = (kind?: DataKind) =>
-    setDataVersions((v) =>
-      kind === undefined
-        ? { sessions: v.sessions + 1, exams: v.exams + 1, topics: v.topics + 1, settings: v.settings + 1 }
-        : { ...v, [kind]: v[kind] + 1 },
-    );
+  const notifyDataChanged = (...kinds: ChangedKinds) => setDataVersions((v) => bumpVersions(v, kinds));
 
   // The copy kept for "Geri al" holds a full copy of the data: drop it once its day is over,
   // whether or not the backup screen is opened again.
@@ -242,9 +232,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     updateExam: (examType, yksArea) => {
       const next = profile === null ? null : changeExam(profile, examType, yksArea);
       if (next === null) return false;
+      // No data kind: the profile is React state, and reads that depend on it key on it.
       storeProfile(next);
       setProfile(next);
-      notifyDataChanged('settings');
       return true;
     },
     active,
@@ -279,12 +269,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (last.completed.durationMs > 0) deleteSessionForUndo(last.completed.id);
       // Fresh heartbeat: the seconds the summary was shown are not mistaken for time away.
       setActive(markSeen(last.previous, Date.now()));
-      notifyDataChanged();
+      notifyDataChanged('sessions');
       return true;
     },
     creditAway: () => update(creditAway),
     dismissAway: () => update(dismissAway),
-    dataVersion,
     dataVersions,
     notifyDataChanged,
     resetAll: () => {
@@ -295,7 +284,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       activeRef.current = null;
       setActiveState(null);
       setProfile(null);
-      notifyDataChanged();
+      notifyDataChanged(...DATA_KINDS);
     },
     createBackup: (appVersion) => buildBackupFile(readBackupData(), profile, Date.now(), appVersion),
     importBackup: (file, mode) => {
@@ -334,7 +323,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       storeProfile(next);
       setProfile(next);
     }
-    notifyDataChanged();
+    notifyDataChanged(...DATA_KINDS);
     return backupCounts(merged);
   }
 
@@ -348,7 +337,7 @@ export function useAppState(): AppStateValue {
 }
 
 /**
- * Reads from storage once per `key` (e.g. `${day}|${dataVersion}`) and caches the result.
+ * Reads from storage once per `key` (e.g. `${day}|${dataVersions.sessions}`) and caches the result.
  * Storage reads are synchronous, so the new value is available in the same render.
  */
 export function useStored<T>(key: string, load: () => T): T {

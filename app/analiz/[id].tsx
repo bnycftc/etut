@@ -42,9 +42,9 @@ function sum(topics: Record<string, Counts> | undefined, field: keyof Counts): n
 /** Step 2 of a mock exam: tag wrong and blank questions with topics ("analizi tamamla"). */
 export default function ExamAnalysisScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { dataVersion, notifyDataChanged } = useAppState();
+  const { dataVersions, notifyDataChanged } = useAppState();
   const c = usePalette();
-  const exam = useStored(`${id}|${dataVersion}`, () => (id ? getMockExam(id) : null));
+  const exam = useStored(`${id}|${dataVersions.exams}`, () => (id ? getMockExam(id) : null));
   const [draft, setDraft] = useState<Draft>(() => (id ? toDraft(getExamMarks(id)) : {}));
   const [adding, setAdding] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, MarkError>>({});
@@ -79,7 +79,7 @@ export default function ExamAnalysisScreen() {
     setErrors(found);
     if (Object.keys(found).length > 0) return;
     saveExamAnalysis(exam.id, marks, Date.now());
-    notifyDataChanged();
+    notifyDataChanged('exams');
     router.back();
   };
 

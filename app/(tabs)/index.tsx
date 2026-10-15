@@ -103,10 +103,10 @@ export default function TimerScreen() {
     storeTimerMode(m);
     setModeState(m);
   };
-  const pomodoroConfig = useStored(`pomodoro|${app.dataVersion}`, loadPomodoroConfig);
+  const pomodoroConfig = useStored(`pomodoro|${app.dataVersions.settings}`, loadPomodoroConfig);
 
   const { today, todayTotal, todayManual, comparison, goal, streak, studyDays } = useStudyStats(now);
-  const customExamDay = useStored(`examDate|${examType}|${app.dataVersion}`, () =>
+  const customExamDay = useStored(`examDate|${examType}|${app.dataVersions.settings}`, () =>
     loadCustomExamDate(examType),
   );
   const examDate = resolveExamDate(examType, customExamDay);
@@ -201,7 +201,7 @@ export default function TimerScreen() {
 
   const setGoal = (minutes: number | null) => {
     storeDailyGoal(minutes);
-    app.notifyDataChanged();
+    app.notifyDataChanged('settings');
   };
 
   const goalStreak = goal !== null && streak !== null ? { goal, streak } : null;

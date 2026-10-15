@@ -34,7 +34,7 @@ export default function NewExamScreen() {
           { id, kind: v.kind, scope: v.scope, bransSectionId: v.bransSectionId, takenOn: v.takenOn, createdAt: Date.now() },
           v.scores,
         );
-        notifyDataChanged();
+        notifyDataChanged('exams');
         router.back();
       }}
     />

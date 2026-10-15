@@ -31,8 +31,9 @@ export function useStudyStats(now: number): StudyStats {
   'use no memo';
   const { active, dataVersions } = useAppState();
   const today = istanbulDayKey(now);
-  // Only sessions and the goal are read here: a topic mark or a mock exam needs no reload.
-  const stored = useStored(`${today}|${dataVersions.sessions}|${dataVersions.settings}`, () => {
+  // The 400 days are read again only when sessions change (or a new day starts): a topic mark, a
+  // mock exam or a setting reloads none of them. The goal is a read of its own.
+  const stored = useStored(`${today}|${dataVersions.sessions}`, () => {
     const todayStart = dayStartMs(today);
     const sessions = sessionsOverlapping(
       dayStartMs(addDays(today, -STREAK_LOOKBACK_DAYS)),
@@ -45,8 +46,9 @@ export function useStudyStats(now: number): StudyStats {
     const recentFrom = dayStartMs(weekStartOf(today)) - 7 * DAY_MS;
     let pastStudyDays = 0;
     for (const ms of past.values()) if (ms > 0) pastStudyDays++;
-    return { past, pastStudyDays, recent: sessions.filter((s) => s.endedAt > recentFrom), goal: loadDailyGoal() };
+    return { past, pastStudyDays, recent: sessions.filter((s) => s.endedAt > recentFrom) };
   });
+  const goal = useStored(`goal|${dataVersions.settings}`, loadDailyGoal);
 
   const spans: SessionSpan[] = [...stored.recent];
   const running = active === null ? null : activeSpan(active, now);
@@ -58,7 +60,6 @@ export function useStudyStats(now: number): StudyStats {
   )[0].totalMs;
   // A running session that crossed one or more midnights also counts towards those days.
   const runningPast = running === null ? null : pastDayTotals([running], today);
-  const goal = stored.goal;
   // The streak walks 400 days back. While the clock ticks only today's total changes, and the
   // streak depends on it only through "goal met today": recompute when that (or the data) changes.
   const todayMet = goal !== null && goalMet(todayTotal, goal);

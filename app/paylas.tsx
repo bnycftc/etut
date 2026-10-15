@@ -20,7 +20,7 @@ import { space } from '@/ui/theme';
 
 /** Daily / weekly 9:16 study card, shared as a PNG through the system share sheet. */
 export default function ShareCardScreen() {
-  const { active, dataVersion, profile } = useAppState();
+  const { active, dataVersions, profile } = useAppState();
   const now = useNow(active !== null && !isPaused(active), 30_000);
   const stats = useStudyStats(now);
   const system = useColorScheme();
@@ -33,7 +33,7 @@ export default function ShareCardScreen() {
   const cardWidth = Math.min(screenWidth - space.lg * 2, 360);
 
   const weekStart = weekStartOf(stats.today);
-  const stored = useStored(`${weekStart}|${stats.today}|${dataVersion}`, () =>
+  const stored = useStored(`${weekStart}|${stats.today}|${dataVersions.sessions}`, () =>
     sessionsOverlapping(dayStartMs(weekStart), dayStartMs(stats.today) + DAY_MS),
   );
   const spans: SessionSpan[] = [...stored];

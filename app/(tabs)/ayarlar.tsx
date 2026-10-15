@@ -64,7 +64,7 @@ const POMODORO_FIELDS: {
 ];
 
 export default function SettingsScreen() {
-  const { profile, resetAll, dataVersion, notifyDataChanged, updateExam } = useAppState();
+  const { profile, resetAll, dataVersions, notifyDataChanged, updateExam } = useAppState();
   const [confirming, setConfirming] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -83,12 +83,12 @@ export default function SettingsScreen() {
     if (saved) setDraft(null);
     setExamSaved(saved);
   };
-  const goal = useStored(`goal|${dataVersion}`, loadDailyGoal);
+  const goal = useStored(`goal|${dataVersions.settings}`, loadDailyGoal);
   const setGoal = (minutes: number | null) => {
     storeDailyGoal(minutes);
     notifyDataChanged('settings');
   };
-  const pomodoro = useStored(`pomodoro|${dataVersion}`, loadPomodoroConfig);
+  const pomodoro = useStored(`pomodoro|${dataVersions.settings}`, loadPomodoroConfig);
   const setPomodoro = (config: PomodoroConfig) => {
     storePomodoroConfig(normalizePomodoroConfig(config));
     notifyDataChanged('settings');
@@ -96,7 +96,7 @@ export default function SettingsScreen() {
   const c = usePalette();
   const reduceMotion = useReducedMotion();
   const examType = profile?.examType ?? 'DIGER';
-  const customDay = useStored(`examDate|${examType}|${dataVersion}`, () => loadCustomExamDate(examType));
+  const customDay = useStored(`examDate|${examType}|${dataVersions.settings}`, () => loadCustomExamDate(examType));
   const examDate = resolveExamDate(examType, customDay);
   const [dateText, setDateText] = useState('');
   const [dateError, setDateError] = useState(false);
@@ -110,7 +110,7 @@ export default function SettingsScreen() {
     notifyDataChanged('settings');
   };
   const permission = useNotificationPermission();
-  const reminderPrefs = useStored(`reminders|${dataVersion}`, () =>
+  const reminderPrefs = useStored(`reminders|${dataVersions.settings}`, () =>
     effectiveReminderPrefs(loadReminderPrefs(), loadRemindersConfirmed()),
   );
   const enabledReminders = Object.values(reminderPrefs).filter((r) => r.enabled).length;

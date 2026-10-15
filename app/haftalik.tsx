@@ -26,7 +26,7 @@ import { space, usePalette } from '@/ui/theme';
 
 /** Weekly summary (Monday–Sunday, Istanbul): own numbers only, no comparison with others. */
 export default function WeeklyScreen() {
-  const { active, dataVersion, profile } = useAppState();
+  const { active, dataVersions, profile } = useAppState();
   const c = usePalette();
   const now = useNow(active !== null && !isPaused(active), 30_000);
   const stats = useStudyStats(now);
@@ -35,7 +35,7 @@ export default function WeeklyScreen() {
   const weekStart = addDays(thisWeek, offset * 7);
   const previousStart = addDays(weekStart, -7);
 
-  const stored = useStored(`${weekStart}|${dataVersion}`, () =>
+  const stored = useStored(`${weekStart}|${dataVersions.sessions}`, () =>
     sessionsOverlapping(dayStartMs(previousStart), dayStartMs(weekStart) + 7 * DAY_MS),
   );
   const spans: SessionSpan[] = [...stored];
@@ -45,7 +45,7 @@ export default function WeeklyScreen() {
   const previous = weeklySummary(spans, previousStart, null);
   const weekDayKeys = week.days.map((d) => d.day);
   const questions = questionTotals(stored, weekDayKeys);
-  const targets = useStored(`targets|${dataVersion}`, loadSubjectTargets);
+  const targets = useStored(`targets|${dataVersions.settings}`, loadSubjectTargets);
   const weekMsOf = (subjectId: string) => week.bySubject.find((s) => s.subjectId === subjectId)?.ms ?? 0;
   const targetRows = Object.entries(targets).map(([subjectId, minutes]) => ({
     subjectId,
@@ -55,7 +55,7 @@ export default function WeeklyScreen() {
   // Monthly calendar: its own month with its own arrows (this month by default).
   const [monthOffset, setMonthOffset] = useState(0);
   const month = addMonths(monthStartOf(stats.today), monthOffset);
-  const monthStored = useStored(`month|${month}|${dataVersion}`, () =>
+  const monthStored = useStored(`month|${month}|${dataVersions.sessions}`, () =>
     sessionsOverlapping(dayStartMs(month), dayStartMs(addMonths(month, 1))),
   );
   const monthSpans: SessionSpan[] = [...monthStored];

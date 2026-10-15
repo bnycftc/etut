@@ -2307,6 +2307,85 @@ describe('timer and data safety', () => {
     expect(memory.topicStatuses['tyt.fizik.basinc']).toBe('done');
     expect(memory.sessionLoads).toBe(before);
   });
+
+  it('a mock exam, its analysis and a net target read no sessions; the exam reminder still follows them', async () => {
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // 12:00 Istanbul
+    memory.permission = 'granted';
+    memory.remindersConfirmed = true;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    await settle();
+    act(() => router.push('/denemeler'));
+    const before = memory.sessionLoads;
+
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '30');
+    fireEvent.changeText(screen.getByTestId('exam-wrong-turkce'), '4');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    await settle();
+    // Saved with its analysis pending: tomorrow evening's reminder is planned.
+    expect(memory.planned.filter((n) => n.kind === 'exam_analysis')).toHaveLength(1);
+
+    fireEvent.press(screen.getByTestId('trend-section-turkce'));
+    fireEvent.changeText(screen.getByTestId('trend-target-input'), '35');
+    fireEvent.press(screen.getByTestId('trend-target-save'));
+    expect(screen.getByTestId('trend-target').props.children).toBe('Hedef: 35 net');
+
+    fireEvent.press(screen.getByTestId('analysis-reminder-start'));
+    fireEvent.press(screen.getByTestId('analysis-save'));
+    await settle();
+    expect(screen.queryByTestId('analysis-reminder')).toBeNull();
+    expect(memory.planned.filter((n) => n.kind === 'exam_analysis')).toEqual([]);
+    expect(memory.sessionLoads).toBe(before);
+  });
+
+  it('a setting reads no sessions; the timer screen and the widget still show the new goal', async () => {
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z'));
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    await settle();
+    const before = memory.sessionLoads;
+    fireEvent.press(screen.getByTestId('goal-set'));
+    fireEvent.press(screen.getByTestId('goal-preset-180'));
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    await settle();
+    expect(screen.getByTestId('goal-progress').props.children).toBe('Hedef 3 sa 0 dk · %0');
+    expect(memory.widget[0].props.goalLine).toBe('Hedef 3 sa 0 dk');
+    act(() => router.push('/ayarlar'));
+    fireEvent.press(screen.getByTestId('settings-keep-awake-off'));
+    expect(memory.keepAwakeSetting).toBe(false);
+    expect(memory.sessionLoads).toBe(before);
+  });
+
+  it('a restore reloads every open screen and the widget', async () => {
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // 12:00 Istanbul
+    const studied = { ...sessionAt('today'), startedAt: Date.parse('2026-10-07T07:00:00Z'), endedAt: Date.parse('2026-10-07T08:00:00Z') };
+    memory.pickText = backupText({
+      exportedAt: Date.parse('2026-10-07T08:30:00Z'),
+      profile: { birthYear: 2000, examType: 'YKS', yksArea: 'sayisal' },
+      sessions: [studied],
+      topicProgress: [{ topicId: 'tyt.fizik.basinc', status: 'done', updatedAt: Date.parse('2026-10-07T08:30:00Z') }],
+    });
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    await settle();
+    expect(screen.getByTestId('today-total').props.children).toBe('0 dk');
+    act(() => router.push('/konular'));
+    fireEvent.press(screen.getByTestId('topics-subject-fizik'));
+    expect(screen.getByTestId('topic-done-tyt.fizik.basinc').props.accessibilityState).toMatchObject({ selected: false });
+
+    act(() => router.push('/yedek'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-import'));
+    });
+    fireEvent.press(screen.getByTestId('backup-mode-replace'));
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
+    await settle();
+    expect(memory.widget[0].props.total).toBe('1 sa 0 dk');
+
+    act(() => router.back());
+    expect(screen.getByTestId('topic-done-tyt.fizik.basinc').props.accessibilityState).toMatchObject({ selected: true });
+    act(() => router.back());
+    expect(screen.getByTestId('today-total').props.children).toBe('1 sa 0 dk');
+  });
 });
 
 // Package E: report card, question counts, weekly subject targets, monthly calendar.

@@ -34,8 +34,8 @@ function reminderLabel(key: ReminderKey, prefs: ReminderPrefs): string {
  */
 export default function NotificationPermissionScreen() {
   const { enable } = useLocalSearchParams<{ enable?: string }>();
-  const { dataVersion, notifyDataChanged } = useAppState();
-  const stored = useStored(`reminders|${dataVersion}`, loadReminderPrefs);
+  const { dataVersions, notifyDataChanged } = useAppState();
+  const stored = useStored(`reminders|${dataVersions.settings}`, loadReminderPrefs);
   const [result, setResult] = useState<NotificationPermission | null>(null);
   const [asking, setAsking] = useState(false);
 

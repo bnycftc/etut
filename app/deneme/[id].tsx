@@ -12,9 +12,9 @@ import { formatDay } from '@/ui/format';
 
 export default function ExamDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { dataVersion, notifyDataChanged } = useAppState();
-  const exam = useStored(`${id}|${dataVersion}`, () => (id ? getMockExam(id) : null));
-  const marks = useStored(`marks|${id}|${dataVersion}`, () => (id ? getExamMarks(id) : []));
+  const { dataVersions, notifyDataChanged } = useAppState();
+  const exam = useStored(`${id}|${dataVersions.exams}`, () => (id ? getMockExam(id) : null));
+  const marks = useStored(`marks|${id}|${dataVersions.exams}`, () => (id ? getExamMarks(id) : []));
   const [confirming, setConfirming] = useState(false);
 
   if (exam === null) {
@@ -97,7 +97,7 @@ export default function ExamDetailScreen() {
             title={tr.common.delete}
             onPress={() => {
               deleteMockExam(exam.id);
-              notifyDataChanged();
+              notifyDataChanged('exams');
               router.back();
             }}
           />

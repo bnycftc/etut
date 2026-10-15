@@ -56,11 +56,16 @@ interface SurfaceData {
   exam: WidgetExam | null;
 }
 
-function loadSurfaceData(today: DayKey, examType: ExamType): SurfaceData {
+/** Saved study time per day: the streak window up to today, and the next two days (the timeline). */
+function loadSavedTotals(today: DayKey): (day: DayKey) => number {
   const days = [...lastDays(dayStartMs(today), STREAK_LOOKBACK_DAYS + 1), addDays(today, 1), addDays(today, 2)];
   const sessions = sessionsOverlapping(dayStartMs(days[0]), dayStartMs(addDays(today, 3)));
+  return savedTotalsLookup(sessions, days);
+}
+
+function loadSurfaceData(savedTotal: (day: DayKey) => number, examType: ExamType): SurfaceData {
   return {
-    savedTotal: savedTotalsLookup(sessions, days),
+    savedTotal,
     goalMinutes: loadDailyGoal(),
     prefs: effectiveReminderPrefs(loadReminderPrefs(), loadRemindersConfirmed()),
     pendingExams: listExamsNeedingAnalysis().map((e) => ({ id: e.id, createdAt: e.createdAt })),
@@ -214,10 +219,16 @@ export function SystemSync(): null {
   // Minute ticks only matter for the day key (a new day reloads the data).
   const today = istanbulDayKey(useNow(false));
   const [foreground, setForeground] = useState(0);
-  // Sessions, goal/reminder settings and exams awaiting analysis; topic marks are not read here.
-  const version = `${dataVersions.sessions}|${dataVersions.settings}|${dataVersions.exams}`;
-  const data = useStored(`${today}|${version}|${profile === null ? 'none' : profile.examType}`, () =>
-    profile === null ? null : loadSurfaceData(today, profile.examType),
+  const examType = profile === null ? null : profile.examType;
+  // The 400 days of sessions are read again only when sessions change (or a new day starts). The
+  // goal and reminder settings, the countdown and the exams awaiting analysis are small reads of
+  // their own; topic marks are not read here.
+  const savedTotal = useStored(`${today}|${dataVersions.sessions}|${examType === null}`, () =>
+    examType === null ? null : loadSavedTotals(today),
+  );
+  const data = useStored(
+    `${today}|${dataVersions.sessions}|${dataVersions.settings}|${dataVersions.exams}|${examType ?? 'none'}`,
+    () => (examType === null || savedTotal === null ? null : loadSurfaceData(savedTotal, examType)),
   );
   const session = profile === null ? null : active;
   const phaseEnds = usePhaseEnds(session, foreground);
