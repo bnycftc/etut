@@ -44,6 +44,21 @@ tags:
       id: e2e-never-present
     timeout: 2000
     optional: true
+# A swipe is lost now and then on the CI simulator (run e2e-ios-37-1, retry): pull once more.
+- runFlow:
+    when:
+      notVisible:
+        text: "Fizik"
+    commands:
+      - swipe:
+          start: 15%, 0%
+          end: 15%, 70%
+          duration: 600
+      - extendedWaitUntil:
+          visible:
+            id: e2e-never-present
+          timeout: 2000
+          optional: true
 - takeScreenshot: m-canli-sayac-02-kilit-ekrani
 # First Live Activity: iOS asks on the Lock Screen ("Canlı Etkinliklere İzin Verilsin mi?").
 # Text is matched in full, so "İzin Ver" does not hit "İzin Verme".
@@ -106,6 +121,21 @@ tags:
       id: e2e-never-present
     timeout: 2000
     optional: true
+# A swipe is lost now and then on the CI simulator (run e2e-ios-37-1, retry): pull once more.
+- runFlow:
+    when:
+      notVisible:
+        text: "Fizik"
+    commands:
+      - swipe:
+          start: 15%, 0%
+          end: 15%, 70%
+          duration: 600
+      - extendedWaitUntil:
+          visible:
+            id: e2e-never-present
+          timeout: 2000
+          optional: true
 # Taken before the checks: the evidence is there whether they pass or not.
 - takeScreenshot: m-canli-sayac-02c-uzakta
 - extendedWaitUntil:

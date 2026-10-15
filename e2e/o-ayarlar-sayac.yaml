@@ -74,6 +74,21 @@ tags:
       id: e2e-never-present
     timeout: 2000
     optional: true
+# A swipe is lost now and then on the CI simulator (run e2e-ios-37-1, retry): pull once more.
+- runFlow:
+    when:
+      notVisible:
+        text: "Matematik"
+    commands:
+      - swipe:
+          start: 15%, 0%
+          end: 15%, 70%
+          duration: 600
+      - extendedWaitUntil:
+          visible:
+            id: e2e-never-present
+          timeout: 2000
+          optional: true
 - takeScreenshot: o-ayarlar-sayac-02b-kilit-ekrani-sayiyor
 - extendedWaitUntil:
     visible:
