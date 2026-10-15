@@ -246,15 +246,18 @@ devam eder; en sondaki
 `src/state/__tests__/use-stored-compiler.test.tsx`),
 `p-deneme-duzenle-lgs` (13 yaş LGS: yalnız LGS kâğıdı, net = D − Y/3, kaydet ve düzenle).
 İlk açılıştan sonraki tek seferlik ipucu `subflows/ipucu-gec.yaml` ile kapatılır.
-**`m-canli-sayac`:** Bildirim Merkezi'ndeki kilit ekranı görünümünde "Fizik" ve "Çalışıyorsun"
-artık zorunlu denetimdir. Maestro SpringBoard içeriğini okuyabiliyor: e2e-ios-15-2 ve 21-1
-çalıştırmalarında Live Activity çizilmişken iki denetim de geçti, App Group yetkisinin kaybolduğu
-13-1'de etkinlik boş çizildi ve ikisi de düştü. "Çalışıyorsun" Bildirim Merkezi uygulamanın üstüne
-çekilerek denetlenir (uygulama yalnız `inactive` olur, uzakta kuralı başlamaz): CI simülatöründe
-Home ile tek bir kaydırma bile 10 sn'den uzun sürüyor (e2e-ios-35-1). Sonra Home'a basılır ve
-12 sn'den sonra "Uygulamadan çıktın" zorunlu denetlenir (`m-canli-sayac-02c-uzakta`); uygulamaya
-dönünce "Çalışıyordum" kartı da zorunludur. Dynamic Island, mola ve pomodoro görünümleri hâlâ
-yalnız `m-canli-sayac-0x` ekran görüntüleriyle kanıtlanır; bunlar artifact'ta elle incelenmelidir.
+**`m-canli-sayac`:** Bildirim Merkezi'ndeki kilit ekranı görünümünde "Fizik" zorunlu denetimdir.
+Maestro SpringBoard içeriğini okuyabiliyor: e2e-ios-15-2 ve 21-1 çalıştırmalarında Live Activity
+çizilmişken denetim geçti, App Group yetkisinin kaybolduğu 13-1'de etkinlik boş çizildi ve düştü.
+Bunu yalnız uygulama arka plandayken yapar: Bildirim Merkezi uygulamanın üstüne çekilince Maestro
+uygulamanın kendi ekranını okur ("Fizik" ve "Çalışıyorsun" orada da var) ve izin penceresine
+ulaşamaz (e2e-ios-36-1). Kilit ekranında "Çalışıyorsun" bu akışta denetlenemez: CI simülatöründe
+Home ile tek bir kaydırma bile 10 sn'lik toleranstan uzun sürüyor (e2e-ios-35-1); onu
+`o-ayarlar-sayac` ("Çalışmaya devam say") denetler. Canlı Etkinliklere izin verildikten sonra
+uygulamadan ikinci kez çıkılır ve 12 sn'den sonra "Uygulamadan çıktın" zorunlu, "Çalışıyorsun"
+yasak denetlenir (`m-canli-sayac-02c-uzakta`); uygulamaya dönünce "Çalışıyordum" kartı da
+zorunludur. Dynamic Island, mola ve pomodoro görünümleri hâlâ yalnız `m-canli-sayac-0x` ekran
+görüntüleriyle kanıtlanır; bunlar artifact'ta elle incelenmelidir.
 **Yedekten geri yükleme E2E'de yok (bilinçli):** içe aktarma dosyayı yalnız sistemin belge seçicisinden
 (`expo-document-picker`, UIDocumentPickerViewController) alır. Simülatörün Dosyalar uygulamasına
 Maestro'dan deterministik dosya koymanın yolu yok (`addMedia` yalnız fotoğraf/video ekler), dışa
