@@ -19,7 +19,7 @@
  * sayılıyor"), because from then on the time away is a break unless the student says otherwise.
  * The away fields are checked with `typeof`: a Live Activity started by an older app version has
  * none at all (`undefined`, not `null`). With them, the status has its own line under the clock
- * (it is long: "Uygulamadan çıktın · 10 sn içinde dönmezsen mola sayılır" until stale). On the iOS
+ * (up to two lines: "Uygulamadan çıktın · 10 sn sonra mola sayılır" until stale). On the iOS
  * simulator the stale layout was never drawn (E2E run 37): that status is what it shows.
  */
 
@@ -84,7 +84,7 @@ export const TimerActivity = (props: TimerActivityProps, environment: LiveActivi
           {awayKnown ? null : <Text modifiers={[font({ size: 13 }), secondary, lineLimit(1)]}>{status}</Text>}
         </HStack>
         {clock(40, 0)}
-        {awayKnown ? <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{status}</Text> : null}
+        {awayKnown ? <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(2)]}>{status}</Text> : null}
         {progress}
         {away ? <Text modifiers={[font({ size: 12 }), secondary, lineLimit(1)]}>{props.awayHint}</Text> : null}
       </VStack>
@@ -101,7 +101,7 @@ export const TimerActivity = (props: TimerActivityProps, environment: LiveActivi
     expandedTrailing: clock(28, 120),
     expandedBottom: (
       <VStack alignment="leading" spacing={4}>
-        <Text modifiers={[font({ size: 13 }), secondary, lineLimit(1)]}>{status}</Text>
+        <Text modifiers={[font({ size: 13 }), secondary, lineLimit(2)]}>{status}</Text>
         {progress}
         {away ? <Text modifiers={[font({ size: 12 }), secondary, lineLimit(1)]}>{props.awayHint}</Text> : null}
       </VStack>

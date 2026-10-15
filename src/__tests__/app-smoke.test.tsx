@@ -1986,7 +1986,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
       // The clock still runs (the tolerance) but the status is honest at once; the system may
       // switch to the frozen away presentation at the stale date.
       expect(memory.liveActivities[0]).toMatchObject({
-        status: 'Uygulamadan çıktın · 10 sn içinde dönmezsen mola sayılır',
+        status: 'Uygulamadan çıktın · 10 sn sonra mola sayılır',
         pausedAt: null,
         from: startedAt,
         awayAt: leftAt,

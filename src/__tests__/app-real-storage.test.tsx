@@ -797,7 +797,7 @@ describe('system surfaces are not rewritten with the same content', () => {
     emitAppState('background', from);
     await settle();
     expect(mockSurfaces.liveActivities[0]).toMatchObject({
-      status: 'Uygulamadan çıktın · 10 sn içinde dönmezsen mola sayılır',
+      status: 'Uygulamadan çıktın · 10 sn sonra mola sayılır',
       awayAt: T0,
     });
     expect({ updates: mockSurfaces.liveUpdates, widget: mockSurfaces.widgetWrites }).toEqual({

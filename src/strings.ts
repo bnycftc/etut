@@ -755,7 +755,7 @@ export const tr = {
      * Sent with the update at the moment the app leaves under "Sor" (stopwatch, work block): true
      * from then on, also while the clock still runs (the simulator never showed the stale layout).
      */
-    awayPending: (seconds: number) => `Uygulamadan çıktın · ${seconds} sn içinde dönmezsen mola sayılır`,
+    awayPending: (seconds: number) => `Uygulamadan çıktın · ${seconds} sn sonra mola sayılır`,
     /**
      * Shown once the app has been away longer than the tolerance under "Sor": the clock stops there
      * (the time away becomes a break unless the student answers "Çalışıyordum").
@@ -1430,7 +1430,7 @@ export const tr = {
       lockWidget:
         'Kilit ekranına eklemek için kilit ekranına basılı tut, “Özelleştir” → “Kilitli Ekran”a dokun, saatin altındaki alana dokunup Etüt’ü seç.',
       widgetInfo:
-        'Widget bugünkü çalışma süreni, günlük hedefini, serini ve sınavına kalan gün sayısını gösterir; sayaç açıkken süre orada da ilerler. Kilit ekranındaki widget’ı telefonu eline alan herkes görebilir.',
+        'Widget bugünkü çalışma süreni, günlük hedefini, serini ve sınavına kalan gün sayısını gösterir; sayaç açıkken süre orada da ilerler, “Sor” seçiliyken uygulamadan çıkınca durur. Kilit ekranındaki widget’ı telefonu eline alan herkes görebilir.',
     },
     backup: {
       title: 'Yedek',

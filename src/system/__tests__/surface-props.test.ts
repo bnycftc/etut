@@ -32,7 +32,7 @@ describe('Live Activity props', () => {
     const props = timerActivityProps(s, liveTimerView(s, T0 + 20 * MIN, provisionalAwayAt(s, 'ask')));
     expect(props).toMatchObject({
       // The clock still runs (the tolerance); the status no longer says "Çalışıyorsun".
-      status: 'Uygulamadan çıktın · 10 sn içinde dönmezsen mola sayılır',
+      status: 'Uygulamadan çıktın · 10 sn sonra mola sayılır',
       icon: 'book.fill',
       pausedAt: null,
       awayAt: T0 + 20 * MIN,

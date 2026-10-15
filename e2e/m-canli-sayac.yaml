@@ -101,7 +101,7 @@ tags:
       - tapOn:
           id: away-credit
 # Away, now with Live Activities allowed: leave the app again with the default rule "Sor". The
-# last update before the app is suspended says "Uygulamadan çıktın · 10 sn içinde dönmezsen mola
+# last update before the app is suspended says "Uygulamadan çıktın · 10 sn sonra mola
 # sayılır" and carries the away fields with a stale date 10 s later, when the activity should
 # switch by itself (isStale) to the frozen clock and "Uygulamadan çıktın · mola sayılıyor". The
 # simulator did not draw that switch (run e2e-ios-37-1), so the check accepts either text; the
