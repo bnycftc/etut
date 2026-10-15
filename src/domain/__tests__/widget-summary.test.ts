@@ -1,7 +1,14 @@
 import { addDays, dayStartMs, type DayKey, istanbulDayKey } from '../istanbul-day';
 import { DEFAULT_POMODORO, upcomingPhaseChanges } from '../pomodoro';
 import { computeStreak } from '../streak';
-import { type CompletedSession, elapsedMs, pauseSession, startSession } from '../timer';
+import {
+  type CompletedSession,
+  elapsedMs,
+  onAppBackground,
+  pauseSession,
+  provisionalAwayAt,
+  startSession,
+} from '../timer';
 import { MAX_WIDGET_ENTRIES, PHASE_CHANGES_AHEAD, savedTotalsLookup, widgetTimeline } from '../widget-summary';
 
 const HOUR = 3_600_000;
@@ -174,6 +181,31 @@ describe('widgetTimeline', () => {
       const studiedToday = elapsedMs(active, t) - elapsedMs(active, Math.max(start, day));
       expect(shown(t)).toBeLessThanOrEqual(studiedToday);
     }
+  });
+});
+
+describe('widgetTimeline: away from the app', () => {
+  it('rule "Sor": from awayAt the total stops and nothing counts; "Çalışmaya devam say" goes on', () => {
+    const active = onAppBackground(startSession('a', 'fizik', NOW - 20 * MIN), NOW);
+    const input = { now: NOW, savedTotal: () => 0, active, goalMinutes: 60 };
+    const asked = widgetTimeline({ ...input, awayAt: provisionalAwayAt(active, 'ask') });
+    expect(asked[0]).toMatchObject({ todayMs: 20 * MIN, counting: false, goalReachedAt: null });
+    // Frozen until the app syncs again (it settles like an idle day).
+    expect(asked.every((e) => !e.counting)).toBe(true);
+    expect(asked.map((e) => e.at)).toContain(midnight(TODAY, 4));
+    const counted = widgetTimeline({ ...input, awayAt: provisionalAwayAt(active, 'count') });
+    expect(counted).toEqual(widgetTimeline(input));
+    expect(counted[0]).toMatchObject({ todayMs: 20 * MIN, counting: true });
+  });
+
+  it('pomodoro break: the total stays at the study time, also after the break would end', () => {
+    const start = NOW - 26 * MIN;
+    const active = onAppBackground(startSession('p', 'fizik', start, { pomodoro: DEFAULT_POMODORO }), NOW);
+    const entries = widgetTimeline({ now: NOW, savedTotal: () => 0, active, goalMinutes: null, awayAt: start + 30 * MIN });
+    expect(entries[0]).toMatchObject({ todayMs: 25 * MIN, counting: false });
+    // No phase-change entries: nothing changes any more.
+    expect(entries.map((e) => e.at)).not.toContain(start + 30 * MIN);
+    expect(entries.every((e) => !e.counting)).toBe(true);
   });
 });
 

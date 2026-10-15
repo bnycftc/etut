@@ -1,6 +1,6 @@
 import { liveTimerView } from '../../domain/live-timer';
 import { DEFAULT_POMODORO } from '../../domain/pomodoro';
-import { pauseSession, startSession } from '../../domain/timer';
+import { onAppBackground, pauseSession, provisionalAwayAt, startSession } from '../../domain/timer';
 import type { WidgetEntry } from '../../domain/widget-summary';
 import { emptyWidgetProps, notificationText, timerActivityProps, todayWidgetProps } from '../surface-props';
 
@@ -19,7 +19,29 @@ describe('Live Activity props', () => {
       pausedAt: null,
       showProgress: false,
       nextStatus: null,
+      awayAt: null,
+      awayStatus: null,
+      awayHint: null,
+      awayFrom: null,
+      awayTo: null,
     });
+  });
+
+  it('away from the app (rule "Sor"): still running for now, the away texts and frozen clock for later', () => {
+    const s = onAppBackground(startSession('s', 'fizik', T0), T0 + 20 * MIN);
+    const props = timerActivityProps(s, liveTimerView(s, T0 + 20 * MIN, provisionalAwayAt(s, 'ask')));
+    expect(props).toMatchObject({
+      status: 'Çalışıyorsun',
+      icon: 'book.fill',
+      pausedAt: null,
+      awayAt: T0 + 20 * MIN,
+      awayStatus: 'Uygulamadan çıktın · mola sayılıyor',
+      awayHint: 'Dönünce “Çalışıyordum” dersen süre eklenir.',
+      awayFrom: T0,
+    });
+    expect(props.awayTo).toBeGreaterThan(props.awayAt!);
+    // "Çalışmaya devam say": nothing away.
+    expect(timerActivityProps(s, liveTimerView(s, T0 + 20 * MIN, provisionalAwayAt(s, 'count'))).awayAt).toBeNull();
   });
 
   it('paused pomodoro shows the phase, the pause and a static progress', () => {

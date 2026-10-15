@@ -43,6 +43,16 @@ export interface TimerActivityProps {
   nextIcon: ActivityIcon | null;
   nextFrom: number | null;
   nextTo: number | null;
+  /**
+   * Away from the app (rule 'ask'), shown once the Live Activity is stale, before `next*`: the
+   * clock `awayFrom`…`awayTo` frozen at `awayAt` (same direction as `countsDown`), `awayStatus` and
+   * `awayHint`. All `null` when the time away costs nothing.
+   */
+  awayAt: number | null;
+  awayStatus: string | null;
+  awayHint: string | null;
+  awayFrom: number | null;
+  awayTo: number | null;
 }
 
 export interface TodayWidgetProps {
@@ -113,6 +123,11 @@ export function timerActivityProps(session: ActiveSession, view: LiveTimerView):
     nextIcon: view.next === null ? null : phaseIcon(view.next.phase),
     nextFrom: view.next?.clock.from ?? null,
     nextTo: view.next?.clock.to ?? null,
+    awayAt: view.away?.at ?? null,
+    awayStatus: view.away === null ? null : tr.liveActivity.away,
+    awayHint: view.away === null ? null : tr.liveActivity.awayHint,
+    awayFrom: view.away?.clock.from ?? null,
+    awayTo: view.away?.clock.to ?? null,
   };
 }
 

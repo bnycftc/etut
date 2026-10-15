@@ -61,10 +61,13 @@ function formatAway(ms: number): string {
  * "Bitir" with its questions: an unanswered absence is asked about instead of being dropped, and
  * a session longer than `LONG_SESSION_MS` is confirmed (or saved as its first 10 hours).
  * `request` goes in the button, `prompt` is shown under it while a question is open.
+ * `open`: a question is shown. While an absence is open it is the one asked here, so the screen
+ * hides its own away card meanwhile (the same question twice, one above the other).
  */
 export function useFinishCheck(onFinish: (options?: FinishOptions) => void): {
   request: () => void;
   prompt: ReactNode;
+  open: boolean;
 } {
   const app = useAppState();
   const active = app.active;
@@ -144,7 +147,7 @@ export function useFinishCheck(onFinish: (options?: FinishOptions) => void): {
         />
       </View>
     );
-  return { request, prompt };
+  return { request, prompt, open: prompt !== null };
 }
 
 /** Ayarlar: keep the screen on, and what leaving the app means (default: ask). */

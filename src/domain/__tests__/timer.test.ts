@@ -1,3 +1,4 @@
+import { DEFAULT_POMODORO } from '../pomodoro';
 import {
   type ActiveSession,
   BACKGROUND_TOLERANCE_MS,
@@ -17,6 +18,7 @@ import {
   onAppLaunch,
   pauseSession,
   pendingAwayMs,
+  provisionalAwayAt,
   resumeSession,
   startSession,
   workIntervals,
@@ -268,6 +270,45 @@ describe('"Çalışmaya devam say" (away rule: count)', () => {
   it('the default stays "ask"', () => {
     const back = onAppForeground(onAppBackground(started(), T0 + min(10)), T0 + min(70));
     expect(back.pendingAway).not.toBeNull();
+  });
+});
+
+describe('provisionalAwayAt (where the Lock Screen timer and the widget freeze while away)', () => {
+  const pomodoro = () => startSession('p1', 'matematik', T0, { pomodoro: DEFAULT_POMODORO });
+
+  it('nothing in the foreground, with "Çalışmaya devam say", or while paused by hand', () => {
+    expect(provisionalAwayAt(started(), 'ask')).toBeNull();
+    expect(provisionalAwayAt(onAppBackground(started(), T0 + min(10)), 'count')).toBeNull();
+    const paused = pauseSession(started(), T0 + min(5));
+    // A paused timer is not watched; even a session marked away while paused stays out.
+    expect(provisionalAwayAt(onAppBackground(paused, T0 + min(10)), 'ask')).toBeNull();
+    expect(provisionalAwayAt({ ...paused, backgroundedAt: T0 + min(10) }, 'ask')).toBeNull();
+  });
+
+  it('stopwatch and a pomodoro work block: from the moment the app left', () => {
+    expect(provisionalAwayAt(onAppBackground(started(), T0 + min(10)), 'ask')).toBe(T0 + min(10));
+    expect(provisionalAwayAt(onAppBackground(pomodoro(), T0 + min(10)), 'ask')).toBe(T0 + min(10));
+  });
+
+  it('pomodoro break: from the end of the break (back before it, nothing is asked)', () => {
+    expect(provisionalAwayAt(onAppBackground(pomodoro(), T0 + min(26)), 'ask')).toBe(T0 + min(30));
+    // Exactly at the end of the work block the break has begun.
+    expect(provisionalAwayAt(onAppBackground(pomodoro(), T0 + min(25)), 'ask')).toBe(T0 + min(30));
+  });
+
+  it('the study time kept after a late return without an answer is the study time at that moment', () => {
+    for (const [session, leftAt] of [
+      [started(), T0 + min(10)],
+      [pomodoro(), T0 + min(10)],
+      [pomodoro(), T0 + min(26)],
+    ] as const) {
+      const bg = onAppBackground(session, leftAt);
+      const freezeAt = provisionalAwayAt(bg, 'ask')!;
+      // Just past the tolerance, during the break, in the next work block, hours later.
+      for (const later of [leftAt + BACKGROUND_TOLERANCE_MS + sec(1), T0 + min(29), T0 + min(40), T0 + min(200)]) {
+        expect(elapsedMs(onAppForeground(bg, later), later)).toBe(elapsedMs(bg, freezeAt));
+      }
+    }
   });
 });
 

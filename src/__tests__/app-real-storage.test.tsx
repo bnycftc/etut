@@ -735,6 +735,9 @@ describe('settings: "Sayaç çalışırken" after another change on the same scr
 
 describe('system surfaces are not rewritten with the same content', () => {
   it('coming back to the foreground with nothing changed sends no Live Activity update and no widget timeline', async () => {
+    // "Çalışmaya devam say": leaving the app changes nothing on the surfaces (with "Sor" it does,
+    // see the next test).
+    kv.storeAwayRule('count');
     const from = listenersFrom();
     renderRouter(APP_DIR, { initialUrl: '/' });
     start();
@@ -763,5 +766,42 @@ describe('system surfaces are not rewritten with the same content', () => {
     await settle();
     expect(mockSurfaces.liveUpdates).toBe(before.updates + 1);
     expect(mockSurfaces.widgetWrites).toBe(before.widget + 1);
+  });
+
+  it('rule "Sor": a short trip out sends the away fields once and takes them back once, nothing more', async () => {
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    await settle();
+    const before = { updates: mockSurfaces.liveUpdates, widget: mockSurfaces.widgetWrites };
+
+    emitAppState('background', from);
+    await settle();
+    expect(mockSurfaces.liveActivities[0]).toMatchObject({ status: 'Çalışıyorsun', awayAt: T0 });
+    expect({ updates: mockSurfaces.liveUpdates, widget: mockSurfaces.widgetWrites }).toEqual({
+      updates: before.updates + 1,
+      widget: before.widget + 1,
+    });
+
+    // Back within the tolerance: the away fields are taken back (else the activity would still
+    // freeze at its stale date).
+    act(() => jest.setSystemTime(T0 + 3_000));
+    emitAppState('active', from);
+    await settle();
+    expect(mockSurfaces.liveActivities[0].awayAt).toBeNull();
+    expect(storedActive()?.pendingAway).toBeNull();
+    expect({ updates: mockSurfaces.liveUpdates, widget: mockSurfaces.widgetWrites }).toEqual({
+      updates: before.updates + 2,
+      widget: before.widget + 2,
+    });
+
+    // Nothing changed since: more looks at the foreground and clock ticks send nothing.
+    emitAppState('active', from);
+    at(T0 + 20_000);
+    await settle();
+    expect({ updates: mockSurfaces.liveUpdates, widget: mockSurfaces.widgetWrites }).toEqual({
+      updates: before.updates + 2,
+      widget: before.widget + 2,
+    });
   });
 });

@@ -1766,9 +1766,83 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
       expect(memory.active?.backgroundedAt).not.toBeNull();
       expect(memory.liveActivities[0].status).toBe('Kısa mola');
       expect(memory.liveActivityStaleAt).toBe(startedAt + 30 * 60_000);
+      // Away during a break costs nothing until it ends; then the next block is shown frozen.
+      expect(memory.liveActivities[0]).toMatchObject({
+        awayAt: startedAt + 30 * 60_000,
+        awayStatus: 'Uygulamadan çıktın · mola sayılıyor',
+        awayFrom: startedAt + 30 * 60_000,
+        awayTo: startedAt + 55 * 60_000,
+      });
       const reminders = futurePomodoroReminders();
       expect(reminders).toHaveLength(POMODORO_CHANGES_AHEAD);
       expect(reminders[0]).toMatchObject({ at: startedAt + 30 * 60_000, ended: 'short_break' });
+    });
+
+    it('rule "Sor": the last update says where the clock freezes; back late, it follows the break', async () => {
+      const from = (AppState.addEventListener as jest.Mock).mock.calls.length;
+      renderRouter(APP_DIR, { initialUrl: '/' });
+      fireEvent.press(screen.getByText('Fizik'));
+      fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+      await settle();
+      const startedAt = memory.active!.startedAt;
+      expect(memory.liveActivities[0].awayAt).toBeNull();
+
+      act(() => jest.setSystemTime(startedAt + 60_000));
+      emitAppState('background', from);
+      await settle();
+      const leftAt = memory.active!.backgroundedAt!;
+      // Still the running presentation; the system switches to the away one at the stale date.
+      expect(memory.liveActivities[0]).toMatchObject({
+        status: 'Çalışıyorsun',
+        pausedAt: null,
+        from: startedAt,
+        awayAt: leftAt,
+        awayStatus: 'Uygulamadan çıktın · mola sayılıyor',
+        awayHint: 'Dönünce “Çalışıyordum” dersen süre eklenir.',
+        awayFrom: startedAt,
+      });
+      expect(memory.liveActivityStaleAt).toBe(leftAt + 10_000);
+      // The widget stops counting at once.
+      expect(memory.widget[0].props).toMatchObject({ countingFrom: null, runningNote: null, total: '1 dk' });
+
+      // Back after 30 s: the time away is a break, the clock starts 30 s later.
+      act(() => jest.setSystemTime(leftAt + 30_000));
+      emitAppState('active', from);
+      await settle();
+      expect(memory.liveActivities[0]).toMatchObject({ status: 'Çalışıyorsun', awayAt: null, from: startedAt + 30_000 });
+      expect(memory.liveActivityStaleAt).toBeNull();
+      expect(memory.widget[0].props.runningNote).toBe('Sayaç açık');
+      fireEvent.press(screen.getByTestId('away-credit'));
+      await settle();
+      expect(memory.liveActivities[0]).toMatchObject({ awayAt: null, from: startedAt });
+    });
+
+    it('"Çalışmaya devam say" or a manual break: nothing freezes, the widget goes on as before', async () => {
+      memory.awayRule = 'count';
+      const from = (AppState.addEventListener as jest.Mock).mock.calls.length;
+      renderRouter(APP_DIR, { initialUrl: '/' });
+      fireEvent.press(screen.getByText('Fizik'));
+      fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+      await settle();
+      act(() => jest.setSystemTime(Date.now() + 60_000));
+      emitAppState('background', from);
+      await settle();
+      expect(memory.active?.backgroundedAt).not.toBeNull();
+      expect(memory.liveActivities[0]).toMatchObject({ status: 'Çalışıyorsun', awayAt: null, awayStatus: null });
+      expect(memory.liveActivityStaleAt).toBeNull();
+      expect(memory.widget[0].props.runningNote).toBe('Sayaç açık');
+      expect(memory.widget[0].props.countingFrom).not.toBeNull();
+
+      // "Sor", but paused by hand before leaving: the pause already stops the clock.
+      memory.awayRule = 'ask';
+      emitAppState('active', from);
+      await settle();
+      fireEvent.press(screen.getByRole('button', { name: 'Mola' }));
+      await settle();
+      emitAppState('background', from);
+      await settle();
+      expect(memory.liveActivities[0]).toMatchObject({ status: 'Moladasın', awayAt: null });
+      expect(memory.liveActivityStaleAt).toBeNull();
     });
 
     it('never starts a Live Activity there; it starts once the app is back', async () => {
@@ -2050,7 +2124,7 @@ describe('timer and data safety', () => {
     expect(memory.sessions[0].durationMs).toBe(5 * MIN);
   });
 
-  it('an absence answered on the card closes the question: a later absence does not reopen it', () => {
+  it('while "Bitir" asks about the absence the card above is hidden; answered on the card, it is not asked again', () => {
     const from = listenersFrom();
     renderRouter(APP_DIR, { initialUrl: '/' });
     start();
@@ -2058,6 +2132,10 @@ describe('timer and data safety', () => {
     away(from, startedAt + MIN, startedAt + 31 * MIN);
     finish();
     expect(screen.getByTestId('finish-check')).toBeTruthy();
+    // One question on screen, not the same one twice.
+    expect(screen.queryByTestId('away-title')).toBeNull();
+    fireEvent.press(screen.getByTestId('finish-check-cancel'));
+    expect(screen.getByTestId('away-title')).toBeTruthy();
     fireEvent.press(screen.getByTestId('away-dismiss'));
     expect(screen.queryByTestId('finish-check')).toBeNull();
     away(from, startedAt + 32 * MIN, startedAt + 62 * MIN);
@@ -2288,6 +2366,7 @@ describe('timer and data safety', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     await settle();
     expect(memory.liveActivities).toHaveLength(1);
+    expect(memory.liveActivities[0].awayAt).toBeNull();
     expect(memory.liveActivityRecord).toMatchObject({ sessionId: 'after-restart', retried: true });
     // Now the student removes it with the app alive: respected.
     memory.liveActivities = [];

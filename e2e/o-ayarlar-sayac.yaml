@@ -1,4 +1,5 @@
-# o. Ayarlar → "Sayaç çalışırken": ekranı açık tut kapat/aç, "Çalışmaya devam say" (uzakta kartı yok)
+# o. Ayarlar → "Sayaç çalışırken": ekranı açık tut kapat/aç, "Çalışmaya devam say" (uzakta kartı yok,
+# kilit ekranındaki sayaç 10 sn'den sonra da "Çalışıyorsun" der)
 appId: com.bnycftc.etut
 tags:
   - e2e
@@ -62,6 +63,28 @@ tags:
       id: e2e-never-present
     timeout: 15000
     optional: true
+# The Lock Screen presentation (Notification Center) keeps counting: no away presentation after
+# the tolerance either (rule "Sor" would show "Uygulamadan çıktın" by now, see m-canli-sayac).
+- swipe:
+    start: 15%, 0%
+    end: 15%, 70%
+    duration: 600
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 2000
+    optional: true
+- takeScreenshot: o-ayarlar-sayac-02b-kilit-ekrani-sayiyor
+- extendedWaitUntil:
+    visible:
+      text: "Çalışıyorsun"
+    timeout: 10000
+- assertNotVisible:
+    text: "Uygulamadan çıktın.*"
+- swipe:
+    start: 50%, 99%
+    end: 50%, 20%
+    duration: 400
 # Back to the same process (no restart). `permissions: {}` skips launchApp's default permission
 # grant, which can terminate a running app.
 - launchApp:

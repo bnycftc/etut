@@ -14,6 +14,10 @@
  *   for both (`pendingAway` spans them, `pendingAwayMs` is the time actually away).
  * - The student can choose in Settings that leaving the app counts as study (`AwayRule` 'count');
  *   then no break is made and nothing is asked. The default stays 'ask'.
+ * - While the app is away nothing here runs, but the Lock Screen timer and the widget must not
+ *   keep counting time that will be turned into a break. `provisionalAwayAt` says, at the
+ *   background event, from when study time stops if the student stays away (and does not answer
+ *   "Çalışıyordum"): the system surfaces freeze there (`live-timer.ts`, `widget-summary.ts`).
  *
  * A clock set back before the start (e.g. corrected by the network) never loses the session:
  * it is saved up to the last moment the app recorded (`finishSession`).
@@ -25,7 +29,9 @@ import {
   type PomodoroConfig,
   pomodoroBreaks,
   type PomodoroState,
+  pomodoroStatus,
   skipBreak as skipPomodoroBreak,
+  upcomingPhaseChanges,
 } from './pomodoro';
 
 export const BACKGROUND_TOLERANCE_MS = 10_000;
@@ -280,6 +286,22 @@ export function onAppForeground(session: ActiveSession, now: number, rule: AwayR
         ? { start: awayStart, end: now }
         : { start: Math.min(session.pendingAway.start, awayStart), end: Math.max(session.pendingAway.end, now) },
   };
+}
+
+/**
+ * While the app is in the background: the moment from which the time away costs study time if the
+ * student stays away longer than the tolerance (what `onAppForeground` then turns into a break).
+ * `null` = nothing will be taken: in the foreground, manually paused, or rule 'count'.
+ * Stopwatch and pomodoro work block: the background moment. Pomodoro break: the end of the break
+ * (back before it, nothing is asked). Unless the student answers "Çalışıyordum", the study time
+ * kept is the study time at this moment, for any return later than the tolerance:
+ * `elapsedMs(onAppForeground(s, later), later) === elapsedMs(s, provisionalAwayAt(s, 'ask'))`.
+ */
+export function provisionalAwayAt(session: ActiveSession, rule: AwayRule): number | null {
+  const awayStart = session.backgroundedAt;
+  if (awayStart === null || isPaused(session) || rule === 'count') return null;
+  if (session.pomodoro === null || pomodoroStatus(session, awayStart)?.phase === 'work') return awayStart;
+  return upcomingPhaseChanges(session, awayStart, 1)[0]?.at ?? awayStart;
 }
 
 /** Foreground heartbeat (see `lastSeenAt`). Only a running, foreground timer is marked. */

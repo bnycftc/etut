@@ -6,6 +6,8 @@
  * app comes to the foreground and when a pomodoro phase ends while the app stays open (a phase
  * change changes nothing in the stored session). Going to the background is a session change
  * too, so the surfaces get a last sync then; only starting a Live Activity needs the foreground.
+ * With the away rule "Sor" that last sync also says from when the time away will cost study time
+ * (`provisionalAwayAt`): the Live Activity freezes there by itself once stale, the widget at once.
  * Never ticks.
  */
 
@@ -23,10 +25,11 @@ import {
   type ReminderPrefs,
 } from '../domain/reminders';
 import { STREAK_LOOKBACK_DAYS } from '../domain/streak';
-import type { ActiveSession } from '../domain/timer';
+import { type ActiveSession, provisionalAwayAt } from '../domain/timer';
 import type { ExamType } from '../domain/profile';
 import { savedTotalsLookup, type WidgetExam, widgetTimeline } from '../domain/widget-summary';
 import {
+  loadAwayRule,
   loadCustomExamDate,
   loadDailyGoal,
   loadLiveActivityRecord,
@@ -134,7 +137,7 @@ async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
     if (action === 'end') storeLiveActivityRecord(null);
   }
   if (active === null || action === 'none' || action === 'end') return;
-  const view = liveTimerView(active, now);
+  const view = liveTimerView(active, now, provisionalAwayAt(active, loadAwayRule()));
   const props = timerActivityProps(active, view);
   const key = JSON.stringify([active.id, props, view.staleAt]);
   if (action === 'update') {
@@ -157,13 +160,18 @@ let lastWidgetKey: string | null = null;
 function syncWidget(active: ActiveSession | null, data: SurfaceData | null): void {
   if (!homeWidget.supported) return;
   const now = Date.now();
+  const awayAt = active === null ? null : provisionalAwayAt(active, loadAwayRule());
   const entries =
     data === null
       ? [{ at: now, props: emptyWidgetProps() }]
-      : widgetTimeline({ now, savedTotal: data.savedTotal, active, goalMinutes: data.goalMinutes, exam: data.exam }).map((e) => ({
-          at: e.at,
-          props: todayWidgetProps(e),
-        }));
+      : widgetTimeline({
+          now,
+          savedTotal: data.savedTotal,
+          active,
+          goalMinutes: data.goalMinutes,
+          exam: data.exam,
+          awayAt,
+        }).map((e) => ({ at: e.at, props: todayWidgetProps(e) }));
   // The first entry always starts "now"; only a different picture needs a reload.
   const key = JSON.stringify(entries.map((e, i) => [i === 0 ? 0 : e.at, e.props]));
   if (key === lastWidgetKey) return;

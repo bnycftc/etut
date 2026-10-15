@@ -335,7 +335,7 @@ export default function TimerScreen() {
         ) : null}
       </Card>
 
-      {active?.pendingAway ? (
+      {active?.pendingAway && !finishCheck.open ? (
         <Card>
           <Label testID="away-title" style={{ color: c.warning, fontWeight: '600' }}>
             {tr.timer.awayTitle(formatAway(pendingAwayMs(active)))}

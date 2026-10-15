@@ -14,6 +14,11 @@
  * only: without push nothing can change the activity while the app is closed, so the next phase is
  * shown with its end time ("Kısa mola · bitiş 10:30"), which stays true once its clock is at 0:00.
  * The app updates it at every phase change while it is open and when it goes to the background.
+ * Going to the background with the away rule "Sor", that last update also carries the away fields:
+ * once stale, the layout shows those first (frozen clock, pause icon, "Uygulamadan çıktın · mola
+ * sayılıyor"), because from then on the time away is a break unless the student says otherwise.
+ * The away fields are checked with `typeof`: a Live Activity started by an older app version has
+ * none at all (`undefined`, not `null`).
  */
 
 import { HStack, Image, ProgressView, Spacer, Text, VStack } from '@expo/ui/swift-ui';
@@ -24,16 +29,28 @@ import type { TimerActivityProps } from '../surface-props';
 
 export const TimerActivity = (props: TimerActivityProps, environment: LiveActivityEnvironment) => {
   'widget';
+  const away =
+    environment.isStale === true &&
+    typeof props.awayAt === 'number' &&
+    typeof props.awayFrom === 'number' &&
+    typeof props.awayTo === 'number';
   const showNext =
+    !away &&
     environment.isStale === true &&
     props.nextStatus !== null &&
     props.nextFrom !== null &&
     props.nextTo !== null;
-  const status = showNext ? props.nextStatus : props.status;
-  const icon = showNext && props.nextIcon !== null ? props.nextIcon : props.icon;
-  const lower = new Date(showNext ? (props.nextFrom ?? props.from) : props.from);
-  const upper = new Date(showNext ? (props.nextTo ?? props.to) : props.to);
-  const pauseTime = !showNext && props.pausedAt !== null ? new Date(props.pausedAt) : undefined;
+  const status = away ? props.awayStatus : showNext ? props.nextStatus : props.status;
+  const icon = away ? 'pause.fill' : showNext && props.nextIcon !== null ? props.nextIcon : props.icon;
+  const lower = new Date(
+    away ? (props.awayFrom ?? props.from) : showNext ? (props.nextFrom ?? props.from) : props.from,
+  );
+  const upper = new Date(away ? (props.awayTo ?? props.to) : showNext ? (props.nextTo ?? props.to) : props.to);
+  const pauseTime = away
+    ? new Date(props.awayAt ?? props.from)
+    : !showNext && props.pausedAt !== null
+      ? new Date(props.pausedAt)
+      : undefined;
   const countsDown = showNext ? true : props.countsDown;
   const accent = environment.isLuminanceReduced === true ? '#FFFFFF' : '#4C8DFF';
   const secondary = foregroundStyle({ type: 'hierarchical', style: 'secondary' });
@@ -51,7 +68,7 @@ export const TimerActivity = (props: TimerActivityProps, environment: LiveActivi
     />
   );
 
-  const progress = !props.showProgress ? null : !showNext && pauseTime !== undefined ? (
+  const progress = away || !props.showProgress ? null : !showNext && pauseTime !== undefined ? (
     <ProgressView value={props.progress} modifiers={[foregroundStyle(accent)]} />
   ) : (
     <ProgressView timerInterval={{ lower: lower, upper: upper }} countsDown={false} />
@@ -64,10 +81,11 @@ export const TimerActivity = (props: TimerActivityProps, environment: LiveActivi
           <Image systemName={icon} size={15} color={accent} />
           <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{props.title}</Text>
           <Spacer />
-          <Text modifiers={[font({ size: 13 }), secondary, lineLimit(1)]}>{status}</Text>
+          {away ? null : <Text modifiers={[font({ size: 13 }), secondary, lineLimit(1)]}>{status}</Text>}
         </HStack>
         {clock(40, 0)}
-        {progress}
+        {away ? <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{status}</Text> : progress}
+        {away ? <Text modifiers={[font({ size: 12 }), secondary, lineLimit(1)]}>{props.awayHint}</Text> : null}
       </VStack>
     ),
     compactLeading: <Image systemName={icon} size={14} color={accent} />,
@@ -84,6 +102,7 @@ export const TimerActivity = (props: TimerActivityProps, environment: LiveActivi
       <VStack alignment="leading" spacing={4}>
         <Text modifiers={[font({ size: 13 }), secondary, lineLimit(1)]}>{status}</Text>
         {progress}
+        {away ? <Text modifiers={[font({ size: 12 }), secondary, lineLimit(1)]}>{props.awayHint}</Text> : null}
       </VStack>
     ),
   };

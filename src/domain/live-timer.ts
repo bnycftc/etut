@@ -7,6 +7,12 @@
  * is derived from the same timestamps as the in-app clock (`timer.ts`, `pomodoro.ts`) and stays
  * the same between two changes, so repeated syncs send nothing.
  *
+ * Away from the app (rule 'ask'): the app sends one last update when it goes to the background,
+ * with `awayAt` (`provisionalAwayAt`). The Live Activity keeps the running clock through the
+ * 10-second tolerance; at `staleAt` the system marks it stale and the layout switches by itself to
+ * `away`: the clock frozen at the study time of `awayAt`, and an honest status. Without push nothing
+ * else can change it while the app is away; the app updates it again when it comes back.
+ *
  * Apple limits (ActivityKit, "Displaying live data with Live Activities"):
  * - A Live Activity is active for at most 8 hours; then the system ends it (it may stay on the
  *   Lock Screen for up to 4 more hours, frozen).
@@ -16,7 +22,7 @@
  */
 
 import { type PomodoroPhase, pomodoroStatus, upcomingPhaseChanges } from './pomodoro';
-import { type ActiveSession, elapsedMs, isPaused } from './timer';
+import { type ActiveSession, BACKGROUND_TOLERANCE_MS, elapsedMs, isPaused } from './timer';
 
 const HOUR_MS = 3_600_000;
 
@@ -50,7 +56,14 @@ export interface LiveTimerView {
   clock: LiveClock;
   /** Pomodoro, while running: the phase after the current one, shown once `staleAt` passes. */
   next: { phase: PomodoroPhase; blockInSet: number; clock: LiveClock } | null;
-  /** When the current content stops being right by itself (end of the pomodoro phase). */
+  /**
+   * In the background with rule 'ask': shown once `staleAt` passes (before `next`). The clock is
+   * frozen at `at`, the moment from which the time away costs study time. Pomodoro: the phase that
+   * time is taken from (the current work block, or the next one at full length when `at` is the
+   * end of a break).
+   */
+  away: { at: number; phase: PomodoroPhase | null; blockInSet: number | null; clock: LiveClock } | null;
+  /** When the current content stops being right by itself (end of the pomodoro phase, or away). */
   staleAt: number | null;
 }
 
@@ -60,7 +73,40 @@ function openPauseStart(session: ActiveSession): number | null {
   return last !== undefined && last.end === null ? last.start : null;
 }
 
-export function liveTimerView(session: ActiveSession, now: number): LiveTimerView {
+/**
+ * `awayAt`: `provisionalAwayAt` while the app is in the background (`null` = not away, or the time
+ * away costs nothing).
+ */
+export function liveTimerView(session: ActiveSession, now: number, awayAt: number | null = null): LiveTimerView {
+  const view = runningView(session, now);
+  if (awayAt === null) return view;
+  const away = awayView(session, awayAt);
+  // The running clock goes on through the tolerance (and up to the end of a break); then it freezes.
+  const freezeAt = Math.max(awayAt, (session.backgroundedAt ?? awayAt) + BACKGROUND_TOLERANCE_MS);
+  return { ...view, away, staleAt: Math.min(view.staleAt ?? Number.POSITIVE_INFINITY, freezeAt) };
+}
+
+function awayView(session: ActiveSession, awayAt: number): NonNullable<LiveTimerView['away']> {
+  const status = pomodoroStatus(session, awayAt);
+  if (status === null) {
+    const from = awayAt - elapsedMs(session, awayAt);
+    return {
+      at: awayAt,
+      phase: null,
+      blockInSet: null,
+      clock: { from, to: from + COUNT_UP_SPAN_MS, countsDown: false, pausedAt: awayAt },
+    };
+  }
+  const to = awayAt + Math.max(0, status.remainingMs);
+  return {
+    at: awayAt,
+    phase: status.phase,
+    blockInSet: status.blockInSet,
+    clock: { from: Math.min(to, to - status.phaseMs), to, countsDown: true, pausedAt: awayAt },
+  };
+}
+
+function runningView(session: ActiveSession, now: number): LiveTimerView {
   const paused = isPaused(session);
   // While paused nothing moves: evaluate at the pause start so the values stay the same.
   const at = Math.max(session.startedAt, paused ? (openPauseStart(session) ?? now) : now);
@@ -75,6 +121,7 @@ export function liveTimerView(session: ActiveSession, now: number): LiveTimerVie
       blockInSet: null,
       clock: { from, to: from + COUNT_UP_SPAN_MS, countsDown: false, pausedAt: paused ? at : null },
       next: null,
+      away: null,
       staleAt: null,
     };
   }
@@ -101,6 +148,7 @@ export function liveTimerView(session: ActiveSession, now: number): LiveTimerVie
             blockInSet: change.nextBlockInSet,
             clock: { from: change.at, to: change.nextEndsAt, countsDown: true, pausedAt: null },
           },
+    away: null,
     staleAt: change === undefined ? null : change.at,
   };
 }

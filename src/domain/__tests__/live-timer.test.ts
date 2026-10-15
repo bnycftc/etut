@@ -7,11 +7,13 @@ import {
 } from '../live-timer';
 import { DEFAULT_POMODORO, upcomingPhaseChanges } from '../pomodoro';
 import {
+  BACKGROUND_TOLERANCE_MS,
   creditAway,
   elapsedMs,
   onAppBackground,
   onAppForeground,
   pauseSession,
+  provisionalAwayAt,
   resumeSession,
   skipBreak,
   startSession,
@@ -117,10 +119,83 @@ describe('liveTimerView: pomodoro', () => {
       const v = liveTimerView(s, at(m));
       expect(v.clock.from).toBeLessThanOrEqual(v.clock.to);
       if (v.next) expect(v.next.clock.from).toBeLessThanOrEqual(v.next.clock.to);
+      const bg = onAppBackground(s, at(m));
+      const away = liveTimerView(bg, at(m), provisionalAwayAt(bg, 'ask')).away!;
+      expect(away.clock.from).toBeLessThanOrEqual(away.clock.to);
     }
     s = pauseSession(s, at(401));
     const p = liveTimerView(s, at(500));
     expect(p.clock.from).toBeLessThanOrEqual(p.clock.to);
+  });
+});
+
+describe('liveTimerView: away from the app (rule "Sor")', () => {
+  const awayView = (s: ReturnType<typeof startSession>, leftAt: number, now = leftAt) => {
+    const bg = onAppBackground(s, leftAt);
+    return liveTimerView(bg, now, provisionalAwayAt(bg, 'ask'));
+  };
+
+  it('stopwatch: keeps running through the tolerance, then shows the clock frozen at the study time', () => {
+    let s = startSession('s1', 'fizik', T0);
+    s = pauseSession(s, at(5));
+    s = resumeSession(s, at(7));
+    const v = awayView(s, at(20));
+    // The running presentation is unchanged until the system marks it stale.
+    expect(v.clock).toEqual(liveTimerView(s, at(20)).clock);
+    expect(v.away).toEqual({
+      at: at(20),
+      phase: null,
+      blockInSet: null,
+      clock: { from: T0 + min(2), to: T0 + min(2) + COUNT_UP_SPAN_MS, countsDown: false, pausedAt: at(20) },
+    });
+    // Shown value = pausedAt − from = the 18 min studied.
+    expect(v.away!.clock.pausedAt! - v.away!.clock.from).toBe(min(18));
+    expect(v.staleAt).toBe(at(20) + BACKGROUND_TOLERANCE_MS);
+    // Nothing moves while away: a second sync sends nothing.
+    expect(awayView(s, at(20), at(20) + 3_000)).toEqual(v);
+  });
+
+  it('pomodoro work block: the block frozen at its remaining time', () => {
+    const v = awayView(startSession('p1', 'fizik', T0, { pomodoro: DEFAULT_POMODORO }), at(10));
+    expect(v.away).toEqual({
+      at: at(10),
+      phase: 'work',
+      blockInSet: 1,
+      clock: { from: T0, to: at(25), countsDown: true, pausedAt: at(10) },
+    });
+    expect(v.staleAt).toBe(at(10) + BACKGROUND_TOLERANCE_MS);
+    // The away presentation comes before the next phase: the next phase stays known for later.
+    expect(v.next).toMatchObject({ phase: 'short_break' });
+  });
+
+  it('pomodoro break: the break runs out, then the next work block is frozen at full length', () => {
+    const v = awayView(startSession('p1', 'fizik', T0, { pomodoro: DEFAULT_POMODORO }), at(26));
+    expect(v.phase).toBe('short_break');
+    expect(v.away).toEqual({
+      at: at(30),
+      phase: 'work',
+      blockInSet: 2,
+      clock: { from: at(30), to: at(55), countsDown: true, pausedAt: at(30) },
+    });
+    expect(v.staleAt).toBe(at(30));
+  });
+
+  it('a phase end inside the tolerance comes first', () => {
+    const v = awayView(startSession('p1', 'fizik', T0, { pomodoro: DEFAULT_POMODORO }), at(25) - 4_000);
+    expect(v.staleAt).toBe(at(25));
+  });
+
+  it('without awayAt nothing changes (foreground, "Çalışmaya devam say", paused)', () => {
+    for (const s of [
+      startSession('s1', 'fizik', T0),
+      startSession('p1', 'fizik', T0, { pomodoro: DEFAULT_POMODORO }),
+    ]) {
+      const bg = onAppBackground(s, at(10));
+      const v = liveTimerView(bg, at(10), provisionalAwayAt(bg, 'count'));
+      expect(v.away).toBeNull();
+      expect(v).toEqual(liveTimerView(s, at(10)));
+      expect(liveTimerView(s, at(10), null)).toEqual(liveTimerView(s, at(10)));
+    }
   });
 });
 

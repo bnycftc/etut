@@ -115,6 +115,21 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   push olmadan kapalı uygulama etkinliği değiştiremez; o aşama da bitince sayaç 0:00'da kalır,
   bitiş saati doğru kalır. Uygulama açıkken her aşama değişiminde, arka plana geçerken de bir kez
   daha güncellenir; kilitli telefonda aşama sonlarını yerel bildirimler duyurur (aşağıda b).
+  **Uzakta (Ayarlar → "Uygulamadan çıkınca: Sor", varsayılan):** arka plana geçerken giden son
+  güncelleme, uzakta kalınan sürenin nereden itibaren mola sayılacağını da taşır
+  (`provisionalAwayAt`: kronometrede ve çalışma bloğunda ayrılma anı, pomodoro molasında molanın
+  sonu). Sayaç 10 sn tolerans boyunca (molada mola bitene kadar) saymaya devam eder; `staleDate`
+  gelince etkinlik kendiliğinden (`isStale`) uzakta görünümüne geçer: saat o andaki çalışma
+  süresinde durur (`pauseTime`, elle molayla aynı), simge duraklatma, altında "Uygulamadan çıktın ·
+  mola sayılıyor" ve "Dönünce “Çalışıyordum” dersen süre eklenir." Duran saat en çok 10 sn geri
+  adım atar (bilinçli). Bu görünüm "sıradaki aşama" görünümünden önce gelir; pomodoroda kaybedilen
+  aşamayı (o anki blok, molada çıkıldıysa sıradaki blok tam uzunlukta) donmuş gösterir. Aşama sonu
+  yerel bildirimleri pomodoro planına göre yine gelir (bilinçli). Uygulama dönünce etkinliği
+  günceller; "Çalışıyordum" denirse saat ileri atlar. "Çalışmaya devam say" seçiliyse hiçbir şey
+  değişmez, sayaç saymaya devam eder. Zorla kapatmada iOS uygulamanın etkinliklerini de bitirir,
+  yeniden açılışta yukarıdaki yeniden başlatma yolu çalışır. Uygulama ön planda çökerse (arka plan
+  olayı yok) etkinlik saymaya devam eder: bu boşluk bilinçli olarak kalır (dönünce `onAppLaunch`
+  yine molayı sorar).
   Ders (ve konu) adı görünür. Apple sınırı: bir Live Activity en çok 8 saat etkin kalır,
   yalnız uygulama ön plandayken başlatılabilir ("Displaying live data with Live Activities"); güncelleme
   ve bitirme arka planda da olur. Bu yüzden uzun oturumda uygulama her açıldığında 6 saatten eski
@@ -135,10 +150,12 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   günlerce açılmasa da doğru kalır, widget bayat seri göstermez.
   Sayaç çalışırken çizelge en çok 40 girdi tutar ve ikinci gece yarısında biter: pomodoroda ilk 34 aşama değişimini
   (25/5/15 ile ≈ 9 saat) kapsar; çizelgenin dışında kalan ilk aşama değişiminden sonrasına uzanan
-  girdi saymaz (açık sayaçtan az gösterebilir, fazla göstermez). Tek istisna uzakta kuralı: uygulama
-  uzun süre sonra dönünce o süreyi otomatik molaya çevirebilir; öğrenci "Çalışıyordum" demezse widget
-  o sürede kaydedilenden fazla saymış olur, sonraki eşitleme düzeltir. Uygulama açıldıkça ve açıkken
-  her aşama değişiminde çizelge yenilenir.
+  girdi saymaz (açık sayaçtan az gösterebilir, fazla göstermez). Uzakta kuralı "Sor" iken uygulama
+  arka plana geçince widget o andan (pomodoro molasındaysa molanın sonundan) itibaren saymaz:
+  toplam donar, "Sayaç açık" notu kalkar. Uzun süre sonra dönüp "Çalışıyordum" denmezse kaydedilen
+  de budur; denirse ya da 10 sn içinde dönülürse sonraki eşitleme süreyi ekler. "Çalışmaya devam
+  say" seçiliyse widget saymaya devam eder. Uygulama açıldıkça ve açıkken her aşama değişiminde
+  çizelge yenilenir.
 - **Uzantı:** `com.bnycftc.etut.ExpoWidgetsTarget` (expo-widgets'ın ürettiği hedef; widget + Live
   Activity aynı uzantıda). Derleme numarası uygulamayla aynıdır (`plugins/with-etut-ios.js`).
 - **Gizlilik manifestleri (PrivacyInfo.xcprivacy):** uygulamanınki `app.json` →
@@ -217,9 +234,11 @@ paylaşım sayfası), `j-kart-paylas` (çalışma kartı, paylaşım sayfası), 
 (aydınlatma ilk açılıştan, boş durumlar, hakkında, gizlilik),
 `l-hatirlaticilar` (onaydan önce hepsi kapalı; hatırlatıcı aç → tek düğmeli açıklama ekranı;
 sistem izin penceresi açılmaz, uygulama yeniden başlatılır ve hatırlatıcılar kapalı kalır),
-`m-canli-sayac` (ana ekranda Dynamic Island, Bildirim Merkezi'nde kilit ekranı görünümü, mola, pomodoro, bitir),
+`m-canli-sayac` (Bildirim Merkezi'nde kilit ekranı görünümü, ana ekranda Dynamic Island, 10 sn'den
+uzun çıkınca uzakta görünümü, mola, pomodoro, bitir),
 `o-ayarlar-sayac` (Ayarlar → "Sayaç çalışırken": ekranı açık tut kapat/aç, "Çalışmaya devam say";
-15 sn ana ekran ve öldür-aç sonrası uzakta kartı yok, saat saymaya devam eder; en sondaki
+15 sn ana ekran ve öldür-aç sonrası uzakta kartı yok, kilit ekranındaki ve uygulamadaki saat saymaya
+devam eder; en sondaki
 "Açık"a geri dönüş adımı React Compiler altındaki `useStored` hatası düzelene kadar düşer, bkz.
 `src/state/__tests__/use-stored-compiler.test.tsx`),
 `p-deneme-duzenle-lgs` (13 yaş LGS: yalnız LGS kâğıdı, net = D − Y/3, kaydet ve düzenle).
@@ -227,7 +246,11 @@ sistem izin penceresi açılmaz, uygulama yeniden başlatılır ve hatırlatıc�
 **`m-canli-sayac`:** Bildirim Merkezi'ndeki kilit ekranı görünümünde "Fizik" ve "Çalışıyorsun"
 artık zorunlu denetimdir. Maestro SpringBoard içeriğini okuyabiliyor: e2e-ios-15-2 ve 21-1
 çalıştırmalarında Live Activity çizilmişken iki denetim de geçti, App Group yetkisinin kaybolduğu
-13-1'de etkinlik boş çizildi ve ikisi de düştü. Dynamic Island, mola ve pomodoro görünümleri hâlâ
+13-1'de etkinlik boş çizildi ve ikisi de düştü. "Çalışıyorsun" Bildirim Merkezi uygulamanın üstüne
+çekilerek denetlenir (uygulama yalnız `inactive` olur, uzakta kuralı başlamaz): CI simülatöründe
+Home ile tek bir kaydırma bile 10 sn'den uzun sürüyor (e2e-ios-35-1). Sonra Home'a basılır ve
+12 sn'den sonra "Uygulamadan çıktın" zorunlu denetlenir (`m-canli-sayac-02c-uzakta`); uygulamaya
+dönünce "Çalışıyordum" kartı da zorunludur. Dynamic Island, mola ve pomodoro görünümleri hâlâ
 yalnız `m-canli-sayac-0x` ekran görüntüleriyle kanıtlanır; bunlar artifact'ta elle incelenmelidir.
 **Yedekten geri yükleme E2E'de yok (bilinçli):** içe aktarma dosyayı yalnız sistemin belge seçicisinden
 (`expo-document-picker`, UIDocumentPickerViewController) alır. Simülatörün Dosyalar uygulamasına
