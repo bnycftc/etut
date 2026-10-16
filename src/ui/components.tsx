@@ -29,6 +29,7 @@ export function Card({
   testID,
   tone = 'default',
   outline,
+  tint,
 }: {
   children: ReactNode;
   testID?: string;
@@ -36,6 +37,8 @@ export function Card({
   tone?: 'default' | 'hero' | 'accent';
   /** A 2 pt coloured outline (e.g. the running subject). */
   outline?: string;
+  /** Background instead of the surface (the running card's subject tint, `subjectTint`). */
+  tint?: string;
 }) {
   const c = usePalette();
   const hero = tone !== 'default';
@@ -45,7 +48,7 @@ export function Card({
       style={[
         styles.card,
         hero ? styles.cardHero : null,
-        { backgroundColor: hero ? c.accentSoft : c.surface },
+        { backgroundColor: tint ?? (hero ? c.accentSoft : c.surface) },
         hero && c === DARK ? { borderWidth: 1, borderColor: c.border } : null,
         outline ? { borderColor: outline, borderWidth: 2 } : null,
       ]}>

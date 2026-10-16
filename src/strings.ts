@@ -1395,11 +1395,13 @@ export const tr = {
 
   /** The short summary after "Bitir". */
   finish: {
+    /** Small line above the saved time (the time itself is the big number). */
+    savedTitle: 'Kaydedildi',
     studied: (subject: string) => `${subject} çalıştın`,
     studiedTopic: (subject: string, topic: string) => `${subject} · ${topic}`,
     goalStep: (before: number, after: number) => `Hedef: %${before} → %${after}`,
-    goalReached: 'Bugünkü hedefe ulaştın, tebrikler!',
-    streak: (days: number) => `Serin ${days} gün oldu.`,
+    /** Once, in the summary of the session that reached the daily goal: positive, no streak talk. */
+    goalReached: 'Bugünkü hedef tamam',
     undo: 'Geri al',
     undoHint: 'Kaydı siler, sayaç kaldığı yerden devam eder.',
     /** "Geri al" after a topic chip below was tapped: the mark goes back too. */
@@ -1407,7 +1409,8 @@ export const tr = {
     undone: 'Geri alındı. Sayaç kaldığı yerden devam ediyor.',
     /** "Bitti" / "Tekrar lazım" (topics.done / topics.review) for the session's topic. */
     topicMark: 'Konuyu işaretle (isteğe bağlı)',
-    announce: (saved: string, today: string) => `${saved}. Bugün toplam ${today}.`,
+    announce: (saved: string, today: string, goalReached: boolean) =>
+      `${saved}. Bugün toplam ${today}.${goalReached ? ' Bugünkü hedef tamam.' : ''}`,
   },
 
   /** Daily goal sheet on the timer screen and the optional onboarding step. */

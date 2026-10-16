@@ -802,7 +802,7 @@ describe('timer on the real storage', () => {
     // 60 + 70 minutes: over the 2-hour goal.
     expect(screen.getByTestId('finish-goal-reached')).toBeTruthy();
     expect(screen.getByTestId('finish-detail').props.children).not.toContain('Hedef:');
-    expect(announce).toHaveBeenCalledWith('Kaydedildi: 1 sa 10 dk. Bugün toplam 2 sa 10 dk.');
+    expect(announce).toHaveBeenCalledWith('Kaydedildi: 1 sa 10 dk. Bugün toplam 2 sa 10 dk. Bugünkü hedef tamam.');
     announce.mockRestore();
   });
 

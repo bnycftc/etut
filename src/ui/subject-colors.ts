@@ -35,3 +35,25 @@ export function subjectColor(subjectId: string, palette: Palette): string {
   const entry = SUBJECT_COLORS[subjectId] ?? SUBJECT_COLORS.diger;
   return palette === DARK ? entry.dark : entry.light;
 }
+
+/** Share of the subject colour in the running timer card (8 %, `#RRGGBB14`). */
+export const SUBJECT_TINT = 0x14 / 255;
+
+/**
+ * Background of the running timer card: the card surface with 8 % of the subject colour, as one
+ * opaque colour, so `contrast.test.ts` checks exactly what the text is drawn on.
+ */
+export function subjectTint(subjectId: string, palette: Palette): string {
+  const fg = subjectColor(subjectId, palette);
+  const bg = palette.surface;
+  let out = '#';
+  for (const offset of [1, 3, 5]) {
+    const a = parseInt(fg.slice(offset, offset + 2), 16);
+    const b = parseInt(bg.slice(offset, offset + 2), 16);
+    out += Math.round(b + (a - b) * SUBJECT_TINT)
+      .toString(16)
+      .padStart(2, '0')
+      .toUpperCase();
+  }
+  return out;
+}

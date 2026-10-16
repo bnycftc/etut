@@ -3,13 +3,23 @@
  * in-memory fakes (SQLite cannot run under Jest); everything else is the app code as shipped.
  */
 
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen, within } from '@testing-library/react-native';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
-import { AccessibilityInfo, AppState, type AppStateStatus, Keyboard, StyleSheet, Vibration } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  AppState,
+  type AppStateStatus,
+  Keyboard,
+  StyleSheet,
+  Vibration,
+} from 'react-native';
 
 import { UNDO_FINISH_MS } from '../domain/finish';
+import { subjectColor, subjectTint } from '../ui/subject-colors';
+import { LIGHT } from '../ui/theme';
 
 import type { TopicMark } from '../domain/exam-analysis';
 import type { Profile } from '../domain/profile';
@@ -17,8 +27,6 @@ import type { ActiveSession, CompletedSession } from '../domain/timer';
 import { type PlannedNotification, POMODORO_CHANGES_AHEAD } from '../domain/reminders';
 import type { MockExamWithScores } from '../storage/mock-exams';
 import type { TimerActivityProps, TodayWidgetProps } from '../system/surface-props';
-import { LIGHT } from '../ui/palette';
-import { subjectColor } from '../ui/subject-colors';
 
 const memory: {
   profile: Profile | null;
@@ -600,8 +608,16 @@ describe('the moment after Bitir', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     jump(30 * 60_000);
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
-    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 30 dk');
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 30 dk');
+    // The saved time is the hero: "Kaydedildi" small above "30 dk" in the display size; VoiceOver
+    // reads the two as one ("Kaydedildi: 30 dk").
+    const saved = screen.getByTestId('timer-saved');
+    expect(saved.props.accessible).toBe(true);
+    const savedTexts = saved.findAll((n) => typeof n.type === 'string' && typeof n.props.children === 'string');
+    expect(savedTexts.map((n) => n.props.children)).toEqual(['Kaydedildi', '30 dk']);
+    expect(StyleSheet.flatten(savedTexts[1].props.style)).toMatchObject({ fontSize: 40, fontWeight: '800' });
     expect(screen.getByTestId('finish-detail').props.children).toBe('Fizik çalıştın · Hedef: %0 → %50');
+    expect(screen.queryByTestId('finish-goal-reached')).toBeNull();
     expect(screen.getByTestId('today-total').props.children).toBe('30 dk');
     expect(Haptics.notificationAsync).toHaveBeenCalledWith('success');
     expect(announce).toHaveBeenCalledWith('Kaydedildi: 30 dk. Bugün toplam 30 dk.');
@@ -610,14 +626,46 @@ describe('the moment after Bitir', () => {
     announce.mockRestore();
   });
 
-  it('a session that reaches the goal says so', () => {
+  it('a session that reaches the goal says so, once and without streak talk; the ring fills to 100 %', () => {
     memory.dailyGoal = 30;
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    const timing = jest.spyOn(Animated, 'timing');
+    // Navigation animates too; the goal ring is the one 600 ms fill to 1.
+    const ringFills = () => timing.mock.calls.filter(([, config]) => config.toValue === 1 && config.duration === 600);
     renderRouter(APP_DIR, { initialUrl: '/' });
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     jump(31 * 60_000);
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
-    expect(screen.getByTestId('finish-goal-reached')).toBeTruthy();
+    expect(screen.getByTestId('finish-goal-reached').props.children).toBe('Bugünkü hedef tamam');
+    expect(StyleSheet.flatten(screen.getByTestId('finish-goal-reached').props.style)).toMatchObject({
+      fontSize: 20,
+      fontWeight: '700',
+    });
+    // The streak stays a number on the card; the summary has no streak sentence and no praise.
+    expect(within(screen.getByTestId('finish-summary')).queryByText(/[Ss]eri|tebrik/)).toBeNull();
+    expect(ringFills()).toHaveLength(1);
+    expect(announce).toHaveBeenCalledWith('Kaydedildi: 31 dk. Bugün toplam 31 dk. Bugünkü hedef tamam.');
     expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
+    // The next session of the day does not celebrate again.
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    jump(5 * 60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(screen.queryByTestId('finish-goal-reached')).toBeNull();
+    expect(ringFills()).toHaveLength(1);
+    timing.mockRestore();
+    announce.mockRestore();
+  });
+
+  it('the saved tick bounces once it is on screen; "Geri al" is the tonal red step back', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    jump(2 * 60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    const tick = () => screen.UNSAFE_getByProps({ name: 'checkmark.circle.fill' });
+    expect(tick().props.animationSpec).toBeUndefined();
+    fireEvent(tick(), 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 28, height: 28 } } });
+    expect(tick().props.animationSpec).toEqual({ effect: { type: 'bounce' } });
+    expect(StyleSheet.flatten(screen.getByTestId('finish-undo').props.style).backgroundColor).toBe(LIGHT.dangerSoft);
   });
 
   it('"Geri al" right after an accidental Bitir brings the session back and removes the record', () => {
@@ -647,7 +695,7 @@ describe('the moment after Bitir', () => {
     expect(screen.getByTestId('finish-undo')).toBeTruthy();
     act(() => jest.advanceTimersByTime(UNDO_FINISH_MS + 1000));
     expect(screen.queryByTestId('finish-undo')).toBeNull();
-    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 2 dk');
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 2 dk');
     expect(memory.sessions).toHaveLength(1);
     // A new session clears the summary.
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
@@ -693,6 +741,55 @@ describe('the moment after Bitir', () => {
     } finally {
       widget.homeWidget.supported = true;
     }
+  });
+});
+
+describe('the running card', () => {
+  const style = (id: string) => StyleSheet.flatten(screen.getByTestId(id).props.style);
+
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+  });
+
+  it('is tinted with the subject colour; Mola and Bitir are tonal and equally heavy; the status is plain text', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(style('timer-card')).toMatchObject({
+      backgroundColor: subjectTint('fizik', LIGHT),
+      borderColor: subjectColor('fizik', LIGHT),
+      borderWidth: 2,
+    });
+    expect(style('timer-pause')).toMatchObject({ backgroundColor: LIGHT.secondaryFill, minHeight: 72 });
+    // Tonal red, not the full red fill of a delete confirmation.
+    expect(style('timer-finish')).toMatchObject({ backgroundColor: LIGHT.dangerSoft, minHeight: 72 });
+    expect(style('timer-clock')).toMatchObject({
+      fontFamily: 'ui-rounded',
+      fontSize: 72,
+      fontWeight: '700',
+      letterSpacing: -2,
+      fontVariant: ['tabular-nums'],
+    });
+    expect(screen.getByTestId('timer-status').props.children).toBe('Çalışıyorsun');
+    expect(style('timer-status')).toMatchObject({ fontSize: 13, fontWeight: '600', color: LIGHT.success });
+
+    fireEvent.press(screen.getByTestId('timer-pause'));
+    expect(screen.getByTestId('timer-status').props.children).toBe('Moladasın');
+    expect(style('timer-status').color).toBe(LIGHT.warning);
+    // Paused: the subject outline gives way to the neutral one; the tint stays.
+    expect(style('timer-card')).toMatchObject({
+      backgroundColor: subjectTint('fizik', LIGHT),
+      borderColor: LIGHT.controlBorder,
+    });
+    expect(style('timer-resume').backgroundColor).toBe(LIGHT.primary);
+  });
+
+  it('pomodoro: the running total is a muted fact, not a green pill', () => {
+    memory.timerMode = 'pomodoro';
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(screen.getByTestId('timer-status').props.children).toMatch(/^Toplam çalışma: /);
+    expect(style('timer-status').color).toBe(LIGHT.textMuted);
   });
 });
 
@@ -2242,6 +2339,27 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
   it.each([
     [1, 'row'],
     [2, 'column'],
+  ])('text size %d: Mola and Bitir, then the saved time and "Geri al", sit in a %s', (fontScale, direction) => {
+    textSize(fontScale);
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z'));
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(directions(screen.getByTestId('timer-finish'))[0]).toBe(direction);
+    act(() => {
+      jest.setSystemTime(Date.now() + 2 * 60_000);
+      jest.advanceTimersByTime(1000);
+    });
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(directions(screen.getByTestId('finish-undo'))[0]).toBe(direction);
+    // At any size VoiceOver reads the saved time as one element.
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 2 dk');
+  });
+
+  it.each([
+    [1, 'row'],
+    [2, 'column'],
   ])('text size %d: a stepper keeps − value + in one row, with its label in a %s around it', (fontScale, direction) => {
     textSize(fontScale);
     memory.profile = ADULT_SAYISAL;
@@ -3121,7 +3239,7 @@ describe('timer and data safety', () => {
     fireEvent.press(screen.getByTestId('finish-away-credit'));
     expect(memory.active).toBeNull();
     expect(memory.sessions[0].durationMs).toBe(61 * MIN);
-    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 1 sa 1 dk');
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 1 sa 1 dk');
   });
 
   it('… "Molaydı" saves it without the time away; "Vazgeç" keeps the timer running', () => {
@@ -3701,7 +3819,7 @@ describe('ders karnesi, soru sayısı, ders hedefi, aylık görünüm', () => {
     });
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
     // Saved without waiting for the count; "Geri al" is still there.
-    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 30 dk');
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 30 dk');
     expect(screen.getByTestId('finish-undo')).toBeTruthy();
     expect(memory.sessions[0].questions).toBeUndefined();
 

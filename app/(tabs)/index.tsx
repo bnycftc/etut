@@ -45,12 +45,14 @@ import {
 } from '@/ui/components';
 import { BackupNudge } from '@/ui/backup-reminder';
 import { announce, hapticSuccess, hapticTap } from '@/ui/feedback';
+import { GoalDone, SavedMark } from '@/ui/finish-moment';
 import { formatDuration, topicLabel } from '@/ui/format';
 import { GoalSheet } from '@/ui/goal-sheet';
 import { Icon } from '@/ui/icon';
 import { InfoLink } from '@/ui/info-link';
+import { easeNextLayout, useReducedMotion } from '@/ui/motion';
 import { Ring } from '@/ui/ring';
-import { subjectColor } from '@/ui/subject-colors';
+import { subjectColor, subjectTint } from '@/ui/subject-colors';
 import { MAX_FONT_SCALE, ROUNDED_FONT, space, typography, useLargeText, usePalette } from '@/ui/theme';
 import { QuestionCount } from '@/ui/question-count';
 import { awayCardText, TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
@@ -65,8 +67,10 @@ const PHASE_SIGNAL_MAX_GAP_MS = 3_000;
 interface Finished {
   /** The saved session (for the optional question count). */
   id: string;
-  /** "Kaydedildi: 45 dk" (E2E reads this text). */
+  /** "Kaydedildi: 45 dk": what VoiceOver says for the saved time (E2E reads this label). */
   saved: string;
+  /** The big number on screen: "45 dk". */
+  duration: string;
   subjectId: string;
   topicId: string | null;
   durationMs: number;
@@ -87,6 +91,7 @@ export default function TimerScreen() {
   const app = useAppState();
   const { active, profile } = app;
   const c = usePalette();
+  const reduceMotion = useReducedMotion();
   const running = active !== null && !isPaused(active);
   const now = useNow(running);
 
@@ -184,12 +189,15 @@ export default function TimerScreen() {
       const runningTodayMs = active === null ? 0 : dailyTotals([activeSpan(active, now)], [today])[0].totalMs;
       const sessionTodayMs = dailyTotals([done], [today])[0].totalMs;
       const todayAfterMs = Math.max(0, todayTotal - runningTodayMs) + sessionTodayMs;
-      const saved = tr.timer.saved(
-        done.durationMs < 60_000 ? tr.timer.lessThanMinute : formatDuration(done.durationMs),
-      );
+      const duration = done.durationMs < 60_000 ? tr.timer.lessThanMinute : formatDuration(done.durationMs);
+      const saved = tr.timer.saved(duration);
+      const reached = goal !== null && goalStep(todayAfterMs, sessionTodayMs, goal).reached;
+      // Running card out, summary in: one eased layout change instead of a jump.
+      easeNextLayout(reduceMotion);
       setFinished({
         id: done.id,
         saved,
+        duration,
         subjectId: done.subjectId,
         topicId: done.topicId,
         durationMs: done.durationMs,
@@ -201,7 +209,7 @@ export default function TimerScreen() {
       setSubjectId(done.subjectId);
       noteFinishForWidgetTip(done.durationMs);
       hapticSuccess();
-      announce(tr.finish.announce(saved, formatDuration(todayAfterMs)));
+      announce(tr.finish.announce(saved, formatDuration(todayAfterMs), reached));
     }
   };
   const finishCheck = useFinishCheck(finish);
@@ -231,6 +239,7 @@ export default function TimerScreen() {
         setTopicStatus(marked.topicId, restore.status, restore.at);
         app.notifyDataChanged('topics');
       }
+      easeNextLayout(reduceMotion);
       setFinished(null);
       hapticTap();
       announce(tr.finish.undone);
@@ -319,37 +328,34 @@ export default function TimerScreen() {
         ) : null}
 
         {finished !== null ? (
-          <View testID="finish-summary" style={{ gap: space.xs }}>
+          <View testID="finish-summary" style={{ gap: space.sm }}>
+            {/* The saved time is the hero; "Geri al" is a tonal red step back (it deletes the record). */}
             <ResponsiveRow>
               <View style={[styles.inline, styles.grow]}>
-                <Icon name="saved" color={c.success} />
-                <Label variant="heading" testID="timer-saved" style={{ color: c.success, flexShrink: 1 }}>
-                  {finished.saved}
-                </Label>
+                <SavedMark />
+                <View testID="timer-saved" accessible accessibilityLabel={finished.saved} style={styles.grow}>
+                  <Label variant="muted">{tr.finish.savedTitle}</Label>
+                  <Label variant="display">{finished.duration}</Label>
+                </View>
               </View>
               {finished.undoable ? (
                 <Button
                   compact
                   testID="finish-undo"
-                  kind="secondary"
+                  kind="dangerSoft"
                   title={tr.finish.undo}
                   accessibilityHint={finished.topicBefore !== undefined ? tr.finish.undoHintTopic : tr.finish.undoHint}
                   onPress={undo}
                 />
               ) : null}
             </ResponsiveRow>
-            <Label variant="small" testID="finish-detail">
+            <Label variant="muted" testID="finish-detail">
               {(topicLabel(finished.topicId)
                 ? tr.finish.studiedTopic(tr.subject(finished.subjectId), topicLabel(finished.topicId) ?? '')
                 : tr.finish.studied(tr.subject(finished.subjectId))) +
                 (step !== null && !step.reached ? ` · ${tr.finish.goalStep(step.beforePercent, step.afterPercent)}` : '')}
             </Label>
-            {step?.reached ? (
-              <Label variant="small" testID="finish-goal-reached" style={{ color: c.success, fontWeight: '600' }}>
-                {tr.finish.goalReached}
-                {streak !== null && streak.current > 0 ? ` ${tr.finish.streak(streak.current)}` : ''}
-              </Label>
-            ) : null}
+            {step?.reached ? <GoalDone testID="finish-goal-reached" fromRatio={step.beforePercent / 100} /> : null}
             {finishedTopicId !== null ? (
               <View style={{ gap: space.xs }}>
                 <Label variant="small">{tr.finish.topicMark}</Label>
@@ -503,6 +509,8 @@ export default function TimerScreen() {
             testID="timer-start"
             title={tr.timer.start}
             onPress={() => {
+              // The subject card makes way for the running card.
+              easeNextLayout(reduceMotion);
               setFinished(null);
               hapticTap();
               app.start(subjectId, { topicId, pomodoro: mode === 'pomodoro' ? pomodoroConfig : null });
@@ -510,7 +518,11 @@ export default function TimerScreen() {
           />
         </>
       ) : (
-        <Card outline={running && !onBreak ? subjectColor(active.subjectId, c) : c.controlBorder}>
+        // Tinted with the subject's colour (8 %); the 2 pt outline in it while the time counts.
+        <Card
+          testID="timer-card"
+          tint={subjectTint(active.subjectId, c)}
+          outline={running && !onBreak ? subjectColor(active.subjectId, c) : c.controlBorder}>
           <View style={[styles.inline, { justifyContent: 'center' }]}>
             <Dot color={subjectColor(active.subjectId, c)} />
             <Label variant="muted" testID="timer-subject" style={{ textAlign: 'center', flexShrink: 1 }}>
@@ -535,17 +547,18 @@ export default function TimerScreen() {
             adjustsFontSizeToFit>
             {formatClock(clockMs)}
           </Text>
-          <View
-            style={[
-              styles.pill,
-              { backgroundColor: running && !onBreak ? c.successSoft : 'transparent' },
-            ]}>
+          {/* Plain text, no pill: "• Çalışıyorsun" / "• Moladasın" with a dot in the state's colour;
+              pomodoro's running total ("Toplam çalışma: 0:08") is a muted fact. */}
+          <View style={styles.status}>
+            {!running || pomodoro === null ? <Dot color={running ? c.success : c.warning} size={6} /> : null}
             <Label
+              variant="small"
               testID="timer-status"
               style={{
                 textAlign: 'center',
                 fontWeight: '600',
-                color: !running ? c.warning : onBreak ? c.textMuted : c.success,
+                flexShrink: 1,
+                color: !running ? c.warning : pomodoro !== null ? c.textMuted : c.success,
               }}>
               {pomodoro !== null
                 ? running
@@ -587,7 +600,8 @@ export default function TimerScreen() {
                 }}
               />
             )}
-            <Button large testID="timer-finish" kind="danger" title={tr.timer.finish} onPress={finishCheck.request} />
+            {/* Same weight as Duraklat/Mola: tonal red, not a full red fill (that is only for deleting data). */}
+            <Button large testID="timer-finish" kind="dangerSoft" title={tr.timer.finish} onPress={finishCheck.request} />
           </ResponsiveRow>
           {finishCheck.prompt}
         </Card>
@@ -701,12 +715,8 @@ function CompareLine({ line }: { line: ComparisonLine }) {
 }
 
 const styles = StyleSheet.create({
-  clock: {
-    fontSize: 80,
-    fontWeight: '200',
-    textAlign: 'center',
-    fontVariant: ['tabular-nums'],
-  },
+  // SF Rounded 72/700 with tabular digits: the same "clock voice" as the Live Activity and widget.
+  clock: { ...typography.clock, textAlign: 'center' },
   grow: { flexGrow: 1, flexShrink: 1 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   heroHead: { gap: space.xs },
@@ -729,5 +739,5 @@ const styles = StyleSheet.create({
   goalLine: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'flex-start' },
   modeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
   totalLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: space.sm },
-  pill: { alignSelf: 'center', borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 2 },
+  status: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
 });
