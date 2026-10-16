@@ -16,7 +16,8 @@ const ICONS = {
   settingsFill: { ios: 'gearshape.fill', android: 'settings', web: 'settings' },
   history: { ios: 'clock.arrow.circlepath', android: 'history', web: 'history' },
   saved: { ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' },
-  streak: { ios: 'flame.fill', android: 'local_fire_department', web: 'local_fire_department' },
+  // The streak badge: a calm check, no flame (no fire / loss imagery, docs hukuk 03).
+  streak: { ios: 'checkmark.circle', android: 'check_circle', web: 'check_circle' },
   goal: { ios: 'target', android: 'flag', web: 'flag' },
   manual: { ios: 'square.and.pencil', android: 'edit_note', web: 'edit_note' },
   topics: { ios: 'checklist', android: 'checklist', web: 'checklist' },

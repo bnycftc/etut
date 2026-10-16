@@ -52,6 +52,7 @@ describe.each([
     ['success', 'successSoft'],
     ['text', 'successSoft'],
     ['textMuted', 'successSoft'],
+    // Also the streak badge: a surface pill on the "Bugün" card.
     ['streak', 'surface'],
     ['streak', 'background'],
   ];
@@ -74,6 +75,11 @@ describe.each([
     // Weekly chart: today's bar stands out from the other days (each bar has its value written
     // above it, so the soft fill is never the only cue).
     ['accent', 'barSoft'],
+    // The goal ring on the "Bugün" card: its fill (brand blue, success once the goal is met)
+    // against the card and against its own track. The goal line next to it says it in words.
+    ['accent', 'accentSoft'],
+    ['success', 'accentSoft'],
+    ['success', 'barMuted'],
   ];
   it.each(graphics)('control/graphic %s on %s ≥ 3', (fg, bg) => {
     expect(contrastRatio(p[fg], p[bg])).toBeGreaterThanOrEqual(AA_GRAPHIC);

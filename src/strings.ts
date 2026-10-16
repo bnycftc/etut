@@ -346,6 +346,10 @@ const examTypes: Record<ExamType, string> = {
   DIGER: 'Diğer',
 };
 
+/** "YKS’ye 258 gün" — every built-in exam name ends in "S", so the suffix is "’ye". */
+const countdownDays = (examType: ExamType, days: number): string =>
+  examType === 'DIGER' ? `Sınavına ${days} gün` : `${examTypes[examType]}’ye ${days} gün`;
+
 const yksAreas: Record<YksArea, string> = {
   sayisal: 'Sayısal',
   esit_agirlik: 'Eşit Ağırlık',
@@ -433,6 +437,9 @@ export const tr = {
     todayQuestions: (n: number) => `· ${n} soru`,
     history: 'Geçmiş',
     pickSubject: 'Ders seç',
+    /** After the recently studied subjects: shows the rest of the list. */
+    allSubjects: 'Tüm dersler',
+    allSubjectsHint: (more: number) => `${more} ders daha gösterir`,
     start: 'Başla',
     pause: 'Mola',
     resume: 'Devam',
@@ -512,6 +519,10 @@ export const tr = {
     met: 'Bugünkü hedefini tutturdun.',
     set: 'Günlük hedef koy',
     streak: (days: number) => `Seri: ${days} gün`,
+    /** The compact streak badge on the timer's "Bugün" card (read out as `streak`). */
+    streakBadge: (days: number) => `${days} gün`,
+    /** Under the badge: the rule, never a warning (one missed day a week keeps the streak). */
+    restRule: 'Haftada 1 dinlenme günü hakkın var',
     restUsed: 'Bu haftaki dinlenme günün kullanıldı.',
     restFree: 'Bu hafta 1 dinlenme günü hakkın var.',
     turnOff: 'Hedefi kapat',
@@ -520,10 +531,17 @@ export const tr = {
   },
 
   countdown: {
-    /** "YKS'ye 258 gün" — every built-in exam name ends in "S", so the suffix is "'ye". */
-    days: (examType: ExamType, days: number) =>
-      examType === 'DIGER' ? `Sınavına ${days} gün` : `${examTypes[examType]}’ye ${days} gün`,
+    /** "YKS’ye 258 gün" (the widget). */
+    days: countdownDays,
+    /** The one muted line on the timer's "Bugün" card: "YKS · 258 gün · tahmini". */
+    line: (examType: ExamType, days: number, estimated: boolean) =>
+      `${examType === 'DIGER' ? 'Sınav' : examTypes[examType]} · ${days} gün${estimated ? ' · tahmini' : ''}`,
+    /** What a screen reader says for `line`: "YKS’ye 258 gün, tahmini tarih". */
+    lineA11y: (examType: ExamType, days: number, estimated: boolean) =>
+      `${countdownDays(examType, days)}${estimated ? ', tahmini tarih' : ''}`,
     today: 'Sınav günü bugün. Başarılar!',
+    /** The exam day by the built-in estimate: it may not be the real day. */
+    todayEstimated: 'Tahmini sınav günü bugün. Başarılar!',
     estimated: 'tahmini',
     custom: 'senin girdiğin tarih',
     settingsTitle: 'Sınav tarihi',
@@ -1371,7 +1389,7 @@ export const tr = {
   /** Timer screen layout (shortcuts, goal on the home card). */
   home: {
     shortcuts: 'Kısayollar',
-    goalEdit: 'Değiştir',
+    /** Hint of the goal line (and ring) on the "Bugün" card: a tap opens the goal sheet. */
     goalEditA11y: 'Günlük hedefi değiştir',
   },
 

@@ -18,6 +18,7 @@ import {
   type StreakResult,
   weekStartOf,
 } from '../domain/streak';
+import { subjectsByRecency } from '../domain/subjects';
 import { loadDailyGoal, loadDailyGoalHistory } from '../storage/kv';
 import { sessionsOverlapping } from '../storage/sessions';
 import { useAppState, useStored } from './app-state';
@@ -36,6 +37,8 @@ export interface StudyStats {
   streak: StreakResult | null;
   /** Days with any study time in the streak window (today included); for the backup reminder. */
   studyDays: number;
+  /** Subjects of the stored sessions in the streak window, most recently studied first. */
+  recentSubjects: readonly string[];
 }
 
 export function useStudyStats(now: number): StudyStats {
@@ -61,7 +64,13 @@ export function useStudyStats(now: number): StudyStats {
     for (const ms of past.values()) if (ms > 0) pastStudyDays++;
     // A running session has no count yet: today's questions change only with the stored data.
     const todayQuestions = questionTotals(sessions, [today]).total;
-    return { past, pastStudyDays, todayQuestions, recent: sessions.filter((s) => s.endedAt > recentFrom) };
+    return {
+      past,
+      pastStudyDays,
+      todayQuestions,
+      recent: sessions.filter((s) => s.endedAt > recentFrom),
+      recentSubjects: subjectsByRecency(sessions),
+    };
   });
   const goal = useStored(`goal|${dataVersions.settings}`, loadDailyGoal);
   const goalHistory = useStored(`goalHistory|${dataVersions.settings}`, loadDailyGoalHistory);
@@ -118,5 +127,6 @@ export function useStudyStats(now: number): StudyStats {
     goalOf,
     streak,
     studyDays,
+    recentSubjects: stored.recentSubjects,
   };
 }

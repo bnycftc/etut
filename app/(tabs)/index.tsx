@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { AppState, StyleSheet, Text, Vibration, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { clockParts, formatClock } from '@/domain/clock';
 import { comparisonLine, type ComparisonLine } from '@/domain/compare';
@@ -12,7 +12,7 @@ import { istanbulDayKey } from '@/domain/istanbul-day';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
-import { defaultSubject, subjectsFor } from '@/domain/subjects';
+import { defaultSubject, quickSubjects, subjectsFor } from '@/domain/subjects';
 import { elapsedMs, isPaused } from '@/domain/timer';
 import { type TimedTopicStatus, toggleStatus, type TopicStatus } from '@/domain/topics';
 import { type FinishOptions, useAppState, useNow, useStored } from '@/state/app-state';
@@ -39,12 +39,9 @@ import {
   Dot,
   Label,
   ListRow,
-  ProgressBar,
   ResponsiveRow,
-  Row,
   Screen,
   Section,
-  Tag,
 } from '@/ui/components';
 import { BackupNudge } from '@/ui/backup-reminder';
 import { announce, hapticSuccess, hapticTap } from '@/ui/feedback';
@@ -52,8 +49,9 @@ import { formatDuration, topicLabel } from '@/ui/format';
 import { GoalSheet } from '@/ui/goal-sheet';
 import { Icon } from '@/ui/icon';
 import { InfoLink } from '@/ui/info-link';
+import { Ring } from '@/ui/ring';
 import { subjectColor } from '@/ui/subject-colors';
-import { MAX_FONT_SCALE, space, usePalette } from '@/ui/theme';
+import { MAX_FONT_SCALE, ROUNDED_FONT, space, typography, useLargeText, usePalette } from '@/ui/theme';
 import { QuestionCount } from '@/ui/question-count';
 import { awayCardText, TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
 import { FirstUseTips } from '@/ui/tips';
@@ -118,7 +116,9 @@ export default function TimerScreen() {
   };
   const pomodoroConfig = useStored(`pomodoro|${app.dataVersions.settings}`, loadPomodoroConfig);
 
-  const { today, todayTotal, todayManual, todayQuestions, comparison, goal, streak, studyDays } = useStudyStats(now);
+  const { today, todayTotal, todayManual, todayQuestions, comparison, goal, streak, studyDays, recentSubjects } =
+    useStudyStats(now);
+  const large = useLargeText();
   const compare = comparisonLine(comparison);
   const customExamDay = useStored(`examDate|${examType}|${app.dataVersions.settings}`, () =>
     loadCustomExamDate(examType),
@@ -247,6 +247,39 @@ export default function TimerScreen() {
 
   const goalStreak = goal !== null && streak !== null ? { goal, streak } : null;
   const step = finished !== null && goal !== null ? goalStep(finished.todayAfterMs, finished.sessionTodayMs, goal) : null;
+  const goalShare = goalStreak === null ? 0 : goalRatio(todayTotal, goalStreak.goal);
+  const goalPercent = Math.floor(goalShare * 100);
+  const goalLine =
+    goalStreak === null
+      ? ''
+      : goalStreak.streak.todayMet
+        ? tr.goal.met
+        : tr.goal.progress(formatDuration(goalStreak.goal * 60_000), goalPercent);
+  const openGoal = () => setGoalOpen(true);
+
+  // The card's top line: the exam countdown (or that its date has passed), muted.
+  const estimated = examDate?.estimated === true;
+  const countdown =
+    examDate !== null && daysLeft !== null && daysLeft >= 0 ? (
+      <View style={[styles.inline, styles.grow]}>
+        <Text
+          testID="countdown"
+          accessibilityLabel={daysLeft === 0 ? undefined : tr.countdown.lineA11y(examType, daysLeft, estimated)}
+          style={[styles.countdown, { color: c.textMuted }]}>
+          {daysLeft === 0
+            ? estimated
+              ? tr.countdown.todayEstimated
+              : tr.countdown.today
+            : tr.countdown.line(examType, daysLeft, estimated)}
+        </Text>
+        {estimated ? <InfoLink testID="countdown-info" section="tarih" term={tr.infoLink.estimated} /> : null}
+      </View>
+    ) : daysLeft !== null ? (
+      // The date (built-in estimate or the student's) is behind us: say so instead of hiding it.
+      <Label testID="countdown-passed" variant="muted" style={styles.grow}>
+        {tr.countdownPassed}
+      </Label>
+    ) : null;
 
   return (
     <Screen testID="timer-screen">
@@ -254,25 +287,35 @@ export default function TimerScreen() {
       <FirstUseTips />
       <GoalSheet visible={goalOpen} goal={goal} onChange={setGoal} onClose={() => setGoalOpen(false)} />
 
-      {/* Today: exam countdown, today's total, goal and streak; the summary after Bitir lives here too. */}
-      <Card tone="accent">
-        {examDate !== null && daysLeft !== null && daysLeft >= 0 ? (
-          <Row>
-            <Label testID="countdown" style={{ fontWeight: '700', flex: 1, color: c.accent }}>
-              {daysLeft === 0 ? tr.countdown.today : tr.countdown.days(examType, daysLeft)}
-            </Label>
-            {examDate.estimated ? (
-              <>
-                <Tag title={tr.countdown.estimated} />
-                <InfoLink testID="countdown-info" section="tarih" term={tr.infoLink.estimated} />
-              </>
+      {/* Today, the one hero of the screen: today's total with the goal ring, a muted countdown
+          line and the streak badge above it; the summary after Bitir lives here too. */}
+      <Card tone="hero">
+        {countdown !== null || goalStreak !== null ? (
+          <View style={styles.heroHead}>
+            <View style={large ? styles.heroTopStack : styles.heroTop}>
+              {countdown}
+              {goalStreak !== null ? (
+                <View
+                  testID="streak"
+                  accessible
+                  accessibilityLabel={tr.goal.streak(goalStreak.streak.current)}
+                  style={[styles.badge, large ? null : styles.badgeEnd, { backgroundColor: c.surface }]}>
+                  <Icon name="streak" color={c.streak} size={16} />
+                  <Text style={[styles.badgeText, { color: c.streak }]}>
+                    {tr.goal.streakBadge(goalStreak.streak.current)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            {goalStreak !== null ? (
+              <View style={[styles.inline, large ? null : styles.toEnd]}>
+                <Label variant="small" testID="streak-rest" style={{ flexShrink: 1, textAlign: large ? 'left' : 'right' }}>
+                  {tr.goal.restRule}
+                </Label>
+                <InfoLink testID="streak-info" section="seri" term={tr.infoLink.streak} />
+              </View>
             ) : null}
-          </Row>
-        ) : daysLeft !== null ? (
-          // The date (built-in estimate or the student's) is behind us: say so instead of hiding it.
-          <Label testID="countdown-passed" variant="muted">
-            {tr.countdownPassed}
-          </Label>
+          </View>
         ) : null}
 
         {finished !== null ? (
@@ -347,7 +390,7 @@ export default function TimerScreen() {
           <View style={styles.grow}>
             <Label variant="muted">{tr.timer.today}</Label>
             <View style={styles.totalLine}>
-              <Label variant="title" testID="today-total">
+              <Label variant="display" testID="today-total">
                 {formatDuration(todayTotal)}
               </Label>
               {todayQuestions > 0 ? (
@@ -361,47 +404,43 @@ export default function TimerScreen() {
             ) : null}
           </View>
           {goalStreak !== null ? (
-            <View style={styles.inline}>
-              <Icon name="streak" color={c.streak} size={20} />
-              <Label testID="streak" style={{ color: c.streak, fontWeight: '700' }}>
-                {tr.goal.streak(goalStreak.streak.current)}
-              </Label>
-              <InfoLink testID="streak-info" section="seri" term={tr.infoLink.streak} />
-            </View>
+            // The ring opens the goal sheet, as the goal line under it does (both are announced:
+            // every touch target is a named control).
+            <Pressable
+              testID="goal-ring"
+              accessibilityRole="button"
+              accessibilityLabel={tr.goal.title}
+              accessibilityValue={{ text: `%${goalPercent}` }}
+              accessibilityHint={tr.home.goalEditA11y}
+              onPress={openGoal}
+              style={({ pressed }) => [{ alignSelf: large ? 'flex-start' : 'center', opacity: pressed ? 0.6 : 1 }]}>
+              <Ring
+                testID="goal-ring-progress"
+                ratio={goalShare}
+                color={goalStreak.streak.todayMet ? c.success : c.accent}
+                track={c.barMuted}
+              />
+            </Pressable>
           ) : (
-            <Button
-              compact
-              testID="goal-set"
-              kind="secondary"
-              title={tr.goal.set}
-              onPress={() => setGoalOpen(true)}
-            />
+            <Button compact testID="goal-set" kind="secondary" title={tr.goal.set} onPress={openGoal} />
           )}
         </ResponsiveRow>
-        {compare !== null ? <CompareLine line={compare} /> : null}
         {goalStreak !== null ? (
-          <>
-            <ProgressBar ratio={goalRatio(todayTotal, goalStreak.goal)} label={tr.goal.title} />
-            <ResponsiveRow>
-              <Label testID="goal-progress" variant="small" style={styles.grow}>
-                {goalStreak.streak.todayMet
-                  ? tr.goal.met
-                  : tr.goal.progress(
-                      formatDuration(goalStreak.goal * 60_000),
-                      Math.floor(goalRatio(todayTotal, goalStreak.goal) * 100),
-                    )}
-              </Label>
-              <Button
-                compact
-                testID="goal-edit"
-                kind="secondary"
-                title={tr.home.goalEdit}
-                accessibilityLabel={tr.home.goalEditA11y}
-                onPress={() => setGoalOpen(true)}
-              />
-            </ResponsiveRow>
-          </>
+          <Pressable
+            testID="goal-edit"
+            accessibilityRole="button"
+            accessibilityLabel={goalLine}
+            accessibilityHint={tr.home.goalEditA11y}
+            onPress={openGoal}
+            hitSlop={{ top: 12, bottom: 12 }}
+            style={({ pressed }) => [styles.goalLine, { opacity: pressed ? 0.6 : 1 }]}>
+            <Label testID="goal-progress" variant="small" style={{ flexShrink: 1 }}>
+              {goalLine}
+            </Label>
+            <Icon name="chevron" color={c.accent} size={14} />
+          </Pressable>
         ) : null}
+        {compare !== null ? <CompareLine line={compare} /> : null}
       </Card>
 
       {away !== null && !finishCheck.open ? (
@@ -425,18 +464,7 @@ export default function TimerScreen() {
           {/* Core loop: pick a subject (last one is pre-selected), tap Başla. Topic and mode are optional. */}
           <Card>
             <Label variant="heading">{tr.timer.pickSubject}</Label>
-            <ChipRow>
-              {subjects.map((id) => (
-                <Chip
-                  key={id}
-                  testID={`subject-${id}`}
-                  title={tr.subject(id)}
-                  color={subjectColor(id, c)}
-                  selected={id === subjectId}
-                  onPress={() => setSubjectId(id)}
-                />
-              ))}
-            </ChipRow>
+            <SubjectChips subjects={subjects} recent={recentSubjects} selected={subjectId} onPick={setSubjectId} />
             <TopicPicker
               examType={examType}
               yksArea={yksArea}
@@ -599,6 +627,51 @@ export default function TimerScreen() {
   );
 }
 
+/**
+ * "Ders seç": the recently studied subjects (and the selected one) as chips, the rest of the list
+ * behind "Tüm dersler". The selected chip is filled with its subject colour; its name stays the
+ * cue. Opened, the whole list stays until the card goes (Başla), so a pick never jumps away.
+ */
+function SubjectChips({
+  subjects,
+  recent,
+  selected,
+  onPick,
+}: {
+  subjects: readonly string[];
+  recent: readonly string[];
+  selected: string;
+  onPick: (id: string) => void;
+}) {
+  const c = usePalette();
+  const [all, setAll] = useState(false);
+  const quick = quickSubjects(subjects, recent, selected);
+  const more = subjects.length - quick.length;
+  return (
+    <ChipRow>
+      {(all ? subjects : quick).map((id) => (
+        <Chip
+          key={id}
+          testID={`subject-${id}`}
+          title={tr.subject(id)}
+          color={subjectColor(id, c)}
+          selected={id === selected}
+          onPress={() => onPick(id)}
+        />
+      ))}
+      {!all && more > 0 ? (
+        <Chip
+          testID="subjects-all"
+          title={tr.timer.allSubjects}
+          accessibilityHint={tr.timer.allSubjectsHint(more)}
+          selected={false}
+          onPress={() => setAll(true)}
+        />
+      ) : null}
+    </ChipRow>
+  );
+}
+
 function pomodoroPhaseLabel(status: PomodoroStatus, longEvery: number): string {
   if (status.phase === 'short_break') return tr.pomodoro.shortBreak;
   if (status.phase === 'long_break') return tr.pomodoro.longBreak;
@@ -636,6 +709,24 @@ const styles = StyleSheet.create({
   },
   grow: { flexGrow: 1, flexShrink: 1 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  heroHead: { gap: space.xs },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  // Accessibility text sizes: the countdown, the badge and its hint one under the other.
+  heroTopStack: { flexDirection: 'column', alignItems: 'flex-start', gap: space.xs },
+  countdown: { ...typography.small, fontWeight: '600', flexShrink: 1 },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: space.xs,
+  },
+  // Top right, also when there is no countdown on its left.
+  badgeEnd: { marginLeft: 'auto' },
+  badgeText: { fontFamily: ROUNDED_FONT, fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  toEnd: { justifyContent: 'flex-end' },
+  goalLine: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'flex-start' },
   modeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
   totalLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: space.sm },
   pill: { alignSelf: 'center', borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 2 },

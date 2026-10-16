@@ -7,7 +7,7 @@ import { act, fireEvent, screen } from '@testing-library/react-native';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
-import { AccessibilityInfo, AppState, type AppStateStatus, Keyboard, Vibration } from 'react-native';
+import { AccessibilityInfo, AppState, type AppStateStatus, Keyboard, StyleSheet, Vibration } from 'react-native';
 
 import { UNDO_FINISH_MS } from '../domain/finish';
 
@@ -17,6 +17,8 @@ import type { ActiveSession, CompletedSession } from '../domain/timer';
 import { type PlannedNotification, POMODORO_CHANGES_AHEAD } from '../domain/reminders';
 import type { MockExamWithScores } from '../storage/mock-exams';
 import type { TimerActivityProps, TodayWidgetProps } from '../system/surface-props';
+import { LIGHT } from '../ui/palette';
+import { subjectColor } from '../ui/subject-colors';
 
 const memory: {
   profile: Profile | null;
@@ -1574,13 +1576,60 @@ describe('goal, streak and "dünkü sen"', () => {
     memory.dailyGoal = 60;
     renderRouter(APP_DIR, { initialUrl: '/' });
     expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
-    expect(screen.getByTestId('streak').props.children).toBe('Seri: 3 gün');
+    expect(screen.getByTestId('streak').props.accessibilityLabel).toBe('Seri: 3 gün');
     expect(screen.getByTestId('compare-yesterday').props.children).toBe('1 sa 0 dk');
     expect(screen.getByTestId('compare-last-week').props.children).toBe('30 dk');
     expect(screen.getByTestId('compare-line')).toHaveTextContent(
       'Dün bu saate kadar 1 sa 0 dk · Geçen hafta bu zamana kadar 30 dk',
     );
     expect(screen.getByText('1 sa 0 dk elle eklendi')).toBeTruthy();
+  });
+
+  /** The colour of the goal ring's first arc (the ring is hidden from screen readers). */
+  const ringColour = () =>
+    StyleSheet.flatten(screen.getByTestId('goal-ring-progress-right', { includeHiddenElements: true }).props.style)
+      .borderBottomColor;
+
+  it('the Bugün card: the ring and the goal line open the goal sheet; no "Değiştir" button', () => {
+    memory.dailyGoal = 240;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.getByTestId('today-total').props.children).toBe('1 sa 0 dk');
+    expect(screen.getByTestId('goal-progress').props.children).toBe('Hedef 4 sa 0 dk · %25');
+    expect(screen.queryByText('Değiştir')).toBeNull();
+    expect(ringColour()).toBe(LIGHT.accent);
+    // The goal line is the control for screen readers: its words, then what a tap does.
+    const line = screen.getByTestId('goal-edit');
+    expect(line.props.accessibilityRole).toBe('button');
+    expect(line.props.accessibilityLabel).toBe('Hedef 4 sa 0 dk · %25');
+    expect(line.props.accessibilityHint).toBe('Günlük hedefi değiştir');
+    fireEvent.press(line);
+    expect(screen.getByTestId('goal-sheet')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    expect(screen.queryByTestId('goal-sheet')).toBeNull();
+    // A tap on the ring does the same; it is announced with the share reached.
+    const ring = screen.getByTestId('goal-ring');
+    expect(ring.props.accessibilityRole).toBe('button');
+    expect(ring.props.accessibilityLabel).toBe('Günlük hedef');
+    expect(ring.props.accessibilityValue).toEqual({ text: '%25' });
+    expect(ring.props.accessibilityHint).toBe('Günlük hedefi değiştir');
+    fireEvent.press(ring);
+    expect(screen.getByTestId('goal-sheet')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('goal-preset-60'));
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    // Reached: the ring turns to the success colour.
+    expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
+    expect(ringColour()).toBe(LIGHT.success);
+  });
+
+  it('the streak is a compact badge with the rest-day rule, without flame or loss language', () => {
+    memory.dailyGoal = 60;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    const badge = screen.getByTestId('streak');
+    expect(badge.props.accessibilityLabel).toBe('Seri: 3 gün');
+    expect(badge).toHaveTextContent('3 gün', { exact: true });
+    expect(screen.getByTestId('streak-rest').props.children).toBe('Haftada 1 dinlenme günü hakkın var');
+    expect(screen.getByTestId('streak-info')).toBeTruthy();
+    expect(screen.queryByText(/bozul|kaybet|kaçır/i)).toBeNull();
   });
 
   it('the first days show no comparison; later only the past that holds study time', () => {
@@ -1753,8 +1802,10 @@ describe('exam countdown', () => {
 
   it('home shows the days left to the estimated YKS date', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
-    expect(screen.getByTestId('countdown').props.children).toBe('YKS’ye 258 gün');
-    expect(screen.getByText('tahmini')).toBeTruthy();
+    // One muted line; read out as a sentence.
+    expect(screen.getByTestId('countdown').props.children).toBe('YKS · 258 gün · tahmini');
+    expect(screen.getByTestId('countdown').props.accessibilityLabel).toBe('YKS’ye 258 gün, tahmini tarih');
+    expect(screen.getByTestId('countdown-info')).toBeTruthy();
   });
 
   it('the student can set the exact date and go back to the estimate', () => {
@@ -1811,8 +1862,9 @@ describe('exam countdown', () => {
   it('a custom date is shown on the home screen without "tahmini"', () => {
     memory.examDates.YKS = '2027-06-26';
     renderRouter(APP_DIR, { initialUrl: '/' });
-    expect(screen.getByTestId('countdown').props.children).toBe('YKS’ye 265 gün');
-    expect(screen.queryByText('tahmini')).toBeNull();
+    expect(screen.getByTestId('countdown').props.children).toBe('YKS · 265 gün');
+    expect(screen.getByTestId('countdown').props.accessibilityLabel).toBe('YKS’ye 265 gün');
+    expect(screen.queryByTestId('countdown-info')).toBeNull();
   });
 });
 
@@ -1986,6 +2038,7 @@ describe('subjects and papers follow the exam and YKS area', () => {
   it('Sayısal: no literature or foreign language on the timer, only TYT and AYT Sayısal papers', () => {
     memory.profile = ADULT_SAYISAL;
     renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('subjects-all'));
     const subjects = ids('subject-');
     expect(subjects).toEqual(expect.arrayContaining(['matematik', 'fizik', 'turkce', 'tarih']));
     expect(subjects).not.toContain('edebiyat');
@@ -2002,12 +2055,53 @@ describe('subjects and papers follow the exam and YKS area', () => {
     expect(memory.profile).toEqual({ ...ADULT_SAYISAL, yksArea: 'esit_agirlik' });
     expect(screen.getByTestId('settings-exam-saved')).toBeTruthy();
     act(() => router.push('/'));
-    // EA: the AYT subjects of the area first, TYT Fizik stays, no foreign language.
+    // EA: the AYT subjects of the area first, TYT Fizik stays (behind "Tüm dersler"), no foreign language.
     expect(ids('subject-').slice(0, 5)).toEqual(['matematik', 'geometri', 'edebiyat', 'tarih', 'cografya']);
+    fireEvent.press(screen.getByTestId('subjects-all'));
     expect(ids('subject-')).toContain('fizik');
     expect(ids('subject-')).not.toContain('yabanci_dil');
     act(() => router.push('/deneme/yeni'));
     expect(ids('exam-kind-')).toEqual(['TYT', 'AYT_EA']);
+  });
+
+  it('"Ders seç": six chips (the recent subjects, in list order) and "Tüm dersler" for the rest', () => {
+    memory.profile = ADULT_SAYISAL;
+    const studied = (id: string, subjectId: string, endedAt: number): CompletedSession => ({
+      id,
+      subjectId,
+      topicId: null,
+      startedAt: endedAt - 30 * 60_000,
+      endedAt,
+      pauses: [],
+      durationMs: 30 * 60_000,
+      source: 'timer',
+    });
+    const now = Date.now();
+    memory.sessions = [studied('a', 'tarih', now - 2 * 86_400_000), studied('b', 'din', now - 86_400_000)];
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    // Matematik (selected: first of the list), Tarih and Din (studied lately), topped up in list order.
+    expect(ids('subject-')).toEqual(['matematik', 'geometri', 'fizik', 'kimya', 'tarih', 'din']);
+    const more = screen.getByTestId('subjects-all');
+    expect(more.props.accessibilityLabel).toBe('Tüm dersler');
+    expect(more.props.accessibilityHint).toBe('5 ders daha gösterir');
+    fireEvent.press(more);
+    expect(ids('subject-')).toHaveLength(11);
+    expect(screen.queryByTestId('subjects-all')).toBeNull();
+    // The selected chip is filled with its subject colour (the name stays on it).
+    fireEvent.press(screen.getByTestId('subject-felsefe'));
+    const chip = screen.getByTestId('subject-felsefe');
+    expect(chip.props.accessibilityState).toMatchObject({ selected: true });
+    expect(StyleSheet.flatten(chip.props.style).backgroundColor).toBe(subjectColor('felsefe', LIGHT));
+    expect(chip).toHaveTextContent('Felsefe');
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(memory.active?.subjectId).toBe('felsefe');
+  });
+
+  it('a short list (LGS, 7 subjects) is shown whole, without "Tüm dersler"', () => {
+    memory.profile = { ...ADULT_SAYISAL, examType: 'LGS', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(ids('subject-')).toHaveLength(7);
+    expect(screen.queryByTestId('subjects-all')).toBeNull();
   });
 
   it('switching to a non-YKS exam drops the area', () => {
