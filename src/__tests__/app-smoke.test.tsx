@@ -517,6 +517,7 @@ describe('the moment after Bitir', () => {
 
   beforeEach(() => {
     memory.profile = ADULT_SAYISAL;
+    jest.useFakeTimers();
     jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // 12:00 Istanbul
     jest.mocked(Haptics.notificationAsync).mockClear();
   });
@@ -1091,6 +1092,7 @@ describe('goal, streak and "dünkü sen"', () => {
 
   beforeEach(() => {
     memory.profile = ADULT_SAYISAL;
+    jest.useFakeTimers();
     jest.setSystemTime(at('2026-10-07T09:00:00Z')); // Wednesday 12:00 Istanbul
     memory.sessions = [
       session('lw', '2026-09-30T07:00:00Z', '2026-09-30T07:30:00Z'), // last Wednesday
@@ -1225,6 +1227,7 @@ describe('pomodoro mode', () => {
 describe('exam countdown', () => {
   beforeEach(() => {
     memory.profile = ADULT_SAYISAL;
+    jest.useFakeTimers();
     jest.setSystemTime(Date.parse('2026-10-04T09:00:00Z'));
   });
 
@@ -1583,6 +1586,7 @@ describe('share card', () => {
 
   it('0 dk: Paylaş is off and says why; the card holds no call to action; the file is named by the Istanbul day', async () => {
     memory.profile = ADULT_SAYISAL;
+    jest.useFakeTimers();
     jest.setSystemTime(Date.parse('2026-10-07T21:30:00Z')); // 8 Oct 00:30 Istanbul
     // Studied on Wednesday 7 October (Istanbul), nothing yet on Thursday.
     memory.sessions = [
@@ -2540,6 +2544,7 @@ describe('timer and data safety', () => {
   });
 
   it('an exam date that has passed is not hidden: the home screen says to enter the new one', () => {
+    jest.useFakeTimers();
     jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z'));
     memory.examDates = { YKS: '2026-06-20' };
     renderRouter(APP_DIR, { initialUrl: '/' });
@@ -2953,6 +2958,7 @@ describe('accessibility names on key screens', () => {
   }
 
   beforeEach(() => {
+    jest.useFakeTimers();
     jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // Wednesday 12:00 Istanbul
     const now = Date.now();
     memory.profile = ADULT_SAYISAL;
