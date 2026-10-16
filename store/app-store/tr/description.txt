@@ -1,3 +1,5 @@
+Ücretsiz, reklamsız, hesapsız. Sayaç kilit ekranında ve Dynamic Island’da çalışır; deneme netlerin ve en çok yanlış yaptığın konular aynı yerde. Uygulama internete bağlanmaz.
+
 Etüt, sınava hazırlanan öğrenciler için bir çalışma sayacı ve deneme net takibidir. Ne kadar çalıştığını, hangi konuda olduğunu ve denemelerde nerede yanlış yaptığını tek yerde görürsün. YKS (TYT, AYT; sayısal, eşit ağırlık, sözel, dil) ve KPSS için ders ve konu listeleri hazır gelir. Başka bir sınava hazırlanıyorsan sayacı ve hedefleri yine kullanabilirsin.
 
 ÇALIŞMA SAYACI
@@ -23,7 +25,7 @@ KONULAR VE DENEMELER
 
 IPHONE'DA
 - Sayaç açıkken kilit ekranında ve Dynamic Island'da canlı süre.
-- Ana ekran ve kilit ekranı widget'ı: bugünkü süre, seri ve günlük hedef.
+- Ana ekran ve kilit ekranı widget'ı: bugünkü süre, seri, günlük hedef ve sınava kalan gün.
 - İsteğe bağlı hatırlatıcılar: uzun oturum, pomodoro aşama sonu, günlük çalışma ve deneme analizi. Hatırlatıcılar telefonda kurulur; sen açmadıkça bildirim izni istenmez.
 
 VERİLERİN SENDE
@@ -32,6 +34,8 @@ VERİLERİN SENDE
 - Tüm kayıtların telefonunda saklanır (iPhone yedeğin açıksa o yedekte de); uygulama bize hiçbir şey göndermez.
 - Yedek dosyası, CSV ya da çalışma kartı yalnız sen dokununca, telefonunun paylaşım ekranıyla dışarı çıkar. Çalışma kartında yalnız çalışma sayıların vardır; 15 yaşından küçükler için kart paylaşımı kapalıdır.
 - Telefon değiştirirken yedek dosyasıyla kayıtlarını taşıyabilirsin.
+
+Bugün ücretsiz olan hiçbir özellik sonradan ücretli olmayacak.
 
 Etüt resmî bir uygulama değildir; ÖSYM veya MEB ile bağlantısı yoktur.
 

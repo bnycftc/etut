@@ -1,1 +1,1 @@
-tyt,ayt,net,ders,sayaç,pomodoro,sınav,konu,odaklanma,kronometre,hedef,analiz,soru,widget
+tyt,ayt,kpss,sayaç,pomodoro,kronometre,odaklanma,sınav,konu,ders,hedef,süre,mezun,soru,widget

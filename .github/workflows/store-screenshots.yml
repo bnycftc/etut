@@ -48,6 +48,18 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 90
     steps:
+      # The demo backup gives "today" about 2 h 50 min of study that ended 15 min before the run
+      # (e2e/store/demo-backup.js). Shortly after midnight Istanbul time there is no room for it and
+      # the first shots show "Bugün 0 dk" (run 38807345569, 00:24). Refuse to run before 04:00.
+      - name: Daytime guard (Europe/Istanbul)
+        run: |
+          hour="$(TZ=Europe/Istanbul date +%H)"
+          hour=$((10#$hour))
+          if [ "$hour" -lt 4 ]; then
+            echo "::error::It is $hour:xx in Istanbul. Run the store screenshots between 04:00 and 24:00 Istanbul time, otherwise today's demo study does not fit and the shots show 0 dk."
+            exit 1
+          fi
+          echo "Istanbul hour $hour: ok"
       - uses: actions/checkout@v4
 
       - name: Toolchain
