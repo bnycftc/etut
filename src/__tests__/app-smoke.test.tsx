@@ -176,6 +176,23 @@ jest.mock('../system/home-widget', () => ({
   },
 }));
 
+/** App Store rating dialog (X-7): calls of the StoreKit adapter and the stored "last asked" time. */
+const mockReview = { askedAt: null as number | null, requests: 0 };
+jest.mock('../system/store-review', () => ({
+  storeReview: {
+    isAvailable: async () => true,
+    request: async () => {
+      mockReview.requests += 1;
+    },
+  },
+}));
+jest.mock('../storage/review-kv', () => ({
+  loadReviewAskedAt: () => mockReview.askedAt,
+  storeReviewAskedAt: (ms: number) => {
+    mockReview.askedAt = ms;
+  },
+}));
+
 jest.mock('../storage/kv', () => ({
   loadReminderPrefs: () => jest.requireActual('../domain/reminders').normalizeReminderPrefs(memory.reminderPrefs),
   storeReminderPrefs: (p: unknown) => {
@@ -4038,5 +4055,174 @@ describe('accessibility names on key screens', () => {
     fireEvent.press(screen.getByTestId('manual-add'));
     expect(announce).toHaveBeenLastCalledWith('Eklendi: 30 dk (elle)');
     announce.mockRestore();
+  });
+});
+
+describe('App Store rating dialog (X-7)', () => {
+  const exam = (id: string, takenOn: string): MockExamWithScores => ({
+    id,
+    kind: 'TYT',
+    scope: 'genel',
+    bransSectionId: null,
+    takenOn,
+    totalNet: 10,
+    createdAt: 1,
+    analysisDoneAt: 1,
+    scores: [{ sectionId: 'turkce', questions: 40, correct: 10, wrong: 0 }],
+  });
+  const UNDER_15: Profile = { birthYear: 2013, examType: 'LGS', yksArea: null, soloOnly: true, createdAt: 0 };
+  /** 30 min on each of the `days` days before today (12:00 Istanbul on 7 Oct 2026). */
+  const pastDays = (days: number): CompletedSession[] =>
+    Array.from({ length: days }, (_, i) => {
+      const startedAt = Date.parse('2026-10-06T07:00:00Z') - i * 86_400_000;
+      return {
+        id: `p${i}`,
+        subjectId: 'fizik',
+        topicId: null,
+        startedAt,
+        endedAt: startedAt + 30 * 60_000,
+        pauses: [],
+        durationMs: 30 * 60_000,
+        source: 'timer' as const,
+      };
+    });
+  const flush = () => act(async () => {});
+  async function saveExam() {
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '10');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    await flush();
+  }
+  /** Starts, studies 31 min and finishes on the timer tab. */
+  function studyAndFinish() {
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    act(() => {
+      jest.setSystemTime(Date.now() + 31 * 60_000);
+      jest.advanceTimersByTime(1000);
+    });
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+  }
+
+  const originalAppState = AppState.currentState;
+  const setAppState = (status: AppStateStatus) =>
+    Object.defineProperty(AppState, 'currentState', { value: status, configurable: true, writable: true });
+
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+    mockReview.askedAt = null;
+    mockReview.requests = 0;
+    setAppState('active');
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z'));
+  });
+
+  afterEach(() => {
+    Object.defineProperty(AppState, 'currentState', { value: originalAppState, configurable: true, writable: true });
+  });
+
+  it('asks as the 3rd saved exam closes the form, then not again within 120 days', async () => {
+    memory.exams = [exam('a', '2026-09-24')];
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    await saveExam();
+    expect(memory.exams).toHaveLength(2);
+    expect(mockReview.requests).toBe(0);
+
+    memory.exams = [exam('a', '2026-09-24'), exam('b', '2026-10-01')];
+    await saveExam();
+    expect(memory.exams).toHaveLength(3);
+    expect(mockReview).toMatchObject({ requests: 1, askedAt: Date.now() });
+
+    memory.exams = memory.exams.slice(1);
+    jest.setSystemTime(Date.now() + 119 * 86_400_000);
+    await saveExam();
+    expect(mockReview.requests).toBe(1);
+  });
+
+  it('never for an under-15 profile, and never while a session runs', async () => {
+    memory.profile = UNDER_15;
+    memory.exams = [exam('a', '2026-09-24'), exam('b', '2026-10-01')];
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '10');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    await flush();
+    expect(memory.exams).toHaveLength(3);
+    expect(mockReview.requests).toBe(0);
+    screen.unmount();
+
+    memory.profile = ADULT_SAYISAL;
+    memory.exams = [exam('a', '2026-09-24'), exam('b', '2026-10-01')];
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    act(() => router.push('/deneme/yeni'));
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '10');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    await flush();
+    expect(memory.exams).toHaveLength(3);
+    expect(memory.active).not.toBeNull();
+    expect(mockReview.requests).toBe(0);
+  });
+
+  it('after a session that makes a 7-day goal streak, once "Geri al" is gone', async () => {
+    memory.dailyGoal = 30;
+    memory.sessions = pastDays(6);
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    studyAndFinish();
+    expect(screen.getByTestId('finish-goal-reached')).toBeTruthy();
+    await flush();
+    // The dialog never covers "Geri al".
+    expect(screen.getByTestId('finish-undo')).toBeTruthy();
+    expect(mockReview.requests).toBe(0);
+    act(() => jest.advanceTimersByTime(UNDO_FINISH_MS + 1000));
+    await flush();
+    expect(screen.queryByTestId('finish-undo')).toBeNull();
+    expect(mockReview.requests).toBe(1);
+  });
+
+  it('not when "Geri al" ends in the background or hours later (the phone was locked after Bitir)', async () => {
+    memory.dailyGoal = 30;
+    memory.sessions = pastDays(6);
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    studyAndFinish();
+    // Locked right after Bitir: the timer fires in the background.
+    setAppState('background');
+    act(() => jest.advanceTimersByTime(UNDO_FINISH_MS + 1000));
+    await flush();
+    expect(screen.queryByTestId('finish-undo')).toBeNull();
+    expect(mockReview.requests).toBe(0);
+    screen.unmount();
+
+    setAppState('active');
+    memory.sessions = pastDays(6);
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    studyAndFinish();
+    // The undo timer was paused while locked and fires when the app is opened 3 hours later.
+    act(() => {
+      jest.setSystemTime(Date.now() + 3 * 60 * 60_000);
+      jest.advanceTimersByTime(UNDO_FINISH_MS + 1000);
+    });
+    await flush();
+    expect(screen.queryByTestId('finish-undo')).toBeNull();
+    expect(mockReview.requests).toBe(0);
+  });
+
+  it('not for a shorter streak, and not when a new session started within the undo window', async () => {
+    memory.dailyGoal = 30;
+    memory.sessions = pastDays(5);
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    studyAndFinish();
+    act(() => jest.advanceTimersByTime(UNDO_FINISH_MS + 1000));
+    await flush();
+    expect(mockReview.requests).toBe(0);
+    screen.unmount();
+
+    memory.sessions = pastDays(6);
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    studyAndFinish();
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    act(() => jest.advanceTimersByTime(UNDO_FINISH_MS + 1000));
+    await flush();
+    expect(memory.active).not.toBeNull();
+    expect(mockReview.requests).toBe(0);
   });
 });

@@ -1,0 +1,15 @@
+Bu sürümde:
+
+- Uygulamadan çıktığın süre artık çalışma sayılır, en fazla 3 saate kadar. Daha uzun ayrı kalırsan döndüğünde bir kez sorulur. Ayarlar’dan değiştirebilirsin.
+- Sayaç ekranını açık tutma artık başta kapalı; istersen Ayarlar’dan açarsın.
+- Deneme analizi daha hızlı: “Yanlış” ya da “Boş”u seç, konuya dokun; her dokunuş bir ekler.
+- En çok yanlış yaptığın konular artık son 5 analizli denemene bakar ve o denemeden beri o konuya ne kadar çalıştığını gösterir.
+- Günlük hedefini değiştirince seri, geçmiş günleri o günkü hedefinle değerlendirir.
+- Bitir’den sonra seçtiğin konuyu “Bitti” ya da “Tekrar lazım” diye işaretleyebilirsin.
+- Ana sayfada bugün çözdüğün soru sayısı da görünür; kıyaslanacak gün henüz yoksa kıyas kartı gösterilmez.
+- iPhone’da widget’ı nasıl ekleyeceğin ilk oturumdan sonra bir kez gösterilir.
+- Pomodoro için 50/10 ve 90/15 hazır ayarları.
+- Elle eklerken 15, 30, 45, 60 ve 90 dakikalık süre seçenekleri.
+- Konular’da tekrar bekleyen konular üstte.
+- Sınava kalan gün, o yılın sınavı geçince sonraki yılın tahmini tarihine kendiliğinden geçer.
+- Ayarlar’a “Geri bildirim gönder” eklendi.

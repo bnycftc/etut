@@ -1,12 +1,12 @@
 Etüt is an on-device study timer and mock-exam tracker for Turkish exam students (YKS, LGS, KPSS). It has no server, no account, no groups and makes no network requests; no ads, analytics, crash reporting or tracking. No data is collected by the developer (App Privacy: Data Not Collected).
 
-There is nothing to sign in to: on first launch choose a birth year and an exam, then use the app. Users under 15 get the same on-device app without the study-stats image sharing. Birth year (year only) is asked solely to turn off study-stats image sharing for users under 15; it never leaves the device. The app is not directed at children and is not in the Kids category.
+There is nothing to sign in to: on first launch choose a birth year and an exam, then use the app. Users under 15 get the same on-device app without the study-stats image sharing or the App Store rating request. Birth year (year only) is asked solely to turn off study-stats image sharing and the App Store rating request for users under 15; it never leaves the device. The app is not directed at children and is not in the Kids category.
 
 All data stays in the app's local database on the device. Data leaves the device only when the user taps export (backup file, CSV or a study-stats image) and picks a destination in the system share sheet; nothing is uploaded by the app.
 
 Permissions: add-only Photos access, asked only when the user saves the study-stats image. Notification permission is asked only if the user turns on a local reminder (Ayarlar > Hatırlatıcılar); reminders are scheduled on the device, there is no push. The Live Activity and the Home Screen widget show data the app writes to its own App Group on the device.
 
-Ayarlar > Hakkında > İletişim opens the Mail app with the app and OS version in the subject; the app itself sends nothing.
+Ayarlar > Hakkında > İletişim and Ayarlar > Geri bildirim gönder open the Mail app with the app and OS version in the subject; the app itself sends nothing.
 
 Privacy policy, terms and licenses: Ayarlar (Settings) > Hakkında.
 

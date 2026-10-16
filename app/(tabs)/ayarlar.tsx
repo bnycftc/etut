@@ -41,6 +41,7 @@ import { tr } from '@/strings';
 import { groupApi, isAccountGone } from '@/sync/api';
 import { LastBackupLabel } from '@/ui/backup-reminder';
 import { Button, Card, Chip, ChipRow, Field, Label, Row, Screen, Stepper, Tag } from '@/ui/components';
+import { useContactMail } from '@/ui/contact-mail';
 import { formatDay, formatDuration } from '@/ui/format';
 import { openGuide } from '@/ui/info-link';
 import { useReducedMotion } from '@/ui/motion';
@@ -128,6 +129,8 @@ export default function SettingsScreen() {
   const version = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '–';
   const build = Application.nativeBuildVersion ?? '–';
   const parentMode = GROUPS_ENABLED && profile !== null && canUseParentMode(profile.birthYear, istanbulYear(Date.now()));
+  // The e-mail of Hakkında → İletişim (same address and subject), without the extra step.
+  const feedbackMail = useContactMail();
 
   // With the group module, "delete all" removes the server account first; if that fails nothing is
   // deleted, so the student can retry instead of losing the way to delete the server data.
@@ -512,6 +515,23 @@ export default function SettingsScreen() {
             router.navigate('/');
           }}
         />
+      </Card>
+
+      <Card>
+        <Label variant="heading">{tr.contact.feedbackTitle}</Label>
+        <Label variant="small">{feedbackMail.email === null ? tr.contact.soonInfo : tr.contact.feedbackInfo}</Label>
+        <Button
+          testID="settings-feedback"
+          kind="secondary"
+          title={feedbackMail.email === null ? tr.contact.feedbackSoon : tr.contact.feedback}
+          disabled={feedbackMail.email === null}
+          onPress={feedbackMail.open}
+        />
+        {feedbackMail.failed && feedbackMail.email !== null ? (
+          <Label testID="settings-feedback-failed" variant="small">
+            {tr.contact.failed(feedbackMail.email)}
+          </Label>
+        ) : null}
       </Card>
 
       <Card>

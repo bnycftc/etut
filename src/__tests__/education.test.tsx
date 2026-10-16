@@ -37,6 +37,23 @@ const memory: {
   shared: [],
 };
 
+/** Contact e-mail: the [DOLDURULACAK] placeholder unless a test fills it in (release builds get it from a secret). */
+const mockContact: { email: string | null } = { email: null };
+jest.mock('../strings', () => {
+  const actual = jest.requireActual('../strings');
+  const controller = actual.DATA_CONTROLLER;
+  return {
+    ...actual,
+    DATA_CONTROLLER: {
+      name: controller.name,
+      address: controller.address,
+      get contact() {
+        return mockContact.email ?? controller.contact;
+      },
+    },
+  };
+});
+
 jest.mock('expo-keep-awake', () => ({
   activateKeepAwakeAsync: async () => {},
   deactivateKeepAwake: async () => {},
@@ -224,6 +241,7 @@ beforeEach(() => {
   memory.lastBackupAt = null;
   memory.backupNudgeDismissedAt = null;
   memory.shared = [];
+  mockContact.email = null;
 });
 
 describe('the tour again', () => {
@@ -457,5 +475,29 @@ describe('contact', () => {
     expect(screen.getByTestId('about-contact')).toBeTruthy();
     expect(screen.getByText('E-posta · Yakında')).toBeTruthy();
     expect(disabled('about-contact')).toBeTruthy();
+  });
+
+  it('Ayarlar has the same e-mail one tap away ("Geri bildirim gönder"), disabled the same way', () => {
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    expect(screen.getByTestId('settings-feedback')).toBeTruthy();
+    expect(screen.getByText('Geri bildirim · Yakında')).toBeTruthy();
+    expect(disabled('settings-feedback')).toBeTruthy();
+  });
+
+  it('with the address filled in, Ayarlar points the letter route to Hakkında (no postal address below it)', () => {
+    mockContact.email = 'destek@ornek.com';
+    const settings = renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    expect(disabled('settings-feedback')).toBeFalsy();
+    expect(screen.getByText('Geri bildirim gönder')).toBeTruthy();
+    expect(screen.getByText(/İstemezsen Hakkında’daki adrese mektupla yazabilirsin\./)).toBeTruthy();
+    expect(screen.queryByText(/aşağıdaki adrese/)).toBeNull();
+    expect(screen.queryByTestId('about-address')).toBeNull();
+    settings.unmount();
+
+    // Hakkında keeps "aşağıdaki adrese": the data controller card with the address is below it.
+    renderRouter(APP_DIR, { initialUrl: '/hakkinda' });
+    expect(disabled('about-contact')).toBeFalsy();
+    expect(screen.getByText(/İstemezsen aşağıdaki adrese mektupla yazabilirsin\./)).toBeTruthy();
+    expect(screen.getByTestId('about-address')).toBeTruthy();
   });
 });

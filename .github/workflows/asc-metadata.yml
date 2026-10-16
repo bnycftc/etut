@@ -1,6 +1,7 @@
 # Writes the App Store listing of Etüt (App Store Connect app 6818980777) from store/app-store/:
 # tr app info (name, subtitle), tr version text (description, keywords, promotional text, support
-# and marketing URL), categories, age rating, content rights, copyright and App Review notes.
+# and marketing URL; "what's new" from the second version on), categories, age rating, content
+# rights, copyright and App Review notes.
 # Default is a dry run: it prints current vs wanted and writes nothing. With apply=true it writes
 # only what differs. It never submits for review, never attaches a build, never touches pricing,
 # availability or App Privacy. Same API key secrets as asc-key-check.yml.
@@ -59,12 +60,16 @@ jobs:
               "supportUrl": read(tr + "support_url.txt"),
               "marketingUrl": read(tr + "marketing_url.txt"),
           }
+          # "Sürümde yenilikler": App Store Connect refuses it on the app's first version, so it is
+          # written only when an earlier version exists (see the version localization below).
+          whats_new_want = read(tr + "whats_new.txt")
           notes_want = read("store/app-store/review-notes.txt")
           with open("store/app-store/age-rating.json", encoding="utf-8") as f:
               age_want = json.load(f)["attributes"]
 
-          limits = {"name": 30, "subtitle": 30, "promotionalText": 170, "description": 4000, "notes": 4000}
-          values = {**info_want, **loc_want, "notes": notes_want}
+          limits = {"name": 30, "subtitle": 30, "promotionalText": 170, "description": 4000, "whatsNew": 4000,
+                    "notes": 4000}
+          values = {**info_want, **loc_want, "whatsNew": whats_new_want, "notes": notes_want}
           problems = [f"{k} is empty" for k, v in values.items() if not v]
           problems += [f"{k}: {len(values[k])} characters, limit {n}" for k, n in limits.items() if len(values[k]) > n]
           kw = loc_want["keywords"]
@@ -188,12 +193,20 @@ jobs:
 
           # ---- Version localization (tr) ----
           print(f"\n[version localization {LOCALE}]")
+          # The first version has nothing to compare with: no "what's new". Any version record besides
+          # the editable one (or, with none editable yet, any record at all) means this is an update.
+          earlier = [v for v in versions if not editable or v["id"] != editable[0]["id"]]
+          ver_loc_want = dict(loc_want)
+          if earlier:
+              ver_loc_want["whatsNew"] = whats_new_want
+          else:
+              print("  whatsNew: first version, not written (App Store Connect refuses it)")
           loc = None
           if version:
               locs = get(f"/appStoreVersions/{version['id']}/appStoreVersionLocalizations", {"limit": "50"})["data"]
               print("  locales:", sorted(l["attributes"]["locale"] for l in locs))
               loc = next((l for l in locs if l["attributes"]["locale"] == LOCALE), None)
-          changed = diff("versionLocalization", loc["attributes"] if loc else None, loc_want)
+          changed = diff("versionLocalization", loc["attributes"] if loc else None, ver_loc_want)
           if APPLY and changed:
               if loc:
                   write("PATCH", f"/appStoreVersionLocalizations/{loc['id']}", {"data": {
@@ -201,7 +214,7 @@ jobs:
               else:
                   write("POST", "/appStoreVersionLocalizations", {"data": {
                       "type": "appStoreVersionLocalizations",
-                      "attributes": {"locale": LOCALE, **loc_want},
+                      "attributes": {"locale": LOCALE, **ver_loc_want},
                       "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": version["id"]}}}}})
 
           # ---- App Review detail: notes only; contact fields are filled by hand ----

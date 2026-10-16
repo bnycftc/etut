@@ -20,6 +20,7 @@
     "expo-splash-screen": "~57.0.10",
     "expo-sqlite": "~57.0.4",
     "expo-status-bar": "~57.0.1",
+    "expo-store-review": "~57.0.3",
     "expo-symbols": "~57.0.3",
     "expo-system-ui": "~57.0.4",
     "expo-widgets": "~57.0.22",
@@ -103,6 +104,15 @@
       "!**/__tests__/**",
       "!src/sync/testing/**"
     ]
+  },
+  "expo": {
+    "autolinking": {
+      "android": {
+        "exclude": [
+          "expo-store-review"
+        ]
+      }
+    }
   },
   "private": true
 }

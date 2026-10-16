@@ -16,6 +16,7 @@ import { defaultSubject, subjectsFor } from '@/domain/subjects';
 import { elapsedMs, isPaused } from '@/domain/timer';
 import { type TimedTopicStatus, toggleStatus, type TopicStatus } from '@/domain/topics';
 import { type FinishOptions, useAppState, useNow, useStored } from '@/state/app-state';
+import { useReviewAfterFinish } from '@/state/review-prompt';
 import { useStudyStats } from '@/state/study-stats';
 import {
   loadCustomExamDate,
@@ -203,6 +204,8 @@ export default function TimerScreen() {
     }
   };
   const finishCheck = useFinishCheck(finish);
+  // App Store rating (X-7): after a session that keeps a 7-day goal streak, once "Geri al" is gone.
+  useReviewAfterFinish(finished !== null && !finished.undoable ? finished : null, streak?.todayMet ? streak.current : 0);
 
   // "Bitti" / "Tekrar lazım" for the topic of the session just saved: the stored mark (also one set
   // on Konular in the meantime) shows on the chips.
