@@ -43,6 +43,10 @@ const memory: {
   reminderPrefs: unknown;
   remindersConfirmed: boolean;
   liveActivityRecord: { sessionId: string; startedAt: number; dismissed?: boolean; retried?: boolean } | null;
+  /**
+   * Start as "Açık" and "Sor" (most tests here exercise those); the app's own defaults (off,
+   * "Çalışmaya devam say") are `kv.ts`'s, tested in kv.test.ts and app-real-storage.test.tsx.
+   */
   keepAwakeSetting: boolean;
   awayRule: 'ask' | 'count';
   replaceUndo: { createdAt: number; text: string } | null;
@@ -2286,8 +2290,9 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
       expect(memory.liveActivities[0]).toMatchObject({ awayAt: null, from: startedAt });
     });
 
-    it('"Çalışmaya devam say" or a manual break: nothing freezes, the widget goes on as before', async () => {
+    it('"Çalışmaya devam say": frozen only after its 3 hours, the widget goes on; a manual break: nothing freezes', async () => {
       memory.awayRule = 'count';
+      const counted = 3 * 3_600_000; // AWAY_COUNT_MAX_MS
       const from = (AppState.addEventListener as jest.Mock).mock.calls.length;
       renderRouter(APP_DIR, { initialUrl: '/' });
       fireEvent.press(screen.getByText('Fizik'));
@@ -2296,9 +2301,14 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
       act(() => jest.setSystemTime(Date.now() + 60_000));
       emitAppState('background', from);
       await settle();
-      expect(memory.active?.backgroundedAt).not.toBeNull();
-      expect(memory.liveActivities[0]).toMatchObject({ status: 'Çalışıyorsun', awayAt: null, awayStatus: null });
-      expect(memory.liveActivityStaleAt).toBeNull();
+      const leftAt = memory.active!.backgroundedAt!;
+      expect(memory.liveActivities[0]).toMatchObject({
+        status: 'Çalışıyorsun',
+        pausedAt: null,
+        awayAt: leftAt + counted,
+        awayStatus: 'Uygulamadan çıktın · mola sayılıyor',
+      });
+      expect(memory.liveActivityStaleAt).toBe(leftAt + counted + 10_000);
       expect(memory.widget[0].props.runningNote).toBe('Sayaç açık');
       expect(memory.widget[0].props.countingFrom).not.toBeNull();
 

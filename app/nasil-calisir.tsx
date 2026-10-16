@@ -14,7 +14,7 @@ import { MANUAL_DAYS, MANUAL_MAX_MS } from '@/domain/manual-entry';
 import { type ExamKind, formatNet, net, wrongsPerCorrect } from '@/domain/net';
 import { DEFAULT_POMODORO } from '@/domain/pomodoro';
 import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '@/domain/streak';
-import { BACKGROUND_TOLERANCE_MS, LONG_SESSION_MS } from '@/domain/timer';
+import { AWAY_COUNT_MAX_MS, BACKGROUND_TOLERANCE_MS, LONG_SESSION_MS } from '@/domain/timer';
 import { tr } from '@/strings';
 import { Button, Card, Label } from '@/ui/components';
 import { type GuideSection, isGuideSection } from '@/ui/info-link';
@@ -64,7 +64,12 @@ export default function GuideScreen() {
         g.timer.title,
         <>
           {paragraphs(
-            g.timer.paragraphs(BACKGROUND_TOLERANCE_MS / 1000, UNDO_FINISH_MS / 1000, LONG_SESSION_MS / HOUR_MS),
+            g.timer.paragraphs(
+              BACKGROUND_TOLERANCE_MS / 1000,
+              UNDO_FINISH_MS / 1000,
+              LONG_SESSION_MS / HOUR_MS,
+              AWAY_COUNT_MAX_MS / HOUR_MS,
+            ),
           )}
           <Label variant="heading">{g.timer.focusTitle}</Label>
           {paragraphs(g.timer.focus)}
@@ -126,11 +131,11 @@ export default function GuideScreen() {
         'kilit',
         g.lockScreen.title,
         <>
-          {paragraphs(g.lockScreen.paragraphs(LIVE_ACTIVITY_MAX_MS / HOUR_MS))}
+          {paragraphs(g.lockScreen.paragraphs(LIVE_ACTIVITY_MAX_MS / HOUR_MS, AWAY_COUNT_MAX_MS / HOUR_MS))}
           <Label variant="heading">{g.lockScreen.widgetTitle}</Label>
           {paragraphs(g.lockScreen.widgetSteps)}
           <Label>{g.lockScreen.lockWidget}</Label>
-          <Label variant="muted">{g.lockScreen.widgetInfo}</Label>
+          <Label variant="muted">{g.lockScreen.widgetInfo(AWAY_COUNT_MAX_MS / HOUR_MS)}</Label>
         </>,
       ),
     ],

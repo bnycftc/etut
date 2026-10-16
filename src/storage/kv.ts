@@ -17,7 +17,7 @@ import {
 import { type ExamType, isProfile, type Profile } from '../domain/profile';
 import { normalizeReminderPrefs, type ReminderPrefs } from '../domain/reminders';
 import { clampGoalMinutes } from '../domain/streak';
-import { type ActiveSession, type AwayRule, toActiveSession } from '../domain/timer';
+import { type ActiveSession, type AwayRule, DEFAULT_AWAY_RULE, toActiveSession } from '../domain/timer';
 
 const KEYS = {
   profile: 'etut.profile.v1',
@@ -217,18 +217,22 @@ export function storeLiveActivityRecord(record: LiveActivityRecord | null): void
   else Storage.setItemSync(KEYS.liveActivity, JSON.stringify(record));
 }
 
-/** Keep the screen on while the timer runs on the timer screen (default on). */
+/**
+ * Keep the screen on while the timer runs on the timer screen. Default off (the default away rule
+ * 'count' does not turn a locked phone into a break); an explicit choice is kept.
+ */
 export function loadKeepAwake(): boolean {
-  return Storage.getItemSync(KEYS.keepAwake) !== '0';
+  return Storage.getItemSync(KEYS.keepAwake) === '1';
 }
 
 export function storeKeepAwake(on: boolean): void {
   Storage.setItemSync(KEYS.keepAwake, on ? '1' : '0');
 }
 
-/** What leaving the app while the timer runs means; default 'ask'. */
+/** What leaving the app while the timer runs means: the student's choice, else `DEFAULT_AWAY_RULE`. */
 export function loadAwayRule(): AwayRule {
-  return Storage.getItemSync(KEYS.awayRule) === 'count' ? 'count' : 'ask';
+  const stored = Storage.getItemSync(KEYS.awayRule);
+  return stored === 'ask' || stored === 'count' ? stored : DEFAULT_AWAY_RULE;
 }
 
 export function storeAwayRule(rule: AwayRule): void {

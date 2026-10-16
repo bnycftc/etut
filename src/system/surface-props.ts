@@ -44,7 +44,7 @@ export interface TimerActivityProps {
   nextFrom: number | null;
   nextTo: number | null;
   /**
-   * Away from the app (rule 'ask'), shown once the Live Activity is stale, before `next*`: the
+   * Away from the app (`provisionalAwayAt`), shown once the Live Activity is stale, before `next*`: the
    * clock `awayFrom`…`awayTo` frozen at `awayAt` (same direction as `countsDown`), `awayStatus` and
    * `awayHint`. All `null` when the time away costs nothing.
    */

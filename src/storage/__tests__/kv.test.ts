@@ -217,18 +217,26 @@ describe('values read back as stored; damaged values fall back to the defaults',
     expect(mainKv().has('etut.liveActivity.v1')).toBe(false);
   });
 
-  it('keep awake defaults to on, the away rule to "ask"', () => {
-    expect(kv.loadKeepAwake()).toBe(true);
-    kv.storeKeepAwake(false);
+  it('keep awake defaults to off, the away rule to "count"; an explicit choice is kept', () => {
     expect(kv.loadKeepAwake()).toBe(false);
     kv.storeKeepAwake(true);
     expect(kv.loadKeepAwake()).toBe(true);
+    kv.storeKeepAwake(false);
+    expect(kv.loadKeepAwake()).toBe(false);
+    // Stored by 0.4.0 when the student chose "Açık" (then the default): still on.
+    mainKv().set('etut.keepAwake.v1', '1');
+    expect(kv.loadKeepAwake()).toBe(true);
 
+    expect(kv.loadAwayRule()).toBe('count');
+    kv.storeAwayRule('ask');
     expect(kv.loadAwayRule()).toBe('ask');
     kv.storeAwayRule('count');
     expect(kv.loadAwayRule()).toBe('count');
-    mainKv().set('etut.awayRule.v1', 'something');
+    // A student who chose "Sor" under 0.4.0 keeps it.
+    mainKv().set('etut.awayRule.v1', 'ask');
     expect(kv.loadAwayRule()).toBe('ask');
+    mainKv().set('etut.awayRule.v1', 'something');
+    expect(kv.loadAwayRule()).toBe('count');
   });
 
   it('the copy kept for "Geri al" after Değiştir', () => {

@@ -6,8 +6,9 @@
  * app comes to the foreground and when a pomodoro phase ends while the app stays open (a phase
  * change changes nothing in the stored session). Going to the background is a session change
  * too, so the surfaces get a last sync then; only starting a Live Activity needs the foreground.
- * With the away rule "Sor" that last sync also says from when the time away will cost study time
- * (`provisionalAwayAt`): the Live Activity freezes there by itself once stale, the widget at once.
+ * That last sync also says from when the time away will cost study time (`provisionalAwayAt`: at
+ * once with "Sor", after 3 hours with "Çalışmaya devam say"): the Live Activity freezes there by
+ * itself once stale, the widget's timeline stops counting there.
  * Never ticks.
  */
 

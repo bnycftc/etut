@@ -1,4 +1,5 @@
-# c. Arka plan (10 sn'den uzun dışarıda kalma)
+# c. Arka plan (10 sn'den uzun dışarıda kalma, "Sor" kuralı; varsayılan "Çalışmaya devam say"
+# o-ayarlar-sayac'ta)
 appId: com.bnycftc.etut
 tags:
   - e2e
@@ -9,6 +10,8 @@ tags:
     file: subflows/onboarding-yks.yaml
     env:
       AGE: "20"
+- runFlow:
+    file: subflows/uzakta-sor.yaml
 - tapOn:
     id: subject-matematik
 - tapOn:

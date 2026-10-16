@@ -13,12 +13,12 @@
  * it goes on after the last midnight. An entry that stays in effect past the first phase change the
  * timeline leaves out cannot know when that break comes, so it does not count: the timeline may show
  * less than the running session, never more.
- * Time away from the app (away rule 'ask'): when the app goes to the background it passes `awayAt`
- * (`provisionalAwayAt` in `timer.ts`), and the timeline treats the session as on an automatic break
- * from then on: the total stops, nothing counts. That is what is saved when the app comes back late
- * and the student does not answer "Çalışıyordum" (if they do, the sync then adds the time). Back
- * within the tolerance, the next sync makes it count again. With rule 'count' nothing is passed and
- * the widget goes on counting, as the saved session will.
+ * Time away from the app: when the app goes to the background it passes `awayAt` (`provisionalAwayAt`
+ * in `timer.ts`: rule 'ask' the moment it left, rule 'count' 3 hours later), and the timeline treats
+ * the session as on an automatic break from then on: the total stops, nothing counts. Until then
+ * (rule 'count') the session goes on as it is, phase changes included. That is what is saved when
+ * the app comes back late and the student does not answer "Çalışıyordum" (if they do, the sync then
+ * adds the time). Back within the tolerance, the next sync makes it count again.
  *
  * Exam countdown ("YKS'ye 255 gün"): the number of days left changes at every Istanbul midnight,
  * which the timeline already has entries for. With nothing running the timeline then goes on for
@@ -97,7 +97,7 @@ export interface WidgetTimelineInput {
   goalMinutes: number | null;
   /** Exam date for the countdown line; missing/`null` = none. */
   exam?: WidgetExam | null;
-  /** In the background (rule 'ask'): from when the time away costs study time (`provisionalAwayAt`). */
+  /** In the background: from when the time away costs study time (`provisionalAwayAt`; may lie ahead). */
   awayAt?: number | null;
 }
 
@@ -153,6 +153,10 @@ function entryAt(input: WidgetTimelineInput, at: number, known: boolean): Widget
 export function widgetTimeline(timelineInput: WidgetTimelineInput): WidgetEntry[] {
   const input = withAway(timelineInput);
   const { now, active, goalMinutes } = input;
+  // The session as it runs, and from when the away break replaces it (rule 'count': hours ahead).
+  const running = timelineInput.active !== null && !isPaused(timelineInput.active) ? timelineInput.active : null;
+  const awayFrom = (timelineInput.active === null ? null : timelineInput.awayAt) ?? Number.POSITIVE_INFINITY;
+  const inputAt = (at: number) => (at < awayFrom ? timelineInput : input);
   const points = new Set<number>([now]);
   const today = istanbulDayKey(now);
   // A running session goes on counting in the timeline; only an idle one settles (see SETTLED_MIDNIGHT).
@@ -164,12 +168,14 @@ export function widgetTimeline(timelineInput: WidgetTimelineInput): WidgetEntry[
   // The first phase change the timeline leaves out (over budget or after the last midnight).
   // An entry that stays in effect past it cannot know about that break: it does not count.
   let firstUncovered = Number.POSITIVE_INFINITY;
-  // Idle (paused, or away): phase changes change nothing any more.
-  if (active !== null && !idle) {
-    const changes = upcomingPhaseChanges(active, now, PHASE_CHANGES_AHEAD + 1);
+  // Paused, or on the away break: phase changes change nothing any more.
+  if (running !== null) {
+    const changes = upcomingPhaseChanges(running, now, PHASE_CHANGES_AHEAD + 1).filter((c) => c.at < awayFrom);
     const covered = changes.filter((c) => c.at <= horizon).slice(0, PHASE_CHANGES_AHEAD);
     for (const change of covered) points.add(change.at);
     firstUncovered = changes[covered.length]?.at ?? Number.POSITIVE_INFINITY;
+    // Counting right up to the away break: the total stops there (in a pomodoro break it already has).
+    if (awayFrom > now && awayFrom <= horizon && isCounting(running, awayFrom - 1)) points.add(awayFrom);
   }
   const times = [...points].filter((t) => t >= now && t <= horizon).sort((a, b) => a - b);
 
@@ -180,13 +186,13 @@ export function widgetTimeline(timelineInput: WidgetTimelineInput): WidgetEntry[
     // The last entry stays in effect for good.
     const next = i + 1 < times.length ? times[i + 1] : Number.POSITIVE_INFINITY;
     const known = next <= firstUncovered;
-    const entry = entryAt(input, times[i], known);
+    const entry = entryAt(inputAt(times[i]), times[i], known);
     const end = i + 1 < times.length ? times[i + 1] : times[i] + DAY_MS;
     if (goalMs !== null && entry.counting && !entry.goalMet) {
       const reachAt = entry.at + (goalMs - entry.todayMs);
       entry.goalReachedAt = reachAt;
       entries.push(entry);
-      if (reachAt < end) entries.push(entryAt(input, reachAt, known));
+      if (reachAt < end) entries.push(entryAt(inputAt(reachAt), reachAt, known));
     } else {
       entries.push(entry);
     }
