@@ -326,7 +326,7 @@ export function ExamForm({
               onPress={() => setDay(yesterday)}
             />
           </ChipRow>
-          <Row>
+          <ResponsiveRow>
             <Button
               testID="exam-prev-day"
               kind="secondary"
@@ -340,7 +340,7 @@ export function ExamForm({
               disabled={day >= today}
               onPress={() => setDay(addDays(day, 1))}
             />
-          </Row>
+          </ResponsiveRow>
           <Label variant="muted" testID="exam-day">
             {formatDay(day)}
           </Label>
@@ -529,11 +529,14 @@ const styles = StyleSheet.create({
   },
   footerRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   footerNote: { gap: space.sm },
+  // Wraps at large text sizes ("Bitti" on a second line) instead of running off the screen; stacking
+  // all three would cover too much of the form above the keyboard.
   accessory: {
     position: 'absolute',
     left: 0,
     right: 0,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: space.sm,
     paddingHorizontal: space.sm,
     paddingVertical: space.xs,

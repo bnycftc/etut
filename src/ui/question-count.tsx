@@ -14,8 +14,11 @@ export function QuestionCount({ onSave, testID }: { onSave: (questions: number |
   const c = usePalette();
   const [text, setText] = useState('');
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+  // Each tap on Kaydet reads its result out again, also when it is the same message.
+  const [attempt, setAttempt] = useState(0);
 
   const save = () => {
+    setAttempt((n) => n + 1);
     const parsed = parseQuestionCount(text);
     if (!parsed.ok) {
       setMessage({ text: tr.questions.invalid(MAX_SESSION_QUESTIONS), error: true });
@@ -47,6 +50,7 @@ export function QuestionCount({ onSave, testID }: { onSave: (questions: number |
         <Label
           variant="small"
           testID={`${testID}-message`}
+          live={attempt}
           style={message.error ? { color: c.danger } : { color: c.success }}>
           {message.text}
         </Label>

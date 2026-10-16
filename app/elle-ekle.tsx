@@ -25,7 +25,7 @@ import {
 } from '@/storage/sessions';
 import { tr } from '@/strings';
 import { syncFinishedSession, syncManualDeleted } from '@/sync/session-sync';
-import { Button, Card, Chip, ChipRow, Field, Label, Row, Screen, Tag } from '@/ui/components';
+import { Button, Card, Chip, ChipRow, Field, Label, ResponsiveRow, Row, Screen, Tag } from '@/ui/components';
 import { formatDay, formatDuration, topicLabel } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
 import { TopicPicker } from '@/ui/topic-picker';
@@ -127,7 +127,7 @@ export default function ManualEntryScreen() {
 
       <Card>
         <Label variant="heading">{tr.manual.day}</Label>
-        <Row>
+        <ResponsiveRow>
           <Button
             testID="manual-prev-day"
             kind="secondary"
@@ -142,7 +142,7 @@ export default function ManualEntryScreen() {
             disabled={day >= today}
             onPress={() => setDay(addDays(day, 1))}
           />
-        </Row>
+        </ResponsiveRow>
         <Label variant="muted">{day === today ? tr.history.todayLabel : formatDay(day)}</Label>
 
         <Label variant="heading">{tr.manual.start}</Label>
@@ -220,17 +220,16 @@ export default function ManualEntryScreen() {
       {recent.map((s) => {
         const { hours, minutes } = istanbulTimeOfDay(s.startedAt);
         const topic = topicLabel(s.topicId);
+        const entry = `${tr.subject(s.subjectId)}${topic ? ` · ${topic}` : ''}`;
+        const when = tr.manual.when(formatDay(istanbulDayKey(s.startedAt)), hours, minutes);
+        // Every entry has its own "Sil": its name says which one.
+        const deleteLabel = tr.manual.deleteA11y(entry, when, formatDuration(s.durationMs));
         return (
           <Card key={s.id}>
             <Row>
               <View style={{ flex: 1, gap: 2 }}>
-                <Label>
-                  {tr.subject(s.subjectId)}
-                  {topic ? ` · ${topic}` : ''}
-                </Label>
-                <Label variant="small">
-                  {tr.manual.when(formatDay(istanbulDayKey(s.startedAt)), hours, minutes)}
-                </Label>
+                <Label>{entry}</Label>
+                <Label variant="small">{when}</Label>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Label>{formatDuration(s.durationMs)}</Label>
@@ -241,11 +240,12 @@ export default function ManualEntryScreen() {
             {confirmingId === s.id ? (
               <>
                 <Label>{tr.manual.deleteConfirm}</Label>
-                <Row>
+                <ResponsiveRow>
                   <Button
                     testID={`manual-delete-yes-${s.id}`}
                     kind="danger"
                     title={tr.common.delete}
+                    accessibilityLabel={deleteLabel}
                     onPress={() => {
                       deleteManualSession(s.id);
                       syncManualDeleted(s.id);
@@ -254,13 +254,14 @@ export default function ManualEntryScreen() {
                     }}
                   />
                   <Button kind="secondary" title={tr.common.cancel} onPress={() => setConfirmingId(null)} />
-                </Row>
+                </ResponsiveRow>
               </>
             ) : (
               <Button
                 testID={`manual-delete-${s.id}`}
                 kind="secondary"
                 title={tr.common.delete}
+                accessibilityLabel={deleteLabel}
                 onPress={() => setConfirmingId(s.id)}
               />
             )}

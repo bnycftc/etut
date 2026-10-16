@@ -60,6 +60,8 @@ export default function ExamsScreen() {
   const [sectionId, setSectionId] = useState<string | null>(null);
   const [targetText, setTargetText] = useState('');
   const [targetError, setTargetError] = useState(false);
+  // Each refused "Hedefi kaydet" reads the error out again.
+  const [targetAttempt, setTargetAttempt] = useState(0);
   const data = useStored(`${dataVersions.exams}|${dataVersions.topics}|${dataVersions.settings}`, () => ({
     exams: listMockExams(),
     pending: listExamsNeedingAnalysis(),
@@ -115,7 +117,10 @@ export default function ExamsScreen() {
     if (section === null) return;
     const value = parseTargetNet(targetText, section.questions);
     setTargetError(value === null);
-    if (value === null) return;
+    if (value === null) {
+      setTargetAttempt((n) => n + 1);
+      return;
+    }
     storeNetTarget(key, value);
     setTargetText('');
     notifyDataChanged('settings');
@@ -285,11 +290,11 @@ export default function ExamsScreen() {
               />
             </Row>
             {targetError ? (
-              <Label variant="small" style={{ color: c.danger }}>
+              <Label variant="small" live={targetAttempt} style={{ color: c.danger }}>
                 {tr.trend.targetInvalid(section.questions, formatNet(targetExample(section.questions)))}
               </Label>
             ) : null}
-            <Row>
+            <ResponsiveRow>
               <Button testID="trend-target-save" kind="secondary" title={tr.trend.targetSave} onPress={saveTarget} />
               {target !== null ? (
                 <Button
@@ -302,7 +307,7 @@ export default function ExamsScreen() {
                   }}
                 />
               ) : null}
-            </Row>
+            </ResponsiveRow>
           </Card>
         </>
       ) : null}

@@ -17,7 +17,7 @@ import { useStudyStats } from '@/state/study-stats';
 import { sessionsOverlapping } from '@/storage/sessions';
 import { loadSubjectTargets } from '@/storage/subject-targets';
 import { tr } from '@/strings';
-import { BarChart, Button, Card, Dot, EmptyState, Label, ProgressBar, Row, Screen, Tag } from '@/ui/components';
+import { BarChart, Button, Card, Dot, EmptyState, Label, ProgressBar, ResponsiveRow, Row, Screen, Tag } from '@/ui/components';
 import { formatDay, formatDuration } from '@/ui/format';
 import { Icon } from '@/ui/icon';
 import { MonthCalendar } from '@/ui/month-calendar';
@@ -67,7 +67,7 @@ export default function WeeklyScreen() {
 
   return (
     <Screen>
-      <Row>
+      <ResponsiveRow>
         <Button testID="weekly-prev" kind="secondary" title={tr.weekly.prev} onPress={() => setOffset(offset - 1)} />
         <Button
           testID="weekly-next"
@@ -76,7 +76,7 @@ export default function WeeklyScreen() {
           disabled={offset >= 0}
           onPress={() => setOffset(offset + 1)}
         />
-      </Row>
+      </ResponsiveRow>
       <Label variant="muted">{tr.weekly.range(formatDay(weekStart), formatDay(addDays(weekStart, 6)))}</Label>
 
       <Card>
@@ -228,7 +228,7 @@ export default function WeeklyScreen() {
 
       <Card testID="monthly-card">
         <Label variant="heading">{tr.monthly.title}</Label>
-        <Row>
+        <ResponsiveRow>
           <Button
             testID="monthly-prev"
             kind="secondary"
@@ -242,7 +242,7 @@ export default function WeeklyScreen() {
             disabled={monthOffset >= 0}
             onPress={() => setMonthOffset(monthOffset + 1)}
           />
-        </Row>
+        </ResponsiveRow>
         <Label variant="heading" testID="monthly-month">
           {tr.monthly.month(monthly.year, monthly.month)}
         </Label>
