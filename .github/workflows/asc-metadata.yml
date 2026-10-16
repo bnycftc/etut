@@ -13,6 +13,10 @@ on:
         description: Write the changes (false = dry run, print only)
         type: boolean
         default: false
+      allow_version_change:
+        description: Rename the editable App Store version to app.json's version (only when that is really the next version)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -30,6 +34,7 @@ jobs:
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           DATA_CONTROLLER_NAME: ${{ secrets.DATA_CONTROLLER_NAME }}
           APPLY: ${{ inputs.apply }}
+          ALLOW_VERSION_CHANGE: ${{ inputs.allow_version_change }}
         run: |
           pip install --quiet pyjwt cryptography requests
           python3 - <<'PY'
@@ -42,6 +47,7 @@ jobs:
           PRIMARY_CATEGORY, SECONDARY_CATEGORY = "EDUCATION", "PRODUCTIVITY"
           CONTENT_RIGHTS = "DOES_NOT_USE_THIRD_PARTY_CONTENT"
           APPLY = os.environ.get("APPLY") == "true"
+          ALLOW_VERSION_CHANGE = os.environ.get("ALLOW_VERSION_CHANGE") == "true"
           API = "https://api.appstoreconnect.apple.com/v1"
           print("mode:", "APPLY (writes)" if APPLY else "DRY RUN (no writes)")
 
@@ -164,6 +170,14 @@ jobs:
               if version["attributes"].get("versionString") != NEW_VERSION:
                   # The uploaded builds carry NEW_VERSION, so the store version must match it.
                   print(f"  versionString: CHANGE {version['attributes'].get('versionString')} -> {NEW_VERSION}")
+                  # A run from a branch whose app.json is ahead (main on 0.4.1 while 0.4.0 waits for review)
+                  # would rename the version under review and write the next version's texts to it. Nothing
+                  # has been written yet at this point, so stop here unless the rename is meant.
+                  if not ALLOW_VERSION_CHANGE:
+                      sys.exit(f"refusing: the editable version is {version['attributes'].get('versionString')} and app.json says "
+                               f"{NEW_VERSION}. Run this workflow from that version's branch (e.g. release/"
+                               f"{version['attributes'].get('versionString')}) or, if {NEW_VERSION} really is the next version, "
+                               "re-run with allow_version_change.")
                   if APPLY:
                       version = write("PATCH", f"/appStoreVersions/{version['id']}", {"data": {
                           "type": "appStoreVersions", "id": version["id"],
