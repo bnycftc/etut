@@ -100,10 +100,11 @@ scripts/test-web.mjs    Web duman testi (npm run test:web)
 scripts/jest-react-compiler.js Jest'in react-compiler projesinin dönüştürücüsü (uygulama kodu React Compiler'la)
 eslint.config.js        Yalnız eslint-plugin-react-hooks, hepsi uyarı (npm run lint)
 scripts/gen-icons.mjs   Simge ve açılış ekranı (SVG -> PNG, simge alfa kanalsız)
+scripts/store-compose.mjs Çerçeveli App Store görüntüleri (resvg, store/fonts Inter OFL, store/app-store/tr/screenshots.json)
 scripts/gen-licenses.mjs Lisans listesi üretici; scripts/native-licenses/ yerel kütüphane metinleri, scripts/package-licenses/ LICENSE dosyasız yayımlanan npm paketlerinin depo metni (upstream, birebir; eksik metin betiği hatayla bitirir)
 e2e/                    Maestro akışları (iOS simülatörü, e2e-ios.yml)
 ci/ExportOptions.plist  TestFlight ihracat ayarları
-.github/workflows/      ci.yml, backend.yml, testflight.yml, e2e-ios.yml, store-screenshots.yml, asc-*.yml (App Store Connect)
+.github/workflows/      ci.yml, backend.yml, testflight.yml, e2e-ios.yml, store-screenshots.yml, store-frames.yml, asc-*.yml (App Store Connect)
 ```
 
 ## iOS sistem yüzeyleri (kilit ekranı, Dynamic Island, widget, yerel bildirim)
@@ -392,9 +393,31 @@ Derleme `e2e-ios.yml` ile aynıdır (Release, gömülü JS paketi, ad-hoc imza);
 kaynaklarının özetine göre önbelleklenir; yalnız akışlar ya da bu iş akışı değiştiyse derleme atlanır.
 `e2e/store/demo-backup.js` çalıştırma gününe göre tarihli bir yedek üretir, iş akışı onu simülatörün
 "iPhone'umda" klasörüne kopyalar, `e2e/store/screenshots.yaml` uygulamanın "Yedekten geri yükle"
-ekranından geri yükleyip görüntüleri alır (düşen deneme bir kez baştan çalışır). Alfa kanalı atılır,
-boyut denetlenir; çıktı `app-store-screenshots-6.9` artifact'ıdır. App Store Connect'e hiçbir şey
-gönderilmez, gizli değer gerekmez.
+ekranından geri yükleyip görüntüleri alır (düşen deneme bir kez baştan çalışır). Demo verisi her
+hafta bir dinlenme günü (pazar) ve daha hafif günler içerir; seri uygulamanın kendi kuralıyla
+(haftada 1 dinlenme günü) sürer (`src/domain/__tests__/store-demo-backup.test.ts`). Akış ayrıca
+varsayılan "Çalışmaya devam say" kuralıyla (0.4.1'den beri; ayar değiştirilmez) pomodoroyu ~400 sn çalıştırır, sonra gerçek Dynamic Island ve Live
+Activity görüntülerini Maestro `cropOn` ile kırpar (`part-*`; tam ekranları `tam-*`). Ardından
+simülatör koyu moda alınır ve `e2e/store/screenshots-dark.yaml` "Yedekle ve geri yükle" ekranını
+çeker (`koyu-yedek`). Alfa kanalı atılır, boyut denetlenir; çıktı `app-store-screenshots-6.9`
+(ham `NN-ad.png` ekranlar) ve `app-store-screenshots-6.9-parts` (`part-*`, `tam-*`, `koyu-*`)
+artifact'larıdır. App Store Connect'e hiçbir şey gönderilmez, gizli değer gerekmez.
+
+### `store-frames.yml` (elle, ubuntu, ~2 dk)
+Başarılı bir `store-screenshots.yml` çalıştırmasının (`run_id`) iki artifact'ını
+`scripts/store-compose.mjs` ile çerçeveler: marka gradyanı (koyu kare için "night"), ikondaki 270°
+yay, gerçek ekran yuvarlak kartta, başlık Inter Display Bold, alt satır Inter Medium
+(`store/fonts/`, Inter 4.1, OFL-1.1, değiştirilmeden). Sıra, yerleşim ve metinler
+`store/app-store/tr/screenshots.json`'da; başlık en çok 35, alt satır en çok 70 karakter, en çok 2
+satır, satır genişliği ölçülür, kontrast (WCAG AA) ve yasak sözcükler (fiyat, LGS, sıralama, sosyal,
+seri kaybı …) denetlenir; "Hesap yok" karesi yalnız `GROUPS_ENABLED=false` iken çizilir. Sahte cihaz
+çerçevesi ya da çizilmiş kilit ekranı yoktur; kahraman karesi yalnız gerçek kırpmaları kullanır
+(`cropOn` SpringBoard öğesini bulamazsa `tam-*` görüntülerinden koyu bant aranarak kırpılır).
+Başlık değişikliği için 90 dakikalık macOS koşusu gerekmez. Çıktı
+`app-store-screenshots-6.9-framed` (yalnız `NN-ad.png`, 1320 × 2868 RGB) ve
+`store-frames-preview` (tüm kareler ve arama sonucundaki ilk üç kare). Yerelde:
+`npm run store:compose -- --raw <ham klasör> --out test-results/store-framed --preview test-results/store-preview`
+(`--skip-missing` eksik kaynaklı kareleri atlar); test: `npm run test:store-compose` (CI'da da koşar).
 
 ### App Store Connect iş akışları (yalnız elle, ubuntu)
 Hepsi `ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_PRIVATE_KEY` ile çalışır; hiçbiri incelemeye göndermez,
@@ -413,8 +436,11 @@ derleme bağlamaz, fiyat ya da erişilebilirliğe dokunmaz.
   çalıştırılır. Sürüm adını gerçekten değiştirmek için `allow_version_change=true`.
 - `asc-privacy-url.yml`: düzenlenebilir uygulama bilgisinin her dilinde Gizlilik Politikası URL'sini
   yazar (varsayılan `https://bnycftc.github.io/etut/gizlilik.html`). Kuru çalıştırması yoktur.
-- `asc-screenshots.yml`: başarılı bir `store-screenshots.yml` çalıştırmasının (`run_id`) görüntülerini
-  düzenlenebilir sürümün tr `APP_IPHONE_67` setine koyar. Varsayılan **kuru çalıştırma** (setteki ve
+- `asc-screenshots.yml`: başarılı bir `store-frames.yml` (çerçeveli set) ya da `store-screenshots.yml`
+  (ham ekranlar) çalıştırmasının (`run_id`) görüntülerini düzenlenebilir sürümün tr `APP_IPHONE_67`
+  setine koyar. Düzenlenebilir sürüm, iş akışının çalıştığı dalın `app.json` sürümü değilse kuru
+  çalıştırmada da hiçbir şey yazmadan durur (mağaza seti `release/<sürüm>` dalından yüklenir);
+  isteğe bağlı `expect_version` girdisi de o sürümle aynı olmalıdır. Varsayılan **kuru çalıştırma** (setteki ve
   yüklenecek dosyaları, sıralarını yazdırır); `apply=true` seti değiştirir: ilk dosyayı yükler,
   eskileri siler, kalanları dosya adı sırasıyla yükler, işlenmelerini bekler ve sırayı düzeltir.
   Fark yoksa yazmaz; yalnız ekran görüntüsü uçlarına yazar.

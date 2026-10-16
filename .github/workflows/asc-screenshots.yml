@@ -1,6 +1,12 @@
-# Uploads the App Store screenshots of Etüt (App Store Connect app 6818980777) made by
-# store-screenshots.yml: the PNGs in the artifact app-store-screenshots-6.9 of the given run go to
-# the tr localization of the editable App Store version, display type APP_IPHONE_67.
+# Uploads the App Store screenshots of Etüt (App Store Connect app 6818980777): the PNGs of the
+# given run go to the tr localization of the editable App Store version, display type
+# APP_IPHONE_67. A store-frames.yml run gives the framed set (artifact
+# app-store-screenshots-6.9-framed), a store-screenshots.yml run the raw screens
+# (app-store-screenshots-6.9).
+# The editable version must be the version in app.json on the branch this workflow runs on
+# (release/<version> for a store set), otherwise it stops before any write, dry run included:
+# screenshots of one app version never land on another (0.4.0 in review, 0.4.1 in TestFlight).
+# The optional input expect_version must match that app.json too (a typed confirmation).
 # ScreenshotDisplayType has no 6.9-inch value: APP_IPHONE_67 is the largest iPhone one, the slot
 # App Store Connect calls "iPhone with Dynamic Island (large display)", which takes 1320 × 2868
 # (iPhone 17 Pro Max, 16 Pro Max) next to 1290 × 2796 and 1260 × 2736.
@@ -19,9 +25,14 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: Run ID of a successful store-screenshots.yml run (the number in its URL)
+        description: Run ID of a successful store-frames.yml (framed) or store-screenshots.yml (raw) run
         required: true
         type: string
+      expect_version:
+        description: App Store version the screenshots are for (optional; must equal app.json on this branch)
+        required: false
+        type: string
+        default: ""
       apply:
         description: Replace the screenshots (false = dry run, print only)
         type: boolean
@@ -40,7 +51,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # The App Store version this branch is (expo.version), and the typed expect_version if any.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: app.json
+          sparse-checkout-cone-mode: false
+
+      - name: Expected App Store version
+        id: version
+        env:
+          EXPECT_VERSION: ${{ inputs.expect_version }}
+        run: |
+          version="$(python3 -c 'import json; print(json.load(open("app.json"))["expo"]["version"])')"
+          echo "app.json on $GITHUB_REF_NAME: $version"
+          if [ -n "$EXPECT_VERSION" ] && [ "$EXPECT_VERSION" != "$version" ]; then
+            echo "::error::expect_version is $EXPECT_VERSION, but app.json on $GITHUB_REF_NAME says $version: run this workflow on the branch of that version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Check the screenshot run
+        id: run
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.run_id }}
@@ -53,15 +84,18 @@ jobs:
           IFS=$'\t' read -r path conclusion branch sha created <<< "$info"
           echo "run $RUN_ID: $path, $conclusion, branch $branch, commit $sha, $created"
           case "$path" in
-            .github/workflows/store-screenshots.yml|.github/workflows/store-screenshots.yml@*) ;;
-            *) echo "::error::run $RUN_ID is not a store-screenshots.yml run"; exit 1 ;;
+            .github/workflows/store-frames.yml|.github/workflows/store-frames.yml@*) artifact=app-store-screenshots-6.9-framed ;;
+            .github/workflows/store-screenshots.yml|.github/workflows/store-screenshots.yml@*) artifact=app-store-screenshots-6.9 ;;
+            *) echo "::error::run $RUN_ID is not a store-frames.yml or store-screenshots.yml run"; exit 1 ;;
           esac
           [ "$conclusion" = "success" ] || { echo "::error::run $RUN_ID did not succeed ($conclusion)"; exit 1; }
+          echo "artifact: $artifact"
+          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
 
       - name: Download the screenshots
         uses: actions/download-artifact@v4
         with:
-          name: app-store-screenshots-6.9
+          name: ${{ steps.run.outputs.artifact }}
           path: shots
           run-id: ${{ inputs.run_id }}
           github-token: ${{ github.token }}
@@ -72,6 +106,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           APPLY: ${{ inputs.apply }}
+          EXPECT_VERSION: ${{ steps.version.outputs.version }}
           SHOTS_DIR: shots
         run: |
           pip install --quiet pyjwt cryptography requests
@@ -206,6 +241,10 @@ jobs:
               print("no editable App Store version (asc-metadata.yml with apply=true creates one)")
               sys.exit(1 if APPLY else 0)
           print("editable version:", version["attributes"].get("versionString"), "id", version["id"])
+          # Before anything else, dry run included: these screenshots are for app.json's version.
+          if version["attributes"].get("versionString") != os.environ["EXPECT_VERSION"]:
+              sys.exit(f"refusing: the editable App Store version is {version['attributes'].get('versionString')}, "
+                       f"this branch (app.json) is {os.environ['EXPECT_VERSION']}; run on the branch of that version")
           locs = get(f"/appStoreVersions/{version['id']}/appStoreVersionLocalizations", {"limit": "50"})["data"]
           print("locales:", sorted(l["attributes"]["locale"] for l in locs))
           loc = next((l for l in locs if l["attributes"]["locale"] == LOCALE), None)

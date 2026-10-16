@@ -2,8 +2,11 @@
 /**
  * Demo backup for the App Store screenshots (e2e/store/): about four weeks of use by a YKS
  * Sayısal student who is not a real person. Sessions across subjects with solved-question counts,
- * TYT and AYT mock exams with rising nets and tagged topics, topic progress, a daily goal with a
- * long streak, weekly subject targets and net targets.
+ * TYT and AYT mock exams with rising nets and tagged topics, topic progress, weekly subject targets
+ * and net targets, and a daily goal of 2 h 30 min that is not met every day: Sunday is a rest day
+ * (one a week keeps the streak going, src/domain/streak.ts), Wednesday is a lighter day, a study
+ * day is 2 h 35 min to 4 h 30 min, and the first week has a short day and a day off. The store
+ * images must not suggest that a student never takes a break (docs/hukuk/03: no pressure).
  *
  * Every date is relative to `now` (the run date): the sessions must fall in the last weeks, so
  * the file is generated at run time, never committed. Output is deterministic for a given `now`.
@@ -108,9 +111,12 @@ const WEIGHTS = [
 ];
 const QUESTIONS_PER_MIN = { matematik: 0.55, geometri: 0.5, fizik: 0.45, kimya: 0.5, biyoloji: 0.6, turkce: 0.8, tarih: 0.5, cografya: 0.5 };
 
-/** Days of history before today (goal 180 min a day). Missed days: none in the last 16. */
+/** Days of history before today; daily goal 2 h 30 min. */
 const HISTORY_DAYS = 27;
-const GOAL_MIN = 180;
+const GOAL_MIN = 150;
+const WEDNESDAY = 2;
+const SATURDAY = 5;
+const SUNDAY = 6;
 
 function pickSubject(r, avoid) {
   for (;;) {
@@ -147,22 +153,41 @@ function buildSessions(now, r) {
   };
 
   const today = dayStart(now);
+  const sunday = (back) => weekday(today - back * DAY) === SUNDAY;
+  // The first week with the app: a short day (under an hour) and a day off. The streak starts
+  // after the short day; from then on only the Sundays are missed, one a week, which the streak
+  // keeps (src/domain/streak.ts).
+  let shortDay = 20;
+  while (sunday(shortDay)) shortDay++;
+  let missedDay = 24;
+  while (sunday(missedDay)) missedDay++;
   for (let back = HISTORY_DAYS; back >= 1; back--) {
     const start = today - back * DAY;
-    // Older weeks: a missed day and a light one now and then; the last 16 days all reach the goal.
-    if (back > 16 && (back === 24 || back === 19)) continue;
-    const light = back === 22;
-    const weekend = weekday(start) >= 5;
-    const total = light ? 70 : GOAL_MIN + 15 + Math.round(r() * (weekend ? 120 : 75));
-    const count = light ? 2 : weekend ? 5 : 4;
-    let t = start + (weekend ? 10 * HOUR : 16.5 * HOUR) + Math.round(r() * 40) * MIN;
+    const day = weekday(start);
+    if (day === SUNDAY || back === missedDay) continue;
+    const short = back === shortDay;
+    // Wednesday is lighter but still reaches the goal (a second missed day in a week would end
+    // the streak); Saturday is the long day.
+    const total = short
+      ? 45
+      : day === WEDNESDAY
+        ? GOAL_MIN + 5 + Math.round(r() * 15)
+        : day === SATURDAY
+          ? 210 + Math.round(r() * 60)
+          : GOAL_MIN + 10 + Math.round(r() * 65);
+    const count = short ? 1 : total > 200 ? 4 : 3;
+    // Sessions of random length that add up to the day's total exactly.
+    const weights = Array.from({ length: count }, () => 0.75 + r() * 0.5);
+    const sum = weights.reduce((a, b) => a + b, 0);
+    const minutes = weights.map((w) => Math.max(25, Math.round((total * w) / sum)));
+    minutes[count - 1] += total - minutes.reduce((a, b) => a + b, 0);
+    let t = start + (day === SATURDAY ? 10 * HOUR : 16.5 * HOUR) + Math.round(r() * 40) * MIN;
     let last = null;
-    for (let i = 0; i < count; i++) {
-      const minutes = Math.max(25, Math.round((total / count) * (0.75 + r() * 0.5)));
-      const subject = i === 0 && !light ? (r() < 0.6 ? 'matematik' : 'fizik') : pickSubject(r, last);
-      t = add(subject, t, minutes) + (10 + Math.round(r() * 20)) * MIN;
+    minutes.forEach((m, i) => {
+      const subject = i === 0 && !short ? (r() < 0.6 ? 'matematik' : 'fizik') : pickSubject(r, last);
+      t = add(subject, t, m) + (10 + Math.round(r() * 20)) * MIN;
       last = subject;
-    }
+    });
   }
 
   // Today: about two hours, finished a quarter of an hour before the run (never in the future).
@@ -352,7 +377,7 @@ function buildDemoBackup(now = Date.now()) {
       examDates: {},
       netTargets: { 'TYT:turkce': 35, 'TYT:matematik': 33, 'AYT_SAY:matematik': 30 },
       lastSubject: 'matematik',
-      subjectWeeklyTargets: { matematik: 600, fizik: 240, turkce: 210, kimya: 180, geometri: 150, biyoloji: 150 },
+      subjectWeeklyTargets: { matematik: 450, fizik: 210, turkce: 150, kimya: 150, geometri: 120, biyoloji: 120 },
     },
   };
 }
