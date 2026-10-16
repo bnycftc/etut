@@ -115,6 +115,7 @@ export const LICENSES: readonly PackageLicense[] = [
   { name: "expo-sharing", version: "57.0.23", license: "MIT", source: null, text: T[1] },
   { name: "expo-sqlite", version: "57.0.4", license: "MIT", source: null, text: T[1] },
   { name: "expo-status-bar", version: "57.0.1", license: "MIT", source: null, text: T[1] },
+  { name: "expo-store-review", version: "57.0.3", license: "MIT", source: null, text: T[1] },
   { name: "expo-symbols", version: "57.0.3", license: "MIT", source: null, text: T[1] },
   { name: "expo-widgets", version: "57.0.26", license: "MIT", source: null, text: T[1] },
   { name: "fast-deep-equal", version: "3.1.3", license: "MIT", source: null, text: T[18] },

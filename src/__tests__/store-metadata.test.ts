@@ -17,6 +17,7 @@ const subtitle = read('tr/subtitle.txt');
 const keywords = read('tr/keywords.txt');
 const promotional = read('tr/promotional_text.txt');
 const description = read('tr/description.txt');
+const whatsNew = read('tr/whats_new.txt');
 const notes = read('review-notes.txt');
 
 it('fits App Store Connect length limits', () => {
@@ -63,6 +64,12 @@ it('no LGS or young-age marketing in the listing (K-45)', () => {
   }
 });
 
+it('whats_new.txt ("Sürümde yenilikler", from the second version on): at most 4000 characters, no LGS', () => {
+  expect(whatsNew.length).toBeGreaterThan(0);
+  expect(whatsNew.length).toBeLessThanOrEqual(4000);
+  expect(whatsNew.toLocaleUpperCase('tr')).not.toContain('LGS');
+});
+
 it('the description says the app is not official and keeps data on the phone', () => {
   expect(description).toContain('Etüt resmî bir uygulama değildir; ÖSYM veya MEB ile bağlantısı yoktur.');
   expect(description).toContain('telefonunda saklanır (iPhone yedeğin açıksa o yedekte de)');
@@ -78,7 +85,7 @@ it('support and marketing URLs are the public site', () => {
 });
 
 (GROUPS_ENABLED ? it.skip : it)('no group or social wording while the group module is off', () => {
-  for (const text of [name, subtitle, keywords, promotional, description]) {
+  for (const text of [name, subtitle, keywords, promotional, description, whatsNew]) {
     const lower = text.toLocaleLowerCase('tr');
     for (const word of ['grup', 'arkadaş', 'sıralama', 'sohbet']) expect(lower).not.toContain(word);
   }

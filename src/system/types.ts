@@ -43,3 +43,10 @@ export interface HomeWidgetAdapter {
   readonly supported: boolean;
   setTimeline(entries: { at: number; props: TodayWidgetProps }[]): void;
 }
+
+export interface StoreReviewAdapter {
+  /** `false` on web, Android and in TestFlight builds. */
+  isAvailable(): Promise<boolean>;
+  /** Asks the system for the rating dialog; the system decides whether it appears. */
+  request(): Promise<void>;
+}

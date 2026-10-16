@@ -452,4 +452,11 @@ describe('contact', () => {
     expect(screen.getByText('E-posta · Yakında')).toBeTruthy();
     expect(disabled('about-contact')).toBeTruthy();
   });
+
+  it('Ayarlar has the same e-mail one tap away ("Geri bildirim gönder"), disabled the same way', () => {
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    expect(screen.getByTestId('settings-feedback')).toBeTruthy();
+    expect(screen.getByText('Geri bildirim · Yakında')).toBeTruthy();
+    expect(disabled('settings-feedback')).toBeTruthy();
+  });
 });

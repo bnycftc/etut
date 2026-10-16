@@ -3,16 +3,17 @@ import { useState } from 'react';
 
 import { examKindsFor, formatNet, totalNet } from '@/domain/net';
 import { useAppState } from '@/state/app-state';
+import { askForReviewIfDue } from '@/state/review-prompt';
 import { setSavedExamNotice } from '@/state/saved-exam-notice';
 import { newId } from '@/storage/db';
-import { saveMockExam } from '@/storage/mock-exams';
+import { listMockExams, saveMockExam } from '@/storage/mock-exams';
 import { tr } from '@/strings';
 import { Label, Screen } from '@/ui/components';
 import { ExamForm } from '@/ui/exam-form';
 import { announce, hapticSuccess } from '@/ui/feedback';
 
 export default function NewExamScreen() {
-  const { profile, notifyDataChanged } = useAppState();
+  const { profile, active, notifyDataChanged } = useAppState();
   // One id per form: a second "Kaydet" can never create a second exam.
   const [id] = useState(newId);
   // YKS: TYT and the AYT/YDT paper of the area; LGS and KPSS: their own paper; "Diğer": none.
@@ -42,6 +43,8 @@ export default function NewExamScreen() {
         hapticSuccess();
         announce(tr.exams.saved(formatNet(totalNet(v.scores, v.kind))));
         router.back();
+        // App Store rating (X-7): from the 3rd saved exam on, as the form closes.
+        void askForReviewIfDue(profile, active !== null, { kind: 'exam_saved', examCount: listMockExams().length });
       }}
     />
   );

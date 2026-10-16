@@ -203,6 +203,14 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   `registerForRemoteNotifications` çağrısı bulunduğu için App Store Connect yüklemeden sonra
   ITMS-90078 ("Missing Push Notification Entitlement") uyarısı gönderebilir: **bu beklenen
   durumdur, yüklemeyi engellemez. Push yeteneği açılmaz, `aps-environment` eklenmez** (hukuk/03 K-16).
+- **App Store puan istemi (expo-store-review):** Apple'ın kendi penceresi (StoreKit
+  `AppStore.requestReview`); öncesinde ya da yanında Etüt'ün sorusu, metni yoktur. Yalnız 15+
+  profilde (`canShareCard`): 3. ve sonraki deneme kaydedilince ya da günlük hedef serisi 7+ günken
+  Bitir'in "Geri al" süresi dolunca; oturum açıkken (duraklatılmış dahil) asla; 120 günde en çok bir
+  kez (`src/domain/review-prompt.ts`; son istem zamanı kv'de, `src/storage/review-kv.ts`, yedeğe
+  girmez). TestFlight'ta pencere açılmaz (`isAvailableAsync` false); Apple yılda en çok 3 kez
+  gösterir. Modülün yapılandırma eklentisi yok (`app.json` → `plugins`'e girmez), required-reason
+  API kullanmaz: gizlilik manifestleri değişmez.
 - **Android:** iOS'a özgü kod `.ios.ts` dosyalarında; Android'de canlı sayaç ve widget yok,
   yerel hatırlatıcılar çalışır. Kronometreli kalıcı bildirim expo-notifications ile yapılamıyor
   (`setUsesChronometer` sunulmuyor; ayrı yerel modül gerekir), eklenmedi. Şablonun varsayılan
@@ -368,7 +376,8 @@ derleme bağlamaz, fiyat ya da erişilebilirliğe dokunmaz.
   sertifika/profil sayılarını ve son 3 derlemenin işlenme ve iç TestFlight durumunu yazdırır.
 - `asc-metadata.yml`: `store/app-store/` → App Store sayfası (tr ad ve alt başlık, açıklama, anahtar
   kelimeler, tanıtım metni, destek/pazarlama URL'si, kategoriler, yaş derecelendirmesi, içerik
-  hakları, telif satırı `DATA_CONTROLLER_NAME`'den, App Review notları). Yazmadan önce Apple
+  hakları, telif satırı `DATA_CONTROLLER_NAME`'den, App Review notları; ilk sürümden sonra "Sürümde
+  yenilikler" `tr/whats_new.txt`'den). Yazmadan önce Apple
   sınırlarını denetler. Varsayılan **kuru çalıştırma**: şimdiki ve istenen değerleri yazdırır, hiçbir
   şey yazmaz. `apply=true` yalnız farklı olanı yazar; düzenlenebilir sürüm yoksa `app.json` sürümüyle
   oluşturur. App Privacy'ye dokunmaz.
@@ -391,7 +400,7 @@ derleme bağlamaz, fiyat ya da erişilebilirliğe dokunmaz.
 | `DIST_CERT_PASSWORD` | p12 varsa | .p12 parolası |
 | `DATA_CONTROLLER_NAME` | evet (`internal_only` dışında) | Veri sorumlusunun adı; Hakkında ve yasal metinlerde görünür, `asc-metadata.yml` telif satırına da yazar |
 | `DATA_CONTROLLER_ADDRESS` | evet (`internal_only` dışında) | Yazılı KVKK başvurusu için posta adresi |
-| `DATA_CONTROLLER_CONTACT` | evet (`internal_only` dışında) | Destek ve KVKK başvurusu e-postası (Hakkında'daki İletişim düğmesi) |
+| `DATA_CONTROLLER_CONTACT` | evet (`internal_only` dışında) | Destek ve KVKK başvurusu e-postası (Hakkında'daki İletişim ve Ayarlar'daki Geri bildirim düğmesi) |
 
 API anahtarı **Admin** rolünde olmalı. CarPlay Medya projesinde aynı takım için bulut tarafından
 yönetilen dağıtım imzası ITMS-90035 ile reddedilmişti; bu yüzden `DIST_CERT_P12_BASE64`

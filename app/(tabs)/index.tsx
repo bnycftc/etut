@@ -13,6 +13,7 @@ import { goalRatio } from '@/domain/streak';
 import { defaultSubject, subjectsFor } from '@/domain/subjects';
 import { elapsedMs, isPaused } from '@/domain/timer';
 import { type FinishOptions, useAppState, useNow, useStored } from '@/state/app-state';
+import { useReviewAfterFinish } from '@/state/review-prompt';
 import { useStudyStats } from '@/state/study-stats';
 import {
   loadCustomExamDate,
@@ -191,6 +192,11 @@ export default function TimerScreen() {
     }
   };
   const finishCheck = useFinishCheck(finish);
+  // App Store rating (X-7): after a session that keeps a 7-day goal streak, once "Geri al" is gone.
+  useReviewAfterFinish(
+    finished !== null && !finished.undoable ? finished.id : null,
+    streak?.todayMet ? streak.current : 0,
+  );
 
   const undo = () => {
     if (app.undoFinish()) {
