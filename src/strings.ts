@@ -5,7 +5,7 @@
  */
 
 import type { BackupError } from './domain/backup';
-import type { MarkError } from './domain/exam-analysis';
+import type { MarkError, MarkKind } from './domain/exam-analysis';
 import type { ExamDateKind } from './domain/exam-dates';
 import type { ParentNoticeKind, ReactionKind, ReportReason } from './domain/groups';
 import type { ManualEntryError } from './domain/manual-entry';
@@ -712,12 +712,28 @@ export const tr = {
     sectionSummary: (wrong: number, blank: number) => `${wrong} yanlış · ${blank} boş`,
     tagged: (wrongTagged: number, wrong: number, blankTagged: number, blank: number) =>
       `İşaretlenen: ${wrongTagged}/${wrong} yanlış · ${blankTagged}/${blank} boş`,
-    addTopic: 'Konu ekle',
-    /** Screen-reader name of a section's "Konu ekle" (one per section on the screen). */
-    addTopicFor: (section: string) => `${section} dersine konu ekle`,
-    close: 'Kapat',
     wrong: 'Yanlış',
     blank: 'Boş',
+    /**
+     * Quick analysis: the Yanlış | Boş switch of a section. Screen readers hear its state (selected)
+     * and how many of that kind are tagged; "2/6" could be read out as a date, so words.
+     */
+    kindA11y: (what: string, tagged: number, total: number) => `${what}: ${total} sorudan ${tagged} tanesi işaretlendi`,
+    tapHint: (kind: MarkKind) =>
+      kind === 'wrong' ? 'Bir konuya dokununca ona 1 yanlış eklenir.' : 'Bir konuya dokununca ona 1 boş eklenir.',
+    allTagged: (kind: MarkKind) =>
+      kind === 'wrong' ? 'Bu dersteki yanlışların hepsini işaretledin.' : 'Bu dersteki boşların hepsini işaretledin.',
+    /** A topic chip with its count badge, read as one sentence. */
+    topicA11y: (topic: string, wrong: number, blank: number) =>
+      wrong + blank === 0 ? topic : `${topic}: ${wrong} yanlış, ${blank} boş`,
+    /** Read out after a tap (`topicA11y`); `allTagged` follows when it tagged the last one of its kind. */
+    tappedA11y: (topic: string, allTagged: string | null) => (allTagged === null ? topic : `${topic}. ${allTagged}`),
+    topicHint: (kind: MarkKind) => (kind === 'wrong' ? '1 yanlış ekler' : '1 boş ekler'),
+    /** The steppers (to lower a count) are folded away under this button. */
+    detailsShow: 'Ayrıntı',
+    detailsHide: 'Ayrıntıyı gizle',
+    detailsA11y: (section: string, open: boolean) => `${section}: ${open ? 'ayrıntıyı gizle' : 'ayrıntıyı göster'}`,
+    detailsNote: 'Fazla işaretlediysen − ile azalt.',
     nothing: 'Bu denemede yanlış ya da boş yok; analiz edecek bir şey kalmadı.',
     partialNote: 'Hepsini işaretlemek zorunda değilsin; bildiklerini işaretlemen yeter.',
     save: 'Analizi kaydet',
@@ -733,10 +749,14 @@ export const tr = {
       blank > 0 ? `${wrong} Y · ${blank} B` : `${wrong} Y`,
     topMissedTitle: 'En çok yanlış yaptığın 5 konu',
     topMissedEmpty: 'Deneme analizlerini tamamladıkça burada görünür.',
+    /** Which exams the list looks at (`MISSED_WINDOW` in domain/exam-analysis.ts). */
+    topMissedWindow: (window: number) => `Konu işaretlediğin son ${window} denemeye göre.`,
+    /** On the "Çalış" line: study time on the topic since the last exam that missed it. */
+    missedSince: (day: string, time: string | null) =>
+      time === null ? `${day} denemesinden beri bu konuda süre yok.` : `${day} denemesinden beri ${time} çalıştın.`,
     unknownTopic: 'Eski konu',
     /** Screen-reader name of a stepper: topic and what it counts. */
     countLabel: (topic: string, what: string) => `${topic}, ${what}`,
-    addTopicA11y: (topic: string) => `${topic} konusunu ekle`,
     review: 'Tekrar lazım',
     reviewA11y: (topic: string) => `${topic}: tekrar lazım`,
     study: 'Çalış',
@@ -1494,11 +1514,11 @@ export const tr = {
     },
     analysis: {
       title: 'Analiz ve “tekrar lazım”',
-      paragraphs: (window: number) => [
-        'Deneme analizi iki adımlı: önce netini kaydedersin, kitapçık ya da cevap anahtarı gelince yanlış ve boş soruların hangi konulardan olduğunu işaretlersin. Hepsini işaretlemek zorunda değilsin.',
-        'İşaretledikçe “En çok yanlış yaptığın 5 konu” listesi oluşur. Oradan bir konuya “Tekrar lazım” diyebilir, “Çalış” ile o konuda sayacı başlatabilirsin.',
+      paragraphs: (targetWindow: number, missedWindow: number) => [
+        'Deneme analizi iki adımlı: önce netini kaydedersin, kitapçık ya da cevap anahtarı gelince yanlış ve boş soruların hangi konulardan olduğunu işaretlersin. Her derste Yanlış ya da Boş’u seçip konuya dokunursun; her dokunuş 1 ekler. Hepsini işaretlemek zorunda değilsin.',
+        `İşaretledikçe “En çok yanlış yaptığın 5 konu” listesi oluşur; liste konu işaretlediğin son ${missedWindow} denemeye bakar, daha eski denemelerdeki yanlışlar sayılmaz. Oradan bir konuya “Tekrar lazım” diyebilir, “Çalış” ile o konuda sayacı başlatabilirsin; altında o denemeden beri o konuya ne kadar çalıştığın yazar.`,
         'Konular ekranında bitirdiğin konuyu “Bitti”, yeniden bakman gerekeni “Tekrar lazım” diye işaretlersin. Sayaçta konu seçersen o konuya ayırdığın süre de orada toplanır.',
-        `Bir ders için hedef net koyarsan son ${window} denemenin ortalamasıyla kıyaslanır.`,
+        `Bir ders için hedef net koyarsan son ${targetWindow} denemenin ortalamasıyla kıyaslanır.`,
       ],
     },
     goal: {
@@ -1634,6 +1654,8 @@ export const tr = {
     geometryNote: 'Geometri soruları Matematik testinin içinde; netler o testten.',
     missedTitle: 'En çok yanlış yaptığın konular',
     missedEmpty: 'Deneme analizinde bu dersten henüz konu işaretlemedin.',
+    /** `MISSED_WINDOW`, counted over the exams in which a topic of this subject was marked. */
+    missedWindow: (window: number) => `Bu dersten konu işaretlediğin son ${window} denemeye göre.`,
     missedRow: (wrong: number, blank: number, time: string) => `${wrong} yanlış · ${blank} boş · çalıştığın: ${time}`,
     noTime: 'henüz süre yok',
   },

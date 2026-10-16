@@ -334,6 +334,28 @@ describe('mock exams on the real database', () => {
     expect(screen.queryByTestId('exam-item-1')).toBeNull();
   });
 
+  it('"en çok yanlış" reads each mark with its exam day; "o denemeden beri" sums the topic time from that day', () => {
+    saveTyt('e1'); // 5 Oct
+    saveExamAnalysis('e1', [{ sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 3, blank: 0 }], 50);
+    const studied = (id: string, iso: string, minutes: number): CompletedSession => ({
+      id,
+      subjectId: 'matematik',
+      topicId: 'tyt.matematik.mutlak-deger',
+      startedAt: Date.parse(iso),
+      endedAt: Date.parse(iso) + minutes * MIN,
+      pauses: [],
+      durationMs: minutes * MIN,
+      source: 'timer',
+    });
+    saveSession(studied('before', '2026-10-04T12:00:00Z', 40), T0);
+    saveSession(studied('after', '2026-10-06T12:00:00Z', 35), T0);
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByText('3 Y')).toBeTruthy();
+    expect(screen.getByTestId('missed-since-tyt.matematik.mutlak-deger').props.children).toBe(
+      '5 Ekim 2026 denemesinden beri 35 dk çalıştın.',
+    );
+  });
+
   it('editing writes the new counts and date into the same row', () => {
     saveTyt('e1');
     renderRouter(APP_DIR, { initialUrl: '/deneme/e1' });

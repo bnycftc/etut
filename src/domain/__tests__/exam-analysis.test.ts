@@ -2,9 +2,14 @@ import {
   analysisAfterEdit,
   blankCount,
   chartScale,
+  type ExamTopicMark,
   netTrend,
   studyTargetForTopic,
   examNeedsAnalysis,
+  markKindFor,
+  MISSED_WINDOW,
+  missedSinceMs,
+  orderTopicsByMisses,
   parseTargetNet,
   targetExample,
   targetKey,
@@ -12,6 +17,7 @@ import {
   topMissedTopics,
   validateSectionMarks,
 } from '../exam-analysis';
+import { dayStartMs } from '../istanbul-day';
 
 const score = (correct: number, wrong: number, questions = 40) => ({
   sectionId: 'matematik',
@@ -45,26 +51,92 @@ describe('two-step analysis', () => {
   });
 });
 
+/** A mark of exam `examId`, taken on 2026-10-`day` and entered at `createdAt`. */
+function mark(examId: string, day: number, topicId: string, wrong: number, blank = 0, createdAt = day): ExamTopicMark {
+  const takenOn = `2026-10-${String(day).padStart(2, '0')}`;
+  return { examId, takenOn, createdAt, sectionId: 'matematik', topicId, wrong, blank };
+}
+
 describe('topMissedTopics', () => {
   it('sums across exams, orders by wrong then blank, and keeps 5', () => {
     const marks = [
-      { sectionId: 'matematik', topicId: 'a', wrong: 2, blank: 0 },
-      { sectionId: 'matematik', topicId: 'b', wrong: 3, blank: 1 },
-      { sectionId: 'matematik', topicId: 'a', wrong: 2, blank: 1 },
-      { sectionId: 'fizik', topicId: 'c', wrong: 3, blank: 0 },
-      { sectionId: 'fizik', topicId: 'd', wrong: 1, blank: 0 },
-      { sectionId: 'fizik', topicId: 'e', wrong: 0, blank: 4 },
-      { sectionId: 'fizik', topicId: 'f', wrong: 0, blank: 1 },
-      { sectionId: 'fizik', topicId: 'g', wrong: 0, blank: 0 },
+      mark('e1', 1, 'a', 2),
+      mark('e1', 1, 'b', 3, 1),
+      mark('e2', 2, 'a', 2, 1),
+      mark('e2', 2, 'c', 3),
+      mark('e2', 2, 'd', 1),
+      mark('e2', 2, 'e', 0, 4),
+      mark('e2', 2, 'f', 0, 1),
+      mark('e2', 2, 'g', 0, 0),
     ];
     expect(topMissedTopics(marks)).toEqual([
-      { topicId: 'a', wrong: 4, blank: 1 },
-      { topicId: 'b', wrong: 3, blank: 1 },
-      { topicId: 'c', wrong: 3, blank: 0 },
-      { topicId: 'd', wrong: 1, blank: 0 },
-      { topicId: 'e', wrong: 0, blank: 4 },
+      { topicId: 'a', wrong: 4, blank: 1, lastMissedOn: '2026-10-02' },
+      { topicId: 'b', wrong: 3, blank: 1, lastMissedOn: '2026-10-01' },
+      { topicId: 'c', wrong: 3, blank: 0, lastMissedOn: '2026-10-02' },
+      { topicId: 'd', wrong: 1, blank: 0, lastMissedOn: '2026-10-02' },
+      { topicId: 'e', wrong: 0, blank: 4, lastMissedOn: '2026-10-02' },
     ]);
     expect(topMissedTopics([])).toEqual([]);
+  });
+
+  it('looks at the last 5 analysed exams only: an older miss leaves the list', () => {
+    expect(MISSED_WINDOW).toBe(5);
+    // A topic missed a lot in the oldest exam, then five newer exams without it.
+    const marks = [mark('old', 1, 'limit', 9), ...[2, 3, 4, 5, 6].map((day) => mark(`e${day}`, day, 'turev', 1))];
+    expect(topMissedTopics(marks)).toEqual([{ topicId: 'turev', wrong: 5, blank: 0, lastMissedOn: '2026-10-06' }]);
+    // With one newer exam fewer, the old exam is still in the window.
+    expect(topMissedTopics(marks.slice(0, 5)).map((m) => m.topicId)).toEqual(['limit', 'turev']);
+    expect(topMissedTopics(marks, 5, 6).map((m) => m.topicId)).toEqual(['limit', 'turev']);
+  });
+
+  it('orders exams by day, then entry time, whatever order the marks come in', () => {
+    const marks = [
+      mark('late-entry', 3, 'x', 1, 0, 100),
+      mark('same-day-first', 3, 'y', 1, 0, 50),
+      mark('newest', 4, 'z', 1),
+      mark('oldest', 1, 'w', 1),
+    ];
+    // Window of 2: the newest day and, on day 3, the exam entered last.
+    expect(topMissedTopics(marks, 5, 2).map((m) => m.topicId)).toEqual(['x', 'z']);
+    expect(topMissedTopics([...marks].reverse(), 5, 2).map((m) => m.topicId)).toEqual(['x', 'z']);
+  });
+
+  it('an exam with only zero rows is not an analysed exam and takes no place in the window', () => {
+    const marks = [mark('a', 1, 'limit', 2), ...[2, 3, 4, 5, 6].map((day) => mark(`z${day}`, day, 'turev', 0, 0))];
+    expect(topMissedTopics(marks)).toEqual([{ topicId: 'limit', wrong: 2, blank: 0, lastMissedOn: '2026-10-01' }]);
+  });
+
+  it('the last miss is the newest exam in the window that missed the topic', () => {
+    const marks = [mark('e1', 1, 'a', 1), mark('e3', 3, 'a', 0, 2), mark('e2', 2, 'a', 4)];
+    expect(topMissedTopics(marks)[0]).toEqual({ topicId: 'a', wrong: 5, blank: 2, lastMissedOn: '2026-10-03' });
+  });
+
+  it('"o denemeden beri" counts from the start of that exam day (Istanbul)', () => {
+    const [miss] = topMissedTopics([mark('e1', 12, 'a', 1)]);
+    expect(missedSinceMs(miss)).toBe(dayStartMs('2026-10-12'));
+    expect(missedSinceMs(miss)).toBe(Date.parse('2026-10-11T21:00:00Z'));
+  });
+});
+
+describe('quick analysis', () => {
+  it('a tap tags the kind picked on the switch, wrong answers first, never a kind the section lacks', () => {
+    expect(markKindFor(score(30, 6), null)).toBe('wrong');
+    expect(markKindFor(score(30, 6), 'blank')).toBe('blank');
+    expect(markKindFor(score(30, 6), 'wrong')).toBe('wrong');
+    // No wrong answer: blanks only.
+    expect(markKindFor(score(36, 0), null)).toBe('blank');
+    expect(markKindFor(score(36, 0), 'wrong')).toBe('blank');
+    // No blank: wrong answers only.
+    expect(markKindFor(score(34, 6), 'blank')).toBe('wrong');
+  });
+
+  it('topic chips: most missed first (in that order), then the rest in curriculum order', () => {
+    const topics = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, name: id.toUpperCase() }));
+    const misses = topMissedTopics([mark('e1', 1, 'd', 3), mark('e1', 1, 'b', 1), mark('e1', 1, 'gone', 9)]);
+    expect(orderTopicsByMisses(topics, misses).map((t) => t.id)).toEqual(['d', 'b', 'a', 'c', 'e']);
+    expect(orderTopicsByMisses(topics, []).map((t) => t.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    // The input list is left as it was.
+    expect(topics.map((t) => t.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
   });
 });
 

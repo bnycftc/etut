@@ -3,6 +3,8 @@ import { useCallback, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import {
+  MISSED_WINDOW,
+  missedSinceMs,
   parseTargetNet,
   studyTargetForTopic,
   TARGET_WINDOW,
@@ -22,6 +24,7 @@ import {
   listMockExams,
   sectionNetHistory,
 } from '@/storage/mock-exams';
+import { topicStudySince } from '@/storage/sessions';
 import { loadTopicStatuses, setTopicStatus } from '@/storage/topics';
 import { tr } from '@/strings';
 import {
@@ -37,12 +40,14 @@ import {
   Screen,
   Tag,
 } from '@/ui/components';
-import { formatDay, topicLabel } from '@/ui/format';
+import { formatDay, formatDuration, topicLabel } from '@/ui/format';
 import { Icon } from '@/ui/icon';
 import { NetChart } from '@/ui/net-chart';
 import { space, usePalette } from '@/ui/theme';
 
 const CHART_LIMIT = 10;
+/** Under a minute reads as no time ("0 dk" would look like a mistake). */
+const MINUTE_MS = 60_000;
 /** Exam rows drawn at first and per "Daha fazla göster" (the list is not virtualised). */
 const LIST_PAGE = 20;
 
@@ -70,6 +75,10 @@ export default function ExamsScreen() {
     statuses: loadTopicStatuses(),
   }));
   const { exams, pending } = data;
+  // "o denemeden beri X dk": read apart, so a finished session does not reload the exam list.
+  const studiedSince = useStored(`${dataVersions.exams}|${dataVersions.sessions}`, () =>
+    topicStudySince(Object.fromEntries(data.missed.map((m) => [m.topicId, missedSinceMs(m)]))),
+  );
   // The papers of the student's exam (and area), plus papers that already have exams.
   const ownKinds = examKindsFor(examType, yksArea);
   const kinds = examKindsToShow(
@@ -314,9 +323,16 @@ export default function ExamsScreen() {
 
       <Card>
         <Label variant="heading">{tr.analysis.topMissedTitle}</Label>
-        {missed.length === 0 ? <Label variant="muted">{tr.analysis.topMissedEmpty}</Label> : null}
+        {missed.length === 0 ? (
+          <Label variant="muted">{tr.analysis.topMissedEmpty}</Label>
+        ) : (
+          <Label variant="small" testID="missed-window">
+            {tr.analysis.topMissedWindow(MISSED_WINDOW)}
+          </Label>
+        )}
         {missed.map((m, i) => {
           const status = data.statuses[m.topicId];
+          const since = studiedSince[m.topicId] ?? 0;
           return (
             <View key={m.topicId} style={{ gap: 6 }}>
               <Row>
@@ -353,6 +369,9 @@ export default function ExamsScreen() {
                   </View>
                 ) : null}
               </Row>
+              <Label variant="small" testID={`missed-since-${m.topicId}`}>
+                {tr.analysis.missedSince(formatDay(m.lastMissedOn), since >= MINUTE_MS ? formatDuration(since) : null)}
+              </Label>
             </View>
           );
         })}

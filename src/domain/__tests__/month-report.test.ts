@@ -159,18 +159,39 @@ describe('subject report card', () => {
     expect(summary.untouched.map((t) => t.name)).toEqual(['E']);
   });
 
+  const mark = (examId: string, takenOn: string, sectionId: string, topicId: string, wrong: number, blank = 0) => ({
+    examId,
+    takenOn,
+    createdAt: 0,
+    sectionId,
+    topicId,
+    wrong,
+    blank,
+  });
+
   it('most-missed topics of the subject only, with the time studied on each', () => {
     const marks = [
-      { sectionId: 'matematik', topicId: 'tyt.matematik.problemler', wrong: 4, blank: 1 },
-      { sectionId: 'matematik', topicId: 'tyt.geometri.ucgenler', wrong: 6, blank: 0 },
-      { sectionId: 'matematik', topicId: 'tyt.matematik.problemler', wrong: 2, blank: 0 },
-      { sectionId: 'fizik', topicId: 'tyt.fizik.basinc', wrong: 9, blank: 0 },
+      mark('e1', '2026-10-01', 'matematik', 'tyt.matematik.problemler', 4, 1),
+      mark('e1', '2026-10-01', 'matematik', 'tyt.geometri.ucgenler', 6),
+      mark('e2', '2026-10-04', 'matematik', 'tyt.matematik.problemler', 2),
+      mark('e2', '2026-10-04', 'fizik', 'tyt.fizik.basinc', 9),
     ];
     expect(subjectMissedTopics(marks, 'matematik', { 'tyt.matematik.problemler': 2 * HOUR })).toEqual([
-      { topicId: 'tyt.matematik.problemler', wrong: 6, blank: 1, ms: 2 * HOUR },
+      { topicId: 'tyt.matematik.problemler', wrong: 6, blank: 1, lastMissedOn: '2026-10-04', ms: 2 * HOUR },
     ]);
     expect(subjectMissedTopics(marks, 'geometri', {})).toEqual([
-      { topicId: 'tyt.geometri.ucgenler', wrong: 6, blank: 0, ms: 0 },
+      { topicId: 'tyt.geometri.ucgenler', wrong: 6, blank: 0, lastMissedOn: '2026-10-01', ms: 0 },
     ]);
+  });
+
+  it('the window counts the exams in which the subject was marked: branch exams of others do not push it out', () => {
+    const marks = [
+      mark('tyt', '2026-10-01', 'matematik', 'tyt.matematik.problemler', 4),
+      ...['02', '03', '04', '05', '06', '07'].map((d) => mark(`fizik-${d}`, `2026-10-${d}`, 'fizik', 'tyt.fizik.basinc', 1)),
+    ];
+    expect(subjectMissedTopics(marks, 'matematik', {}).map((m) => m.topicId)).toEqual(['tyt.matematik.problemler']);
+    // Five newer exams with a Matematik mark do push it out.
+    const newer = ['02', '03', '04', '05', '06'].map((d) => mark(`m-${d}`, `2026-10-${d}`, 'matematik', 'tyt.matematik.limit', 1));
+    expect(subjectMissedTopics([...marks, ...newer], 'matematik', {}).map((m) => m.topicId)).toEqual(['tyt.matematik.limit']);
   });
 });

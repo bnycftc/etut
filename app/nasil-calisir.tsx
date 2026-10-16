@@ -7,7 +7,7 @@ import {
   BACKUP_NUDGE_MIN_STUDY_DAYS,
   BACKUP_NUDGE_SNOOZE_DAYS,
 } from '@/domain/backup-reminder';
-import { TARGET_WINDOW } from '@/domain/exam-analysis';
+import { MISSED_WINDOW, TARGET_WINDOW } from '@/domain/exam-analysis';
 import { UNDO_FINISH_MS } from '@/domain/finish';
 import { LIVE_ACTIVITY_MAX_MS } from '@/domain/live-timer';
 import { MANUAL_DAYS, MANUAL_MAX_MS } from '@/domain/manual-entry';
@@ -113,7 +113,7 @@ export default function GuideScreen() {
         </>,
       ),
     ],
-    ['analiz', section('analiz', g.analysis.title, paragraphs(g.analysis.paragraphs(TARGET_WINDOW)))],
+    ['analiz', section('analiz', g.analysis.title, paragraphs(g.analysis.paragraphs(TARGET_WINDOW, MISSED_WINDOW)))],
     [
       'hedef',
       section('hedef', g.goal.title, paragraphs(g.goal.paragraphs(GOAL_MIN_MINUTES, GOAL_MAX_MINUTES / 60))),

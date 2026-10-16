@@ -11,7 +11,7 @@
 import type { Topic } from './curriculum';
 import { type DayKey, addDays } from './istanbul-day';
 import { dailyTotals, type SessionSpan } from './daily-totals';
-import { type TopicMark, type TopicMiss, topMissedTopics } from './exam-analysis';
+import { type ExamTopicMark, type TopicMiss, topMissedTopics } from './exam-analysis';
 import { EXAM_SECTIONS, type ExamKind } from './net';
 import type { TopicStatus } from './topics';
 
@@ -123,9 +123,12 @@ export interface SubjectMiss extends TopicMiss {
   ms: number;
 }
 
-/** The subject's most-missed topics across all analysed exams, with the time spent on each. */
+/**
+ * The subject's most-missed topics in the last `MISSED_WINDOW` exams in which a topic of the
+ * subject was marked, with the time spent on each.
+ */
 export function subjectMissedTopics(
-  marks: readonly TopicMark[],
+  marks: readonly ExamTopicMark[],
   subjectId: string,
   topicMs: Readonly<Record<string, number>>,
   limit = 5,

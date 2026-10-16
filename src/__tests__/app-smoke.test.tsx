@@ -358,6 +358,15 @@ jest.mock('../storage/sessions', () => ({
     }
     return out;
   },
+  topicStudySince: (since: Record<string, number>) => {
+    const out: Record<string, number> = {};
+    for (const [topicId, from] of Object.entries(since)) {
+      out[topicId] = memory.sessions
+        .filter((s) => s.topicId === topicId && s.startedAt >= from)
+        .reduce((sum, s) => sum + s.durationMs, 0);
+    }
+    return out;
+  },
 }));
 
 jest.mock('../storage/topics', () => ({
@@ -411,7 +420,12 @@ jest.mock('../storage/mock-exams', () => ({
     memory.exams = memory.exams.filter((e) => e.id !== id);
   },
   getExamMarks: (id: string) => memory.marks[id] ?? [],
-  listAllMarks: () => Object.values(memory.marks).flat(),
+  // With the exam's day and entry time, as the real JOIN (a mark of an exam not in memory.exams counts as 1 Oct).
+  listAllMarks: () =>
+    Object.entries(memory.marks).flatMap(([examId, marks]) => {
+      const exam = memory.exams.find((e) => e.id === examId);
+      return marks.map((m) => ({ ...m, examId, takenOn: exam?.takenOn ?? '2026-10-01', createdAt: exam?.createdAt ?? 0 }));
+    }),
   saveExamAnalysis: (id: string, marks: TopicMark[], now: number) => {
     memory.marks[id] = marks.filter((m) => m.wrong + m.blank > 0);
     memory.exams = memory.exams.map((e) => (e.id === id ? { ...e, analysisDoneAt: now } : e));
@@ -808,11 +822,15 @@ describe('mock exam analysis', () => {
     expect(screen.getByTestId('analysis-tagged-matematik').props.children).toBe(
       'İşaretlenen: 0/6 yanlış · 0/4 boş',
     );
-    fireEvent.press(screen.getByTestId('analysis-add-topic-matematik'));
+    // Quick analysis: the topic chips are always there, one tap adds 1 of the kind on the switch.
+    expect(screen.getByTestId('analysis-add-topic-matematik').props.children).toBe(
+      'Bir konuya dokununca ona 1 yanlış eklenir.',
+    );
     fireEvent.press(screen.getByTestId('analysis-add-tyt.matematik.mutlak-deger'));
-    fireEvent.press(screen.getByTestId('analysis-wrong-tyt.matematik.mutlak-deger-plus'));
-    fireEvent.press(screen.getByTestId('analysis-wrong-tyt.matematik.mutlak-deger-plus'));
-    fireEvent.press(screen.getByTestId('analysis-blank-tyt.matematik.mutlak-deger-plus'));
+    fireEvent.press(screen.getByTestId('analysis-add-tyt.matematik.mutlak-deger'));
+    fireEvent.press(screen.getByTestId('analysis-add-tyt.matematik.mutlak-deger'));
+    fireEvent.press(screen.getByTestId('analysis-kind-matematik-blank'));
+    fireEvent.press(screen.getByTestId('analysis-add-tyt.matematik.mutlak-deger'));
     expect(screen.getByTestId('analysis-tagged-matematik').props.children).toBe(
       'İşaretlenen: 3/6 yanlış · 1/4 boş',
     );
@@ -827,15 +845,124 @@ describe('mock exam analysis', () => {
     expect(screen.getByText('3 Y · 1 B')).toBeTruthy();
   });
 
-  it('the plus button stops at the section wrong count', () => {
-    renderRouter(APP_DIR, { initialUrl: '/analiz/e1' });
-    fireEvent.press(screen.getByTestId('analysis-add-topic-matematik'));
-    fireEvent.press(screen.getByTestId('analysis-add-tyt.matematik.mutlak-deger'));
-    for (let i = 0; i < 10; i++) {
-      fireEvent.press(screen.getByTestId('analysis-wrong-tyt.matematik.mutlak-deger-plus'));
-    }
+  it('taps stop at the section wrong count; then blanks on the switch; "Ayrıntı" lowers a count', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    act(() => router.push('/analiz/e1'));
+    const chip = 'analysis-add-tyt.matematik.mutlak-deger';
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    for (let i = 0; i < 5; i++) fireEvent.press(screen.getByTestId(chip));
+    expect(announce).toHaveBeenLastCalledWith('Mutlak Değer: 5 yanlış, 0 boş');
+    // The tap on the last wrong answer says so; the chips are then off for wrong answers.
+    fireEvent.press(screen.getByTestId(chip));
+    expect(announce).toHaveBeenLastCalledWith(
+      'Mutlak Değer: 6 yanlış, 0 boş. Bu dersteki yanlışların hepsini işaretledin.',
+    );
+    announce.mockRestore();
+    for (let i = 0; i < 4; i++) fireEvent.press(screen.getByTestId(chip));
     expect(screen.getByTestId('analysis-tagged-matematik').props.children).toBe(
       'İşaretlenen: 6/6 yanlış · 0/4 boş',
+    );
+    expect(screen.getByTestId(chip).props.accessibilityState).toMatchObject({ disabled: true });
+    expect(screen.getByTestId('analysis-add-topic-matematik').props.children).toBe(
+      'Bu dersteki yanlışların hepsini işaretledin.',
+    );
+    fireEvent.press(screen.getByTestId('analysis-kind-matematik-blank'));
+    fireEvent.press(screen.getByTestId('analysis-add-tyt.matematik.temel-kavramlar'));
+    expect(screen.getByTestId('analysis-tagged-matematik').props.children).toBe(
+      'İşaretlenen: 6/6 yanlış · 1/4 boş',
+    );
+
+    // The steppers are folded away; their + stops at the section count too, − lowers it.
+    expect(screen.queryByTestId('analysis-wrong-tyt.matematik.mutlak-deger-plus')).toBeNull();
+    fireEvent.press(screen.getByTestId('analysis-details-matematik'));
+    for (let i = 0; i < 3; i++) fireEvent.press(screen.getByTestId('analysis-wrong-tyt.matematik.mutlak-deger-plus'));
+    fireEvent.press(screen.getByTestId('analysis-wrong-tyt.matematik.mutlak-deger-minus'));
+    expect(screen.getByTestId('analysis-tagged-matematik').props.children).toBe(
+      'İşaretlenen: 5/6 yanlış · 1/4 boş',
+    );
+    fireEvent.press(screen.getByTestId('analysis-details-matematik'));
+    expect(screen.queryByTestId('analysis-wrong-tyt.matematik.mutlak-deger-plus')).toBeNull();
+    fireEvent.press(screen.getByTestId('analysis-save'));
+    expect(memory.marks.e1).toEqual([
+      { sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 5, blank: 0 },
+      { sectionId: 'matematik', topicId: 'tyt.matematik.temel-kavramlar', wrong: 0, blank: 1 },
+    ]);
+  });
+
+  it('VoiceOver hears the Yanlış | Boş switch (state and count) and each topic chip with its count', () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    announce.mockClear();
+    renderRouter(APP_DIR, { initialUrl: '/analiz/e1' });
+    const wrong = screen.getByTestId('analysis-kind-matematik-wrong');
+    const blank = screen.getByTestId('analysis-kind-matematik-blank');
+    expect(wrong.props).toMatchObject({
+      accessibilityRole: 'button',
+      accessibilityLabel: 'Yanlış: 6 sorudan 0 tanesi işaretlendi',
+      accessibilityState: { selected: true },
+    });
+    expect(blank.props.accessibilityState).toMatchObject({ selected: false });
+    const chip = screen.getByTestId('analysis-add-tyt.matematik.mutlak-deger');
+    expect(chip.props).toMatchObject({ accessibilityLabel: 'Mutlak Değer', accessibilityHint: '1 yanlış ekler' });
+
+    fireEvent.press(chip);
+    expect(announce).toHaveBeenLastCalledWith('Mutlak Değer: 1 yanlış, 0 boş');
+    expect(screen.getByTestId('analysis-add-tyt.matematik.mutlak-deger').props.accessibilityLabel).toBe(
+      'Mutlak Değer: 1 yanlış, 0 boş',
+    );
+    // The badge on the chip shows the same count.
+    expect(screen.getByText('1 Y')).toBeTruthy();
+    expect(screen.getByTestId('analysis-kind-matematik-wrong').props.accessibilityLabel).toBe(
+      'Yanlış: 6 sorudan 1 tanesi işaretlendi',
+    );
+
+    fireEvent.press(screen.getByTestId('analysis-kind-matematik-blank'));
+    expect(screen.getByTestId('analysis-kind-matematik-blank').props.accessibilityState).toMatchObject({ selected: true });
+    expect(screen.getByTestId('analysis-kind-matematik-wrong').props.accessibilityState).toMatchObject({ selected: false });
+    expect(screen.getByTestId('analysis-add-tyt.matematik.mutlak-deger').props.accessibilityHint).toBe('1 boş ekler');
+    fireEvent.press(screen.getByTestId('analysis-add-tyt.matematik.mutlak-deger'));
+    expect(announce).toHaveBeenLastCalledWith('Mutlak Değer: 1 yanlış, 1 boş');
+    expect(screen.getByText('1 Y · 1 B')).toBeTruthy();
+    announce.mockRestore();
+  });
+
+  it('a section with only blanks has no switch; topics missed most in recent exams come first', () => {
+    memory.exams = [
+      {
+        ...memory.exams[0],
+        scores: [{ sectionId: 'matematik', questions: 40, correct: 36, wrong: 0 }],
+      },
+      {
+        id: 'old',
+        kind: 'TYT',
+        scope: 'genel',
+        bransSectionId: null,
+        takenOn: '2026-09-20',
+        totalNet: 30,
+        createdAt: 0,
+        analysisDoneAt: 1,
+        scores: [{ sectionId: 'matematik', questions: 40, correct: 30, wrong: 6 }],
+      },
+    ];
+    memory.marks = {
+      old: [
+        { sectionId: 'matematik', topicId: 'tyt.matematik.olasilik', wrong: 4, blank: 0 },
+        { sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 2, blank: 0 },
+      ],
+    };
+    renderRouter(APP_DIR, { initialUrl: '/analiz/e1' });
+    expect(screen.queryByTestId('analysis-kind-matematik-wrong')).toBeNull();
+    expect(screen.getByTestId('analysis-add-topic-matematik').props.children).toBe(
+      'Bir konuya dokununca ona 1 boş eklenir.',
+    );
+    const chips = screen.queryAllByTestId(/^analysis-add-tyt\./).map((el) => el.props.testID);
+    expect(chips.slice(0, 3)).toEqual([
+      'analysis-add-tyt.matematik.olasilik',
+      'analysis-add-tyt.matematik.mutlak-deger',
+      'analysis-add-tyt.matematik.temel-kavramlar',
+    ]);
+    fireEvent.press(screen.getByTestId('analysis-add-tyt.matematik.olasilik'));
+    expect(screen.getByTestId('analysis-tagged-matematik').props.children).toBe(
+      'İşaretlenen: 0/0 yanlış · 1/4 boş',
     );
   });
 
@@ -1134,6 +1261,37 @@ describe('mock exam entry, editing and charts', () => {
     expect(memory.exams[0].analysisDoneAt).toBeNull();
   });
 
+  it('"o denemeden beri": time on the topic from the day of the last exam that missed it', () => {
+    const studiedOn = (id: string, iso: string, minutes: number, topicId: string): CompletedSession => ({
+      id,
+      subjectId: 'matematik',
+      topicId,
+      startedAt: Date.parse(iso),
+      endedAt: Date.parse(iso) + minutes * 60_000,
+      pauses: [],
+      durationMs: minutes * 60_000,
+      source: 'timer',
+    });
+    memory.exams = [{ ...TYT_E1, id: 'e2', takenOn: '2026-10-04', createdAt: 2 }, TYT_E1];
+    memory.marks = {
+      e1: [{ sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 3, blank: 0 }],
+      e2: [{ sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 1, blank: 0 }],
+    };
+    memory.sessions = [
+      // 3 Oct: before the last exam that missed it (4 Oct), so not counted.
+      studiedOn('s1', '2026-10-03T15:00:00Z', 50, 'tyt.matematik.mutlak-deger'),
+      // 4 Oct 01:00 Istanbul (3 Oct 22:00 UTC): the exam day, counted.
+      studiedOn('s2', '2026-10-03T22:00:00Z', 20, 'tyt.matematik.mutlak-deger'),
+      studiedOn('s3', '2026-10-05T15:00:00Z', 65, 'tyt.matematik.mutlak-deger'),
+      studiedOn('s4', '2026-10-05T17:00:00Z', 30, 'tyt.matematik.olasilik'),
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByText('4 Y')).toBeTruthy();
+    expect(screen.getByTestId('missed-since-tyt.matematik.mutlak-deger').props.children).toBe(
+      '4 Ekim 2026 denemesinden beri 1 sa 25 dk çalıştın.',
+    );
+  });
+
   it('a single exam is one point with a hint', () => {
     memory.exams = [TYT_E1];
     renderRouter(APP_DIR, { initialUrl: '/denemeler' });
@@ -1153,6 +1311,10 @@ describe('mock exam entry, editing and charts', () => {
     memory.exams = [TYT_E1];
     memory.marks = { e1: [{ sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 3, blank: 0 }] };
     renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    expect(screen.getByTestId('missed-window').props.children).toBe('Konu işaretlediğin son 5 denemeye göre.');
+    expect(screen.getByTestId('missed-since-tyt.matematik.mutlak-deger').props.children).toBe(
+      '1 Ekim 2026 denemesinden beri bu konuda süre yok.',
+    );
     fireEvent.press(screen.getByLabelText('Mutlak Değer: tekrar lazım'));
     expect(memory.topicStatuses['tyt.matematik.mutlak-deger']).toBe('review');
     expect(screen.getByTestId('missed-review-tyt.matematik.mutlak-deger').props.accessibilityState).toMatchObject({
@@ -1166,8 +1328,9 @@ describe('mock exam entry, editing and charts', () => {
   it('analysis steppers say which topic they change', () => {
     memory.exams = [{ ...TYT_E1, analysisDoneAt: null }];
     renderRouter(APP_DIR, { initialUrl: '/analiz/e1' });
-    fireEvent.press(screen.getByTestId('analysis-add-topic-matematik'));
-    fireEvent.press(screen.getByLabelText('Mutlak Değer konusunu ekle'));
+    fireEvent.press(screen.getByLabelText('Mutlak Değer'));
+    fireEvent.press(screen.getByLabelText('Matematik: ayrıntıyı göster'));
+    expect(screen.getByLabelText('Matematik: ayrıntıyı gizle')).toBeTruthy();
     expect(screen.getByLabelText('Mutlak Değer, Yanlış, artır')).toBeTruthy();
     expect(screen.getByLabelText('Mutlak Değer, Boş, azalt')).toBeTruthy();
   });
@@ -3301,6 +3464,9 @@ describe('ders karnesi, soru sayısı, ders hedefi, aylık görünüm', () => {
     expect(screen.getByTestId('report-topics-review').props.children).toBe('Tekrar lazım: 1');
     expect(screen.getByTestId('report-net-TYT-matematik')).toBeTruthy();
     expect(screen.getByText('4 yanlış · 1 boş · çalıştığın: 45 dk')).toBeTruthy();
+    expect(screen.getByTestId('report-missed-window').props.children).toBe(
+      'Bu dersten konu işaretlediğin son 5 denemeye göre.',
+    );
     fireEvent.press(screen.getByTestId('report-untouched-toggle'));
     expect(screen.getByText('Dokunulmamış konuları gizle')).toBeTruthy();
 

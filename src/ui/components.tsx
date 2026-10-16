@@ -236,6 +236,7 @@ export function HeaderButton({
 /**
  * Selectable chip; announced as a button with its selected state. With `toggle` it is an on/off
  * control instead: announced as a switch ("açık"/"kapalı") named by `accessibilityLabel`.
+ * A `badge` (a count) is drawn after the title; say it in `accessibilityLabel` too.
  */
 export function Chip({
   title,
@@ -243,38 +244,60 @@ export function Chip({
   onPress,
   testID,
   accessibilityLabel,
+  accessibilityHint,
   color,
   toggle = false,
+  badge,
+  disabled,
 }: {
   title: string;
   selected: boolean;
   onPress: () => void;
   testID?: string;
   accessibilityLabel?: string;
+  accessibilityHint?: string;
   /** Leading colour dot (the subject colour). */
   color?: string;
   toggle?: boolean;
+  badge?: string;
+  /** Grey fill and muted label, like a disabled button. Left out, the chip states nothing about it. */
+  disabled?: boolean;
 }) {
   const c = usePalette();
+  const state = toggle ? { checked: selected } : { selected };
+  const label = disabled ? c.textMuted : selected ? c.onPrimary : c.text;
   return (
     <Pressable
       testID={testID}
       accessibilityRole={toggle ? 'switch' : 'button'}
       accessibilityLabel={accessibilityLabel ?? title}
-      accessibilityState={toggle ? { checked: selected } : { selected }}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={disabled ? { ...state, disabled } : state}
+      disabled={disabled}
       onPress={onPress}
       // Same layout as before; the touch target grows to ≥ 44 pt (the row gap is 8).
       hitSlop={4}
       style={[
         styles.chip,
-        color ? styles.chipWithDot : null,
+        color || badge !== undefined ? styles.chipWithDot : null,
         {
-          backgroundColor: selected ? c.primary : c.surface,
-          borderColor: selected ? c.primary : c.controlBorder,
+          backgroundColor: disabled ? c.disabled : selected ? c.primary : c.surface,
+          borderColor: disabled ? c.disabled : selected ? c.primary : c.controlBorder,
         },
       ]}>
       {color ? <Dot color={color} ring={selected ? c.onPrimary : undefined} /> : null}
-      <Text style={{ color: selected ? c.onPrimary : c.text, fontSize: 15 }}>{title}</Text>
+      <Text style={{ color: label, fontSize: 15 }}>{title}</Text>
+      {badge !== undefined ? (
+        <View
+          style={[
+            styles.badge,
+            { backgroundColor: disabled ? c.surface : selected ? c.onPrimary : c.primary },
+          ]}>
+          <Text style={{ color: disabled ? c.textMuted : selected ? c.primary : c.onPrimary, fontSize: 13, fontWeight: '700' }}>
+            {badge}
+          </Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -596,6 +619,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   chipWithDot: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  badge: { borderRadius: 999, paddingHorizontal: 6, minWidth: 22, alignItems: 'center' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   row: { flexDirection: 'row', gap: space.md, alignItems: 'center' },
   stack: { flexDirection: 'column', gap: space.sm, alignItems: 'stretch' },
