@@ -58,7 +58,11 @@ it('no LGS or young-age marketing in the listing (K-45)', () => {
 
 it('the description says the app is not official and keeps data on the phone', () => {
   expect(description).toContain('Etüt resmî bir uygulama değildir; ÖSYM veya MEB ile bağlantısı yoktur.');
-  expect(description).toContain('yalnız telefonunda');
+  expect(description).toContain('telefonunda saklanır (iPhone yedeğin açıksa o yedekte de)');
+});
+
+it('the listing does not say "only on the phone": iOS device backup also holds the data, as the legal texts say', () => {
+  for (const text of [promotional, description]) expect(text).not.toContain('yalnız telefonunda');
 });
 
 it('support and marketing URLs are the public site', () => {

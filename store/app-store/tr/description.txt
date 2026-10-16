@@ -29,7 +29,7 @@ IPHONE'DA
 VERİLERİN SENDE
 - Hesap yok, giriş yok. Uygulama internete bağlanmaz.
 - Reklam, analitik, çökme raporu ve izleme yok.
-- Tüm kayıtların yalnız telefonunda saklanır; bize hiçbir şey gönderilmez.
+- Tüm kayıtların telefonunda saklanır (iPhone yedeğin açıksa o yedekte de); uygulama bize hiçbir şey göndermez.
 - Yedek dosyası, CSV ya da çalışma kartı yalnız sen dokununca, telefonunun paylaşım ekranıyla dışarı çıkar. Çalışma kartında yalnız çalışma sayıların vardır; 15 yaşından küçükler için kart paylaşımı kapalıdır.
 - Telefon değiştirirken yedek dosyasıyla kayıtlarını taşıyabilirsin.
 
