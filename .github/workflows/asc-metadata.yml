@@ -213,9 +213,15 @@ jobs:
           d_attrs = detail["attributes"] if detail else {}
           review_want = {"notes": notes_want, "demoAccountRequired": False}
           changed = diff("appStoreReviewDetail", d_attrs, review_want)
+          contact_missing = [k for k in ("contactFirstName", "contactLastName", "contactPhone", "contactEmail")
+                             if not d_attrs.get(k)]
           for k in ("contactFirstName", "contactLastName", "contactPhone", "contactEmail"):
               print(f"  {k}: {'set' if d_attrs.get(k) else 'MISSING - fill it in App Store Connect by hand'}")
-          if APPLY and changed:
+          # App Store Connect refuses a PATCH of the notes (HTTP 409, attribute required) while the review
+          # contact is empty, so the notes wait for the hand-filled contact instead of stopping the run.
+          if APPLY and changed and detail and contact_missing:
+              print("  notes NOT written: fill in the review contact in App Store Connect, then run this again")
+          elif APPLY and changed:
               if detail:
                   write("PATCH", f"/appStoreReviewDetails/{detail['id']}", {"data": {
                       "type": "appStoreReviewDetails", "id": detail["id"], "attributes": changed}})
