@@ -88,7 +88,13 @@ tags:
     direction: DOWN
 - tapOn:
     id: exam-save
-# Back on the list: the new exam is the first row (TYT, 11,5 net).
+# Back on the list, the saved-exam card at the top confirms the net.
+- extendedWaitUntil:
+    visible:
+      id: exams-saved-title
+      text: "11,5 net kaydedildi"
+    timeout: 10000
+# The new exam is the first row (TYT, 11,5 net).
 # The list now starts with the analysis card and net charts, so the row can sit below the fold.
 - scrollUntilVisible:
     element:

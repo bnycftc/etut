@@ -9,7 +9,40 @@ tags:
     file: subflows/onboarding-yks.yaml
     env:
       AGE: "20"
-# Paylaş is off at "0 dk" (nothing to share): study past one minute first.
+# Paylaş is off at "0 dk" (nothing to share) and the card says why.
+- scrollUntilVisible:
+    element:
+      id: open-share
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: open-share
+- extendedWaitUntil:
+    visible:
+      id: share-card-preview
+    timeout: 10000
+# The note sits right above the button, below the card.
+- scrollUntilVisible:
+    element:
+      id: share-card-share
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- assertVisible:
+    id: share-nothing
+- assertVisible:
+    id: share-card-share
+    enabled: false
+- takeScreenshot: j-kart-00-bos
+# Back to the timer by relaunching (as k-hakkinda-bos-durum leaves a pushed screen); then study
+# past one minute.
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 30000
 - tapOn:
     id: subject-fizik
 - tapOn:

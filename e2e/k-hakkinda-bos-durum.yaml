@@ -53,6 +53,26 @@ tags:
     direction: DOWN
     timeout: 20000
 - takeScreenshot: k-03-denemeler-bos
+# The empty card opens the exam form too ("Deneme ekle" is out of sight down here).
+- scrollUntilVisible:
+    element:
+      id: exams-empty-action
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn:
+    id: exams-empty-action
+- extendedWaitUntil:
+    visible:
+      id: exam-kind-TYT
+    timeout: 10000
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 30000
 - tapOn:
     id: tab-settings
 # Ayarlar is long and each hierarchy read on a busy CI simulator can take ~5 s, so allow time for

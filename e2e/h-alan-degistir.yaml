@@ -33,6 +33,32 @@ tags:
     id: settings-exam-current
     text: "YKS · Eşit Ağırlık"
 - takeScreenshot: h-alan-02-ayarlar
+# Sınav tarihi saves without a button: a typed date is kept once the field is left (the tap on the
+# label closes the keyboard). Two years ahead stays inside the allowed range on any run date.
+- scrollUntilVisible:
+    element:
+      id: settings-exam-date-input
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn:
+    id: settings-exam-date-input
+# Typing before the keyboard is up can be lost (see e-deneme).
+- waitForAnimationToEnd:
+    timeout: 5000
+- inputText: "15.05.${new Date().getFullYear() + 2}"
+- tapOn:
+    id: settings-exam-date
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: settings-exam-date
+      text: ".*${new Date().getFullYear() + 2}.*"
+    timeout: 10000
+- assertVisible:
+    id: settings-exam-date-reset
+- takeScreenshot: h-alan-02b-sinav-tarihi
 - tapOn:
     id: tab-timer
 # Eşit Ağırlık: Türk Dili ve Edebiyatı is offered now.
