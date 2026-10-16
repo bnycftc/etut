@@ -1,0 +1,30 @@
+# Ayarlar → "Sayaç çalışırken" → "Uygulamadan çıkınca": "Sor". The default is "Çalışmaya devam
+# say" (3 hours away count as study); flows that test the away card after 10 s choose "Sor" first.
+# Starts and ends on the timer tab.
+appId: com.bnycftc.etut
+---
+- tapOn:
+    id: tab-settings
+# The card sits below the exam, goal and pomodoro cards.
+- scrollUntilVisible:
+    element:
+      id: settings-away-info
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: settings-away-ask
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: settings-away-info
+      text: "10 saniyeden uzun.*"
+    timeout: 5000
+- assertVisible:
+    id: settings-away-ask
+    selected: true
+- tapOn:
+    id: tab-timer
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 15000

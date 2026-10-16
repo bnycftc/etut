@@ -1,7 +1,8 @@
 # m. Canlı sayaç (Live Activity: Dynamic Island ve Bildirim Merkezi) + uzakta görünümü + pomodoro
 # Kilit ekranı görünümünde ders adı zorunlu denetlenir (boş çizilen Live Activity akışı düşürür);
-# "Sor" kuralıyla uygulamadan 10 sn'den uzun çıkınca etkinliğin kendiliğinden (staleDate → isStale)
-# "Uygulamadan çıktın" görünümüne geçtiği de zorunlu denetlenir. Dynamic Island, mola ve
+# "Sor" kuralıyla (akış başta seçer; varsayılan "Çalışmaya devam say") uygulamadan 10 sn'den uzun
+# çıkınca etkinliğin kendiliğinden (staleDate → isStale) "Uygulamadan çıktın" görünümüne geçtiği de
+# zorunlu denetlenir. Dynamic Island, mola ve
 # pomodoro görünümleri yalnız ekran görüntüsüyle kanıtlanır: m-canli-sayac-0x görüntüleri
 # artifact'ta elle incelenmelidir (README).
 appId: com.bnycftc.etut
@@ -14,6 +15,8 @@ tags:
     file: subflows/onboarding-yks.yaml
     env:
       AGE: "20"
+- runFlow:
+    file: subflows/uzakta-sor.yaml
 - tapOn:
     id: subject-fizik
 - tapOn:
@@ -100,7 +103,7 @@ tags:
     commands:
       - tapOn:
           id: away-credit
-# Away, now with Live Activities allowed: leave the app again with the default rule "Sor". The
+# Away, now with Live Activities allowed: leave the app again with the rule "Sor". The
 # last update before the app is suspended says "Uygulamadan çıktın · 10 sn sonra mola
 # sayılır" and carries the away fields with a stale date 10 s later, when the activity should
 # switch by itself (isStale) to the frozen clock and "Uygulamadan çıktın · mola sayılıyor". The

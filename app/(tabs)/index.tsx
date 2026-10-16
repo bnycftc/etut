@@ -49,7 +49,7 @@ import { InfoLink } from '@/ui/info-link';
 import { subjectColor } from '@/ui/subject-colors';
 import { MAX_FONT_SCALE, space, usePalette } from '@/ui/theme';
 import { QuestionCount } from '@/ui/question-count';
-import { awayAmounts, TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
+import { awayCardText, TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
 import { FirstUseTips } from '@/ui/tips';
 import { TopicPicker } from '@/ui/topic-picker';
 
@@ -146,9 +146,9 @@ export default function TimerScreen() {
 
   // The "you were away" card appears without any tap: tell screen reader users what happened.
   const awayStart = active?.pendingAway?.start ?? null;
-  const away = active?.pendingAway ? awayAmounts(active) : null;
-  const awayTitle = away === null ? '' : tr.timer.awayTitle(away.away);
-  const awayBody = away?.study ? tr.timer.awayBodyStudy(away.study) : tr.timer.awayBody;
+  const away = active?.pendingAway ? awayCardText(active) : null;
+  const awayTitle = away?.title ?? '';
+  const awayBody = away?.body ?? '';
   useEffect(() => {
     if (away !== null) announce(tr.announce.away(awayTitle, awayBody));
   }, [awayStart]);

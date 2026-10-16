@@ -1,6 +1,6 @@
 import { liveTimerView } from '../../domain/live-timer';
 import { DEFAULT_POMODORO } from '../../domain/pomodoro';
-import { onAppBackground, pauseSession, provisionalAwayAt, startSession } from '../../domain/timer';
+import { AWAY_COUNT_MAX_MS, onAppBackground, pauseSession, provisionalAwayAt, startSession } from '../../domain/timer';
 import type { WidgetEntry } from '../../domain/widget-summary';
 import { emptyWidgetProps, notificationText, timerActivityProps, todayWidgetProps } from '../surface-props';
 
@@ -41,10 +41,13 @@ describe('Live Activity props', () => {
       awayFrom: T0,
     });
     expect(props.awayTo).toBeGreaterThan(props.awayAt!);
-    // "Çalışmaya devam say": nothing away.
+    // "Çalışmaya devam say": still studying for now; the clock freezes only after the hours that count.
     expect(timerActivityProps(s, liveTimerView(s, T0 + 20 * MIN, provisionalAwayAt(s, 'count')))).toMatchObject({
       status: 'Çalışıyorsun',
-      awayAt: null,
+      pausedAt: null,
+      awayAt: T0 + 20 * MIN + AWAY_COUNT_MAX_MS,
+      awayStatus: 'Uygulamadan çıktın · mola sayılıyor',
+      awayFrom: T0,
     });
   });
 

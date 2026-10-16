@@ -116,10 +116,17 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   push olmadan kapalı uygulama etkinliği değiştiremez; o aşama da bitince sayaç 0:00'da kalır,
   bitiş saati doğru kalır. Uygulama açıkken her aşama değişiminde, arka plana geçerken de bir kez
   daha güncellenir; kilitli telefonda aşama sonlarını yerel bildirimler duyurur (aşağıda b).
-  **Uzakta (Ayarlar → "Uygulamadan çıkınca: Sor", varsayılan):** arka plana geçerken giden son
-  güncelleme, uzakta kalınan sürenin nereden itibaren mola sayılacağını da taşır
-  (`provisionalAwayAt`: kronometrede ve çalışma bloğunda ayrılma anı, pomodoro molasında molanın
-  sonu). Kronometrede ve çalışma bloğunda durum satırı aynı güncellemeyle hemen "Uygulamadan
+  **Uzakta (Ayarlar → "Uygulamadan çıkınca"):** arka plana geçerken giden son güncelleme, uzakta
+  kalınan sürenin nereden itibaren mola sayılacağını da taşır (`provisionalAwayAt`).
+  **"Çalışmaya devam say" (varsayılan; açıkça "Sor" seçen kullanıcıda "Sor" kalır):** ayrılıştan
+  3 saat sonrası (`AWAY_COUNT_MAX_MS` = `LONG_SESSION_HOURS.default`; o an pomodoro molasıysa molanın
+  sonu). O zamana kadar durum "Çalışıyorsun" kalır ve kronometre saymaya devam eder; 3 saat + 10 sn'de
+  etkinlik aşağıdaki uzakta görünümüne geçer. Pomodoroda daha önce gelen aşama değişimi öncelikli
+  (etkinlik kendiliğinden yalnız bir kez değişir): sıradaki aşama gösterilir, uzakta alanları
+  gönderilmez. Dönüşte 3 saati aşan kısım `away` molası olur ve bir kez sorulur ("3 saatten uzun
+  uygulamanın dışındaydın."; `pendingAway.capped`); unutulan sayaç böylece saatlerce sessizce
+  çalışma sayılmaz. **"Sor":** kronometrede ve çalışma bloğunda ayrılma anı, pomodoro molasında
+  molanın sonu. Kronometrede ve çalışma bloğunda durum satırı aynı güncellemeyle hemen "Uygulamadan
   çıktın · 10 sn sonra mola sayılır" olur (saatin altında, en çok iki satır); molada
   "Kısa mola" kalır. Sayaç 10 sn tolerans boyunca (molada mola bitene kadar) saymaya devam eder;
   `staleDate` gelince etkinlik kendiliğinden (`isStale`) uzakta görünümüne geçmelidir: saat o andaki
@@ -132,8 +139,8 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   "sıradaki aşama" görünümünden önce gelir; pomodoroda kaybedilen aşamayı (o anki blok, molada
   çıkıldıysa sıradaki blok tam uzunlukta) donmuş gösterir. Aşama sonu yerel bildirimleri pomodoro
   planına göre yine gelir (bilinçli). Uygulama dönünce etkinliği günceller; "Çalışıyordum" denirse
-  saat ileri atlar (simülatörde olduğu gibi saat saymaya devam ettiyse, denmezse geri atlar). "Çalışmaya devam say" seçiliyse hiçbir şey
-  değişmez, sayaç saymaya devam eder. Zorla kapatmada iOS uygulamanın etkinliklerini de bitirir,
+  saat ileri atlar (simülatörde olduğu gibi saat saymaya devam ettiyse, denmezse geri atlar).
+  Zorla kapatmada iOS uygulamanın etkinliklerini de bitirir,
   yeniden açılışta yukarıdaki yeniden başlatma yolu çalışır. Uygulama ön planda çökerse (arka plan
   olayı yok) etkinlik saymaya devam eder: bu boşluk bilinçli olarak kalır (dönünce `onAppLaunch`
   yine molayı sorar).
@@ -157,12 +164,13 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   günlerce açılmasa da doğru kalır, widget bayat seri göstermez.
   Sayaç çalışırken çizelge en çok 40 girdi tutar ve ikinci gece yarısında biter: pomodoroda ilk 34 aşama değişimini
   (25/5/15 ile ≈ 9 saat) kapsar; çizelgenin dışında kalan ilk aşama değişiminden sonrasına uzanan
-  girdi saymaz (açık sayaçtan az gösterebilir, fazla göstermez). Uzakta kuralı "Sor" iken uygulama
-  arka plana geçince widget o andan (pomodoro molasındaysa molanın sonundan) itibaren saymaz:
-  toplam donar, "Sayaç açık" notu kalkar. Uzun süre sonra dönüp "Çalışıyordum" denmezse kaydedilen
-  de budur; denirse ya da 10 sn içinde dönülürse sonraki eşitleme süreyi ekler. "Çalışmaya devam
-  say" seçiliyse widget saymaya devam eder. Uygulama açıldıkça ve açıkken her aşama değişiminde
-  çizelge yenilenir.
+  girdi saymaz (açık sayaçtan az gösterebilir, fazla göstermez). Uygulama arka plana geçince widget
+  `provisionalAwayAt` anından itibaren saymaz: "Sor" iken o andan (pomodoro molasındaysa molanın
+  sonundan), "Çalışmaya devam say" (varsayılan) iken 3 saat sonra; o zamana kadar aşama
+  değişimleriyle birlikte saymaya devam eder. Sonra toplam donar, "Sayaç açık" notu kalkar. Uzun süre
+  sonra dönüp "Çalışıyordum" denmezse kaydedilen de budur; denirse ya da 10 sn içinde dönülürse
+  sonraki eşitleme süreyi ekler. Uygulama açıldıkça ve açıkken her aşama değişiminde çizelge
+  yenilenir.
 - **Uzantı:** `com.bnycftc.etut.ExpoWidgetsTarget` (expo-widgets'ın ürettiği hedef; widget + Live
   Activity aynı uzantıda). Derleme numarası uygulamayla aynıdır (`plugins/with-etut-ios.js`).
 - **Gizlilik manifestleri (PrivacyInfo.xcprivacy):** uygulamanınki `app.json` →
@@ -246,8 +254,8 @@ ya da TestFlight'a göndermeden önce).
 
 Akışlar (`e2e/`, yalnız `testID` seçicileri; ortak adımlar `e2e/subflows/`):
 `a-ilk-acilis` (15+ YKS Sayısal → sayaç), `b-sayac` (başla/mola/devam/bitir, bugünkü toplam > 0),
-`c-arka-plan` (15 sn ana ekran → "Çalışıyordum, süreye ekle"), `d-kapat-ac` (öldür-aç: sayaç sürer;
-20 sn kapalı: uzakta kuralı), `e-deneme` (TYT: 10D 4Y = 9 net, toplam 11,5; listede "11,5 net
+`c-arka-plan` ("Sor" seçilir; 15 sn ana ekran → "Çalışıyordum, süreye ekle"), `d-kapat-ac` ("Sor"
+seçilir; öldür-aç: sayaç sürer; 20 sn kapalı: uzakta kuralı), `e-deneme` (TYT: 10D 4Y = 9 net, toplam 11,5; listede "11,5 net
 kaydedildi" kartı, düzenleme), `f-kucuk-yas` (15 altı: Gruplar sekmesi yok), `g-tum-verileri-sil`
 (Ayarlar → sil → "Önce yedek al": paylaşım sayfası iletişim kutusunun üstünde açılır, kapanınca not
 görünür, hiçbir şey silinmez → sil → ilk açılış), `h-alan-degistir` (Sayısal → EA: ders ve deneme
@@ -257,14 +265,16 @@ paylaşım sayfası), `j-kart-paylas` (0 dk'da "Paylaş" kapalı ve nedenini sö
 boş deneme kartındaki "İlk denemeni ekle" formu açar, hakkında, gizlilik),
 `l-hatirlaticilar` (onaydan önce hepsi kapalı; hatırlatıcı aç → tek düğmeli açıklama ekranı;
 sistem izin penceresi açılmaz, uygulama yeniden başlatılır ve hatırlatıcılar kapalı kalır),
-`m-canli-sayac` (Bildirim Merkezi'nde kilit ekranı görünümü, ana ekranda Dynamic Island, 10 sn'den
-uzun çıkınca uzakta görünümü, mola, pomodoro, bitir),
-`o-ayarlar-sayac` (Ayarlar → "Sayaç çalışırken": ekranı açık tut kapat/aç, "Çalışmaya devam say";
-15 sn ana ekran ve öldür-aç sonrası uzakta kartı yok, kilit ekranındaki ve uygulamadaki saat saymaya
-devam eder; sonda aynı ekranda art arda iki değişiklik, "Kapalı" ve yeniden "Açık": React Compiler
-altındaki eski `useStored` hatasına karşı, bkz. `src/state/__tests__/use-stored-compiler.test.tsx`),
+`m-canli-sayac` ("Sor" seçilir; Bildirim Merkezi'nde kilit ekranı görünümü, ana ekranda Dynamic
+Island, 10 sn'den uzun çıkınca uzakta görünümü, mola, pomodoro, bitir),
+`o-ayarlar-sayac` (Ayarlar → "Sayaç çalışırken": varsayılanlar ekranı açık tut "Kapalı" ve
+"Çalışmaya devam say", "Sor" ve geri; 15 sn ana ekran ve öldür-aç sonrası uzakta kartı yok, kilit
+ekranındaki ve uygulamadaki saat saymaya devam eder; sonda aynı ekranda art arda iki değişiklik,
+"Açık" ve yeniden "Kapalı": React Compiler altındaki eski `useStored` hatasına karşı, bkz.
+`src/state/__tests__/use-stored-compiler.test.tsx`),
 `p-deneme-duzenle-lgs` (13 yaş LGS: yalnız LGS kâğıdı, net = D − Y/3, kaydet ve düzenle).
-İlk açılıştan sonraki tek seferlik ipucu `subflows/ipucu-gec.yaml` ile kapatılır.
+İlk açılıştan sonraki tek seferlik ipucu `subflows/ipucu-gec.yaml` ile kapatılır; "Sor" kuralını
+`subflows/uzakta-sor.yaml` seçer.
 **`m-canli-sayac`:** Bildirim Merkezi'ndeki kilit ekranı görünümünde "Fizik" zorunlu denetimdir.
 Maestro SpringBoard içeriğini okuyabiliyor: e2e-ios-15-2 ve 21-1 çalıştırmalarında Live Activity
 çizilmişken denetim geçti, App Group yetkisinin kaybolduğu 13-1'de etkinlik boş çizildi ve düştü.

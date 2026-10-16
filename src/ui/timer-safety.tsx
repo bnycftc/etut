@@ -11,6 +11,7 @@ import { View } from 'react-native';
 
 import {
   type ActiveSession,
+  AWAY_COUNT_MAX_MS,
   creditAway,
   dismissAway,
   finishQuestion,
@@ -28,9 +29,9 @@ import { formatDuration } from './format';
 const KEEP_AWAKE_TAG = 'etut-timer';
 
 /**
- * Keeps the screen on while the timer runs and this screen is shown, unless the student turned
- * it off. An automatic screen lock would otherwise send the app to the background, where the
- * away rule turns the study time into a break.
+ * Keeps the screen on while the timer runs and this screen is shown, if the student turned it on
+ * (default off). With the away rule "Sor" an automatic screen lock would otherwise send the app to
+ * the background, where the study time becomes a break.
  */
 export function TimerKeepAwake({ running }: { running: boolean }): null {
   const { dataVersions } = useAppState();
@@ -58,14 +59,39 @@ function formatAway(ms: number): string {
   return ms < 60_000 ? tr.timer.lessThanMinute : formatDuration(ms);
 }
 
+const AWAY_COUNT_HOURS = AWAY_COUNT_MAX_MS / 3_600_000;
+
+/** The away texts of the timer card (`tr.timer`) and of the question before saving (`tr.finishCheck`). */
+interface AwayTexts {
+  awayTitle: (duration: string) => string;
+  awayBody: string;
+  awayBodyStudy: (study: string) => string;
+  awayTitleCapped: (hours: number) => string;
+  awayBodyCapped: (hours: number, rest: string) => string;
+  awayBodyCappedStudy: (hours: number, study: string) => string;
+}
+
 /**
- * The unanswered absence in words: the time away, and the study time "Çalışıyordum" adds when that
- * reads differently (pomodoro: the breaks in it were breaks anyway); `null` = the same.
+ * The unanswered absence in words: the time away that became a break, or the study time
+ * "Çalışıyordum" adds when that reads differently (pomodoro: the breaks in it were breaks anyway).
+ * Capped (rule "Çalışmaya devam say"): its first hours counted, only the rest is asked about.
  */
-export function awayAmounts(session: ActiveSession): { away: string; study: string | null } {
+function awayText(session: ActiveSession, t: AwayTexts): { title: string; body: string } {
   const away = formatAway(pendingAwayMs(session));
   const study = formatAway(pendingAwayStudyMs(session));
-  return { away, study: study === away ? null : study };
+  const same = study === away;
+  if (session.pendingAway?.capped === true) {
+    return {
+      title: t.awayTitleCapped(AWAY_COUNT_HOURS),
+      body: same ? t.awayBodyCapped(AWAY_COUNT_HOURS, away) : t.awayBodyCappedStudy(AWAY_COUNT_HOURS, study),
+    };
+  }
+  return { title: t.awayTitle(away), body: same ? t.awayBody : t.awayBodyStudy(study) };
+}
+
+/** Title and text of the timer screen's card for an unanswered absence. */
+export function awayCardText(session: ActiveSession): { title: string; body: string } {
+  return awayText(session, tr.timer);
 }
 
 /**
@@ -118,18 +144,16 @@ export function useFinishCheck(onFinish: (options?: FinishOptions) => void): {
   useEffect(() => {
     if (step !== null && (active === null || (step === 'away' && pending === null))) setStep(null);
   }, [step, active, pending]);
-  const away = active === null ? null : awayAmounts(active);
+  const away = active === null ? null : awayText(active, tr.finishCheck);
   const prompt =
     shown === null || active === null || away === null ? null : (
       <View testID="finish-check" style={{ gap: 12 }}>
         {shown === 'away' ? (
           <>
             <Label testID="finish-check-title" style={{ fontWeight: '600' }}>
-              {tr.finishCheck.awayTitle(away.away)}
+              {away.title}
             </Label>
-            <Label variant="muted">
-              {away.study === null ? tr.finishCheck.awayBody : tr.finishCheck.awayBodyStudy(away.study)}
-            </Label>
+            <Label variant="muted">{away.body}</Label>
             <Button testID="finish-away-credit" title={tr.finishCheck.awayCredit} onPress={() => answerAway(true)} />
             <Button
               testID="finish-away-break"
@@ -164,7 +188,7 @@ export function useFinishCheck(onFinish: (options?: FinishOptions) => void): {
   return { request, prompt, open: prompt !== null };
 }
 
-/** Ayarlar: keep the screen on, and what leaving the app means (default: ask). */
+/** Ayarlar: keep the screen on (default off), and what leaving the app means (default: count). */
 export function TimerSettingsCard() {
   const { dataVersions, notifyDataChanged } = useAppState();
   const keepAwake = useStored(`keepAwake|${dataVersions.settings}`, loadKeepAwake);
@@ -217,7 +241,7 @@ export function TimerSettingsCard() {
         />
       </ChipRow>
       <Label testID="settings-away-info" variant="small">
-        {awayRule === 'ask' ? s.awayAskInfo : s.awayCountInfo}
+        {awayRule === 'ask' ? s.awayAskInfo : s.awayCountInfo(AWAY_COUNT_HOURS)}
       </Label>
     </Card>
   );

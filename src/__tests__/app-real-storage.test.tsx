@@ -571,7 +571,51 @@ describe('timer on the real storage', () => {
     expect(storedActive()?.lastSeenAt).toBe(T0 + 65_000);
   });
 
+  it('by default ("Çalışmaya devam say") time away counts; past 3 hours the rest is asked about once', () => {
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    at(T0 + MIN);
+    // Half an hour away: study time, nothing asked.
+    emitAppState('background', from);
+    act(() => jest.setSystemTime(T0 + 31 * MIN));
+    emitAppState('active', from);
+    expect(screen.queryByTestId('away-title')).toBeNull();
+    // Five hours away: the first three count, the other two are a break until the student answers.
+    at(T0 + 32 * MIN);
+    emitAppState('background', from);
+    act(() => jest.setSystemTime(T0 + 332 * MIN));
+    emitAppState('active', from);
+    expect(screen.getByTestId('away-title').props.children).toBe('3 saatten uzun uygulamanın dışındaydın.');
+    expect(screen.getByText('İlk 3 saat sayaç saymaya devam etti, sonraki 2 sa 0 dk mola sayıldı.')).toBeTruthy();
+    // Unanswered, "Bitir" asks the same.
+    finish();
+    expect(screen.getByTestId('finish-check-title').props.children).toBe(
+      'Bitirmeden önce: 3 saatten uzun uygulamanın dışındaydın.',
+    );
+    expect(screen.getByText('İlk 3 saat sayaç saymaya devam etti. Sonraki 2 sa 0 dk çalışma mıydı?')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('finish-away-break'));
+    expect(allSessions()[0].durationMs).toBe(212 * MIN);
+  });
+
+  it('pomodoro, by default: past 3 hours only the work blocks are asked about', () => {
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('mode-pomodoro'));
+    start();
+    at(T0 + 10 * MIN);
+    emitAppState('background', from);
+    // Back at 4:10: asked about 3:10–4:10, of which the work blocks 3:10–3:35 and 3:40–4:05.
+    act(() => jest.setSystemTime(T0 + 250 * MIN));
+    emitAppState('active', from);
+    expect(screen.getByTestId('away-title').props.children).toBe('3 saatten uzun uygulamanın dışındaydın.');
+    expect(
+      screen.getByText('İlk 3 saat sayaç saymaya devam etti; sonrasında çalışma bloklarına denk gelen 50 dk mola sayıldı.'),
+    ).toBeTruthy();
+  });
+
   it('app killed in the foreground: on the next start the time after the last heartbeat is away', () => {
+    kv.storeAwayRule('ask');
     renderRouter(APP_DIR, { initialUrl: '/' });
     start();
     act(() => jest.advanceTimersByTime(5 * MIN));
@@ -588,6 +632,7 @@ describe('timer on the real storage', () => {
   });
 
   it('"Çalışıyordum" after the clock was set back before the start keeps the whole session', () => {
+    kv.storeAwayRule('ask');
     const from = listenersFrom();
     renderRouter(APP_DIR, { initialUrl: '/' });
     start();
@@ -659,6 +704,7 @@ describe('timer on the real storage', () => {
       { id: 'earlier', subjectId: 'kimya', topicId: null, startedAt: T0 - 3 * HOUR, endedAt: T0 - 2 * HOUR, pauses: [], durationMs: HOUR, source: 'timer' },
       T0,
     );
+    kv.storeAwayRule('ask');
     const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
     const from = listenersFrom();
     renderRouter(APP_DIR, { initialUrl: '/' });
@@ -709,6 +755,7 @@ describe('timer on the real storage', () => {
   });
 
   it('"Geri al": inside the window the stored row goes and the session runs on; after it, it stays', () => {
+    kv.storeKeepAwake(true);
     renderRouter(APP_DIR, { initialUrl: '/' });
     fireEvent.press(screen.getByTestId('subject-fizik'));
     start();
@@ -731,28 +778,32 @@ describe('timer on the real storage', () => {
     expect(allSessions()[0].durationMs).toBeGreaterThanOrEqual(3 * MIN);
   });
 
-  it('screen kept on only while running on the timer screen; the setting survives a restart', () => {
+  it('screen kept on only when turned on (default off), while running on the timer screen; the setting survives a restart', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
-    expect(mockSurfaces.keepAwake.size).toBe(0);
     start();
-    expect(mockSurfaces.keepAwake.size).toBe(1);
-    act(() => router.push('/ayarlar'));
-    expect(mockSurfaces.keepAwake.size).toBe(0);
-    fireEvent.press(screen.getByTestId('settings-keep-awake-off'));
-    expect(kv.loadKeepAwake()).toBe(false);
-    act(() => router.push('/'));
-    expect(mockSurfaces.keepAwake.size).toBe(0);
-    screen.unmount();
-
-    renderRouter(APP_DIR, { initialUrl: '/' });
-    expect(screen.getByTestId('timer-status')).toBeTruthy();
     expect(mockSurfaces.keepAwake.size).toBe(0);
     act(() => router.push('/ayarlar'));
     expect(screen.getByTestId('settings-keep-awake-off').props.accessibilityState.selected).toBe(true);
     fireEvent.press(screen.getByTestId('settings-keep-awake-on'));
+    expect(kv.loadKeepAwake()).toBe(true);
+    // On another tab the phone may lock as usual.
+    expect(mockSurfaces.keepAwake.size).toBe(0);
     act(() => router.push('/'));
     expect(mockSurfaces.keepAwake.size).toBe(1);
+    screen.unmount();
+
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.getByTestId('timer-status')).toBeTruthy();
+    expect(mockSurfaces.keepAwake.size).toBe(1);
     fireEvent.press(screen.getByTestId('timer-pause'));
+    expect(mockSurfaces.keepAwake.size).toBe(0);
+    fireEvent.press(screen.getByTestId('timer-resume'));
+    expect(mockSurfaces.keepAwake.size).toBe(1);
+    act(() => router.push('/ayarlar'));
+    expect(screen.getByTestId('settings-keep-awake-on').props.accessibilityState.selected).toBe(true);
+    fireEvent.press(screen.getByTestId('settings-keep-awake-off'));
+    expect(kv.loadKeepAwake()).toBe(false);
+    act(() => router.push('/'));
     expect(mockSurfaces.keepAwake.size).toBe(0);
   });
 });
@@ -765,50 +816,62 @@ describe('settings: "Sayaç çalışırken" after another change on the same scr
     fireEvent.press(screen.getByTestId('settings-yks-area-esit_agirlik'));
     fireEvent.press(screen.getByTestId('settings-exam-save'));
     expect(kv.loadProfile()?.yksArea).toBe('esit_agirlik');
-    fireEvent.press(screen.getByTestId('settings-keep-awake-off'));
-    expect(kv.loadKeepAwake()).toBe(false);
-    expect(screen.getByTestId('settings-keep-awake-off').props.accessibilityState.selected).toBe(true);
-    fireEvent.press(screen.getByTestId('settings-away-count'));
-    expect(screen.getByTestId('settings-away-info').props.children).toContain('çalışma sayılır');
+    fireEvent.press(screen.getByTestId('settings-keep-awake-on'));
+    expect(kv.loadKeepAwake()).toBe(true);
+    expect(screen.getByTestId('settings-keep-awake-on').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByTestId('settings-away-info').props.children).toContain('3 saate kadar çalışma sayılır');
+    fireEvent.press(screen.getByTestId('settings-away-ask'));
+    expect(kv.loadAwayRule()).toBe('ask');
+    expect(screen.getByTestId('settings-away-info').props.children).toContain('10 saniyeden uzun');
   });
 });
 
 describe('system surfaces are not rewritten with the same content', () => {
   it('coming back to the foreground with nothing changed sends no Live Activity update and no widget timeline', async () => {
-    // "Çalışmaya devam say": leaving the app changes nothing on the surfaces (with "Sor" it does,
-    // see the next test).
-    kv.storeAwayRule('count');
+    // Default "Çalışmaya devam say": a short trip out sends where the clock would freeze (3 hours
+    // later) once and takes it back once (with "Sor" it freezes at once, see the next test).
     const from = listenersFrom();
     renderRouter(APP_DIR, { initialUrl: '/' });
     start();
     await settle();
     expect(mockSurfaces.liveActivities).toHaveLength(1);
-    const before = { starts: mockSurfaces.liveStarts, updates: mockSurfaces.liveUpdates, widget: mockSurfaces.widgetWrites };
+    const counts = () => ({ starts: mockSurfaces.liveStarts, updates: mockSurfaces.liveUpdates, widget: mockSurfaces.widgetWrites });
+    const before = counts();
 
     // Two short trips out of the app (within the 10 s tolerance) and a few clock ticks.
     for (let i = 1; i <= 2; i++) {
       emitAppState('background', from);
+      await settle();
+      expect(mockSurfaces.liveActivities[0]).toMatchObject({
+        status: 'Çalışıyorsun',
+        awayAt: storedActive()!.backgroundedAt! + 3 * HOUR,
+      });
       act(() => jest.setSystemTime(T0 + i * 3_000));
       emitAppState('active', from);
       await settle();
+      expect(mockSurfaces.liveActivities[0]).toMatchObject({ status: 'Çalışıyorsun', awayAt: null });
     }
+    expect(counts()).toEqual({ starts: before.starts, updates: before.updates + 4, widget: before.widget + 4 });
+    const afterTrips = counts();
+    emitAppState('active', from);
     at(T0 + 20_000);
     await settle();
-    expect({ starts: mockSurfaces.liveStarts, updates: mockSurfaces.liveUpdates, widget: mockSurfaces.widgetWrites }).toEqual(before);
+    expect(counts()).toEqual(afterTrips);
 
     // A real change (pause) is sent once to each.
     fireEvent.press(screen.getByTestId('timer-pause'));
     await settle();
-    expect(mockSurfaces.liveUpdates).toBe(before.updates + 1);
-    expect(mockSurfaces.widgetWrites).toBe(before.widget + 1);
+    expect(mockSurfaces.liveUpdates).toBe(afterTrips.updates + 1);
+    expect(mockSurfaces.widgetWrites).toBe(afterTrips.widget + 1);
     expect(mockSurfaces.liveActivities[0].pausedAt).not.toBeNull();
     emitAppState('active', from);
     await settle();
-    expect(mockSurfaces.liveUpdates).toBe(before.updates + 1);
-    expect(mockSurfaces.widgetWrites).toBe(before.widget + 1);
+    expect(mockSurfaces.liveUpdates).toBe(afterTrips.updates + 1);
+    expect(mockSurfaces.widgetWrites).toBe(afterTrips.widget + 1);
   });
 
   it('rule "Sor": a short trip out sends the away fields once and takes them back once, nothing more', async () => {
+    kv.storeAwayRule('ask');
     const from = listenersFrom();
     renderRouter(APP_DIR, { initialUrl: '/' });
     start();

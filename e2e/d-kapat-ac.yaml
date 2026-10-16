@@ -1,4 +1,5 @@
-# d. Kapat-aç (sayaç kalıcı, uzakta kuralı)
+# d. Kapat-aç (sayaç kalıcı, "Sor" kuralıyla uzakta kuralı; "Çalışmaya devam say" ile kapat-aç
+# o-ayarlar-sayac'ta)
 appId: com.bnycftc.etut
 tags:
   - e2e
@@ -9,6 +10,8 @@ tags:
     file: subflows/onboarding-yks.yaml
     env:
       AGE: "20"
+- runFlow:
+    file: subflows/uzakta-sor.yaml
 - tapOn:
     id: subject-kimya
 - tapOn:

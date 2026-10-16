@@ -14,9 +14,10 @@
  * only: without push nothing can change the activity while the app is closed, so the next phase is
  * shown with its end time ("Kısa mola · bitiş 10:30"), which stays true once its clock is at 0:00.
  * The app updates it at every phase change while it is open and when it goes to the background.
- * Going to the background with the away rule "Sor", that last update also carries the away fields:
- * once stale, the layout shows those first (frozen clock, pause icon, "Uygulamadan çıktın · mola
- * sayılıyor"), because from then on the time away is a break unless the student says otherwise.
+ * Going to the background, that last update also carries the away fields (stale 10 s after leaving
+ * with the away rule "Sor", 3 hours later with "Çalışmaya devam say"): once stale, the layout shows
+ * those first (frozen clock, pause icon, "Uygulamadan çıktın · mola sayılıyor"), because from then
+ * on the time away is a break unless the student says otherwise.
  * The away fields are checked with `typeof`: a Live Activity started by an older app version has
  * none at all (`undefined`, not `null`). With them, the status has its own line under the clock
  * (up to two lines: "Uygulamadan çıktın · 10 sn sonra mola sayılır" until stale). On the iOS

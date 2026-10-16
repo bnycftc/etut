@@ -1,9 +1,12 @@
 import { DEFAULT_POMODORO } from '../pomodoro';
+import { LONG_SESSION_HOURS } from '../reminders';
 import {
   type ActiveSession,
+  AWAY_COUNT_MAX_MS,
   BACKGROUND_TOLERANCE_MS,
   capStudyTime,
   creditAway,
+  DEFAULT_AWAY_RULE,
   dismissAway,
   elapsedMs,
   finishQuestion,
@@ -28,6 +31,7 @@ import {
 const T0 = Date.parse('2026-10-04T07:00:00Z');
 const sec = (n: number) => n * 1000;
 const min = (n: number) => n * 60_000;
+const HOUR = 3_600_000;
 
 function started(): ActiveSession {
   return startSession('s1', 'matematik', T0);
@@ -318,22 +322,90 @@ describe('"Çalışmaya devam say" (away rule: count)', () => {
     expect(elapsedMs(launched, T0 + min(90))).toBe(min(90));
   });
 
-  it('the default stays "ask"', () => {
+  it(`counts ${AWAY_COUNT_MAX_MS / HOUR} hours of one absence; the rest is an automatic break, asked about once`, () => {
+    const leftAt = T0 + min(10);
+    const capAt = leftAt + AWAY_COUNT_MAX_MS;
+    const now = leftAt + min(300);
+    const back = onAppForeground(onAppBackground(started(), leftAt), now, 'count');
+    expect(back.pauses).toEqual([{ start: capAt, end: now, kind: 'away' }]);
+    expect(back.pendingAway).toEqual({ start: capAt, end: now, capped: true });
+    expect(finishQuestion(back, now)).toBe('away');
+    expect(pendingAwayMs(back)).toBe(min(120));
+    expect(pendingAwayStudyMs(back)).toBe(min(120));
+    expect(elapsedMs(back, now)).toBe(min(10) + AWAY_COUNT_MAX_MS);
+    expect(elapsedMs(creditAway(back), now)).toBe(min(310));
+    expect(elapsedMs(dismissAway(back), now)).toBe(min(190));
+  });
+
+  it('back within the tolerance after those hours: nothing is asked', () => {
+    const leftAt = T0 + min(10);
+    const back = onAppForeground(
+      onAppBackground(started(), leftAt),
+      leftAt + AWAY_COUNT_MAX_MS + BACKGROUND_TOLERANCE_MS,
+      'count',
+    );
+    expect(back.pauses).toEqual([]);
+    expect(back.pendingAway).toBeNull();
+  });
+
+  it('a timer left running overnight in an app that died: the hours that count, then the question', () => {
+    const lastSeen = T0 + min(30);
+    const now = lastSeen + 8 * HOUR;
+    const launched = onAppLaunch(markSeen(started(), lastSeen), now, 'count');
+    expect(launched.pendingAway).toEqual({ start: lastSeen + AWAY_COUNT_MAX_MS, end: now, capped: true });
+    expect(elapsedMs(launched, now)).toBe(min(30) + AWAY_COUNT_MAX_MS);
+    expect(elapsedMs(creditAway(launched), now)).toBe(min(30) + 8 * HOUR);
+  });
+
+  it('pomodoro: the counted hours keep the rhythm; only work blocks after them are asked about', () => {
+    const s = startSession('p1', 'matematik', T0, { pomodoro: DEFAULT_POMODORO });
+    const back = onAppForeground(onAppBackground(s, T0 + min(10)), T0 + min(250), 'count');
+    // Asked about: 190–250 (60 min away), of which the work blocks 190–215 and 220–245.
+    expect(back.pendingAway).toEqual({ start: T0 + min(190), end: T0 + min(250), capped: true });
+    expect(pendingAwayMs(back)).toBe(min(60));
+    expect(pendingAwayStudyMs(back)).toBe(min(50));
+  });
+
+  it('a later absence joins a capped one: one prompt, still said to be capped', () => {
+    const capAt = T0 + min(10) + AWAY_COUNT_MAX_MS;
+    let s = onAppForeground(onAppBackground(started(), T0 + min(10)), capAt + HOUR, 'count');
+    s = markSeen(s, capAt + HOUR + min(1));
+    // The student switches to "Sor" before answering, then leaves for half an hour.
+    s = onAppForeground(onAppBackground(s, capAt + HOUR + min(2)), capAt + HOUR + min(32), 'ask');
+    expect(s.pendingAway).toEqual({ start: capAt, end: capAt + HOUR + min(32), capped: true });
+    expect(pendingAwayMs(s)).toBe(min(90));
+  });
+
+  it('is the app default; a call without a rule gets the strict "ask"', () => {
+    expect(DEFAULT_AWAY_RULE).toBe('count');
     const back = onAppForeground(onAppBackground(started(), T0 + min(10)), T0 + min(70));
-    expect(back.pendingAway).not.toBeNull();
+    expect(back.pendingAway).toEqual({ start: T0 + min(10), end: T0 + min(70) });
+  });
+
+  it('counts as long as the default long-session reminder waits', () => {
+    expect(AWAY_COUNT_MAX_MS).toBe(LONG_SESSION_HOURS.default * HOUR);
   });
 });
 
 describe('provisionalAwayAt (where the Lock Screen timer and the widget freeze while away)', () => {
   const pomodoro = () => startSession('p1', 'matematik', T0, { pomodoro: DEFAULT_POMODORO });
 
-  it('nothing in the foreground, with "Çalışmaya devam say", or while paused by hand', () => {
+  it('nothing in the foreground or while paused by hand', () => {
     expect(provisionalAwayAt(started(), 'ask')).toBeNull();
-    expect(provisionalAwayAt(onAppBackground(started(), T0 + min(10)), 'count')).toBeNull();
+    expect(provisionalAwayAt(started(), 'count')).toBeNull();
     const paused = pauseSession(started(), T0 + min(5));
     // A paused timer is not watched; even a session marked away while paused stays out.
     expect(provisionalAwayAt(onAppBackground(paused, T0 + min(10)), 'ask')).toBeNull();
     expect(provisionalAwayAt({ ...paused, backgroundedAt: T0 + min(10) }, 'ask')).toBeNull();
+    expect(provisionalAwayAt({ ...paused, backgroundedAt: T0 + min(10) }, 'count')).toBeNull();
+  });
+
+  it('"Çalışmaya devam say": when the counted hours are over (in a pomodoro break: its end)', () => {
+    expect(provisionalAwayAt(onAppBackground(started(), T0 + min(10)), 'count')).toBe(T0 + min(10) + AWAY_COUNT_MAX_MS);
+    // Left at 0:20, 3 hours later is the work block 190–215.
+    expect(provisionalAwayAt(onAppBackground(pomodoro(), T0 + min(20)), 'count')).toBe(T0 + min(200));
+    // Left at 0:06, 3 hours later is the short break 185–190.
+    expect(provisionalAwayAt(onAppBackground(pomodoro(), T0 + min(6)), 'count')).toBe(T0 + min(190));
   });
 
   it('stopwatch and a pomodoro work block: from the moment the app left', () => {
@@ -348,31 +420,39 @@ describe('provisionalAwayAt (where the Lock Screen timer and the widget freeze w
   });
 
   it('nothing is taken up to the tolerance after it; after a costlier return the study time at that moment is kept', () => {
-    for (const [session, leftAt] of [
-      [started(), T0 + min(10)],
-      [pomodoro(), T0 + min(10)],
-      [pomodoro(), T0 + min(26)],
-      [pomodoro(), T0 + min(25) - sec(5)],
-    ] as const) {
-      const bg = onAppBackground(session, leftAt);
-      const freezeAt = provisionalAwayAt(bg, 'ask')!;
-      // Within the tolerance after it (for a break: just after the break end), during the break,
-      // just past the tolerance, in the next work block, hours later.
-      for (const later of [
-        freezeAt + sec(4),
-        freezeAt + BACKGROUND_TOLERANCE_MS,
-        T0 + min(29),
-        freezeAt + BACKGROUND_TOLERANCE_MS + sec(1),
-        T0 + min(40),
-        T0 + min(200),
-      ]) {
-        if (later < leftAt) continue;
-        const kept = elapsedMs(onAppForeground(bg, later), later);
-        const cost = elapsedMs(bg, later) - elapsedMs(bg, leftAt);
-        if (later <= freezeAt + BACKGROUND_TOLERANCE_MS || cost <= BACKGROUND_TOLERANCE_MS) {
-          expect(kept).toBe(elapsedMs(bg, later));
-        } else {
-          expect(kept).toBe(elapsedMs(bg, freezeAt));
+    for (const rule of ['ask', 'count'] as const) {
+      // "Çalışmaya devam say" leaves the first hours alone: the same moments, that much later.
+      const shift = rule === 'count' ? AWAY_COUNT_MAX_MS : 0;
+      for (const [session, leftAt] of [
+        [started(), T0 + min(10)],
+        [pomodoro(), T0 + min(10)],
+        [pomodoro(), T0 + min(26)],
+        [pomodoro(), T0 + min(25) - sec(5)],
+        [pomodoro(), T0 + min(6)],
+      ] as const) {
+        const bg = onAppBackground(session, leftAt);
+        const costFrom = leftAt + shift;
+        const freezeAt = provisionalAwayAt(bg, rule)!;
+        // Within the tolerance after it (for a break: just after the break end), during the break,
+        // just past the tolerance, in the next work block, hours later, just before the hours that
+        // count are over.
+        for (const later of [
+          freezeAt + sec(4),
+          freezeAt + BACKGROUND_TOLERANCE_MS,
+          T0 + shift + min(29),
+          freezeAt + BACKGROUND_TOLERANCE_MS + sec(1),
+          T0 + shift + min(40),
+          T0 + shift + min(200),
+          costFrom - min(1),
+        ]) {
+          if (later < leftAt) continue;
+          const kept = elapsedMs(onAppForeground(bg, later, rule), later);
+          const cost = later <= costFrom ? 0 : elapsedMs(bg, later) - elapsedMs(bg, costFrom);
+          if (later <= freezeAt + BACKGROUND_TOLERANCE_MS || cost <= BACKGROUND_TOLERANCE_MS) {
+            expect(kept).toBe(elapsedMs(bg, later));
+          } else {
+            expect(kept).toBe(elapsedMs(bg, freezeAt));
+          }
         }
       }
     }

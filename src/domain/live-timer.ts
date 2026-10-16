@@ -7,12 +7,13 @@
  * is derived from the same timestamps as the in-app clock (`timer.ts`, `pomodoro.ts`) and stays
  * the same between two changes, so repeated syncs send nothing.
  *
- * Away from the app (rule 'ask'): the app sends one last update when it goes to the background,
- * with `awayAt` (`provisionalAwayAt`). The Live Activity keeps the running clock through the
- * 10-second tolerance (left in a pomodoro break: until the tolerance after the break); at `staleAt`
- * the system marks it stale and the layout switches by itself to
- * `away`: the clock frozen at the study time of `awayAt`, and an honest status. Without push nothing
- * else can change it while the app is away; the app updates it again when it comes back.
+ * Away from the app: the app sends one last update when it goes to the background, with `awayAt`
+ * (`provisionalAwayAt`: rule 'ask' at once, rule 'count' 3 hours later). The Live Activity keeps the
+ * running clock through the 10-second tolerance after it (left in a pomodoro break: until the
+ * tolerance after the break); at `staleAt` the system marks it stale and the layout switches by
+ * itself to `away`: the clock frozen at the study time of `awayAt`, and an honest status. A pomodoro
+ * phase change before `awayAt` comes first instead (one switch only). Without push nothing else can
+ * change it while the app is away; the app updates it again when it comes back.
  *
  * Apple limits (ActivityKit, "Displaying live data with Live Activities"):
  * - A Live Activity is active for at most 8 hours; then the system ends it (it may stay on the
@@ -58,7 +59,7 @@ export interface LiveTimerView {
   /** Pomodoro, while running: the phase after the current one, shown once `staleAt` passes. */
   next: { phase: PomodoroPhase; blockInSet: number; clock: LiveClock } | null;
   /**
-   * In the background with rule 'ask': shown once `staleAt` passes (before `next`). The clock is
+   * In the background: shown once `staleAt` passes (before `next`). The clock is
    * frozen at `at`, the moment from which the time away costs study time. Pomodoro: the phase that
    * time is taken from (the current work block, or the next one at full length when `at` is the
    * end of a break).
@@ -81,6 +82,10 @@ function openPauseStart(session: ActiveSession): number | null {
 export function liveTimerView(session: ActiveSession, now: number, awayAt: number | null = null): LiveTimerView {
   const view = runningView(session, now);
   if (awayAt === null) return view;
+  // A pomodoro phase change before `awayAt` (rule 'count': hours of counted time still ahead)
+  // comes first. The Live Activity switches only once by itself: to the next phase, as without
+  // `awayAt`; the away layout is left out.
+  if (view.staleAt !== null && view.staleAt < awayAt) return view;
   const away = awayView(session, awayAt);
   // Nothing is taken before the tolerance after `awayAt` (`provisionalAwayAt`); then it freezes.
   // A phase ending at `awayAt` (the break the student left in) does not switch earlier: back within

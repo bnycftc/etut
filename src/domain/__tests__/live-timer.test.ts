@@ -7,6 +7,7 @@ import {
 } from '../live-timer';
 import { DEFAULT_POMODORO, upcomingPhaseChanges } from '../pomodoro';
 import {
+  AWAY_COUNT_MAX_MS,
   BACKGROUND_TOLERANCE_MS,
   creditAway,
   elapsedMs,
@@ -186,16 +187,40 @@ describe('liveTimerView: away from the app (rule "Sor")', () => {
     expect(v.staleAt).toBe(at(25));
   });
 
-  it('without awayAt nothing changes (foreground, "Çalışmaya devam say", paused)', () => {
+  it('without awayAt nothing changes (foreground, paused)', () => {
     for (const s of [
       startSession('s1', 'fizik', T0),
       startSession('p1', 'fizik', T0, { pomodoro: DEFAULT_POMODORO }),
     ]) {
-      const bg = onAppBackground(s, at(10));
-      const v = liveTimerView(bg, at(10), provisionalAwayAt(bg, 'count'));
-      expect(v.away).toBeNull();
-      expect(v).toEqual(liveTimerView(s, at(10)));
       expect(liveTimerView(s, at(10), null)).toEqual(liveTimerView(s, at(10)));
+      const paused = pauseSession(s, at(5));
+      const bg = { ...paused, backgroundedAt: at(10) };
+      expect(liveTimerView(bg, at(10), provisionalAwayAt(bg, 'ask'))).toEqual(liveTimerView(paused, at(10)));
+    }
+  });
+});
+
+describe('liveTimerView: away from the app (rule "Çalışmaya devam say")', () => {
+  it('stopwatch: runs on through the hours that count, then the clock freezes there', () => {
+    const s = startSession('s1', 'fizik', T0);
+    const bg = onAppBackground(s, at(20));
+    const freezeAt = at(20) + AWAY_COUNT_MAX_MS;
+    const v = liveTimerView(bg, at(20), provisionalAwayAt(bg, 'count'));
+    expect(v.clock).toEqual(liveTimerView(s, at(20)).clock);
+    expect(v.away).toEqual({
+      at: freezeAt,
+      phase: null,
+      blockInSet: null,
+      clock: { from: T0, to: T0 + COUNT_UP_SPAN_MS, countsDown: false, pausedAt: freezeAt },
+    });
+    expect(v.staleAt).toBe(freezeAt + BACKGROUND_TOLERANCE_MS);
+  });
+
+  it('pomodoro: the next phase change comes first, shown as without the rule (one switch only)', () => {
+    const s = startSession('p1', 'fizik', T0, { pomodoro: DEFAULT_POMODORO });
+    for (const leftAt of [at(10), at(26)]) {
+      const bg = onAppBackground(s, leftAt);
+      expect(liveTimerView(bg, leftAt, provisionalAwayAt(bg, 'count'))).toEqual(liveTimerView(s, leftAt));
     }
   });
 });

@@ -2,6 +2,7 @@ import { addDays, dayStartMs, type DayKey, istanbulDayKey } from '../istanbul-da
 import { DEFAULT_POMODORO, upcomingPhaseChanges } from '../pomodoro';
 import { computeStreak } from '../streak';
 import {
+  AWAY_COUNT_MAX_MS,
   type CompletedSession,
   elapsedMs,
   onAppBackground,
@@ -185,7 +186,7 @@ describe('widgetTimeline', () => {
 });
 
 describe('widgetTimeline: away from the app', () => {
-  it('rule "Sor": from awayAt the total stops and nothing counts; "Çalışmaya devam say" goes on', () => {
+  it('rule "Sor": from awayAt the total stops and nothing counts', () => {
     const active = onAppBackground(startSession('a', 'fizik', NOW - 20 * MIN), NOW);
     const input = { now: NOW, savedTotal: () => 0, active, goalMinutes: 60 };
     const asked = widgetTimeline({ ...input, awayAt: provisionalAwayAt(active, 'ask') });
@@ -193,9 +194,39 @@ describe('widgetTimeline: away from the app', () => {
     // Frozen until the app syncs again (it settles like an idle day).
     expect(asked.every((e) => !e.counting)).toBe(true);
     expect(asked.map((e) => e.at)).toContain(midnight(TODAY, 4));
-    const counted = widgetTimeline({ ...input, awayAt: provisionalAwayAt(active, 'count') });
-    expect(counted).toEqual(widgetTimeline(input));
-    expect(counted[0]).toMatchObject({ todayMs: 20 * MIN, counting: true });
+  });
+
+  it('rule "Çalışmaya devam say": counts on (goal included) for the hours that count, then stops there', () => {
+    const active = onAppBackground(startSession('a', 'fizik', NOW - 20 * MIN), NOW);
+    const awayAt = provisionalAwayAt(active, 'count')!;
+    expect(awayAt).toBe(NOW + AWAY_COUNT_MAX_MS);
+    const entries = widgetTimeline({ now: NOW, savedTotal: () => 0, active, goalMinutes: 60, awayAt });
+    expect(entries[0]).toMatchObject({ at: NOW, todayMs: 20 * MIN, counting: true, goalReachedAt: NOW + 40 * MIN });
+    expect(entries[1]).toMatchObject({ at: NOW + 40 * MIN, todayMs: 60 * MIN, counting: true, goalMet: true });
+    expect(entries[2]).toMatchObject({ at: awayAt, todayMs: 20 * MIN + AWAY_COUNT_MAX_MS, counting: false });
+    expect(entries.slice(2).every((e) => !e.counting)).toBe(true);
+    // Settles like an idle day after that.
+    expect(entries.map((e) => e.at)).toContain(midnight(TODAY, 4));
+  });
+
+  it('rule "Çalışmaya devam say", pomodoro: phase changes until then, never more than is kept', () => {
+    const start = NOW - 20 * MIN;
+    const active = onAppBackground(startSession('p', 'fizik', start, { pomodoro: DEFAULT_POMODORO }), NOW);
+    // In the work block 190–215 of the session.
+    const awayAt = provisionalAwayAt(active, 'count')!;
+    expect(awayAt).toBe(start + 200 * MIN);
+    const entries = widgetTimeline({ now: NOW, savedTotal: () => 0, active, goalMinutes: null, awayAt });
+    const times = entries.map((e) => e.at);
+    expect(times).toEqual(expect.arrayContaining([start + 25 * MIN, start + 30 * MIN, start + 185 * MIN, awayAt]));
+    expect(upcomingPhaseChanges(active, NOW, 20).filter((c) => c.at > awayAt).some((c) => times.includes(c.at))).toBe(false);
+    const shown = (t: number) => {
+      const e = [...entries].reverse().find((x) => x.at <= t)!;
+      return e.todayMs + (e.counting ? t - e.at : 0);
+    };
+    for (let t = NOW; t < midnight(TODAY, 1); t += 5 * MIN) {
+      // What is saved if the student stays away and does not answer "Çalışıyordum".
+      expect(shown(t)).toBe(elapsedMs(active, Math.min(t, awayAt)));
+    }
   });
 
   it('pomodoro break: the total stays at the study time, also after the break would end', () => {

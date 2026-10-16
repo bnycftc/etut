@@ -427,6 +427,12 @@ export const tr = {
     awayBody: 'Bu süre mola sayıldı.',
     /** Pomodoro: only the part that fell in work blocks costs study time (the breaks were breaks). */
     awayBodyStudy: (study: string) => `Çalışma bloklarına denk gelen ${study} mola sayıldı.`,
+    /** Rule "Çalışmaya devam say": the first `hours` away counted, only the rest became the break. */
+    awayTitleCapped: (hours: number) => `${hours} saatten uzun uygulamanın dışındaydın.`,
+    awayBodyCapped: (hours: number, rest: string) =>
+      `İlk ${hours} saat sayaç saymaya devam etti, sonraki ${rest} mola sayıldı.`,
+    awayBodyCappedStudy: (hours: number, study: string) =>
+      `İlk ${hours} saat sayaç saymaya devam etti; sonrasında çalışma bloklarına denk gelen ${study} mola sayıldı.`,
     awayCredit: 'Çalışıyordum, süreye ekle',
     awayDismiss: 'Tamam, mola kalsın',
     lessThanMinute: '1 dakikadan az',
@@ -852,8 +858,9 @@ export const tr = {
      */
     awayPending: (seconds: number) => `Uygulamadan çıktın · ${seconds} sn sonra mola sayılır`,
     /**
-     * Shown once the app has been away longer than the tolerance under "Sor": the clock stops there
-     * (the time away becomes a break unless the student answers "Çalışıyordum").
+     * Shown once the app has been away longer than the tolerance under "Sor" (under "Çalışmaya devam
+     * say": longer than its 3 hours): the clock stops there (the time away becomes a break unless the
+     * student answers "Çalışıyordum").
      */
     away: 'Uygulamadan çıktın · mola sayılıyor',
     awayHint: 'Dönünce “Çalışıyordum” dersen süre eklenir.',
@@ -1286,11 +1293,12 @@ export const tr = {
     steps: [
       {
         title: 'Ders seç, Başla’ya dokun',
-        body: 'Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez (Ayarlar’dan kapatabilirsin); iPhone’da sayaç kilit ekranında da görünür. Bitir’e dokununca kısa bir özet çıkar; yanlışlıkla dokunduysan hemen “Geri al”.',
+        body: 'iPhone’da sayaç kilit ekranında da görünür. Bitir’e dokununca kısa bir özet çıkar; yanlışlıkla dokunduysan hemen “Geri al”.',
       },
       {
         title: 'Uygulamadan çıkarsan',
-        body: 'Telefonu kilitler ya da başka uygulamaya geçersen o süre mola sayılır; dönünce “Çalışıyordum” deyip ekleyebilirsin. Kitaptan çalışırken telefonu kilitliyorsan Ayarlar → Sayaç çalışırken bölümünde “Çalışmaya devam say”ı seç.',
+        /** "3 saat" = `AWAY_COUNT_MAX_MS` (education.test.tsx keeps them equal). */
+        body: 'Telefonu kilitler ya da başka uygulamaya geçersen sayaç saymaya devam eder. 3 saatten uzun dışarıda kalırsan fazlası mola sayılır; dönünce “Çalışıyordum” deyip ekleyebilirsin. Mola verirken “Mola”ya dokun. Her çıkışın sorulmasını istersen Ayarlar → Sayaç çalışırken bölümünde “Sor”u seç.',
       },
       {
         title: 'Denemeler ve verilerin',
@@ -1352,7 +1360,7 @@ export const tr = {
     title: 'Sayaç çalışırken',
     keepAwake: 'Ekranı açık tut',
     keepAwakeInfo:
-      'Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez, böylece süren molaya dönmez. Pili biraz daha çok kullanır.',
+      'Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez; “Sor” seçiliyse süren böylece molaya dönmez. Pili biraz daha çok kullanır.',
     on: 'Açık',
     off: 'Kapalı',
     awayTitle: 'Uygulamadan çıkınca',
@@ -1360,8 +1368,8 @@ export const tr = {
     awayCount: 'Çalışmaya devam say',
     awayAskInfo:
       '10 saniyeden uzun çıkarsan ya da telefon kilitlenirse o süre mola sayılır; dönünce “Çalışıyordum” diyerek ekleyebilirsin.',
-    awayCountInfo:
-      'Uygulamadan çıktığın ya da telefonu kilitlediğin süre çalışma sayılır, sorulmaz. Mola verirken “Mola”ya dokunmayı unutma.',
+    awayCountInfo: (hours: number) =>
+      `Uygulamadan çıktığın ya da telefonu kilitlediğin süre ${hours} saate kadar çalışma sayılır; daha uzun kalırsan fazlası mola sayılır ve dönünce sorulur. Mola verirken “Mola”ya dokunmayı unutma.`,
   },
 
   /** Questions "Bitir" asks before saving. */
@@ -1369,6 +1377,12 @@ export const tr = {
     awayTitle: (duration: string) => `Bitirmeden önce: ${duration} uygulamanın dışındaydın.`,
     awayBody: 'Bu süre çalışma mıydı?',
     awayBodyStudy: (study: string) => `Çalışma bloklarına denk gelen ${study} çalışma mıydı?`,
+    /** Rule "Çalışmaya devam say": only the time after its first `hours` is asked about. */
+    awayTitleCapped: (hours: number) => `Bitirmeden önce: ${hours} saatten uzun uygulamanın dışındaydın.`,
+    awayBodyCapped: (hours: number, rest: string) =>
+      `İlk ${hours} saat sayaç saymaya devam etti. Sonraki ${rest} çalışma mıydı?`,
+    awayBodyCappedStudy: (hours: number, study: string) =>
+      `İlk ${hours} saat sayaç saymaya devam etti. Sonrasında çalışma bloklarına denk gelen ${study} çalışma mıydı?`,
     awayCredit: 'Çalışıyordum, ekle ve bitir',
     awayBreak: 'Molaydı, öyle bitir',
     longTitle: (duration: string) => `Bu oturum ${duration} sürmüş görünüyor.`,
@@ -1445,12 +1459,12 @@ export const tr = {
     close: 'Kapat',
     timer: {
       title: 'Sayaç ve uzakta kuralı',
-      paragraphs: (toleranceSeconds: number, undoSeconds: number, longHours: number) => [
+      paragraphs: (toleranceSeconds: number, undoSeconds: number, longHours: number, awayHours: number) => [
         'Ders seç, Başla’ya dokun. Süre, başladığın andan itibaren saate bakılarak hesaplanır; “Mola” (pomodoroda “Duraklat”) sayacı durdurur, “Devam” sürdürür.',
-        `Uygulamadan ${toleranceSeconds} saniyeden uzun çıkarsan ya da telefon kilitlenirse o süre mola sayılır. Dönünce “… uygulamanın dışındaydın” kartı çıkar: “Çalışıyordum, süreye ekle” dersen süre eklenir, “Tamam, mola kalsın” dersen eklenmez. Cevaplamadan Bitir’e dokunursan önce bu sorulur. Pomodoro molasında uygulamadan çıkmak sorun değil: yalnız mola bittikten sonra kaçan çalışma süresi sorulur.`,
-        'Kitaptan çalışırken telefonu kilitliyorsan Ayarlar → Sayaç çalışırken → Uygulamadan çıkınca bölümünde “Çalışmaya devam say”ı seç: dışarıda geçen süre sorulmadan çalışma sayılır. O zaman mola verirken “Mola”ya dokunmayı unutma.',
+        `Ayarlar → Sayaç çalışırken → Uygulamadan çıkınca bölümünde “Çalışmaya devam say” seçiliyse (baştan böyledir) telefonu kilitlediğinde ya da başka uygulamaya geçtiğinde sayaç saymaya devam eder; mola verirken “Mola”ya dokunmayı unutma. ${awayHours} saatten uzun dışarıda kalırsan ilk ${awayHours} saatten sonrası mola sayılır. Dönünce “… uygulamanın dışındaydın” kartı çıkar: “Çalışıyordum, süreye ekle” dersen süre eklenir, “Tamam, mola kalsın” dersen eklenmez. Cevaplamadan Bitir’e dokunursan önce bu sorulur.`,
+        `Aynı yerde “Sor” seçiliyse uygulamadan ${toleranceSeconds} saniyeden uzun çıkarsan ya da telefon kilitlenirse o süre baştan mola sayılır ve dönünce aynı kart çıkar. Pomodoro molasında uygulamadan çıkmak sorun değil: yalnız mola bittikten sonra kaçan çalışma süresi sorulur.`,
         'Uygulamayı tamamen kapatırsan sayaç kaybolmaz: yeniden açınca, uygulamanın kapandığı andan sonraki süre de “Uygulamadan çıkınca” ayarına göre sorulur ya da çalışma sayılır.',
-        'Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez, böylece süren molaya dönmez. Pili biraz daha çok kullanır; Ayarlar’dan kapatabilirsin.',
+        'Ayarlar’da “Ekranı açık tut”u açarsan sayaç ekranı açıkken telefon kendiliğinden kilitlenmez; “Sor” seçiliyse süren böylece molaya dönmez. Pili biraz daha çok kullanır.',
         `Bitir’e dokununca oturum kaydedilir ve kısa bir özet görürsün. Yanlışlıkla dokunduysan ${undoSeconds} saniye içinde “Geri al”: kayıt silinir, sayaç kaldığı yerden sürer. ${longHours} saati aşan bir oturumda hepsini mi yoksa ilk ${longHours} saati mi kaydedeceğin sorulur.`,
       ],
       /** iOS Focus: the app never turns it on itself; only how to set it up next to the timer. */
@@ -1526,9 +1540,9 @@ export const tr = {
     },
     lockScreen: {
       title: 'Kilit ekranı sayacı ve widget',
-      paragraphs: (maxHours: number) => [
+      paragraphs: (maxHours: number, awayHours: number) => [
         'iPhone’da Başla’ya dokununca sayaç kilit ekranında ve Dynamic Island’da da görünür. Görmüyorsan iPhone’un Ayarlar → Etüt → Canlı Etkinlikler seçeneğini aç.',
-        '“Sor” seçiliyken uygulamadan çıkınca ya da telefon kilitlenince kilit ekranındaki sayaçta “Uygulamadan çıktın” yazar: 10 saniye içinde dönmezsen o süre mola sayılır; dönünce “Çalışıyordum” dersen süre eklenir. “Çalışmaya devam say” seçiliyse kilit ekranındaki sayaç saymaya devam eder.',
+        `“Çalışmaya devam say” seçiliyken uygulamadan çıkınca ya da telefon kilitlenince kilit ekranındaki sayaç saymaya devam eder; kronometre ${awayHours} saat dolunca durur, çünkü sonrası mola sayılır. “Sor” seçiliyken kilit ekranındaki sayaçta hemen “Uygulamadan çıktın” yazar: 10 saniye içinde dönmezsen o süre mola sayılır. İki durumda da dönünce “Çalışıyordum” dersen süre eklenir.`,
         `iOS bir canlı sayacı en fazla ${maxHours} saat gösterir; uzun bir oturumda uygulamayı açınca yenilenir.`,
       ],
       widgetTitle: 'Ana ekrana widget eklemek',
@@ -1539,8 +1553,8 @@ export const tr = {
       ],
       lockWidget:
         'Kilit ekranına eklemek için kilit ekranına basılı tut, “Özelleştir” → “Kilitli Ekran”a dokun, saatin altındaki alana dokunup Etüt’ü seç.',
-      widgetInfo:
-        'Widget bugünkü çalışma süreni, günlük hedefini, serini ve sınavına kalan gün sayısını gösterir; sayaç açıkken süre orada da ilerler, “Sor” seçiliyken uygulamadan çıkınca durur. Kilit ekranındaki widget’ı telefonu eline alan herkes görebilir.',
+      widgetInfo: (awayHours: number) =>
+        `Widget bugünkü çalışma süreni, günlük hedefini, serini ve sınavına kalan gün sayısını gösterir; sayaç açıkken süre orada da ilerler. Uygulamadan çıkınca süre “Sor” seçiliyse hemen, “Çalışmaya devam say” seçiliyse ${awayHours} saat sonra durur. Kilit ekranındaki widget’ı telefonu eline alan herkes görebilir.`,
     },
     backup: {
       title: 'Yedek',

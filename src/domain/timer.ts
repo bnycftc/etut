@@ -15,8 +15,10 @@
  *   (`lastSeenAt`) is handled the same way on the next launch.
  * - A second absence before the student answered joins the first one: one prompt, one answer
  *   for both (`pendingAway` spans them, `pendingAwayMs` is the time actually away).
- * - The student can choose in Settings that leaving the app counts as study (`AwayRule` 'count');
- *   then no break is made and nothing is asked. The default stays 'ask'.
+ * - Settings choose what leaving the app means (`AwayRule`). 'count' (the default,
+ *   `DEFAULT_AWAY_RULE`): the time away counts as study for up to `AWAY_COUNT_MAX_MS`; only the rest
+ *   of a longer absence becomes the automatic break above, asked about once, so a timer left
+ *   running overnight is not counted silently. 'ask': the rule above from the first second.
  * - While the app is away nothing here runs, but the Lock Screen timer and the widget must not
  *   keep counting time that will be turned into a break. `provisionalAwayAt` says, at the
  *   background event, from when study time stops if the student stays away (and does not answer
@@ -40,10 +42,21 @@ import {
 export const BACKGROUND_TOLERANCE_MS = 10_000;
 
 /**
- * What leaving the app while the timer runs means: 'ask' (default) = automatic break plus
- * "Çalışıyordum"; 'count' = the time away counts as study, nothing is asked.
+ * What leaving the app while the timer runs means: 'count' (default) = the time away counts as
+ * study up to `AWAY_COUNT_MAX_MS`, the rest is an automatic break plus "Çalışıyordum"; 'ask' = all
+ * of it (beyond the tolerance) is an automatic break plus "Çalışıyordum".
  */
 export type AwayRule = 'ask' | 'count';
+
+/** The rule until the student chooses one in Settings (`loadAwayRule` in `kv.ts`). */
+export const DEFAULT_AWAY_RULE: AwayRule = 'count';
+
+/**
+ * Rule 'count': one absence counts as study for at most this long; what comes after it is handled
+ * like an absence under 'ask'. Same 3 hours as the default long-session reminder
+ * (`LONG_SESSION_HOURS.default` in `reminders.ts`, which imports this file; a test keeps them equal).
+ */
+export const AWAY_COUNT_MAX_MS = 3 * 3_600_000;
 
 /**
  * Study time of one session above which finishing asks first ("did you really study that long?").
@@ -68,6 +81,15 @@ export interface ClosedPause extends Pause {
   end: number;
 }
 
+/** Unanswered automatic breaks (`ActiveSession.pendingAway`). */
+export interface PendingAway extends Interval {
+  /**
+   * Rule 'count': the time away first counted as study for `AWAY_COUNT_MAX_MS`; only what came after
+   * is the break (the prompt says so). Missing = all of the time away is the break.
+   */
+  capped?: boolean;
+}
+
 export interface ActiveSession {
   id: string;
   subjectId: string;
@@ -81,7 +103,7 @@ export interface ActiveSession {
    * Automatic breaks the student has not answered yet: from the start of the first unanswered
    * one to the end of the last (in-app time between them was never a break).
    */
-  pendingAway: Interval | null;
+  pendingAway: PendingAway | null;
   /**
    * Heartbeat written while the timer runs in the foreground. If the app dies without a
    * background event (force quit, crash, battery), the gap after it is treated as away time.
@@ -265,46 +287,62 @@ export function onAppBackground(session: ActiveSession, now: number): ActiveSess
   return { ...session, backgroundedAt: now };
 }
 
-/** The app is active again. `rule` = the student's choice for time away (default 'ask'). */
+/**
+ * From when an absence that began at `awayStart` costs study time: at once under 'ask', after the
+ * time that counts (`AWAY_COUNT_MAX_MS`) under 'count'.
+ */
+function awayCostFrom(awayStart: number, rule: AwayRule): number {
+  return rule === 'count' ? awayStart + AWAY_COUNT_MAX_MS : awayStart;
+}
+
+/**
+ * The app is active again. `rule` = the student's choice for time away; the app always passes the
+ * stored one (`DEFAULT_AWAY_RULE` until chosen). Without it the strict 'ask' applies.
+ */
 export function onAppForeground(session: ActiveSession, now: number, rule: AwayRule = 'ask'): ActiveSession {
   const awayStart = session.backgroundedAt;
   if (awayStart === null) return session;
   const cleared: ActiveSession = { ...session, backgroundedAt: null, lastSeenAt: seenAt(session, now) };
-  // The student chose that time away counts as study: no break, nothing to ask.
-  if (rule === 'count') return cleared;
+  // 'count': the first hours of the absence are study time; only what comes after can be a break.
+  const from = awayCostFrom(awayStart, rule);
   // The study time the absence would cost: pomodoro breaks in it cost nothing (stopwatch: all of
   // it). Up to the tolerance nothing is asked. A clock that went backwards costs nothing.
   const breaks = pomodoroBreaks(session, now).map((b): Pause => ({ ...b, kind: 'break' }));
-  if (intervalsTotal(workIntervals(awayStart, breaks, now)) <= BACKGROUND_TOLERANCE_MS) return cleared;
+  if (intervalsTotal(workIntervals(from, breaks, now)) <= BACKGROUND_TOLERANCE_MS) return cleared;
+  const pending = session.pendingAway;
+  const capped = rule === 'count' || pending?.capped === true;
   return {
     ...cleared,
-    pauses: [...cleared.pauses, { start: awayStart, end: now, kind: 'away' }],
+    pauses: [...cleared.pauses, { start: from, end: now, kind: 'away' }],
     // Still unanswered from before: one prompt (and one answer) for both absences.
     // (min/max: with a clock that was set back the new absence can lie before the first one.)
-    pendingAway:
-      session.pendingAway === null
-        ? { start: awayStart, end: now }
-        : { start: Math.min(session.pendingAway.start, awayStart), end: Math.max(session.pendingAway.end, now) },
+    pendingAway: {
+      start: pending === null ? from : Math.min(pending.start, from),
+      end: pending === null ? now : Math.max(pending.end, now),
+      ...(capped ? { capped: true } : {}),
+    },
   };
 }
 
 /**
  * While the app is in the background: the moment from which the time away costs study time if the
  * student stays away longer than the tolerance (what `onAppForeground` then turns into a break).
- * `null` = nothing will be taken: in the foreground, manually paused, or rule 'count'.
- * Stopwatch and pomodoro work block: the background moment. Pomodoro break: the end of the break
- * (back before it, nothing is asked). A return that costs at most the tolerance keeps everything
- * (`elapsedMs(onAppForeground(s, later), later) === elapsedMs(s, later)`); this is always so up to
- * the tolerance after this moment, where the system surfaces may therefore freeze at the earliest.
- * After any costlier return, unless the student answers "Çalışıyordum", the study time kept is the
- * study time at this moment:
- * `elapsedMs(onAppForeground(s, later), later) === elapsedMs(s, provisionalAwayAt(s, 'ask'))`.
+ * `null` = nothing will be taken: in the foreground or manually paused.
+ * The time away starts to cost at the background moment ('ask') or `AWAY_COUNT_MAX_MS` after it
+ * ('count'). In a stopwatch or a pomodoro work block that is the answer; in a pomodoro break, the
+ * end of the break (back before it, nothing is asked). A return that costs at most the tolerance
+ * keeps everything (`elapsedMs(onAppForeground(s, later, rule), later) === elapsedMs(s, later)`);
+ * this is always so up to the tolerance after this moment, where the system surfaces may therefore
+ * freeze at the earliest. After any costlier return, unless the student answers "Çalışıyordum", the
+ * study time kept is the study time at this moment:
+ * `elapsedMs(onAppForeground(s, later, rule), later) === elapsedMs(s, provisionalAwayAt(s, rule))`.
  */
 export function provisionalAwayAt(session: ActiveSession, rule: AwayRule): number | null {
   const awayStart = session.backgroundedAt;
-  if (awayStart === null || isPaused(session) || rule === 'count') return null;
-  if (session.pomodoro === null || pomodoroStatus(session, awayStart)?.phase === 'work') return awayStart;
-  return upcomingPhaseChanges(session, awayStart, 1)[0]?.at ?? awayStart;
+  if (awayStart === null || isPaused(session)) return null;
+  const from = awayCostFrom(awayStart, rule);
+  if (session.pomodoro === null || pomodoroStatus(session, from)?.phase === 'work') return from;
+  return upcomingPhaseChanges(session, from, 1)[0]?.at ?? from;
 }
 
 /** Foreground heartbeat (see `lastSeenAt`). Only a running, foreground timer is marked. */

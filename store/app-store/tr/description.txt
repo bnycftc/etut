@@ -5,7 +5,7 @@ Etüt, sınava hazırlanan öğrenciler için bir çalışma sayacı ve deneme n
 ÇALIŞMA SAYACI
 - Kronometre ya da pomodoro. Pomodoro sürelerini ve uzun molanın aralığını sen ayarlarsın.
 - Ders ve istersen konu seçip başlat; mola ver, devam et, bitir.
-- Uygulamadan çıktığın süre mola sayılır; çalışıyorduysan "Çalışıyordum" ile süreye eklersin. İstersen ayarlardan bu süreyi doğrudan çalışma saydırırsın.
+- Telefonu kilitlesen de sayaç saymaya devam eder. 3 saatten uzun dışarıda kalırsan fazlası mola sayılır; çalışıyorduysan "Çalışıyordum" ile süreye eklersin. İstersen ayarlardan her çıkışın sorulmasını seçersin.
 - Sayacı açmayı unuttuysan son 7 gün için süreyi elle eklersin. Bu kayıtlar "elle" etiketiyle görünür.
 - Oturum sonunda kaç soru çözdüğünü yazabilirsin; isteğe bağlıdır.
 

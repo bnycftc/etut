@@ -11,7 +11,7 @@ import { StyleSheet } from 'react-native';
 
 import { DAY_MS, dayStartMs, istanbulDayKey } from '../domain/istanbul-day';
 import type { Profile } from '../domain/profile';
-import type { ActiveSession, CompletedSession } from '../domain/timer';
+import { type ActiveSession, AWAY_COUNT_MAX_MS, type CompletedSession } from '../domain/timer';
 
 jest.setTimeout(30_000);
 
@@ -234,19 +234,21 @@ describe('the tour again', () => {
     expect(screen.getByTestId('tips-card')).toBeTruthy();
     expect(screen.getByTestId('tips-step-title').props.children).toBe('Ders seç, Başla’ya dokun');
     fireEvent.press(screen.getByTestId('tips-next'));
-    // Wave-1 rules: the away setting, by its name in Ayarlar.
+    // Wave-1 rules: the away setting, by its name in Ayarlar; the hours that count from timer.ts.
     expect(screen.getByTestId('tips-step-title').props.children).toBe('Uygulamadan çıkarsan');
-    expect(screen.getByText(/“Çalışmaya devam say”/)).toBeTruthy();
+    expect(screen.getByText(/sayaç saymaya devam eder/)).toBeTruthy();
+    expect(screen.getByText(new RegExp(`${AWAY_COUNT_MAX_MS / 3_600_000} saatten uzun dışarıda kalırsan`))).toBeTruthy();
+    expect(screen.getByText(/Ayarlar → Sayaç çalışırken bölümünde “Sor”u seç/)).toBeTruthy();
     fireEvent.press(screen.getByTestId('tips-skip'));
     expect(screen.queryByTestId('tips-card')).toBeNull();
     expect(memory.tipsSeen).toBe(true);
     expect(screen.getByTestId('timer-start')).toBeTruthy();
   });
 
-  it('the first tip mentions the screen kept on, the lock screen timer and "Geri al"', () => {
+  it('the first tip mentions the lock screen timer and "Geri al" (the screen is no longer kept on by default)', () => {
     memory.tipsSeen = false;
     renderRouter(APP_DIR, { initialUrl: '/' });
-    expect(screen.getByText(/Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez/)).toBeTruthy();
+    expect(screen.queryByText(/kendiliğinden kilitlenmez/)).toBeNull();
     expect(screen.getByText(/kilit ekranında/)).toBeTruthy();
     expect(screen.getByText(/“Geri al”/)).toBeTruthy();
     fireEvent.press(screen.getByTestId('tips-next'));
@@ -286,7 +288,10 @@ describe('"Nasıl çalışır"', () => {
     // Timer numbers from timer.ts / finish.ts, the away setting by its name.
     expect(screen.getByText(/10 saniyeden uzun çıkarsan/)).toBeTruthy();
     expect(screen.getByText(/8 saniye içinde “Geri al”/)).toBeTruthy();
-    expect(screen.getByText(/Uygulamadan çıkınca bölümünde “Çalışmaya devam say”/)).toBeTruthy();
+    expect(screen.getByText(/Uygulamadan çıkınca bölümünde “Çalışmaya devam say” seçiliyse \(baştan böyledir\)/)).toBeTruthy();
+    expect(screen.getByText(/3 saatten uzun dışarıda kalırsan ilk 3 saatten sonrası mola sayılır/)).toBeTruthy();
+    expect(screen.getByText(/kronometre 3 saat dolunca durur/)).toBeTruthy();
+    expect(screen.getByText(/“Çalışmaya devam say” seçiliyse 3 saat sonra durur/)).toBeTruthy();
     // A force-closed app: the Lock Screen timer kept counting, the away setting decides (onAppLaunch).
     expect(screen.getByText(/^Uygulamayı tamamen kapatırsan .*“Uygulamadan çıkınca” ayarına göre/)).toBeTruthy();
     // iOS Focus is only explained; the app never turns it on.

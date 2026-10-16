@@ -1,5 +1,6 @@
-# o. Ayarlar → "Sayaç çalışırken": ekranı açık tut kapat/aç, "Çalışmaya devam say" (uzakta kartı yok,
-# kilit ekranındaki sayaç 10 sn'den sonra da "Çalışıyorsun" der)
+# o. Ayarlar → "Sayaç çalışırken": varsayılanlar (ekranı açık tut kapalı, "Çalışmaya devam say"),
+# "Sor" ve geri; uzakta kartı yok, kilit ekranındaki sayaç 10 sn'den sonra da "Çalışıyorsun" der;
+# ekranı açık tut aç/kapat
 appId: com.bnycftc.etut
 tags:
   - e2e
@@ -19,13 +20,27 @@ tags:
     direction: DOWN
     timeout: 20000
 - assertVisible:
-    id: settings-keep-awake-on
+    id: settings-keep-awake-off
     selected: true
+- assertVisible:
+    id: settings-away-count
+    selected: true
+- assertVisible:
+    id: settings-away-info
+    text: ".*3 saate kadar çalışma sayılır.*"
+- takeScreenshot: o-ayarlar-sayac-01-varsayilan
+# "Uygulamadan çıkınca": "Sor", then back to "Çalışmaya devam say" (two changes in a row here too).
+- tapOn:
+    id: settings-away-ask
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: settings-away-info
+      text: "10 saniyeden uzun.*"
+    timeout: 5000
 - assertVisible:
     id: settings-away-ask
     selected: true
-- takeScreenshot: o-ayarlar-sayac-01-varsayilan
-# "Uygulamadan çıkınca": "Çalışmaya devam say".
 - tapOn:
     id: settings-away-count
     retryTapIfNoChange: true
@@ -155,7 +170,7 @@ tags:
     visible:
       id: timer-saved
     timeout: 10000
-# "Ekranı açık tut": off, then on again (the default stays on). Two changes in a row on the same
+# "Ekranı açık tut": on, then off again (the default stays off). Two changes in a row on the same
 # screen: with the React Compiler a screen once stopped following taps after its first data
 # change (src/state/__tests__/use-stored-compiler.test.tsx); this guards that on the device.
 - tapOn:
@@ -169,19 +184,19 @@ tags:
     id: settings-away-count
     selected: true
 - tapOn:
-    id: settings-keep-awake-off
-    retryTapIfNoChange: true
-- extendedWaitUntil:
-    visible:
-      id: settings-keep-awake-off
-      selected: true
-    timeout: 5000
-- tapOn:
     id: settings-keep-awake-on
     retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: settings-keep-awake-on
+      selected: true
+    timeout: 5000
+- tapOn:
+    id: settings-keep-awake-off
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: settings-keep-awake-off
       selected: true
     timeout: 5000
 - takeScreenshot: o-ayarlar-sayac-05-ekran-acik
