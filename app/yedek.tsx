@@ -69,6 +69,8 @@ export default function BackupScreen() {
   const expired = undo !== null && replaceUndoExpired(undo.createdAt, now);
   // "Geri al" is a replace too: it asks first, with what will go.
   const [undoSure, setUndoSure] = useState<BackupCounts | null>(null);
+  // "Kopyayı sil" can not be taken back (the copy may be the only one): it asks first too.
+  const [discardSure, setDiscardSure] = useState(false);
   useEffect(() => {
     if (expired) storeReplaceUndo(null);
   }, [expired]);
@@ -130,10 +132,19 @@ export default function BackupScreen() {
       return;
     }
     try {
-      const counts = importBackup(pending, mode);
+      const result = importBackup(pending, mode);
+      setReplaceSure(null);
+      if (result.kind === 'copy_unreadable') {
+        setError(tr.backupSafety.copyUnreadable);
+        return;
+      }
+      if (result.kind === 'copy_incomplete') {
+        setError(tr.backupSafety.copyIncomplete(result.lostExams, result.lostTargets));
+        return;
+      }
+      const { counts } = result;
       setMessage(tr.backup.done(counts.sessions, counts.exams, counts.topics));
       setPending(null);
-      setReplaceSure(null);
     } catch {
       setError(tr.backup.failed);
     }
@@ -144,9 +155,16 @@ export default function BackupScreen() {
     setError(null);
     setUndoSure(null);
     try {
-      const counts = undoReplace();
-      if (counts === null) setError(tr.backupSafety.undoFailed);
-      else setMessage(tr.backupSafety.undone(counts.sessions, counts.exams, counts.topics));
+      const result = undoReplace();
+      if (result === null) setError(tr.backupSafety.undoFailed);
+      else {
+        const { counts, lostExams, lostTargets } = result;
+        setMessage(
+          lostExams + lostTargets > 0
+            ? tr.backupSafety.undonePartly(counts.sessions, counts.exams, counts.topics, lostExams, lostTargets)
+            : tr.backupSafety.undone(counts.sessions, counts.exams, counts.topics),
+        );
+      }
     } catch {
       setError(tr.backup.failed);
     }
@@ -154,6 +172,7 @@ export default function BackupScreen() {
   };
 
   const discardUndo = () => {
+    setDiscardSure(false);
     storeReplaceUndo(null);
     notifyDataChanged('settings');
   };
@@ -193,7 +212,25 @@ export default function BackupScreen() {
         <Card testID="backup-undo-card">
           <Label variant="heading">{tr.backupSafety.undoTitle}</Label>
           <Label variant="muted">{tr.backupSafety.undoInfo(formatMoment(undo.createdAt))}</Label>
-          {undoSure === null ? (
+          {discardSure ? (
+            <>
+              <Label testID="backup-undo-discard-sure" style={{ color: c.danger }}>
+                {tr.backupSafety.undoDiscardSure}
+              </Label>
+              <Button
+                testID="backup-undo-discard-yes"
+                kind="danger"
+                title={tr.backupSafety.undoDiscardYes}
+                onPress={discardUndo}
+              />
+              <Button
+                testID="backup-undo-discard-no"
+                kind="secondary"
+                title={tr.backupSafety.replaceNo}
+                onPress={() => setDiscardSure(false)}
+              />
+            </>
+          ) : undoSure === null ? (
             <>
               <Button
                 testID="backup-undo"
@@ -204,7 +241,7 @@ export default function BackupScreen() {
                 testID="backup-undo-discard"
                 kind="secondary"
                 title={tr.backupSafety.undoDiscard}
-                onPress={discardUndo}
+                onPress={() => setDiscardSure(true)}
               />
             </>
           ) : (

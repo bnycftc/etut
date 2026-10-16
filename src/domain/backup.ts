@@ -154,6 +154,32 @@ export function replaceUndoExpired(createdAt: number, now: number): boolean {
   return now - createdAt >= REPLACE_UNDO_MS;
 }
 
+/**
+ * The app's own copy taken before a replace, read back the way "Geri al" reads it: exactly, with
+ * wrong-clock sessions (`keepWrongClockSessions`). `lostExams` / `lostTargets`: what it holds that
+ * this version can not put back (it no longer fits the exam tables).
+ */
+export interface ReplaceUndoCopy {
+  file: BackupFile;
+  lostExams: number;
+  lostTargets: number;
+}
+
+/** `null` = the copy does not read at all. */
+export function readReplaceUndo(text: string): ReplaceUndoCopy | null {
+  const parsed = parseBackup(text, { keepWrongClockSessions: true });
+  return parsed.ok ? { file: parsed.file, lostExams: parsed.skippedExams, lostTargets: parsed.skippedTargets } : null;
+}
+
+/**
+ * Whether "Geri al" puts all of the copy back. A replace goes ahead only with a copy that does
+ * (checked as soon as it is made), and a copy that does not is kept after "Geri al": it still
+ * holds what could not be put back.
+ */
+export function replaceUndoComplete(copy: ReplaceUndoCopy): boolean {
+  return copy.lostExams === 0 && copy.lostTargets === 0;
+}
+
 export const EMPTY_SETTINGS: BackupSettings = {
   dailyGoalMinutes: null,
   pomodoro: null,

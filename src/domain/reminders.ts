@@ -56,8 +56,10 @@ export interface ReminderPrefs {
 }
 
 /**
- * What the explanation screen proposes: the daily reminder off, the others on. None of them is
- * scheduled before the student has confirmed reminders once (`effectiveReminderPrefs`).
+ * Defaults for fields missing from stored preferences. The `enabled` flags here never switch a
+ * reminder on by themselves: before the first confirmation every reminder is off
+ * (`effectiveReminderPrefs`), and confirming turns on only the one the student chose
+ * (`remindersAfterConfirm`), stored as a full set.
  */
 export const DEFAULT_REMINDER_PREFS: ReminderPrefs = {
   longSession: { enabled: true, hours: LONG_SESSION_HOURS.default },
@@ -82,6 +84,16 @@ export function effectiveReminderPrefs(prefs: ReminderPrefs, confirmed: boolean)
     daily: { ...prefs.daily, enabled: false },
     examAnalysis: { enabled: false },
   };
+}
+
+/**
+ * What the explanation screen stores once the permission is granted: the reminders in force now
+ * (all off before the first confirmation) plus the one the student turned on (`key`; `null` = only
+ * the permission was asked for). No other reminder comes on with it: each is turned on by itself.
+ */
+export function remindersAfterConfirm(stored: ReminderPrefs, confirmed: boolean, key: ReminderKey | null): ReminderPrefs {
+  const current = effectiveReminderPrefs(stored, confirmed);
+  return key === null ? current : { ...current, [key]: { ...current[key], enabled: true } };
 }
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {

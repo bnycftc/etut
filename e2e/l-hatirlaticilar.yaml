@@ -51,9 +51,11 @@ tags:
     timeout: 10000
 - assertVisible:
     id: notification-permission-item-daily
-# The proposed defaults are listed too (they come on with the permission).
-- assertVisible:
+# Only the reminder that was turned on comes on; the others stay off (each is turned on by itself).
+- assertNotVisible:
     id: notification-permission-item-longSession
+- assertVisible:
+    id: notification-permission-others-off
 # Apple HIG: one button ("Devam et") that leads to the system prompt, no second way out.
 - assertNotVisible:
     id: notification-permission-later

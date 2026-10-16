@@ -10,7 +10,7 @@ import { storeLastBackupAt } from '../storage/kv';
 import { tr } from '../strings';
 
 export type BackupExportResult =
-  | { kind: 'shared'; skippedSessions: number }
+  | { kind: 'shared'; skippedSessions: number; skippedExams: number; skippedTargets: number }
   | { kind: 'unavailable' }
   | { kind: 'check_failed' };
 
@@ -29,7 +29,12 @@ export async function shareBackup(file: BackupFile): Promise<BackupExportResult>
   if (result === 'unavailable') return { kind: 'unavailable' };
   // "Son yedek": the file was made and handed to the share sheet (where it went is not known).
   storeLastBackupAt(Date.now());
-  return { kind: 'shared', skippedSessions: check.skippedSessions };
+  return {
+    kind: 'shared',
+    skippedSessions: check.skippedSessions,
+    skippedExams: check.skippedExams,
+    skippedTargets: check.skippedTargets,
+  };
 }
 
 /** What the screen says after an export (`error` in the danger colour). */
@@ -39,9 +44,12 @@ export function backupExportText(result: BackupExportResult): { message: string 
       return { error: tr.backup.exportCheckFailed };
     case 'unavailable':
       return { error: tr.backup.unavailable };
-    case 'shared':
-      return {
-        message: result.skippedSessions > 0 ? tr.backup.exportSkipped(result.skippedSessions) : tr.backup.exported,
-      };
+    case 'shared': {
+      const message = result.skippedSessions > 0 ? tr.backup.exportSkipped(result.skippedSessions) : tr.backup.exported;
+      // Exams and net targets that no longer fit the exam tables would not load either: say so.
+      return result.skippedExams + result.skippedTargets > 0
+        ? { message: `${message} ${tr.backupSafety.exportSkipped(result.skippedExams, result.skippedTargets)}` }
+        : { message };
+    }
   }
 }

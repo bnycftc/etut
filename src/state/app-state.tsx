@@ -16,7 +16,8 @@ import {
   type ImportMode,
   importedProfile,
   mergeBackup,
-  parseBackup,
+  readReplaceUndo,
+  replaceUndoComplete,
   replaceUndoExpired,
   serializeBackup,
 } from '../domain/backup';
@@ -69,6 +70,20 @@ import { bumpVersions, type ChangedKinds, DATA_KINDS, type DataVersions, NO_CHAN
 
 export type SaveProfileResult = 'ok' | 'age_blocked';
 
+export type ImportResult =
+  | { kind: 'done'; counts: BackupCounts }
+  /** "Değiştir" not done (nothing written): the copy for "Geri al" does not read back… */
+  | { kind: 'copy_unreadable' }
+  /** …or would not put these back (they no longer fit the exam tables). */
+  | { kind: 'copy_incomplete'; lostExams: number; lostTargets: number };
+
+export interface UndoReplaceResult {
+  counts: BackupCounts;
+  /** Left out of the copy because they no longer fit the exam tables; the copy is then kept. */
+  lostExams: number;
+  lostTargets: number;
+}
+
 export interface FinishOptions {
   /** Save only this much study time (the student said a very long session was not all study). */
   maxStudyMs?: number;
@@ -107,10 +122,11 @@ interface AppStateValue {
    * Writes the merged/replaced data and applies the K-17 profile rule. Before a replace, the data
    * on this device is kept as a copy for `undoReplace`, unless a copy from an earlier replace can
    * still be undone: that one is kept (the data in between came from a file the student has).
+   * A replace whose new copy would not put everything back is refused.
    */
-  importBackup: (file: BackupFile, mode: ImportMode) => BackupCounts;
+  importBackup: (file: BackupFile, mode: ImportMode) => ImportResult;
   /** Puts back the data from before the last replace; `null` = no copy (or an unreadable one). */
-  undoReplace: () => BackupCounts | null;
+  undoReplace: () => UndoReplaceResult | null;
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null);
@@ -295,20 +311,27 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       // A second replace within the window keeps the first copy: "Geri al" always goes back to the
       // data from before the first replace, which no file may hold.
       if (mode === 'replace' && (undo === null || !canUndoReplace(undo.createdAt, now))) {
-        storeReplaceUndo({ createdAt: now, text: serializeBackup(buildBackupFile(current, profile, now, '')) });
+        const text = serializeBackup(buildBackupFile(current, profile, now, ''));
+        // Read it back before anything goes: no replace without a copy that brings all of it back.
+        const copy = readReplaceUndo(text);
+        if (copy === null) return { kind: 'copy_unreadable' };
+        if (!replaceUndoComplete(copy)) {
+          return { kind: 'copy_incomplete', lostExams: copy.lostExams, lostTargets: copy.lostTargets };
+        }
+        storeReplaceUndo({ createdAt: now, text });
       }
-      return importData(current, file, mode);
+      return { kind: 'done', counts: importData(current, file, mode) };
     },
     undoReplace: () => {
       const undo = loadReplaceUndo();
       if (undo === null) return null;
-      // Our own copy: read back exactly, sessions with a wrong-clock time included.
-      const parsed = parseBackup(undo.text, { keepWrongClockSessions: true });
-      // An unreadable copy is kept (it may still be all there is); a used one is not.
-      if (!parsed.ok) return null;
-      const counts = importData(readBackupData(), parsed.file, 'replace');
-      storeReplaceUndo(null);
-      return counts;
+      const copy = readReplaceUndo(undo.text);
+      // An unreadable copy is kept (it may still be all there is); a used one is not, unless it
+      // holds something this version could not put back.
+      if (copy === null) return null;
+      const counts = importData(readBackupData(), copy.file, 'replace');
+      if (replaceUndoComplete(copy)) storeReplaceUndo(null);
+      return { counts, lostExams: copy.lostExams, lostTargets: copy.lostTargets };
     },
   };
 

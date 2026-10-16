@@ -14,6 +14,7 @@ import {
   POMODORO_CHANGES_AHEAD,
   type ReminderInput,
   type ReminderPrefs,
+  remindersAfterConfirm,
   runningStretchStart,
 } from '../reminders';
 import { finishSession, onAppBackground, onAppForeground, pauseSession, resumeSession, startSession } from '../timer';
@@ -68,6 +69,20 @@ describe('reminder preferences', () => {
     ).toEqual([]);
     // Once confirmed, the stored choices apply unchanged.
     expect(effectiveReminderPrefs(DEFAULT_REMINDER_PREFS, true)).toBe(DEFAULT_REMINDER_PREFS);
+  });
+
+  it('confirming turns on only the reminder the student turned on, nothing else with it', () => {
+    // First confirmation: the defaults on paper do not come on with the daily reminder.
+    expect(remindersAfterConfirm(DEFAULT_REMINDER_PREFS, false, 'daily')).toEqual({
+      ...OFF,
+      daily: { enabled: true, hour: 20, minute: 0 },
+    });
+    // Only the permission asked for: nothing comes on.
+    expect(remindersAfterConfirm(DEFAULT_REMINDER_PREFS, false, null)).toEqual(OFF);
+    // Already confirmed: the student's own choices stay, the requested one is added.
+    const mine = { ...OFF, examAnalysis: { enabled: true } };
+    expect(remindersAfterConfirm(mine, true, 'pomodoro')).toEqual({ ...mine, pomodoro: { enabled: true } });
+    expect(remindersAfterConfirm(mine, true, null)).toBe(mine);
   });
 });
 

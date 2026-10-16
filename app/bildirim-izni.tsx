@@ -1,9 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 
-import { DEFAULT_REMINDER_PREFS, type ReminderKey, type ReminderPrefs } from '@/domain/reminders';
+import { DEFAULT_REMINDER_PREFS, type ReminderKey, type ReminderPrefs, remindersAfterConfirm } from '@/domain/reminders';
 import { useAppState, useStored } from '@/state/app-state';
-import { loadReminderPrefs, storeReminderPrefs, storeRemindersConfirmed } from '@/storage/kv';
+import { loadReminderPrefs, loadRemindersConfirmed, storeReminderPrefs, storeRemindersConfirmed } from '@/storage/kv';
 import { tr } from '@/strings';
 import { notifications } from '@/system/notifications';
 import type { NotificationPermission } from '@/system/types';
@@ -36,12 +36,13 @@ export default function NotificationPermissionScreen() {
   const { enable } = useLocalSearchParams<{ enable?: string }>();
   const { dataVersions, notifyDataChanged } = useAppState();
   const stored = useStored(`reminders|${dataVersions.settings}`, loadReminderPrefs);
+  const confirmed = useStored(`reminders-confirmed|${dataVersions.settings}`, loadRemindersConfirmed);
   const [result, setResult] = useState<NotificationPermission | null>(null);
   const [asking, setAsking] = useState(false);
 
   const key = REMINDER_KEYS.find((k) => k === enable) ?? null;
-  // What will be on once the permission is granted (the requested one included).
-  const prefs: ReminderPrefs = key === null ? stored : { ...stored, [key]: { ...stored[key], enabled: true } };
+  // What will be on once the permission is granted: the requested one, nothing else with it.
+  const prefs = remindersAfterConfirm(stored, confirmed, key);
   const willBeOn = REMINDER_KEYS.filter((k) => prefs[k].enabled);
 
   const allow = async () => {
@@ -64,12 +65,25 @@ export default function NotificationPermissionScreen() {
       <Card>
         <Label variant="heading">{tr.notificationPermission.heading}</Label>
         <Label>{tr.notificationPermission.body}</Label>
-        <Label variant="muted">{tr.notificationPermission.willBeOn}</Label>
-        {willBeOn.map((k) => (
-          <Label key={k} testID={`notification-permission-item-${k}`}>
-            {`• ${reminderLabel(k, prefs)}`}
+        {willBeOn.length > 0 ? (
+          <>
+            <Label variant="muted">{tr.notificationPermission.willBeOn}</Label>
+            {willBeOn.map((k) => (
+              <Label key={k} testID={`notification-permission-item-${k}`}>
+                {`• ${reminderLabel(k, prefs)}`}
+              </Label>
+            ))}
+            {willBeOn.length < REMINDER_KEYS.length ? (
+              <Label testID="notification-permission-others-off" variant="muted">
+                {tr.notificationPermission.othersOff}
+              </Label>
+            ) : null}
+          </>
+        ) : (
+          <Label testID="notification-permission-none-on" variant="muted">
+            {tr.notificationPermission.noneOn}
           </Label>
-        ))}
+        )}
         <Label variant="small">{tr.notificationPermission.local}</Label>
         <Label variant="small">{tr.notificationPermission.later}</Label>
       </Card>
