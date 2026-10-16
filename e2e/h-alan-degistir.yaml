@@ -33,8 +33,9 @@ tags:
     id: settings-exam-current
     text: "YKS · Eşit Ağırlık"
 - takeScreenshot: h-alan-02-ayarlar
-# Sınav tarihi saves without a button: a typed date is kept once the field is left (the tap on the
-# label closes the keyboard). Two years ahead stays inside the allowed range on any run date.
+# Sınav tarihi saves without a button: a typed date is kept once the field is left. Return on the
+# keyboard leaves the field and closes the keyboard (a tap on the label does not close it on iOS,
+# and the open keyboard then covers the tab bar). Two years ahead stays inside the allowed range.
 - scrollUntilVisible:
     element:
       id: settings-exam-date-input
@@ -47,8 +48,7 @@ tags:
 - waitForAnimationToEnd:
     timeout: 5000
 - inputText: "15.05.${new Date().getFullYear() + 2}"
-- tapOn:
-    id: settings-exam-date
+- pressKey: Enter
 - waitForAnimationToEnd:
     timeout: 5000
 - extendedWaitUntil:
