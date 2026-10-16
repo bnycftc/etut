@@ -53,7 +53,7 @@ export const TimerActivity = (props: TimerActivityProps, environment: LiveActivi
       ? new Date(props.pausedAt)
       : undefined;
   const countsDown = showNext ? true : props.countsDown;
-  const accent = environment.isLuminanceReduced === true ? '#FFFFFF' : '#4C8DFF';
+  const accent = environment.isLuminanceReduced === true ? '#FFFFFF' : '#5C7CFA';
   const secondary = foregroundStyle({ type: 'hierarchical', style: 'secondary' });
 
   const clock = (size: number, maxWidth: number) => (

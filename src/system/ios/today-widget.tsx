@@ -28,8 +28,8 @@ export const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironm
   const dark = environment.colorScheme === 'dark';
   const accessory = environment.widgetFamily === 'accessoryRectangular';
   const fullColor = environment.widgetRenderingMode === undefined || environment.widgetRenderingMode === 'fullColor';
-  const accent = !fullColor ? '#FFFFFF' : dark ? '#4C8DFF' : '#1F6FEB';
-  const background = containerBackground(accessory ? 'transparent' : dark ? '#161B22' : '#FFFFFF', 'widget');
+  const accent = !fullColor ? '#FFFFFF' : dark ? '#5C7CFA' : '#3B5BDB';
+  const background = containerBackground(accessory ? 'transparent' : dark ? '#151B2B' : '#FFFFFF', 'widget');
   const secondary = foregroundStyle({ type: 'hierarchical', style: 'secondary' });
   const countingFrom = props.countingFrom;
 

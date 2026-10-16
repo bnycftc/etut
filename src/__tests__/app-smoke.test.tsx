@@ -2126,14 +2126,23 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
     expect(memory.profile).not.toBeNull();
   });
 
-  it.each([
-    [1, 'row'],
-    [2, 'column'],
-  ])('text size %d: the two week buttons are laid out in a %s', (fontScale, direction) => {
+  it.each([1, 3])('text size %d: the ‹ › week buttons stay on either side of the week, which wraps between them', (fontScale) => {
     textSize(fontScale);
     memory.profile = ADULT_SAYISAL;
     renderRouter(APP_DIR, { initialUrl: '/haftalik' });
-    expect(directions(screen.getByTestId('weekly-next'))[0]).toBe(direction);
+    const prev = screen.getByTestId('weekly-prev');
+    const next = screen.getByTestId('weekly-next');
+    // Icon buttons do not clip at any size, so the row never stacks; the week's name takes the rest.
+    expect(directions(prev)[0]).toBe('row');
+    expect(directions(next)[0]).toBe('row');
+    let row = next.parent;
+    while (row !== null && typeof row.type !== 'string') row = row.parent;
+    expect(row !== null && contains(row, 'weekly-prev')).toBe(true);
+    const label = row?.findAll((n) => typeof n.type === 'string' && RN.StyleSheet.flatten(n.props.style)?.flex === 1) ?? [];
+    expect(label).toHaveLength(1);
+    // Named for screen readers by what they do (the arrows are only drawn).
+    expect(prev.props.accessibilityLabel).toBe('Önceki hafta');
+    expect(next.props.accessibilityLabel).toBe('Sonraki hafta');
   });
 
   it.each([

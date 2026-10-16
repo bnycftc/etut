@@ -29,7 +29,7 @@ import {
 } from '@/storage/sessions';
 import { tr } from '@/strings';
 import { syncFinishedSession, syncManualDeleted } from '@/sync/session-sync';
-import { Button, Card, Chip, ChipRow, Field, Label, ResponsiveRow, Row, Screen, Tag } from '@/ui/components';
+import { Button, Card, Chip, ChipRow, Field, Label, PeriodNav, ResponsiveRow, Row, Screen, Tag } from '@/ui/components';
 import { formatDay, formatDuration, topicLabel } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
 import { TopicPicker } from '@/ui/topic-picker';
@@ -141,23 +141,21 @@ export default function ManualEntryScreen() {
 
       <Card>
         <Label variant="heading">{tr.manual.day}</Label>
-        <ResponsiveRow>
-          <Button
-            testID="manual-prev-day"
-            kind="secondary"
-            title={tr.exams.prevDay}
-            disabled={day <= earliestManualDay(now)}
-            onPress={() => setDay(addDays(day, -1))}
-          />
-          <Button
-            testID="manual-next-day"
-            kind="secondary"
-            title={tr.exams.nextDay}
-            disabled={day >= today}
-            onPress={() => setDay(addDays(day, 1))}
-          />
-        </ResponsiveRow>
-        <Label variant="muted">{day === today ? tr.history.todayLabel : formatDay(day)}</Label>
+        <PeriodNav
+          label={day === today ? tr.history.todayLabel : formatDay(day)}
+          prev={{
+            testID: 'manual-prev-day',
+            title: tr.exams.prevDay,
+            disabled: day <= earliestManualDay(now),
+            onPress: () => setDay(addDays(day, -1)),
+          }}
+          next={{
+            testID: 'manual-next-day',
+            title: tr.exams.nextDay,
+            disabled: day >= today,
+            onPress: () => setDay(addDays(day, 1)),
+          }}
+        />
 
         <Label variant="heading">{tr.manual.duration}</Label>
         <ChipRow>

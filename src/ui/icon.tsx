@@ -23,6 +23,8 @@ const ICONS = {
   weekly: { ios: 'chart.bar', android: 'bar_chart', web: 'bar_chart' },
   share: { ios: 'square.and.arrow.up', android: 'ios_share', web: 'ios_share' },
   chevron: { ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' },
+  chevronLeft: { ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' },
+  info: { ios: 'info.circle', android: 'info', web: 'info' },
   report: { ios: 'list.clipboard', android: 'assignment', web: 'assignment' },
 } as const satisfies Record<string, SymbolViewProps['name']>;
 

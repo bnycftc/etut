@@ -17,7 +17,7 @@ import { useStudyStats } from '@/state/study-stats';
 import { sessionsOverlapping } from '@/storage/sessions';
 import { loadSubjectTargets } from '@/storage/subject-targets';
 import { tr } from '@/strings';
-import { BarChart, Button, Card, Dot, EmptyState, Label, ProgressBar, ResponsiveRow, Row, Screen, Tag } from '@/ui/components';
+import { BarChart, Button, Card, Dot, EmptyState, Label, PeriodNav, ProgressBar, Row, Screen, Tag } from '@/ui/components';
 import { formatDay, formatDuration } from '@/ui/format';
 import { Icon } from '@/ui/icon';
 import { MonthCalendar } from '@/ui/month-calendar';
@@ -67,17 +67,11 @@ export default function WeeklyScreen() {
 
   return (
     <Screen>
-      <ResponsiveRow>
-        <Button testID="weekly-prev" kind="secondary" title={tr.weekly.prev} onPress={() => setOffset(offset - 1)} />
-        <Button
-          testID="weekly-next"
-          kind="secondary"
-          title={tr.weekly.next}
-          disabled={offset >= 0}
-          onPress={() => setOffset(offset + 1)}
-        />
-      </ResponsiveRow>
-      <Label variant="muted">{tr.weekly.range(formatDay(weekStart), formatDay(addDays(weekStart, 6)))}</Label>
+      <PeriodNav
+        label={tr.weekly.range(formatDay(weekStart), formatDay(addDays(weekStart, 6)))}
+        prev={{ testID: 'weekly-prev', title: tr.weekly.prev, onPress: () => setOffset(offset - 1) }}
+        next={{ testID: 'weekly-next', title: tr.weekly.next, disabled: offset >= 0, onPress: () => setOffset(offset + 1) }}
+      />
 
       <Card>
         <Row>
@@ -229,24 +223,18 @@ export default function WeeklyScreen() {
 
       <Card testID="monthly-card">
         <Label variant="heading">{tr.monthly.title}</Label>
-        <ResponsiveRow>
-          <Button
-            testID="monthly-prev"
-            kind="secondary"
-            title={tr.monthly.prev}
-            onPress={() => setMonthOffset(monthOffset - 1)}
-          />
-          <Button
-            testID="monthly-next"
-            kind="secondary"
-            title={tr.monthly.next}
-            disabled={monthOffset >= 0}
-            onPress={() => setMonthOffset(monthOffset + 1)}
-          />
-        </ResponsiveRow>
-        <Label variant="heading" testID="monthly-month">
-          {tr.monthly.month(monthly.year, monthly.month)}
-        </Label>
+        <PeriodNav
+          heading
+          label={tr.monthly.month(monthly.year, monthly.month)}
+          labelTestID="monthly-month"
+          prev={{ testID: 'monthly-prev', title: tr.monthly.prev, onPress: () => setMonthOffset(monthOffset - 1) }}
+          next={{
+            testID: 'monthly-next',
+            title: tr.monthly.next,
+            disabled: monthOffset >= 0,
+            onPress: () => setMonthOffset(monthOffset + 1),
+          }}
+        />
         {monthly.studyDays === 0 ? (
           <Label variant="muted" testID="monthly-empty">
             {tr.monthly.empty}

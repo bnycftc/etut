@@ -4,8 +4,9 @@ import { DARK, type Palette } from './theme';
  * One stable colour per subject, the same on every screen (chips, running timer, history,
  * weekly summary). Related subjects share a family (Matematik blue / Geometri cyan, Türkçe red /
  * Edebiyat pink, Fen green-violet-orange…). Colour is only ever a second cue next to the subject
- * name, never the only one. Each value is ≥ 3:1 against `surface` and `background` of its theme
- * (`src/domain/__tests__/contrast.test.ts` checks every timer subject).
+ * name, never the only one. Each value is ≥ 3:1 against `surface` and `background` of its theme,
+ * and as the fill of a selected chip it carries the `onSubject` label at ≥ 4.5:1 (white in light,
+ * the dark background in dark; `src/domain/__tests__/contrast.test.ts` checks every timer subject).
  */
 export const SUBJECT_COLORS: Record<string, { light: string; dark: string }> = {
   matematik: { light: '#2563EB', dark: '#60A5FA' },
@@ -13,7 +14,7 @@ export const SUBJECT_COLORS: Record<string, { light: string; dark: string }> = {
   turkce: { light: '#DC2626', dark: '#F87171' },
   edebiyat: { light: '#DB2777', dark: '#F472B6' },
   fizik: { light: '#7C3AED', dark: '#A78BFA' },
-  kimya: { light: '#EA580C', dark: '#FB923C' },
+  kimya: { light: '#C2410C', dark: '#FB923C' },
   biyoloji: { light: '#15803D', dark: '#4ADE80' },
   fen: { light: '#047857', dark: '#34D399' },
   tarih: { light: '#B45309', dark: '#FBBF24' },

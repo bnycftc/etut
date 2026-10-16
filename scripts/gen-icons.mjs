@@ -7,7 +7,8 @@
  *   node scripts/gen-icons.mjs --preview  # also writes small-size previews to test-results/icons/
  *
  * assets/icon.png is 1024×1024 without an alpha channel (App Store requirement): the RGBA output
- * of resvg is written as an RGB PNG. Colours match src/ui/theme.ts (accent, background).
+ * of resvg is written as an RGB PNG. The splash colours come from src/ui/palette.ts (the brand blue
+ * and the backgrounds; Node strips its types, and says once that it reads it as a module).
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -17,14 +18,24 @@ import { crc32, deflateSync } from 'node:zlib';
 
 import { Resvg } from '@resvg/resvg-js';
 
+import { BRAND_BLUE, DARK, LIGHT } from '../src/ui/palette.ts';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ASSETS = path.join(ROOT, 'assets');
 
-/** Theme colours (src/ui/theme.ts). */
-const LIGHT_BG = '#F6F7F9';
-const LIGHT_ACCENT = '#1B64DA';
-const DARK_BG = '#0D1117';
-const DARK_ACCENT = '#4C8DFF';
+/** Theme colours (src/ui/palette.ts): the splash screen shows the brand blue on the background. */
+const LIGHT_BG = LIGHT.background;
+const LIGHT_ACCENT = BRAND_BLUE.light;
+const DARK_BG = DARK.background;
+const DARK_ACCENT = BRAND_BLUE.dark;
+
+/** `#RRGGBB` at `alpha` as an SVG colour (the faint track of the timer arc). */
+function rgba(hex, alpha) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+const LIGHT_TRACK = rgba(LIGHT_ACCENT, 0.18);
+const DARK_TRACK = rgba(DARK_ACCENT, 0.22);
 
 /** Timer arc (three quarters, clockwise from the top) around a geometric "E", plus the crown. */
 function mark({ fg, track }) {
@@ -118,8 +129,8 @@ function writePng(file, svg, width, alpha) {
 
 writePng(path.join(ASSETS, 'icon.png'), ICON_SVG, 1024, false);
 writePng(path.join(ASSETS, 'favicon.png'), ICON_SVG, 48, false);
-writePng(path.join(ASSETS, 'splash-icon.png'), splashSvg(LIGHT_ACCENT, 'rgba(27,100,218,0.18)'), 512, true);
-writePng(path.join(ASSETS, 'splash-icon-dark.png'), splashSvg(DARK_ACCENT, 'rgba(76,141,255,0.22)'), 512, true);
+writePng(path.join(ASSETS, 'splash-icon.png'), splashSvg(LIGHT_ACCENT, LIGHT_TRACK), 512, true);
+writePng(path.join(ASSETS, 'splash-icon-dark.png'), splashSvg(DARK_ACCENT, DARK_TRACK), 512, true);
 
 if (process.argv.includes('--preview')) {
   const out = path.join(ROOT, 'test-results', 'icons');
@@ -127,8 +138,8 @@ if (process.argv.includes('--preview')) {
   for (const size of [60, 120, 180]) writePng(path.join(out, `icon-${size}.png`), ICON_SVG, size, false);
   // Splash marks on their backgrounds, as the system shows them.
   for (const [name, bg, accent, track] of [
-    ['splash-light', LIGHT_BG, LIGHT_ACCENT, 'rgba(27,100,218,0.18)'],
-    ['splash-dark', DARK_BG, DARK_ACCENT, 'rgba(76,141,255,0.22)'],
+    ['splash-light', LIGHT_BG, LIGHT_ACCENT, LIGHT_TRACK],
+    ['splash-dark', DARK_BG, DARK_ACCENT, DARK_TRACK],
   ]) {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
       <rect width="1024" height="1024" fill="${bg}"/>${mark({ fg: accent, track })}</svg>`;

@@ -1,98 +1,52 @@
-import { useColorScheme, useWindowDimensions } from 'react-native';
+import { Platform, type TextStyle, useColorScheme, useWindowDimensions } from 'react-native';
 
-/**
- * Colour tokens. Checked against WCAG 2.x AA by `src/domain/__tests__/contrast.test.ts`:
- * text ≥ 4.5:1 on `background` and `surface` (and on the soft tints it is drawn on), button
- * labels on their fills, and ≥ 3:1 for `controlBorder` (input, chip and button outlines), chart
- * `bar`s, filled controls and the subject colours (`subject-colors.ts`).
- * `border` is only the hairline around cards and is decorative.
- */
-export interface Palette {
-  background: string;
-  surface: string;
-  border: string;
-  /** Outline of interactive controls (inputs, chips, secondary buttons). */
-  controlBorder: string;
-  text: string;
-  textMuted: string;
-  /** Brand colour for tints, links, progress and text. */
-  accent: string;
-  accentText: string;
-  /** Soft brand tint behind the "today" card. */
-  accentSoft: string;
-  /** Fill of primary buttons and selected chips, with its label colour. */
-  primary: string;
-  onPrimary: string;
-  /** Saved / done / running. */
-  success: string;
-  successSoft: string;
-  /** Daily streak ("seri"). */
-  streak: string;
-  warning: string;
-  danger: string;
-  /** Fill of destructive buttons ("Bitir", "Sil"), with its label colour. */
-  dangerFill: string;
-  onDanger: string;
-  /** Disabled control fill (its label is `textMuted`). */
-  disabled: string;
-  bar: string;
-  barMuted: string;
-}
+import { DARK, LIGHT, type Palette } from './palette';
 
-export const LIGHT: Palette = {
-  background: '#F6F7F9',
-  surface: '#FFFFFF',
-  border: '#E1E4E8',
-  controlBorder: '#848D97',
-  text: '#111418',
-  textMuted: '#5B6470',
-  accent: '#3B5BDB',
-  accentText: '#FFFFFF',
-  accentSoft: '#F0F3FE',
-  primary: '#3B5BDB',
-  onPrimary: '#FFFFFF',
-  success: '#1F7A45',
-  successSoft: '#E6F4EA',
-  streak: '#B3460B',
-  warning: '#8A5C00',
-  danger: '#C21F2B',
-  dangerFill: '#C21F2B',
-  onDanger: '#FFFFFF',
-  disabled: '#E4E7EB',
-  bar: '#5873DC',
-  barMuted: '#D0D7DE',
-};
-
-export const DARK: Palette = {
-  background: '#0D1117',
-  surface: '#161B22',
-  border: '#30363D',
-  controlBorder: '#656D76',
-  text: '#E6EDF3',
-  textMuted: '#9DA7B3',
-  accent: '#91A7FF',
-  accentText: '#0D1117',
-  accentSoft: '#1A2036',
-  // iOS-style filled button: white label on a deeper blue than the text accent.
-  primary: '#4263EB',
-  onPrimary: '#FFFFFF',
-  success: '#5CC98A',
-  successSoft: '#14261C',
-  streak: '#F59E5B',
-  warning: '#D29922',
-  danger: '#F85149',
-  dangerFill: '#D1242F',
-  onDanger: '#FFFFFF',
-  disabled: '#262C35',
-  bar: '#5C7CFA',
-  barMuted: '#30363D',
-};
+/** Colour tokens live in `palette.ts` (no React Native import, shared with scripts and tests). */
+export { BRAND_BLUE, DARK, LIGHT, type Palette } from './palette';
 
 export function usePalette(): Palette {
   return useColorScheme() === 'dark' ? DARK : LIGHT;
 }
 
-export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
+/** Spacing: cards 16 apart (`lg`), sections 32 (`xxl`). */
+export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 40 } as const;
+
+/**
+ * SF Rounded for numbers and screen titles: the system font in its rounded design (iOS maps
+ * `ui-rounded` to it; no font file, Dynamic Type works as with the default face). The web
+ * preview uses the browser's rounded face where it has one, else the system font; Android keeps
+ * its default face.
+ */
+export const ROUNDED_FONT = Platform.select({ ios: 'ui-rounded', web: 'ui-rounded, System' });
+
+const tabular: TextStyle['fontVariant'] = ['tabular-nums'];
+
+/**
+ * Type scale. Body text is the system font (SF Pro); numbers and screen titles are rounded with
+ * tabular digits, the same "clock voice" as the Live Activity and the widget
+ * (`font({ design: 'rounded' })`). Everything scales with Dynamic Type; only the timer digits and
+ * the header buttons are capped (`MAX_FONT_SCALE`).
+ */
+export const typography = {
+  /** The running timer's digits. */
+  clock: { fontFamily: ROUNDED_FONT, fontSize: 72, fontWeight: '700', letterSpacing: -2, fontVariant: tabular },
+  /** The one hero number of a screen: today's total, a net, the time just saved. */
+  display: { fontFamily: ROUNDED_FONT, fontSize: 40, fontWeight: '800', letterSpacing: -0.5, fontVariant: tabular },
+  /** Numbers in stat tiles and lists ("30 sa 38 dk", "11,5 net"). */
+  displaySmall: { fontFamily: ROUNDED_FONT, fontSize: 24, fontWeight: '800', fontVariant: tabular },
+  largeTitle: { fontFamily: ROUNDED_FONT, fontSize: 34, fontWeight: '700', fontVariant: tabular },
+  title: { fontFamily: ROUNDED_FONT, fontSize: 28, fontWeight: '700', fontVariant: tabular },
+  /** Card titles: set apart from the 16 pt body. */
+  heading: { fontSize: 20, fontWeight: '700' },
+  body: { fontSize: 16, lineHeight: 22 },
+  muted: { fontSize: 15, lineHeight: 21 },
+  small: { fontSize: 13 },
+  /** Section title above a group, outside its card (written in capitals). */
+  section: { fontSize: 13, fontWeight: '600' },
+  /** Smallest chart text (axis, values). */
+  chartLabel: { fontSize: 12, fontWeight: '600' },
+} as const satisfies Record<string, TextStyle>;
 
 /**
  * Largest Dynamic Type / font scale multiplier for the big timer digits (they must stay on one

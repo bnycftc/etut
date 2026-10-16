@@ -27,7 +27,7 @@ import {
 } from '../domain/net';
 import { useNow } from '../state/app-state';
 import { tr } from '../strings';
-import { Button, Card, Chip, ChipRow, HeaderButton, Label, ResponsiveRow, Row } from './components';
+import { Button, Card, Chip, ChipRow, HeaderButton, Label, PeriodNav, ResponsiveRow, Row } from './components';
 import { formatDay } from './format';
 import { InfoLink } from './info-link';
 import { space, usePalette } from './theme';
@@ -326,24 +326,17 @@ export function ExamForm({
               onPress={() => setDay(yesterday)}
             />
           </ChipRow>
-          <ResponsiveRow>
-            <Button
-              testID="exam-prev-day"
-              kind="secondary"
-              title={tr.exams.prevDay}
-              onPress={() => setDay(addDays(day, -1))}
-            />
-            <Button
-              testID="exam-next-day"
-              kind="secondary"
-              title={tr.exams.nextDay}
-              disabled={day >= today}
-              onPress={() => setDay(addDays(day, 1))}
-            />
-          </ResponsiveRow>
-          <Label variant="muted" testID="exam-day">
-            {formatDay(day)}
-          </Label>
+          <PeriodNav
+            label={formatDay(day)}
+            labelTestID="exam-day"
+            prev={{ testID: 'exam-prev-day', title: tr.exams.prevDay, onPress: () => setDay(addDays(day, -1)) }}
+            next={{
+              testID: 'exam-next-day',
+              title: tr.exams.nextDay,
+              disabled: day >= today,
+              onPress: () => setDay(addDays(day, 1)),
+            }}
+          />
         </Card>
 
         <Card>

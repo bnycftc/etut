@@ -154,7 +154,7 @@ export default function ExamsScreen() {
           {tr.exams.noFormNote}
         </Label>
       ) : (
-        <Button large testID="exams-add" title={tr.exams.add} onPress={() => router.push('/deneme/yeni')} />
+        <Button tall testID="exams-add" title={tr.exams.add} onPress={() => router.push('/deneme/yeni')} />
       )}
 
       {saved !== null ? (

@@ -43,6 +43,7 @@ import {
   ResponsiveRow,
   Row,
   Screen,
+  Section,
   Tag,
 } from '@/ui/components';
 import { BackupNudge } from '@/ui/backup-reminder';
@@ -565,8 +566,7 @@ export default function TimerScreen() {
       )}
 
       {/* Secondary: everything that is not "pick a subject and start". Geçmiş is in the header. */}
-      <Card>
-        <Label variant="heading">{tr.home.shortcuts}</Label>
+      <Section title={tr.home.shortcuts}>
         {active === null ? (
           <>
             <ListRow
@@ -590,7 +590,7 @@ export default function TimerScreen() {
             router.push({ pathname: '/karne/[subject]', params: { subject: active?.subjectId ?? subjectId } })
           }
         />
-      </Card>
+      </Section>
 
       {active === null ? <BackupNudge studyDays={studyDays} now={now} /> : null}
 

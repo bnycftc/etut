@@ -564,8 +564,9 @@ export const tr = {
   weekly: {
     title: 'Haftalık özet',
     range: (from: string, to: string) => `${from} – ${to}`,
-    prev: '‹ Önceki hafta',
-    next: 'Sonraki hafta ›',
+    /** Screen-reader names of the ‹ › buttons around the week. */
+    prev: 'Önceki hafta',
+    next: 'Sonraki hafta',
     total: 'Toplam',
     previousWeek: (duration: string) => `Önceki hafta: ${duration}`,
     subjects: 'Ders dağılımı',
@@ -683,8 +684,9 @@ export const tr = {
     scope: 'Deneme türü',
     section: 'Ders',
     date: 'Deneme tarihi',
-    prevDay: '‹ Önceki gün',
-    nextDay: 'Sonraki gün ›',
+    /** Screen-reader names of the ‹ › buttons around the day. */
+    prevDay: 'Önceki gün',
+    nextDay: 'Sonraki gün',
     correct: 'Doğru',
     wrong: 'Yanlış',
     /** Screen-reader name of a count box: which section it belongs to. */
@@ -1501,9 +1503,8 @@ export const tr = {
     showTips: 'Turu yeniden göster',
   },
 
-  /** "Nedir?" next to a term; opens its section of "Nasıl çalışır". */
+  /** The (i) button next to a term; opens its section of "Nasıl çalışır". */
   infoLink: {
-    title: 'Nedir?',
     a11y: (term: string) => `${term} nedir?`,
     estimated: '“Tahmini” tarih',
     manual: '“Elle” etiketi',
@@ -1514,7 +1515,7 @@ export const tr = {
   /** "Nasıl çalışır": short, plain explanations of the rules (each matches its domain module). */
   guide: {
     title: 'Nasıl çalışır',
-    intro: 'Etüt’ün kuralları kısaca. Bir terimin yanındaki “Nedir?” seni buradaki ilgili bölüme getirir.',
+    intro: 'Etüt’ün kuralları kısaca. Bir terimin yanındaki “i” simgesi seni buradaki ilgili bölüme getirir.',
     close: 'Kapat',
     timer: {
       title: 'Sayaç ve uzakta kuralı',
@@ -1740,8 +1741,9 @@ export const tr = {
   /** Monthly calendar on the weekly screen. */
   monthly: {
     title: 'Aylık görünüm',
-    prev: '‹ Önceki ay',
-    next: 'Sonraki ay ›',
+    /** Screen-reader names of the ‹ › buttons around the month. */
+    prev: 'Önceki ay',
+    next: 'Sonraki ay',
     month: (year: number, month: number) => `${months[month - 1] ?? ''} ${year}`,
     total: (duration: string) => `Toplam: ${duration}`,
     studyDays: (n: number, of: number) => `Çalıştığın gün: ${n}/${of}`,
