@@ -1,6 +1,6 @@
 Etüt is an on-device study timer and mock-exam tracker for Turkish exam students (YKS, LGS, KPSS). It has no server, no account, no groups and makes no network requests; no ads, analytics, crash reporting or tracking. No data is collected by the developer (App Privacy: Data Not Collected).
 
-There is nothing to sign in to: on first launch choose a birth year and an exam, then use the app. Users under 15 get the same on-device app without the study-stats image sharing.
+There is nothing to sign in to: on first launch choose a birth year and an exam, then use the app. Users under 15 get the same on-device app without the study-stats image sharing. Birth year (year only) is asked solely to turn off study-stats image sharing for users under 15; it never leaves the device. The app is not directed at children and is not in the Kids category.
 
 All data stays in the app's local database on the device. Data leaves the device only when the user taps export (backup file, CSV or a study-stats image) and picks a destination in the system share sheet; nothing is uploaded by the app.
 

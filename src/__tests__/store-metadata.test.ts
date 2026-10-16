@@ -50,6 +50,13 @@ it('the name is Etüt and neither name nor subtitle names ÖSYM or MEB', () => {
   }
 });
 
+it('price words only in the description and promotional text (Guideline 2.3.7)', () => {
+  expect(description.toLocaleLowerCase('tr')).toContain('ücretsiz');
+  for (const text of [name, subtitle, keywords]) {
+    for (const word of ['ücretsiz', 'bedava', 'free']) expect(text.toLocaleLowerCase('tr')).not.toContain(word);
+  }
+});
+
 it('no LGS or young-age marketing in the listing (K-45)', () => {
   for (const text of [name, subtitle, keywords, promotional, description]) {
     expect(text.toLocaleUpperCase('tr')).not.toContain('LGS');
