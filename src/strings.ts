@@ -66,6 +66,9 @@ const legalDocs = {
       {
         heading: 'Uygulama ne kaydediyor?',
         paragraphs: [
+          // [AVUKAT TEYİDİ] 0.4.1 (X-7): "uygulamanın App Store puanlama penceresini en son ne zaman istediği"
+          // eklendi (Gizlilik §2'de de). Yalnız bu telefonda durur, yedeğe girmez; tek amacı pencereyi 120 günde
+          // bir kezden sık istememek. "Ne için?" cümlesi bu amacı ayrıca anmıyor; yeterli mi.
           'Doğum yılın (yalnız yıl), sınav türün ve alanın; çalışma oturumların (ders, konu, başlangıç ve bitiş zamanı, molalar ve uygulamadan çıktığın süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı); konu ilerlemen; deneme netlerin ve analizlerin; günlük hedefin, derslere koyduğun haftalık hedefler, hedef netlerin ve sınav tarihin; sayaç ayarların (pomodoro, ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihlerin, en son ne zaman yedek dosyası oluşturduğun, yedek hatırlatmasını ne zaman kapattığın ve uygulamanın App Store puanlama penceresini en son ne zaman istediği.',
           // [AVUKAT TEYİDİ] Toplama yöntemi (KVKK m.10/1-ç; `docs/hukuk/kvkk/01` zorunlu unsur): otomatik
           // (cihazda) ve otomatik olmayan (e-posta, mektup) ayrımı bu cümleyle yeterli mi.
@@ -77,7 +80,8 @@ const legalDocs = {
         heading: 'Ne için?',
         paragraphs: [
           // [AVUKAT TEYİDİ] K-15 (a): bu metin onboarding'de doğum yılı kaydedilmeden önce açılır; eşik ve
-          // sonucu (15 yaş altında çalışma kartı kapalı) burada değil, Gizlilik §6 ve Kullanım §3'te yazar.
+          // sonuçları (15 yaş altında çalışma kartı kapalı ve App Store puanlama penceresi istenmez) burada değil,
+          // Gizlilik §6 ve Kullanım §3'te yazar.
           'Sayacı çalıştırmak, sana kendi istatistiklerini göstermek ve yaşına uygun ayarları açmak için.',
         ],
       },
@@ -90,7 +94,9 @@ const legalDocs = {
           'Telefonunun kendi yedeği (iCloud ya da bilgisayara yedekleme) açıksa iOS uygulama verilerini de bu yedeğe katar. Bu yedek senin Apple hesabında ya da bilgisayarında durur; bize gelmez.',
           `Yedek dosyası, CSV ya da çalışma kartı oluşturup paylaşırsan dosyanın nereye gideceğine sen karar verirsin. ${BACKUP_CONTENTS}`,
           // [AVUKAT TEYİDİ] Gönderen adı ve ekler eklendi: ad öğrencinin e-posta hesabından gelir, uygulama sormaz.
-          'Hakkında → İletişim’den bize e-posta gönderirsen e-posta adresin, e-posta uygulamanın gönderen olarak gösterdiği ad (hesabında kayıtlıysa), yazdıkların, eklediğin dosyalar ve konu satırındaki uygulama ve işletim sistemi sürümü bize ulaşır. Bunları yalnız sana cevap vermek ve KVKK başvurunu sonuçlandırmak için kullanırız; başka bir amaçla kullanmaz, kimseyle paylaşmayız.',
+          // 0.4.1 (X-7): aynı e-posta (aynı adres, aynı konu satırı) Ayarlar → Geri bildirim gönder'den de açılır;
+          // bu yol cümleye eklendi.
+          'Hakkında → İletişim’den ya da Ayarlar → Geri bildirim gönder’den bize e-posta gönderirsen e-posta adresin, e-posta uygulamanın gönderen olarak gösterdiği ad (hesabında kayıtlıysa), yazdıkların, eklediğin dosyalar ve konu satırındaki uygulama ve işletim sistemi sürümü bize ulaşır. Bunları yalnız sana cevap vermek ve KVKK başvurunu sonuçlandırmak için kullanırız; başka bir amaçla kullanmaz, kimseyle paylaşmayız.',
           // [AVUKAT TEYİDİ] KVKK m.9 dayanağı. bny'nin destek kutusu Gmail (Google LLC, ABD); `docs/hukuk/kvkk/00`
           // §1.1'e göre yurt dışındaki bir e-posta hizmetinde saklamak aktarımdır. Kurul'un standart sözleşmesi
           // (SS-2) Google ile imzalanmadı ve Kurum'a bildirilmedi; bireysel Gmail'de bu yol yok (`00` §2), bu
@@ -157,6 +163,8 @@ const legalDocs = {
       {
         heading: '2. Cihazda tutulanlar',
         paragraphs: [
+          // [AVUKAT TEYİDİ] 0.4.1 (X-7): puanlama penceresinin en son istendiği zaman eklendi; bkz. Aydınlatma
+          // "Uygulama ne kaydediyor?" notu.
           'Doğum yılı (yaş kuralı için), sınav türü ve alan (ders ve konu listesi için), çalışma oturumları (ders, konu, zamanlar, molalar ve uygulama dışında geçen süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı), konu ilerlemesi, deneme netleri ve analizleri, günlük hedef, derslere koyduğun haftalık hedefler, hedef netler, sınav tarihi, pomodoro ve sayaç ayarları (ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihleri, son yedek dosyasının oluşturulma zamanı, yedek hatırlatmasının kapatıldığı zaman ve App Store puanlama penceresinin en son istendiği zaman.',
           'Yedekten “Değiştir” ile yükleme yaparsan, geri alabilmen için önceki verilerinin bir kopyası bir gün boyunca bu telefonda kalır (5. bölüm).',
           // [AVUKAT TEYİDİ] Widget koşulu kaldırıldı (uygulama bu alana her değişiklikte yazar) ve kilit ekranı
@@ -192,8 +200,10 @@ const legalDocs = {
       {
         heading: '6. Çocuklar ve gençler',
         paragraphs: [
-          // [AVUKAT TEYİDİ] 0.4.0'da gruplar kimsede yok; yaşa bağlı tek fark çalışma kartı (K-15 için bkz. Aydınlatma "Ne için?").
-          'Etüt çocuklara özel bir uygulama değildir ve App Store’da Çocuklar kategorisinde yer almaz. 15 yaşından küçükler için çalışma kartı kapalıdır; uygulamanın geri kalanı herkes için aynıdır. Yaş beyanı sonradan yükseltilemez; yedek geri yüklemek de yaşı yükseltemez.',
+          // [AVUKAT TEYİDİ] Gruplar kimsede yok. 0.4.0'da yaşa bağlı tek fark çalışma kartıydı; 0.4.1'den (X-7) beri
+          // iki fark var: çalışma kartı ve App Store puanlama penceresi (15 yaş altında hiç istenmez). K-15 için bkz.
+          // Aydınlatma "Ne için?".
+          'Etüt çocuklara özel bir uygulama değildir ve App Store’da Çocuklar kategorisinde yer almaz. 15 yaşından küçükler için çalışma kartı kapalıdır ve uygulama App Store puanlama penceresini istemez; uygulamanın geri kalanı herkes için aynıdır. Yaş beyanı sonradan yükseltilemez; yedek geri yüklemek de yaşı yükseltemez.',
         ],
       },
       {
@@ -241,8 +251,9 @@ const legalDocs = {
       {
         heading: '3. Yaş',
         paragraphs: [
-          // [AVUKAT TEYİDİ] Gizlilik §6 ile aynı: yaşa bağlı tek fark çalışma kartı.
-          'Doğum yılını doğru seçmelisin. 15 yaşından küçüksen çalışma kartı kapalıdır; uygulamanın geri kalanı herkes için aynıdır.',
+          // [AVUKAT TEYİDİ] Gizlilik §6 ile aynı: yaşa bağlı iki fark, çalışma kartı ve App Store puanlama penceresi
+          // (0.4.1, X-7).
+          'Doğum yılını doğru seçmelisin. 15 yaşından küçüksen çalışma kartı kapalıdır ve uygulama App Store puanlama penceresini istemez; uygulamanın geri kalanı herkes için aynıdır.',
         ],
       },
       {
@@ -1579,6 +1590,12 @@ export const tr = {
     failed: (address: string) => `E-posta uygulaması açılamadı. Adresimiz: ${address}`,
     /** Ayarlar → the same e-mail, one tap away (X-7). */
     feedbackTitle: 'Geri bildirim',
+    /**
+     * `info` for the Ayarlar card: the postal address is not on that screen, so the letter route
+     * points to Hakkında (KVKK m.9 note in the Aydınlatma text: the letter route stays open).
+     */
+    feedbackInfo:
+      'Soru, hata, öneri ya da KVKK başvurun için bize e-posta gönderebilirsin. Konu satırına yalnız uygulama ve işletim sistemi sürümü eklenir. E-posta adresin, e-posta uygulamanın gönderen olarak gösterdiği ad, yazdıkların ve eklediğin dosyalar bize ulaşır; e-postalarımız Gmail’de, yani Google’ın yurt dışındaki sunucularında durur. İstemezsen Hakkında’daki adrese mektupla yazabilirsin. Ayrıntılar “Aydınlatma metni”nde.',
     feedback: 'Geri bildirim gönder',
     feedbackSoon: 'Geri bildirim · Yakında',
   },

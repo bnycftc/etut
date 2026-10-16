@@ -193,10 +193,7 @@ export default function TimerScreen() {
   };
   const finishCheck = useFinishCheck(finish);
   // App Store rating (X-7): after a session that keeps a 7-day goal streak, once "Geri al" is gone.
-  useReviewAfterFinish(
-    finished !== null && !finished.undoable ? finished.id : null,
-    streak?.todayMet ? streak.current : 0,
-  );
+  useReviewAfterFinish(finished !== null && !finished.undoable ? finished : null, streak?.todayMet ? streak.current : 0);
 
   const undo = () => {
     if (app.undoFinish()) {

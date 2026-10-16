@@ -6,10 +6,18 @@
  * - on a 15+ profile: the same gate as the study card (`canShareCard`, K-16); under 15 never;
  * - right after a finished, calm moment: a saved mock exam once at least 3 are saved, or a finished
  *   session on a day that keeps a daily-goal streak of at least 7 days;
+ * - while the app is on screen, never in the background or while it is switching;
+ * - for a finished session, only within 30 s after its "Geri al" window: that timer pauses while
+ *   the phone is locked, so a session finished just before locking never brings the dialog hours
+ *   later, when the app is opened again;
  * - never while a session is running or paused (a timer is never interrupted);
  * - at most once in 120 days, counted from the last time it asked.
+ *
+ * The streak is the app's own (`streak.ts`): 7 goal days in which one missed day a week is a
+ * rest day that keeps the streak alive, so the 7 goal days need not be consecutive.
  */
 
+import { UNDO_FINISH_MS } from './finish';
 import { DAY_MS } from './istanbul-day';
 import type { Profile } from './profile';
 import { canShareCard } from './share-card';
@@ -17,15 +25,22 @@ import { canShareCard } from './share-card';
 export const REVIEW_MIN_EXAMS = 3;
 export const REVIEW_MIN_STREAK_DAYS = 7;
 export const REVIEW_INTERVAL_DAYS = 120;
+/** A finished session is still "the moment" this long after Bitir: "Geri al" and 30 s more. */
+export const REVIEW_FINISH_WINDOW_MS = UNDO_FINISH_MS + 30_000;
 
 export type ReviewMoment =
   /** A new mock exam was saved; `examCount` includes it. */
   | { kind: 'exam_saved'; examCount: number }
-  /** A session was finished; `streakDays` is the streak when today's goal is met, else 0. */
-  | { kind: 'goal_streak'; streakDays: number };
+  /**
+   * A session was finished with Bitir at `finishedAt`; `streakDays` is the streak when today's
+   * goal is met, else 0.
+   */
+  | { kind: 'goal_streak'; streakDays: number; finishedAt: number };
 
 export interface ReviewCheck {
   profile: Profile | null;
+  /** The app is on screen (AppState "active"). */
+  foreground: boolean;
   /** A session is running or paused. */
   sessionActive: boolean;
   moment: ReviewMoment;
@@ -35,12 +50,12 @@ export interface ReviewCheck {
 }
 
 export function shouldAskForReview(check: ReviewCheck): boolean {
-  if (!canShareCard(check.profile) || check.sessionActive) return false;
+  if (!canShareCard(check.profile) || !check.foreground || check.sessionActive) return false;
   const { moment } = check;
   const reached =
     moment.kind === 'exam_saved'
       ? moment.examCount >= REVIEW_MIN_EXAMS
-      : moment.streakDays >= REVIEW_MIN_STREAK_DAYS;
+      : moment.streakDays >= REVIEW_MIN_STREAK_DAYS && check.now - moment.finishedAt <= REVIEW_FINISH_WINDOW_MS;
   if (!reached) return false;
   return check.lastAskedAt === null || check.now - check.lastAskedAt >= REVIEW_INTERVAL_DAYS * DAY_MS;
 }

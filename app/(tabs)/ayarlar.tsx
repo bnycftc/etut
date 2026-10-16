@@ -502,7 +502,7 @@ export default function SettingsScreen() {
 
       <Card>
         <Label variant="heading">{tr.contact.feedbackTitle}</Label>
-        <Label variant="small">{feedbackMail.email === null ? tr.contact.soonInfo : tr.contact.info}</Label>
+        <Label variant="small">{feedbackMail.email === null ? tr.contact.soonInfo : tr.contact.feedbackInfo}</Label>
         <Button
           testID="settings-feedback"
           kind="secondary"

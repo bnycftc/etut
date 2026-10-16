@@ -206,11 +206,15 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
 - **App Store puan istemi (expo-store-review):** Apple'ın kendi penceresi (StoreKit
   `AppStore.requestReview`); öncesinde ya da yanında Etüt'ün sorusu, metni yoktur. Yalnız 15+
   profilde (`canShareCard`): 3. ve sonraki deneme kaydedilince ya da günlük hedef serisi 7+ günken
-  Bitir'in "Geri al" süresi dolunca; oturum açıkken (duraklatılmış dahil) asla; 120 günde en çok bir
+  Bitir'in "Geri al" süresi dolunca (en geç Bitir'den 38 sn sonra: telefon kilitlenince bu sayaç
+  durur, saatler sonra açılışta istenmez); yalnız uygulama ekrandayken (`AppState` "active");
+  oturum açıkken (duraklatılmış dahil) asla; 120 günde en çok bir
   kez (`src/domain/review-prompt.ts`; son istem zamanı kv'de, `src/storage/review-kv.ts`, yedeğe
   girmez). TestFlight'ta pencere açılmaz (`isAvailableAsync` false); Apple yılda en çok 3 kez
   gösterir. Modülün yapılandırma eklentisi yok (`app.json` → `plugins`'e girmez), required-reason
-  API kullanmaz: gizlilik manifestleri değişmez.
+  API kullanmaz: gizlilik manifestleri değişmez. Android'de JS bağdaştırıcısı boştur ve modül
+  `package.json` → `expo.autolinking.android.exclude` ile bağlanmaz (Play In-App Review kütüphanesi
+  derlemeye girmez; Android yayını F-5'te ele alınır).
 - **Android:** iOS'a özgü kod `.ios.ts` dosyalarında; Android'de canlı sayaç ve widget yok,
   yerel hatırlatıcılar çalışır. Kronometreli kalıcı bildirim expo-notifications ile yapılamıyor
   (`setUsesChronometer` sunulmuyor; ayrı yerel modül gerekir), eklenmedi. Şablonun varsayılan

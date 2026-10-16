@@ -3719,12 +3719,21 @@ describe('App Store rating dialog (X-7)', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
   }
 
+  const originalAppState = AppState.currentState;
+  const setAppState = (status: AppStateStatus) =>
+    Object.defineProperty(AppState, 'currentState', { value: status, configurable: true, writable: true });
+
   beforeEach(() => {
     memory.profile = ADULT_SAYISAL;
     mockReview.askedAt = null;
     mockReview.requests = 0;
+    setAppState('active');
     jest.useFakeTimers();
     jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z'));
+  });
+
+  afterEach(() => {
+    Object.defineProperty(AppState, 'currentState', { value: originalAppState, configurable: true, writable: true });
   });
 
   it('asks as the 3rd saved exam closes the form, then not again within 120 days', async () => {
@@ -3784,6 +3793,33 @@ describe('App Store rating dialog (X-7)', () => {
     await flush();
     expect(screen.queryByTestId('finish-undo')).toBeNull();
     expect(mockReview.requests).toBe(1);
+  });
+
+  it('not when "Geri al" ends in the background or hours later (the phone was locked after Bitir)', async () => {
+    memory.dailyGoal = 30;
+    memory.sessions = pastDays(6);
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    studyAndFinish();
+    // Locked right after Bitir: the timer fires in the background.
+    setAppState('background');
+    act(() => jest.advanceTimersByTime(UNDO_FINISH_MS + 1000));
+    await flush();
+    expect(screen.queryByTestId('finish-undo')).toBeNull();
+    expect(mockReview.requests).toBe(0);
+    screen.unmount();
+
+    setAppState('active');
+    memory.sessions = pastDays(6);
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    studyAndFinish();
+    // The undo timer was paused while locked and fires when the app is opened 3 hours later.
+    act(() => {
+      jest.setSystemTime(Date.now() + 3 * 60 * 60_000);
+      jest.advanceTimersByTime(UNDO_FINISH_MS + 1000);
+    });
+    await flush();
+    expect(screen.queryByTestId('finish-undo')).toBeNull();
+    expect(mockReview.requests).toBe(0);
   });
 
   it('not for a shorter streak, and not when a new session started within the undo window', async () => {

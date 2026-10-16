@@ -74,5 +74,14 @@
       "!src/sync/testing/**"
     ]
   },
+  "expo": {
+    "autolinking": {
+      "android": {
+        "exclude": [
+          "expo-store-review"
+        ]
+      }
+    }
+  },
   "private": true
 }

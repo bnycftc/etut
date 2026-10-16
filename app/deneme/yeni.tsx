@@ -44,7 +44,10 @@ export default function NewExamScreen() {
         announce(tr.exams.saved(formatNet(totalNet(v.scores, v.kind))));
         router.back();
         // App Store rating (X-7): from the 3rd saved exam on, as the form closes.
-        void askForReviewIfDue(profile, active !== null, { kind: 'exam_saved', examCount: listMockExams().length });
+        void askForReviewIfDue(profile, active !== null, () => ({
+          kind: 'exam_saved',
+          examCount: listMockExams().length,
+        }));
       }}
     />
   );

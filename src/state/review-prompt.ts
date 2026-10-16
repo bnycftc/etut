@@ -5,6 +5,7 @@
  */
 
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 
 import type { Profile } from '../domain/profile';
 import { type ReviewMoment, shouldAskForReview } from '../domain/review-prompt';
@@ -12,10 +13,19 @@ import { loadReviewAskedAt, storeReviewAskedAt } from '../storage/review-kv';
 import { storeReview } from '../system/store-review';
 import { useAppState } from './app-state';
 
-export async function askForReviewIfDue(profile: Profile | null, sessionActive: boolean, moment: ReviewMoment) {
+/** `moment` is read inside the try: a failure while reading it (e.g. counting exams) stays silent too. */
+export async function askForReviewIfDue(profile: Profile | null, sessionActive: boolean, moment: () => ReviewMoment) {
   try {
     const now = Date.now();
-    if (!shouldAskForReview({ profile, sessionActive, moment, lastAskedAt: loadReviewAskedAt(), now })) return;
+    const check = {
+      profile,
+      foreground: AppState.currentState === 'active',
+      sessionActive,
+      moment: moment(),
+      lastAskedAt: loadReviewAskedAt(),
+      now,
+    };
+    if (!shouldAskForReview(check)) return;
     if (!(await storeReview.isAvailable())) return;
     storeReviewAskedAt(now);
     await storeReview.request();
@@ -25,14 +35,19 @@ export async function askForReviewIfDue(profile: Profile | null, sessionActive: 
 }
 
 /**
- * Timer tab: `finishedId` is the session saved with Bitir once its "Geri al" window has closed
- * (`null` before that and after a new start), so the dialog never covers "Geri al" and never
- * comes while a session runs. `streakDays` is the streak when today's goal is met, else 0.
+ * Timer tab: `finished` is the session saved with Bitir (its id and when) once its "Geri al"
+ * window has closed (`null` before that and after a new start), so the dialog never covers
+ * "Geri al" and never comes while a session runs. `streakDays` is the streak when today's goal is
+ * met, else 0.
  */
-export function useReviewAfterFinish(finishedId: string | null, streakDays: number): void {
+export function useReviewAfterFinish(finished: { id: string; at: number } | null, streakDays: number): void {
   const { profile, active } = useAppState();
+  const finishedId = finished?.id ?? null;
+  // Deliberately keyed on the finished session only: one check per Bitir, not on every later
+  // change of the profile, the session or the streak (the values of this render are used).
   useEffect(() => {
-    if (finishedId === null) return;
-    void askForReviewIfDue(profile, active !== null, { kind: 'goal_streak', streakDays });
+    if (finished === null) return;
+    const finishedAt = finished.at;
+    void askForReviewIfDue(profile, active !== null, () => ({ kind: 'goal_streak', streakDays, finishedAt }));
   }, [finishedId]);
 }
