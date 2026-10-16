@@ -21,7 +21,7 @@ npm ci
 | Komut | Ne yapar |
 |---|---|
 | `npx tsc --noEmit` | Tip denetimi |
-| `npx jest` | Alan (domain) birim testleri (`src/domain/__tests__`) |
+| `npx jest` | `src/` altındaki tüm Jest testleri: alan (domain) kuralları, ekran duman testleri (`src/__tests__`), durum, depolama, lisans listesi |
 | `npx expo-doctor` | Bağımlılık ve yapılandırma denetimi |
 | `npx expo export --platform ios` | iOS JS paketini `dist/` altına üretir (yerel derleme olmadan doğrulama) |
 | `npm run web` | Web önizlemesi, sabit port 8081 (`http://localhost:8081`; `npx expo start --web` de çalışır) |
@@ -31,7 +31,7 @@ npm ci
 | `npm run test:db:pglite` | Aynı pgTAP testleri Docker olmadan, PGlite (WebAssembly Postgres) üzerinde |
 | `npm run test:backend` | supabase-js ile yerel yığına karşı uçtan uca test; Docker/yığın yoksa **ATLANDI** yazar |
 | `npm run gen:icons` | Simge, açılış ekranı işaretleri ve favicon'u SVG'den üretir (`assets/`; `-- --preview` 60/120/180 px önizlemeleri `test-results/icons/`'a yazar) |
-| `npm run gen:licenses` | Uygulama paketine giren açık kaynak paketlerin listesini üretir (`src/legal/licenses.ts`; bağımlılık değişince yeniden çalıştırın) |
+| `npm run gen:licenses` | Uygulama paketine giren açık kaynak paketlerin listesini üretir (`src/legal/licenses.ts`; bağımlılık değişince yeniden çalıştırın: Jest eski sürümü, CI eksik/fazla paketi yakalar) |
 | `npx expo install <paket>` | SDK ile uyumlu sürümle paket ekler (npm install yerine bunu kullanın) |
 
 **Windows notu:** iOS projesi (`ios/`) Windows'ta üretilemez ve derlenemez
@@ -64,7 +64,8 @@ app/                    Ekranlar (expo-router)
   (tabs)/gruplar.tsx    Grup ana ekranı; yalnız bayrak açıkken ve 15+ profillerde sekme olarak görünür
   grup/[id].tsx         Grup: şu an çalışanlar, sıralama, hazır tepkiler, bildir/engelle, kurucu araçları
   veli.tsx              Veli modu (velinin kendi cihazında, yetişkin profille)
-  (tabs)/ayarlar.tsx    Sınav/alan değiştirme, günlük hedef, pomodoro, sınav tarihi, yedek, tüm verileri sil, hakkında
+  (tabs)/ayarlar.tsx    Sınav/alan değiştirme, günlük hedef, pomodoro, sınav tarihi (düğmesiz: yazılınca ya da alandan
+                        çıkınca kaydedilir), yedek, tüm verileri sil ("Önce yedek al" ile), hakkında
   gecmis.tsx            Günlük toplamlar, ders dağılımı, son 7 gün ("elle" kısmı)
   haftalik.tsx          Haftalık özet (toplam, ders dağılımı, en uzun oturum, seri)
   konular.tsx           Konu takibi: konu bazlı süre, "bitti / tekrar lazım", ilerleme
@@ -99,7 +100,7 @@ scripts/gen-icons.mjs   Simge ve açılış ekranı (SVG -> PNG, simge alfa kana
 scripts/gen-licenses.mjs Lisans listesi üretici; scripts/native-licenses/ yerel kütüphane metinleri, scripts/package-licenses/ LICENSE dosyasız yayımlanan npm paketlerinin depo metni (upstream, birebir; eksik metin betiği hatayla bitirir)
 e2e/                    Maestro akışları (iOS simülatörü, e2e-ios.yml)
 ci/ExportOptions.plist  TestFlight ihracat ayarları
-.github/workflows/      ci.yml, testflight.yml, e2e-ios.yml
+.github/workflows/      ci.yml, testflight.yml, e2e-ios.yml, store-screenshots.yml, asc-*.yml (App Store Connect)
 ```
 
 ## iOS sistem yüzeyleri (kilit ekranı, Dynamic Island, widget, yerel bildirim)
@@ -119,7 +120,7 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   güncelleme, uzakta kalınan sürenin nereden itibaren mola sayılacağını da taşır
   (`provisionalAwayAt`: kronometrede ve çalışma bloğunda ayrılma anı, pomodoro molasında molanın
   sonu). Kronometrede ve çalışma bloğunda durum satırı aynı güncellemeyle hemen "Uygulamadan
-  çıktın · 10 sn içinde dönmezsen mola sayılır" olur (saatin altında, kendi satırında); molada
+  çıktın · 10 sn sonra mola sayılır" olur (saatin altında, en çok iki satır); molada
   "Kısa mola" kalır. Sayaç 10 sn tolerans boyunca (molada mola bitene kadar) saymaya devam eder;
   `staleDate` gelince etkinlik kendiliğinden (`isStale`) uzakta görünümüne geçmelidir: saat o andaki
   çalışma süresinde durur (`pauseTime`, elle molayla aynı), simge duraklatma, altında "Uygulamadan
@@ -149,8 +150,8 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   57.0.x bitmiş etkinlikleri listelemediği için uygulama onu ne sayabilir ne kaldırabilir: o süre
   içinde kilit ekranında yenisinin yanında eskisi de görünebilir, oturum bitince de bir süre kalabilir.
 - **Ana ekran widget'ı "Etüt: Bugün"** (küçük, orta, kilit ekranı dikdörtgen): bugünkü süre, seri,
-  günlük hedef ilerlemesi. Uygulama zaman çizelgesini App Group'a (`group.com.bnycftc.etut`) yazar,
-  widget yalnız okur. Çizelge gece yarısı (İstanbul), pomodoro aşama değişimleri ve hedefe
+  günlük hedef ilerlemesi, sınava kalan gün. Uygulama zaman çizelgesini App Group'a
+  (`group.com.bnycftc.etut`) yazar, widget yalnız okur. Çizelge gece yarısı (İstanbul), pomodoro aşama değişimleri ve hedefe
   ulaşılan an için girdi içerir; sayaç açıkken süre ve hedef çubuğu widget'ta kendiliğinden ilerler.
   Sayaç çalışmıyorsa çizelge dördüncü gece yarısına kadar gider; son girdi (seri 0, süre 0) uygulama
   günlerce açılmasa da doğru kalır, widget bayat seri göstermez.
@@ -215,7 +216,15 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
 ## Yayın hattı
 
 ### `ci.yml` (her push ve PR)
-ubuntu-latest: `npm ci` → `npx tsc --noEmit` → `npx jest --ci` → `npx expo-doctor`.
+ubuntu-latest, üç iş:
+- `check`: `npm ci` → `npx tsc --noEmit` → `npx jest --ci` → `npx expo-doctor` →
+  `npx expo export --platform ios --source-maps` (cihazın çalıştırdığı paket: Jest'in uygulamadığı
+  React Compiler ve `'widget'` düzenlerinin expo-widgets dönüşümü burada derlenir) →
+  `node scripts/gen-licenses.mjs dist` ile `src/legal/licenses.ts` yeniden üretilir; fark varsa iş
+  düşer (`npm run gen:licenses` çalıştırıp dosyayı commit'leyin).
+- `web`: `npx playwright install --with-deps chromium` → `npm run test:web`; düşerse
+  `test-results/web` (ekran görüntüleri, geliştirme sunucusu logu) 7 günlük artifact olur.
+- `backend`: pgTAP (PGlite ve yerel Supabase yığını) + supabase-js uçtan uca.
 
 ### `e2e-ios.yml` (yalnız elle: `workflow_dispatch`)
 İnsan test edici olmadan iOS simülatöründe uçtan uca test. Gizli değer gerekmez.
@@ -224,7 +233,9 @@ ubuntu-latest: `npm ci` → `npx tsc --noEmit` → `npx jest --ci` → `npx expo
 ya da TestFlight'a göndermeden önce).
 1. macOS 26 koşucusu, Xcode denetimi, Node + Java 17, `npm ci`.
 2. `expo prebuild --platform ios --clean --no-install` → `pod install`.
-3. `xcodebuild build` Release, `-sdk iphonesimulator`, `CODE_SIGNING_ALLOWED=NO`: JS paketi
+3. `xcodebuild build` Release, `-sdk iphonesimulator`, ad-hoc imzalı (`CODE_SIGN_IDENTITY=-`,
+   `CODE_SIGNING_REQUIRED=NO`; sertifika ve profil gerekmez): imzasız derleme yetkileri düşürür, App
+   Group olmadan da widget uzantısı düzenleri okuyamaz ve Live Activity boş çizilir. JS paketi
    (`main.jsbundle`) uygulamaya gömülüdür, Metro gerekmez.
 4. Koşucunun saat dilimi Europe/Istanbul yapılır (simülatör ana makineninkini kullanır); en yeni iOS
    çalışma zamanında yeni bir iPhone simülatörü oluşturulur, `AppleLanguages=tr`, `AppleLocale=tr_TR`
@@ -236,20 +247,22 @@ ya da TestFlight'a göndermeden önce).
 Akışlar (`e2e/`, yalnız `testID` seçicileri; ortak adımlar `e2e/subflows/`):
 `a-ilk-acilis` (15+ YKS Sayısal → sayaç), `b-sayac` (başla/mola/devam/bitir, bugünkü toplam > 0),
 `c-arka-plan` (15 sn ana ekran → "Çalışıyordum, süreye ekle"), `d-kapat-ac` (öldür-aç: sayaç sürer;
-20 sn kapalı: uzakta kuralı), `e-deneme` (TYT: 10D 4Y = 9 net, toplam 11,5), `f-kucuk-yas`
-(15 altı: Gruplar sekmesi yok), `g-tum-verileri-sil` (Ayarlar → sil → ilk açılış),
-`h-alan-degistir` (Sayısal → EA: ders ve deneme türleri değişir), `i-yedek` (yedek dosyası →
-paylaşım sayfası), `j-kart-paylas` (çalışma kartı, paylaşım sayfası), `k-hakkinda-bos-durum`
-(aydınlatma ilk açılıştan, boş durumlar, hakkında, gizlilik),
+20 sn kapalı: uzakta kuralı), `e-deneme` (TYT: 10D 4Y = 9 net, toplam 11,5; listede "11,5 net
+kaydedildi" kartı, düzenleme), `f-kucuk-yas` (15 altı: Gruplar sekmesi yok), `g-tum-verileri-sil`
+(Ayarlar → sil → "Önce yedek al": paylaşım sayfası iletişim kutusunun üstünde açılır, kapanınca not
+görünür, hiçbir şey silinmez → sil → ilk açılış), `h-alan-degistir` (Sayısal → EA: ders ve deneme
+türleri değişir; sınav tarihi yazılıp alandan çıkılınca kaydedilir), `i-yedek` (yedek dosyası →
+paylaşım sayfası), `j-kart-paylas` (0 dk'da "Paylaş" kapalı ve nedenini söyler; çalıştıktan sonra
+çalışma kartı, paylaşım sayfası), `k-hakkinda-bos-durum` (aydınlatma ilk açılıştan, boş durumlar,
+boş deneme kartındaki "İlk denemeni ekle" formu açar, hakkında, gizlilik),
 `l-hatirlaticilar` (onaydan önce hepsi kapalı; hatırlatıcı aç → tek düğmeli açıklama ekranı;
 sistem izin penceresi açılmaz, uygulama yeniden başlatılır ve hatırlatıcılar kapalı kalır),
 `m-canli-sayac` (Bildirim Merkezi'nde kilit ekranı görünümü, ana ekranda Dynamic Island, 10 sn'den
 uzun çıkınca uzakta görünümü, mola, pomodoro, bitir),
 `o-ayarlar-sayac` (Ayarlar → "Sayaç çalışırken": ekranı açık tut kapat/aç, "Çalışmaya devam say";
 15 sn ana ekran ve öldür-aç sonrası uzakta kartı yok, kilit ekranındaki ve uygulamadaki saat saymaya
-devam eder; en sondaki
-"Açık"a geri dönüş adımı React Compiler altındaki `useStored` hatası düzelene kadar düşer, bkz.
-`src/state/__tests__/use-stored-compiler.test.tsx`),
+devam eder; sonda aynı ekranda art arda iki değişiklik, "Kapalı" ve yeniden "Açık": React Compiler
+altındaki eski `useStored` hatasına karşı, bkz. `src/state/__tests__/use-stored-compiler.test.tsx`),
 `p-deneme-duzenle-lgs` (13 yaş LGS: yalnız LGS kâğıdı, net = D − Y/3, kaydet ve düzenle).
 İlk açılıştan sonraki tek seferlik ipucu `subflows/ipucu-gec.yaml` ile kapatılır.
 **`m-canli-sayac`:** Bildirim Merkezi'ndeki kilit ekranı görünümünde "Fizik" zorunlu denetimdir.
@@ -265,28 +278,48 @@ yasak denetlenir (`m-canli-sayac-02c-uzakta`; arka plan güncellemesindeki durum
 görünüm de buna uyar, hangisinin çizildiği görüntüden okunur); uygulamaya dönünce "Çalışıyordum"
 kartı da zorunludur. Dynamic Island, mola ve pomodoro görünümleri hâlâ yalnız `m-canli-sayac-0x` ekran
 görüntüleriyle kanıtlanır; bunlar artifact'ta elle incelenmelidir.
-**Yedekten geri yükleme E2E'de yok (bilinçli):** içe aktarma dosyayı yalnız sistemin belge seçicisinden
-(`expo-document-picker`, UIDocumentPickerViewController) alır. Simülatörün Dosyalar uygulamasına
-Maestro'dan deterministik dosya koymanın yolu yok (`addMedia` yalnız fotoğraf/video ekler), dışa
-aktarılan dosya da paylaşım sayfasından "Dosyalara Kaydet" ile iOS sürümüne ve dile bağlı sistem
-ekranlarından geçer. Uygulamada test için bir derin bağlantı ya da hazır yedek dosyası (fixture) da
-yok; eklemek üretim koduna yalnız test için bir giriş açmak olur. Birleştir/değiştir/geri al akışları
-bu yüzden Jest'te gerçek depolama katmanıyla (`src/__tests__/app-real-storage.test.tsx`) ve web
-duman testinde (`scripts/test-web.mjs`, dosya seçici Playwright ile beslenir) denenir. Maestro'nun XCTest sürücüsü hiçbir akış başlamadan
-zaman aşımına uğrarsa (`IOSDriverTimeoutException`) akışlar bir kez daha çalıştırılır.
+**Yedekten geri yükleme `e2e-ios.yml`'de yok:** içe aktarma dosyayı yalnız sistemin belge seçicisinden
+(`expo-document-picker`, UIDocumentPickerViewController) alır. Maestro simülatörün Dosyalar
+uygulamasına dosya koyamaz (`addMedia` yalnız fotoğraf/video ekler), dışa aktarılan dosya da paylaşım
+sayfasından "Dosyalara Kaydet" ile iOS sürümüne ve dile bağlı sistem ekranlarından geçer. Uygulamada
+test için bir derin bağlantı ya da hazır yedek dosyası (fixture) yok ve eklenmez (üretim koduna
+yalnız test için bir giriş açmak olur). İş akışı tarafında ise yol var ve çalışıyor:
+`store-screenshots.yml` ürettiği demo yedeğini simülatörün "iPhone'umda" klasörüne (File Provider
+Storage) kopyalar, `e2e/store/screenshots.yaml` onu uygulamanın kendi "Yedekten geri yükle"
+ekranından seçici ile geri yükler. Bir E2E geri yükleme akışı aynı adımla eklenebilir; şimdilik
+birleştir/değiştir/geri al akışları Jest'te gerçek depolama katmanıyla
+(`src/__tests__/app-real-storage.test.tsx`) ve web duman testinde (`scripts/test-web.mjs`, dosya
+seçici Playwright ile beslenir) denenir.
+Yeniden denemeler: Maestro'nun XCTest sürücüsü hiçbir akış başlamadan zaman aşımına uğrarsa
+(`IOSDriverTimeoutException`) bütün akışlar bir kez daha çalıştırılır. Ardından düşen **her akış**
+yeni bir sürücü oturumunda bir kez daha çalışır ve ikinci sonucu sayılır (CI simülatöründe sürücü ara
+sıra dokunuş kaçırır ya da takılır). Yeşil bir çalıştırmada da bir akış yeniden denenmiş olabilir:
+yeniden denenenler çalıştırma özetinde "Retried once" satırında listelenir.
 Derleme adımı uzantının (`PlugIns/ExpoWidgetsTarget.appex`) gömüldüğünü, App Group'u,
 `aps-environment` olmadığını ve uygulama ile uzantıda `PrivacyInfo.xcprivacy` (`1C8F.1`) bulunduğunu da denetler.
 Yeni ekran öğesine test gerekiyorsa metni değil `testID`'yi hedefleyin; mevcut `testID`'leri
 değiştirmeyin (akışlar ve `scripts/test-web.mjs` bunlara bağlı).
 
 ### `testflight.yml` (elle `workflow_dispatch` veya `v*` etiketi)
-Yasal yer tutucu kapısı: `src/strings.ts` içinde `[DOLDURULACAK]` kaldıysa derleme yüklenmez.
+App Store Connect yüklenen her derlemeyi dış teste ya da App Review'a gönderebildiği için iki kapı var:
+- **Kapı işi** (`gate`, ubuntu; macOS dakikası harcanmadan): `v*` etiketi `app.json` → `expo.version`
+  ile aynı olmalı (`v0.4.0` ↔ `0.4.0`); `internal_only` işaretli değilse yalnız `main` ya da `main`
+  üzerindeki bir commit'e konmuş `v*` etiketi derlenir (`git merge-base --is-ancestor`); `npm ci`,
+  `npx tsc --noEmit`, `npx jest --ci` geçmeli. macOS işi (`needs: gate`) ancak bundan sonra başlar.
+- **Veri sorumlusu kapısı:** `DATA_CONTROLLER_NAME`, `DATA_CONTROLLER_ADDRESS`,
+  `DATA_CONTROLLER_CONTACT` gizli değerlerinden biri boşsa derleme yüklenmez. Gerçek ad, posta adresi
+  ve e-posta bu herkese açık depoda yoktur: arşiv adımı onları `EXPO_PUBLIC_DATA_CONTROLLER_*` olarak
+  JS paketine gömer. `src/strings.ts` her zaman `[DOLDURULACAK]` yer tutucusunu içerir; kapıyı geçmek
+  için oraya gerçek değer **yazmayın** (bny kararı, 11 Ekim 2026).
+
 Tek istisna, elle başlatılan ve `internal_only` işaretli çalıştırmadır
-(`gh workflow run testflight.yml -R bnycftc/etut --ref <dal> -f internal_only=true`); böyle bir
-derleme **yalnız iç TestFlight** içindir, dış test grubuna ya da App Review'a gönderilmez
-(çalıştırma özetinde derleme numarası yazar). İncelemeye yalnız yer tutucusuz derleme gider.
+(`gh workflow run testflight.yml -R bnycftc/etut --ref <dal> -f internal_only=true`): gizli değerler
+olmadan (uygulama yer tutucuyu gösterir) ve `main` dışındaki bir daldan da derler. Böyle bir derleme
+**yalnız iç TestFlight** içindir, dış test grubuna ya da App Review'a gönderilmez (çalıştırma özetinde
+derleme numarası yazar). İncelemeye yalnız gizli değerlerle, `main`'den derlenmiş sürüm gider.
 macOS 26 koşucusu:
-1. Xcode sürümünü yazdırır (SDK 57 için 26.4 altıysa uyarı verir).
+1. Veri sorumlusu gizli değerlerini denetler (yukarıda); Xcode sürümünü yazdırır (SDK 57 için 26.4
+   altıysa uyarı verir).
 2. Node kurulur, `npm ci`.
 3. `npx expo prebuild --platform ios --clean --no-install` ile `ios/` sıfırdan üretilir.
 4. Xcode proje adı bulunur (Expo "Etüt" adındaki `ü`yü atar, proje adı `Ett` olur) ve
@@ -303,8 +336,13 @@ macOS 26 koşucusu:
    uzantısı: dağıtım imzası, `com.bnycftc.etut.*` kimliği, uygulamayla aynı sürüm/derleme numarası);
    uygulama ve uzantı imzasında App Group bulunmalı, `aps-environment` bulunmamalıdır; her iki
    pakette `PrivacyInfo.xcprivacy` bulunmalı ve UserDefaults için `1C8F.1` beyan etmelidir.
+   Gizli değerler tanımlıysa veri sorumlusu e-postasının `main.jsbundle`'da bulunduğu denetlenir
+   (yalnız sayı yazılır, değer asla).
 10. Aynı arşiv `ci/ExportOptions.plist` (`app-store-connect`, `upload`) ile App Store Connect'e yüklenir.
-11. Hata olursa arşiv ve loglar 7 günlük artifact olarak saklanır.
+11. Hata olursa yalnız loglar (`archive.log`, `export.log`, `upload.log`, `*.xcdistributionlogs`)
+    7 günlük artifact olarak saklanır; imzalı arşiv ve IPA yüklenmez (depo herkese açık, artifact'ı
+    GitHub'a giriş yapan herkes indirebilir). Xcode betik aşamalarının ortamını ham loga yazdığı için
+    veri sorumlusu değerleri yüklemeden önce loglardan silinir ("Scrub data controller from logs").
 12. Her durumda: CI'ın oluşturduğu "Created via API" geliştirme sertifikaları iptal edilir,
     API anahtarı ve geçici anahtarlık silinir. Bu adım takımdaki **tüm** "Created via API"
     geliştirme sertifikalarını siler; aynı takımı kullanan CarPlay Medya iş akışıyla aynı anda
@@ -312,6 +350,35 @@ macOS 26 koşucusu:
 
 Sürüm numarası (`CFBundleShortVersionString`) `app.json` → `expo.version` alanından gelir
 (şu an `0.4.0`). Derleme numarası `<çalıştırma numarası>.<deneme numarası>` biçimindedir (ör. `12.1`); "Re-run jobs" deneme numarasını artırdığı için aynı numara iki kez yüklenmez.
+
+### `store-screenshots.yml` (elle ya da `store-screenshots` dalına push)
+6.9" iPhone (1320 × 2868) App Store ekran görüntüleri, simülatörde ve gerçekçi demo verisiyle.
+Derleme `e2e-ios.yml` ile aynıdır (Release, gömülü JS paketi, ad-hoc imza); `.app` uygulama
+kaynaklarının özetine göre önbelleklenir; yalnız akışlar ya da bu iş akışı değiştiyse derleme atlanır.
+`e2e/store/demo-backup.js` çalıştırma gününe göre tarihli bir yedek üretir, iş akışı onu simülatörün
+"iPhone'umda" klasörüne kopyalar, `e2e/store/screenshots.yaml` uygulamanın "Yedekten geri yükle"
+ekranından geri yükleyip görüntüleri alır (düşen deneme bir kez baştan çalışır). Alfa kanalı atılır,
+boyut denetlenir; çıktı `app-store-screenshots-6.9` artifact'ıdır. App Store Connect'e hiçbir şey
+gönderilmez, gizli değer gerekmez.
+
+### App Store Connect iş akışları (yalnız elle, ubuntu)
+Hepsi `ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_PRIVATE_KEY` ile çalışır; hiçbiri incelemeye göndermez,
+derleme bağlamaz, fiyat ya da erişilebilirliğe dokunmaz.
+- `asc-key-check.yml`: yalnız okur. Anahtarı (JWT, `GET /v1/apps`), bundle id'leri ve yeteneklerini,
+  sertifika/profil sayılarını ve son 3 derlemenin işlenme ve iç TestFlight durumunu yazdırır.
+- `asc-metadata.yml`: `store/app-store/` → App Store sayfası (tr ad ve alt başlık, açıklama, anahtar
+  kelimeler, tanıtım metni, destek/pazarlama URL'si, kategoriler, yaş derecelendirmesi, içerik
+  hakları, telif satırı `DATA_CONTROLLER_NAME`'den, App Review notları). Yazmadan önce Apple
+  sınırlarını denetler. Varsayılan **kuru çalıştırma**: şimdiki ve istenen değerleri yazdırır, hiçbir
+  şey yazmaz. `apply=true` yalnız farklı olanı yazar; düzenlenebilir sürüm yoksa `app.json` sürümüyle
+  oluşturur. App Privacy'ye dokunmaz.
+- `asc-privacy-url.yml`: düzenlenebilir uygulama bilgisinin her dilinde Gizlilik Politikası URL'sini
+  yazar (varsayılan `https://bnycftc.github.io/etut/gizlilik.html`). Kuru çalıştırması yoktur.
+- `asc-screenshots.yml`: başarılı bir `store-screenshots.yml` çalıştırmasının (`run_id`) görüntülerini
+  düzenlenebilir sürümün tr `APP_IPHONE_67` setine koyar. Varsayılan **kuru çalıştırma** (setteki ve
+  yüklenecek dosyaları, sıralarını yazdırır); `apply=true` seti değiştirir: ilk dosyayı yükler,
+  eskileri siler, kalanları dosya adı sırasıyla yükler, işlenmelerini bekler ve sırayı düzeltir.
+  Fark yoksa yazmaz; yalnız ekran görüntüsü uçlarına yazar.
 
 ### GitHub gizli değişkenleri (Settings → Secrets and variables → Actions)
 
@@ -322,6 +389,9 @@ Sürüm numarası (`CFBundleShortVersionString`) `app.json` → `expo.version` a
 | `ASC_PRIVATE_KEY` | evet | `AuthKey_XXXX.p8` içeriği (ham metin ya da base64) |
 | `DIST_CERT_P12_BASE64` | önerilir | Apple Distribution sertifikası .p12 dosyasının base64'ü |
 | `DIST_CERT_PASSWORD` | p12 varsa | .p12 parolası |
+| `DATA_CONTROLLER_NAME` | evet (`internal_only` dışında) | Veri sorumlusunun adı; Hakkında ve yasal metinlerde görünür, `asc-metadata.yml` telif satırına da yazar |
+| `DATA_CONTROLLER_ADDRESS` | evet (`internal_only` dışında) | Yazılı KVKK başvurusu için posta adresi |
+| `DATA_CONTROLLER_CONTACT` | evet (`internal_only` dışında) | Destek ve KVKK başvurusu e-postası (Hakkında'daki İletişim düğmesi) |
 
 API anahtarı **Admin** rolünde olmalı. CarPlay Medya projesinde aynı takım için bulut tarafından
 yönetilen dağıtım imzası ITMS-90035 ile reddedilmişti; bu yüzden `DIST_CERT_P12_BASE64`
@@ -377,6 +447,9 @@ anahtar herkese açıktır; servis anahtarı ya da başka bir sır asla `EXPO_PU
 v0'da veri yalnız cihazdadır: doğum yılı, sınav türü/alan, çalışma oturumları (konu ve
 "elle" bilgisiyle), konu ilerlemesi, denemeler ve analizleri, hedefler. Ad, e-posta, tam doğum
 tarihi sorulmaz. Ayarlar → "Tüm verileri sil" veritabanını ve anahtar-değer deposunu temizler.
+Onay penceresi önce "Önce yedek al"ı sunar: Yedek ekranındaki dışa aktarmayı çalıştırır, hiçbir şey
+silmez ve pencere açık kalır; paylaşım sayfası kapanınca dosyayı bir yere kaydetmenin öğrenciye
+kaldığını söyler (Etüt nereye kaydedildiğini bilemez).
 iOS'ta widget için bugünkü süre, seri ve hedef aynı cihazdaki App Group kabında; canlı sayaçta
 ders/konu adı kilit ekranında görünür. "Tüm verileri sil" canlı sayacı bitirir, widget'ı boş
 görünüme çevirir ve zamanlanmış hatırlatıcıları iptal eder. Bildirimler yalnız yereldir (push yok).
@@ -387,9 +460,9 @@ gelene kadar ayrı bir dosyada (`EtutAgeGuard`, `src/storage/age-guard.ts`) kal�
 Veri cihazdan yalnız öğrenci dokunduğunda, sistemin paylaşım sayfasıyla çıkar; uygulama hiçbir
 ağ isteği atmaz (`test:web` bunu denetler):
 - **Yedek** (`Ayarlar → Yedekle ve geri yükle`): `etut-yedek-<gün>.json`, biçim `src/domain/backup.ts`
-  (`format: "etut-yedek"`, `schemaVersion: 1`; oturumlar, denemeler + analizler, konu işaretleri,
-  ayarlar, profil). İçe aktarma: tam şema doğrulaması (tek hatalı kayıt → hiçbir şey yazılmaz),
-  daha yeni sürüm reddedilir, "Birleştir" (bu cihaz kazanır, eksikler eklenir) ya da "Değiştir";
+  (`format: "etut-yedek"`, `schemaVersion: 2`; 1 sürümlü eski dosyalar da okunur; oturumlar,
+  denemeler + analizler, konu işaretleri, ayarlar, profil). İçe aktarma: tam şema doğrulaması (tek
+  hatalı kayıt → hiçbir şey yazılmaz), daha yeni sürüm reddedilir, "Birleştir" (bu cihaz kazanır, eksikler eklenir) ya da "Değiştir";
   kimliklere göre idempotent; uygulamanın yazdığı her kayıt geri okunur (ör. bir hafta açık
   kalmış oturum); süre sınırı yok, zaman sınırı var (2016 sonrası başlangıç, dosya tarihinden en
   fazla 1 gün sonra bitiş). "Birleştir"de burada boş olan ayarlar (kaldırılmış hedef dahil) yedekten dolar.
@@ -406,5 +479,8 @@ ağ isteği atmaz (`test:web` bunu denetler):
   sınav türü yok).
 
 Yasal metinler (`src/strings.ts` → `legalDocs`) şu anki sunucusuz davranışa göre yazıldı. Veri
-sorumlusu adı ve iletişim bilgisi `DATA_CONTROLLER` sabitinde **`[DOLDURULACAK]`**; yayından önce
-doldurulmalı.
+sorumlusunun adı, posta adresi ve e-postası bu herkese açık depoda **yoktur** (bny kararı, 11 Ekim
+2026): `DATA_CONTROLLER` sabiti `EXPO_PUBLIC_DATA_CONTROLLER_*` değişkenlerini okur, yoksa
+`[DOLDURULACAK]` gösterir. TestFlight derlemesi değerleri `DATA_CONTROLLER_NAME` / `_ADDRESS` /
+`_CONTACT` gizli değerlerinden alır (yukarıda `testflight.yml`); testler, E2E ve web yer tutucuyu
+gösterir. Gerçek değerleri `src/strings.ts`'e yazmayın.
