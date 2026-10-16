@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Image, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { istanbulYear } from '@/domain/istanbul-day';
+import { istanbulDayKey, istanbulYear } from '@/domain/istanbul-day';
 import type { YksArea } from '@/domain/net';
 import {
   BIRTH_YEAR_FIRST_PAGE_MAX_AGE,
@@ -162,7 +162,7 @@ export default function OnboardingScreen() {
             setBlocked(result === 'age_blocked');
             if (result === 'age_blocked') setBlockedAttempt((n) => n + 1);
             if (result === 'ok' && goal !== null) {
-              storeDailyGoal(goal);
+              storeDailyGoal(goal, istanbulDayKey(Date.now()));
               notifyDataChanged('settings');
             }
           }}

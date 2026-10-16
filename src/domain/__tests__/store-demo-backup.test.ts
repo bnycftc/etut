@@ -61,7 +61,7 @@ describe.each(RUNS)('demo backup generated at %d', (now) => {
     const today = istanbulDayKey(now);
     const days = Array.from({ length: 40 }, (_, i) => addDays(today, -i));
     const totals = new Map(dailyTotals(parsed.file.sessions, days).map((d) => [d.day, d.totalMs]));
-    const streak = computeStreak((d) => totals.get(d) ?? 0, today, 180);
+    const streak = computeStreak((d) => totals.get(d) ?? 0, today, () => 180);
     expect(streak.current).toBeGreaterThanOrEqual(14);
   });
 

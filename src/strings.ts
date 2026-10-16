@@ -50,8 +50,9 @@ const C = DATA_CONTROLLER;
  * Keep it in step with `buildBackupFile` (domain/backup.ts) and `readSettings` (storage/backup.ts).
  */
 // [AVUKAT TEYİDİ] Liste dosyanın gerçek içeriğine göre tamamlandı (alan, son ders, dosya bilgisi).
+// [AVUKAT TEYİDİ] 0.4.1: hedef geçmişi eklendi (hedefin değiştirildiği günler ve değerleri, `dailyGoalHistory`).
 const BACKUP_CONTENTS =
-  'Yedek dosyasında doğum yılın, sınav türün ve alanın, tüm çalışma kayıtların (soru sayıları dahil), deneme netlerin ve analizlerin, konu işaretlerin, günlük hedefin, derslere koyduğun haftalık hedefler, hedef netlerin, sınav tarihlerin, sayacı en son başlattığın ders, sayaç türün ve pomodoro ayarların, bir de dosyanın oluşturulduğu zaman ve uygulama sürümü bulunur. CSV dosyaları çalışma kayıtlarını (girdiysen soru sayısıyla) ve denemeleri içerir.';
+  'Yedek dosyasında doğum yılın, sınav türün ve alanın, tüm çalışma kayıtların (soru sayıları dahil), deneme netlerin ve analizlerin, konu işaretlerin, günlük hedefin (ve hangi gün kaça değiştirdiğin), derslere koyduğun haftalık hedefler, hedef netlerin, sınav tarihlerin, sayacı en son başlattığın ders, sayaç türün ve pomodoro ayarların, bir de dosyanın oluşturulduğu zaman ve uygulama sürümü bulunur. CSV dosyaları çalışma kayıtlarını (girdiysen soru sayısıyla) ve denemeleri içerir.';
 
 const legalDocs = {
   aydinlatma: {
@@ -66,7 +67,8 @@ const legalDocs = {
       {
         heading: 'Uygulama ne kaydediyor?',
         paragraphs: [
-          'Doğum yılın (yalnız yıl), sınav türün ve alanın; çalışma oturumların (ders, konu, başlangıç ve bitiş zamanı, molalar ve uygulamadan çıktığın süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı); konu ilerlemen; deneme netlerin ve analizlerin; günlük hedefin, derslere koyduğun haftalık hedefler, hedef netlerin ve sınav tarihin; sayaç ayarların (pomodoro, ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihlerin, en son ne zaman yedek dosyası oluşturduğun ve yedek hatırlatmasını ne zaman kapattığın.',
+          // [AVUKAT TEYİDİ] 0.4.1: hedef geçmişi eklendi (hedefin değiştirildiği günler ve değerleri).
+          'Doğum yılın (yalnız yıl), sınav türün ve alanın; çalışma oturumların (ders, konu, başlangıç ve bitiş zamanı, molalar ve uygulamadan çıktığın süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı); konu ilerlemen; deneme netlerin ve analizlerin; günlük hedefin ve hedefini hangi gün kaça değiştirdiğin, derslere koyduğun haftalık hedefler, hedef netlerin ve sınav tarihin; sayaç ayarların (pomodoro, ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihlerin, en son ne zaman yedek dosyası oluşturduğun ve yedek hatırlatmasını ne zaman kapattığın.',
           // [AVUKAT TEYİDİ] Toplama yöntemi (KVKK m.10/1-ç; `docs/hukuk/kvkk/01` zorunlu unsur): otomatik
           // (cihazda) ve otomatik olmayan (e-posta, mektup) ayrımı bu cümleyle yeterli mi.
           'Bu bilgiler, uygulamayı kullanırken senin girdiklerinden ve sayacın tuttuğu zamanlardan oluşur; uygulama onları otomatik olarak bu telefona kaydeder. Bize e-posta ya da mektupla yazarsan yazdıkların bize otomatik olmayan yolla ulaşır.',
@@ -157,7 +159,8 @@ const legalDocs = {
       {
         heading: '2. Cihazda tutulanlar',
         paragraphs: [
-          'Doğum yılı (yaş kuralı için), sınav türü ve alan (ders ve konu listesi için), çalışma oturumları (ders, konu, zamanlar, molalar ve uygulama dışında geçen süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı), konu ilerlemesi, deneme netleri ve analizleri, günlük hedef, derslere koyduğun haftalık hedefler, hedef netler, sınav tarihi, pomodoro ve sayaç ayarları (ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihleri, son yedek dosyasının oluşturulma zamanı ve yedek hatırlatmasının kapatıldığı zaman.',
+          // [AVUKAT TEYİDİ] 0.4.1: hedef geçmişi eklendi (hedefin değiştirildiği günler ve değerleri).
+          'Doğum yılı (yaş kuralı için), sınav türü ve alan (ders ve konu listesi için), çalışma oturumları (ders, konu, zamanlar, molalar ve uygulama dışında geçen süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı), konu ilerlemesi, deneme netleri ve analizleri, günlük hedef ve hedefin değiştirildiği günler ile değerleri, derslere koyduğun haftalık hedefler, hedef netler, sınav tarihi, pomodoro ve sayaç ayarları (ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihleri, son yedek dosyasının oluşturulma zamanı ve yedek hatırlatmasının kapatıldığı zaman.',
           'Yedekten “Değiştir” ile yükleme yaparsan, geri alabilmen için önceki verilerinin bir kopyası bir gün boyunca bu telefonda kalır (5. bölüm).',
           // [AVUKAT TEYİDİ] Widget koşulu kaldırıldı (uygulama bu alana her değişiklikte yazar) ve kilit ekranı
           // sayacının gösterdiği ders ve konu adı eklendi.
@@ -1539,7 +1542,7 @@ export const tr = {
       title: 'Günlük hedef',
       paragraphs: (minMinutes: number, maxHours: number) => [
         `Günlük hedefi istersen koyarsın: ${minMinutes} dakika ile ${maxHours} saat arasında. Sayaç ekranındaki çubuk bugünkü sürenin hedefe oranını gösterir; elle eklediğin süre de sayılır.`,
-        'Hedefi değiştirirsen yeni hedef geçmiş günlere de uygulanır ve seri buna göre yeniden hesaplanır. Hedefi kapatırsan seri gösterilmez.',
+        'Hedefi değiştirirsen yeni hedef bugünden itibaren geçerli olur; önceki her gün, o gün geçerli olan hedefle sayılır. Böylece hedefini yükseltmek serini bozmaz. Hedefi kapatırsan seri gösterilmez.',
       ],
     },
     streak: {
@@ -1554,7 +1557,7 @@ export const tr = {
     examDate: {
       title: '“Tahmini” sınav tarihi',
       paragraphs: [
-        'ÖSYM ya da MEB sınav takvimini henüz açıklamadıysa geri sayım, önceki yılların düzenine göre tahmin ettiğimiz tarihe göre yapılır; yanında “tahmini” yazar.',
+        'ÖSYM ya da MEB sınav takvimini henüz açıklamadıysa geri sayım, önceki yılların düzenine göre tahmin ettiğimiz tarihe göre yapılır; yanında “tahmini” yazar. Tahmini ya da resmî tarih geçince geri sayım kendiliğinden bir sonraki sınava geçer.',
         'Kesin tarihi biliyorsan ya da başka bir oturuma giriyorsan Ayarlar → Sınav tarihi’nden kendin gir; “tahmini” etiketi kalkar. Girdiğin tarihi aynı karttaki düğmeyle geri alabilirsin.',
       ],
     },

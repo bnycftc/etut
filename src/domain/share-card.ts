@@ -8,7 +8,7 @@ import { dailyTotals, type SessionSpan } from './daily-totals';
 import { weeklySummary } from './compare';
 import { addDays, type DayKey } from './istanbul-day';
 import type { Profile } from './profile';
-import { goalMet, goalRatio } from './streak';
+import { goalRatio, type GoalOf } from './streak';
 
 export type CardPeriod = 'day' | 'week';
 
@@ -39,11 +39,11 @@ export interface StudyCard {
   rows: CardRow[];
   /** Days with study in the period (week only). */
   activeDays: number | null;
-  /** `null` without a daily goal. */
+  /** `null` without a daily goal; week: the goal of its last day (this week's: the goal now). */
   goalMinutes: number | null;
   /** Day: share of the goal reached (0–100). */
   goalPercent: number | null;
-  /** Week: days on which the goal was met. */
+  /** Week: days on which the goal of that day was met. */
   goalDays: number | null;
   /** Current streak in days; `null` without a goal. */
   streakDays: number | null;
@@ -109,14 +109,17 @@ export function dailyCard(
   };
 }
 
-/** `spans` must cover the week (Monday `weekStart` to Sunday). */
+/**
+ * `spans` must cover the week (Monday `weekStart` to Sunday); `goalOf`: the goal of each day
+ * (`goalOfDay`), `null` without a goal.
+ */
 export function weeklyCard(
   spans: SessionSpan[],
   weekStart: DayKey,
-  goalMinutes: number | null,
+  goalOf: GoalOf | null,
   streakDays: number | null,
 ): StudyCard {
-  const week = weeklySummary(spans, weekStart, goalMinutes);
+  const week = weeklySummary(spans, weekStart, goalOf);
   return {
     period: 'week',
     from: weekStart,
@@ -124,9 +127,9 @@ export function weeklyCard(
     totalMs: week.totalMs,
     rows: cardRows(week.bySubject),
     activeDays: week.activeDays,
-    goalMinutes,
+    goalMinutes: goalOf === null ? null : goalOf(addDays(weekStart, 6)),
     goalPercent: null,
-    goalDays: goalMinutes === null ? null : week.days.filter((d) => goalMet(d.totalMs, goalMinutes)).length,
-    streakDays: goalMinutes === null ? null : streakDays,
+    goalDays: week.goalDays,
+    streakDays: goalOf === null ? null : streakDays,
   };
 }

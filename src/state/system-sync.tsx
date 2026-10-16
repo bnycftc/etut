@@ -25,7 +25,7 @@ import {
   planNotifications,
   type ReminderPrefs,
 } from '../domain/reminders';
-import { STREAK_LOOKBACK_DAYS } from '../domain/streak';
+import { type GoalHistory, STREAK_LOOKBACK_DAYS } from '../domain/streak';
 import { type ActiveSession, provisionalAwayAt } from '../domain/timer';
 import type { ExamType } from '../domain/profile';
 import { savedTotalsLookup, type WidgetExam, widgetTimeline } from '../domain/widget-summary';
@@ -33,6 +33,7 @@ import {
   loadAwayRule,
   loadCustomExamDate,
   loadDailyGoal,
+  loadDailyGoalHistory,
   loadLiveActivityRecord,
   loadReminderPrefs,
   loadRemindersConfirmed,
@@ -54,6 +55,7 @@ import { useAppState, useNow, useStored } from './app-state';
 interface SurfaceData {
   savedTotal: (day: DayKey) => number;
   goalMinutes: number | null;
+  goalHistory: GoalHistory;
   prefs: ReminderPrefs;
   pendingExams: PendingExam[];
   /** The widget's countdown line (the same date the timer screen counts down to). */
@@ -67,18 +69,19 @@ function loadSavedTotals(today: DayKey): (day: DayKey) => number {
   return savedTotalsLookup(sessions, days);
 }
 
-function loadSurfaceData(savedTotal: (day: DayKey) => number, examType: ExamType): SurfaceData {
+function loadSurfaceData(savedTotal: (day: DayKey) => number, examType: ExamType, today: DayKey): SurfaceData {
   return {
     savedTotal,
     goalMinutes: loadDailyGoal(),
+    goalHistory: loadDailyGoalHistory(),
     prefs: effectiveReminderPrefs(loadReminderPrefs(), loadRemindersConfirmed()),
     pendingExams: listExamsNeedingAnalysis().map((e) => ({ id: e.id, createdAt: e.createdAt })),
-    exam: examFor(examType),
+    exam: examFor(examType, today),
   };
 }
 
-function examFor(examType: ExamType): WidgetExam | null {
-  const date = resolveExamDate(examType, loadCustomExamDate(examType));
+function examFor(examType: ExamType, today: DayKey): WidgetExam | null {
+  const date = resolveExamDate(examType, loadCustomExamDate(examType), today);
   return date === null ? null : { examType, day: date.day, days: date.days };
 }
 
@@ -176,6 +179,7 @@ function syncWidget(active: ActiveSession | null, data: SurfaceData | null): voi
           savedTotal: data.savedTotal,
           active,
           goalMinutes: data.goalMinutes,
+          goalHistory: data.goalHistory,
           exam: data.exam,
           awayAt,
         }).map((e) => ({ at: e.at, props: todayWidgetProps(e) }));
@@ -238,7 +242,7 @@ export function SystemSync(): null {
   );
   const data = useStored(
     `${today}|${dataVersions.sessions}|${dataVersions.settings}|${dataVersions.exams}|${examType ?? 'none'}`,
-    () => (examType === null || savedTotal === null ? null : loadSurfaceData(savedTotal, examType)),
+    () => (examType === null || savedTotal === null ? null : loadSurfaceData(savedTotal, examType, today)),
   );
   const session = profile === null ? null : active;
   const phaseEnds = usePhaseEnds(session, foreground);

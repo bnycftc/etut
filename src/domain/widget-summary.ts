@@ -32,7 +32,7 @@ import { examDaysLeft } from './exam-dates';
 import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey, splitByIstanbulDay } from './istanbul-day';
 import { pomodoroStatus, upcomingPhaseChanges } from './pomodoro';
 import type { ExamType } from './profile';
-import { computeStreak, goalMet, goalRatio } from './streak';
+import { computeStreak, type GoalHistory, goalMet, type GoalOf, goalOfDay, goalRatio } from './streak';
 import { type ActiveSession, isPaused, workIntervals } from './timer';
 
 /** Midnights ahead covered by the timeline (the widget shows a fresh day even if the app stays closed). */
@@ -95,6 +95,8 @@ export interface WidgetTimelineInput {
   active: ActiveSession | null;
   /** Daily goal in minutes; `null` = none. */
   goalMinutes: number | null;
+  /** Changes of the goal, for the streak (`goalOfDay`); missing = none kept. */
+  goalHistory?: GoalHistory;
   /** Exam date for the countdown line; missing/`null` = none. */
   exam?: WidgetExam | null;
   /** In the background: from when the time away costs study time (`provisionalAwayAt`; may lie ahead). */
@@ -126,10 +128,14 @@ function isCounting(active: ActiveSession | null, at: number): boolean {
   return status === null || status.phase === 'work';
 }
 
-/** `known`: the timeline still knows what happens after `at` (see the cut in `widgetTimeline`). */
-function entryAt(input: WidgetTimelineInput, at: number, known: boolean): WidgetEntry {
-  const { savedTotal, active, goalMinutes, exam } = input;
+/**
+ * `known`: the timeline still knows what happens after `at` (see the cut in `widgetTimeline`).
+ * `goalOf`: the goal of each day, `null` without a goal.
+ */
+function entryAt(input: WidgetTimelineInput, at: number, known: boolean, goalOf: GoalOf | null): WidgetEntry {
+  const { savedTotal, active, exam } = input;
   const day = istanbulDayKey(at);
+  const goalMinutes = goalOf === null ? null : goalOf(day);
   const daysLeft = exam ? examDaysLeft(exam, day) : null;
   const running = active === null ? null : runningByDay(active, at);
   const total = (d: DayKey) => savedTotal(d) + (running?.get(d) ?? 0);
@@ -145,7 +151,7 @@ function entryAt(input: WidgetTimelineInput, at: number, known: boolean): Widget
     goalMet: met,
     goalRatio: goalMinutes === null ? 0 : goalRatio(todayMs, goalMinutes),
     goalReachedAt: null,
-    streakDays: goalMinutes === null ? null : computeStreak(total, day, goalMinutes).current,
+    streakDays: goalOf === null ? null : computeStreak(total, day, goalOf).current,
     countdown: exam && daysLeft !== null && daysLeft >= 0 ? { examType: exam.examType, daysLeft } : null,
   };
 }
@@ -159,6 +165,8 @@ export function widgetTimeline(timelineInput: WidgetTimelineInput): WidgetEntry[
   const inputAt = (at: number) => (at < awayFrom ? timelineInput : input);
   const points = new Set<number>([now]);
   const today = istanbulDayKey(now);
+  // Every day of the timeline is today or later and goes by the goal now; past days by their own.
+  const goalOf = goalMinutes === null ? null : goalOfDay(input.goalHistory ?? [], goalMinutes, today);
   // A running session goes on counting in the timeline; only an idle one settles (see SETTLED_MIDNIGHT).
   const idle = active === null || isPaused(active);
   const examAhead = input.exam ? examDaysLeft(input.exam, today) >= 0 : false;
@@ -186,13 +194,13 @@ export function widgetTimeline(timelineInput: WidgetTimelineInput): WidgetEntry[
     // The last entry stays in effect for good.
     const next = i + 1 < times.length ? times[i + 1] : Number.POSITIVE_INFINITY;
     const known = next <= firstUncovered;
-    const entry = entryAt(inputAt(times[i]), times[i], known);
+    const entry = entryAt(inputAt(times[i]), times[i], known, goalOf);
     const end = i + 1 < times.length ? times[i + 1] : times[i] + DAY_MS;
     if (goalMs !== null && entry.counting && !entry.goalMet) {
       const reachAt = entry.at + (goalMs - entry.todayMs);
       entry.goalReachedAt = reachAt;
       entries.push(entry);
-      if (reachAt < end) entries.push(entryAt(inputAt(reachAt), reachAt, known));
+      if (reachAt < end) entries.push(entryAt(inputAt(reachAt), reachAt, known, goalOf));
     } else {
       entries.push(entry);
     }

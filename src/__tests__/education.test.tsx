@@ -78,6 +78,7 @@ jest.mock('../storage/kv', () => ({
   storeLastSubject: () => {},
   clearLastSubject: () => {},
   loadDailyGoal: () => memory.dailyGoal,
+  loadDailyGoalHistory: () => [],
   storeDailyGoal: (m: number | null) => {
     memory.dailyGoal = m;
   },

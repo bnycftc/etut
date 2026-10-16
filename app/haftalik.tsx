@@ -41,7 +41,7 @@ export default function WeeklyScreen() {
   const spans: SessionSpan[] = [...stored];
   if (active !== null && offset === 0) spans.push(activeSpan(active, now));
 
-  const week = weeklySummary(spans, weekStart, stats.goal);
+  const week = weeklySummary(spans, weekStart, stats.goalOf);
   const previous = weeklySummary(spans, previousStart, null);
   const weekDayKeys = week.days.map((d) => d.day);
   const questions = questionTotals(stored, weekDayKeys);

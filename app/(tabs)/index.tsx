@@ -7,6 +7,7 @@ import { topicOfSubject } from '@/domain/curriculum';
 import { activeSpan, dailyTotals } from '@/domain/daily-totals';
 import { examDaysLeft, resolveExamDate } from '@/domain/exam-dates';
 import { goalStep, UNDO_FINISH_MS } from '@/domain/finish';
+import { istanbulDayKey } from '@/domain/istanbul-day';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
@@ -110,7 +111,7 @@ export default function TimerScreen() {
   const customExamDay = useStored(`examDate|${examType}|${app.dataVersions.settings}`, () =>
     loadCustomExamDate(examType),
   );
-  const examDate = resolveExamDate(examType, customExamDay);
+  const examDate = resolveExamDate(examType, customExamDay, today);
   const daysLeft = examDate === null ? null : examDaysLeft(examDate, today);
   // The render clock ticks once a second; never show a moment before the last "Molayı geç".
   const lastSkipAt = active?.pomodoro?.skips[active.pomodoro.skips.length - 1]?.at ?? 0;
@@ -203,7 +204,8 @@ export default function TimerScreen() {
   };
 
   const setGoal = (minutes: number | null) => {
-    storeDailyGoal(minutes);
+    // The day of the tap, not of the render clock (it ticks once a minute while idle).
+    storeDailyGoal(minutes, istanbulDayKey(Date.now()));
     app.notifyDataChanged('settings');
   };
 

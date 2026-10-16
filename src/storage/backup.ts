@@ -14,13 +14,14 @@ import {
   clearLastSubject,
   loadCustomExamDate,
   loadDailyGoal,
+  loadDailyGoalHistory,
   loadLastSubject,
   loadNetTargets,
   loadStoredPomodoroConfig,
   loadStoredTimerMode,
+  restoreDailyGoal,
   restoreTimerSettings,
   storeCustomExamDate,
-  storeDailyGoal,
   storeLastSubject,
   storeNetTargets,
 } from './kv';
@@ -42,6 +43,9 @@ function readSettings(): BackupSettings {
     netTargets: loadNetTargets(),
     lastSubject: loadLastSubject(),
   };
+  // Optional keys, left out when empty (as `parseSettings` returns them).
+  const dailyGoalHistory = loadDailyGoalHistory();
+  if (dailyGoalHistory.length > 0) settings.dailyGoalHistory = [...dailyGoalHistory];
   const subjectWeeklyTargets = loadSubjectTargets();
   return Object.keys(subjectWeeklyTargets).length === 0 ? settings : { ...settings, subjectWeeklyTargets };
 }
@@ -82,7 +86,7 @@ export function readBackupData(): BackupData {
 }
 
 function writeSettings(s: BackupSettings): void {
-  storeDailyGoal(s.dailyGoalMinutes);
+  restoreDailyGoal(s.dailyGoalMinutes, s.dailyGoalHistory ?? []);
   restoreTimerSettings(s.timerMode, s.pomodoro);
   for (const t of EXAM_TYPES) storeCustomExamDate(t, s.examDates[t] ?? null);
   storeNetTargets(s.netTargets);

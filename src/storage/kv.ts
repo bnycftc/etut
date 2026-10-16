@@ -16,7 +16,7 @@ import {
 } from '../domain/pomodoro';
 import { type ExamType, isProfile, type Profile } from '../domain/profile';
 import { normalizeReminderPrefs, type ReminderPrefs } from '../domain/reminders';
-import { clampGoalMinutes } from '../domain/streak';
+import { clampGoalMinutes, type GoalHistory, normalizeGoalHistory, withGoalChange } from '../domain/streak';
 import { type ActiveSession, type AwayRule, DEFAULT_AWAY_RULE, toActiveSession } from '../domain/timer';
 
 const KEYS = {
@@ -24,6 +24,7 @@ const KEYS = {
   activeSession: 'etut.activeSession.v1',
   lastSubject: 'etut.lastSubject.v1',
   dailyGoal: 'etut.dailyGoalMinutes.v1',
+  dailyGoalHistory: 'etut.dailyGoalHistory.v1',
   pomodoroConfig: 'etut.pomodoroConfig.v1',
   timerMode: 'etut.timerMode.v1',
   examDate: 'etut.examDate.v1',
@@ -83,9 +84,30 @@ export function loadDailyGoal(): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? clampGoalMinutes(value) : null;
 }
 
-export function storeDailyGoal(minutes: number | null): void {
+/** Changes of the daily goal (`withGoalChange`); empty = none kept. */
+export function loadDailyGoalHistory(): GoalHistory {
+  return normalizeGoalHistory(readJson(KEYS.dailyGoalHistory));
+}
+
+function writeDailyGoal(minutes: number | null, history: GoalHistory): void {
+  // The history first: if the app stops in between, the old goal stays in force for today (today
+  // goes by the goal key) and the days before keep theirs; the other way round, a first change
+  // could judge every past day by the new goal.
+  if (history.length === 0) Storage.removeItemSync(KEYS.dailyGoalHistory);
+  else Storage.setItemSync(KEYS.dailyGoalHistory, JSON.stringify(history));
   if (minutes === null) Storage.removeItemSync(KEYS.dailyGoal);
-  else Storage.setItemSync(KEYS.dailyGoal, JSON.stringify(clampGoalMinutes(minutes)));
+  else Storage.setItemSync(KEYS.dailyGoal, JSON.stringify(minutes));
+}
+
+/** The student sets the goal (`null` = off) on the Istanbul day `today`; the history notes the change. */
+export function storeDailyGoal(minutes: number | null, today: DayKey): void {
+  const next = minutes === null ? null : clampGoalMinutes(minutes);
+  writeDailyGoal(next, withGoalChange(loadDailyGoalHistory(), loadDailyGoal(), next, today));
+}
+
+/** Puts back a goal with its history exactly (backup restore). */
+export function restoreDailyGoal(minutes: number | null, history: GoalHistory): void {
+  writeDailyGoal(minutes === null ? null : clampGoalMinutes(minutes), normalizeGoalHistory(history));
 }
 
 export function loadPomodoroConfig(): PomodoroConfig {

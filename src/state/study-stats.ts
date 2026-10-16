@@ -8,8 +8,16 @@ import { useRef } from 'react';
 import { compareWithPast, type SelfComparison } from '../domain/compare';
 import { activeSpan, dailyTotals, pastDayTotals, type SessionSpan } from '../domain/daily-totals';
 import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey, lastDays } from '../domain/istanbul-day';
-import { computeStreak, goalMet, STREAK_LOOKBACK_DAYS, type StreakResult, weekStartOf } from '../domain/streak';
-import { loadDailyGoal } from '../storage/kv';
+import {
+  computeStreak,
+  goalMet,
+  type GoalOf,
+  goalOfDay,
+  STREAK_LOOKBACK_DAYS,
+  type StreakResult,
+  weekStartOf,
+} from '../domain/streak';
+import { loadDailyGoal, loadDailyGoalHistory } from '../storage/kv';
 import { sessionsOverlapping } from '../storage/sessions';
 import { useAppState, useStored } from './app-state';
 
@@ -20,6 +28,8 @@ export interface StudyStats {
   comparison: SelfComparison;
   /** Daily goal in minutes; `null` = none. */
   goal: number | null;
+  /** The goal each day is judged by (`goalOfDay`); `null` without a goal. */
+  goalOf: GoalOf | null;
   streak: StreakResult | null;
   /** Days with any study time in the streak window (today included); for the backup reminder. */
   studyDays: number;
@@ -49,6 +59,8 @@ export function useStudyStats(now: number): StudyStats {
     return { past, pastStudyDays, recent: sessions.filter((s) => s.endedAt > recentFrom) };
   });
   const goal = useStored(`goal|${dataVersions.settings}`, loadDailyGoal);
+  const goalHistory = useStored(`goalHistory|${dataVersions.settings}`, loadDailyGoalHistory);
+  const goalOf = goal === null ? null : goalOfDay(goalHistory, goal, today);
 
   const spans: SessionSpan[] = [...stored.recent];
   const running = active === null ? null : activeSpan(active, now);
@@ -65,13 +77,19 @@ export function useStudyStats(now: number): StudyStats {
   const todayMet = goal !== null && goalMet(todayTotal, goal);
   const runningPastKey = runningPast === null ? '' : JSON.stringify([...runningPast]);
   const streakKey = `${today}|${goal}|${todayMet}|${runningPastKey}`;
-  const streakCache = useRef<{ stored: unknown; key: string; value: StreakResult | null } | null>(null);
+  const streakCache = useRef<{ stored: unknown; history: unknown; key: string; value: StreakResult | null } | null>(
+    null,
+  );
   let streak: StreakResult | null;
-  if (streakCache.current?.stored === stored && streakCache.current.key === streakKey) {
+  if (
+    streakCache.current?.stored === stored &&
+    streakCache.current.history === goalHistory &&
+    streakCache.current.key === streakKey
+  ) {
     streak = streakCache.current.value;
   } else {
     streak =
-      goal === null
+      goalOf === null
         ? null
         : computeStreak(
             (day) =>
@@ -79,11 +97,11 @@ export function useStudyStats(now: number): StudyStats {
                 ? todayTotal
                 : (stored.past.get(day) ?? 0) + (runningPast?.get(day) ?? 0),
             today,
-            goal,
+            goalOf,
           );
-    streakCache.current = { stored, key: streakKey, value: streak };
+    streakCache.current = { stored, history: goalHistory, key: streakKey, value: streak };
   }
 
   const studyDays = stored.pastStudyDays + (todayTotal > 0 ? 1 : 0);
-  return { today, todayTotal, todayManual, comparison: compareWithPast(spans, now), goal, streak, studyDays };
+  return { today, todayTotal, todayManual, comparison: compareWithPast(spans, now), goal, goalOf, streak, studyDays };
 }

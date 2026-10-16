@@ -21,7 +21,10 @@
  *
  * Versions: 1 = first layout. 2 = sessions may carry a solved question count (`questions`) and the
  * settings the weekly target per subject (`subjectWeeklyTargets`); a version 1 file is upgraded
- * (`upgrade`) and loads as before, with neither.
+ * (`upgrade`) and loads as before, with neither. Since 0.4.1 version 2 settings may also hold the
+ * daily goal history (`dailyGoalHistory`). It is an optional field, not a new version: 0.4.0 reads
+ * only the settings it knows (it would refuse version 3 as `too_new`), and a file without it (0.4.0)
+ * loads with no history, its goal then covering every day as it did there.
  */
 
 import { type TopicMark, validateSectionMarks } from './exam-analysis';
@@ -30,7 +33,7 @@ import { EXAM_KINDS, EXAM_SECTIONS, type ExamKind, type ExamScope, type SectionS
 import { isPomodoroConfig, normalizePomodoroConfig, type PomodoroConfig } from './pomodoro';
 import { birthYearOptions, EXAM_TYPES, type ExamType, isSoloOnly, type Profile, YKS_AREAS } from './profile';
 import { MAX_SESSION_QUESTIONS } from './questions';
-import { clampGoalMinutes } from './streak';
+import { clampGoalMinutes, type GoalChange } from './streak';
 import {
   SUBJECT_TARGET_MAX_MIN,
   SUBJECT_TARGET_MIN_MIN,
@@ -76,6 +79,8 @@ export interface BackupSettings {
   lastSubject: string | null;
   /** Weekly minutes per subject (version 2); missing = none set. */
   subjectWeeklyTargets?: SubjectTargets;
+  /** Changes of the daily goal, oldest first (since 0.4.1, still version 2); missing = none kept. */
+  dailyGoalHistory?: GoalChange[];
 }
 
 export interface BackupExam {
@@ -399,6 +404,32 @@ function withSubjectTargets(settings: BackupSettings, targets: SubjectTargets): 
   return Object.keys(targets).length === 0 ? rest : { ...rest, subjectWeeklyTargets: targets };
 }
 
+/**
+ * The daily goal history: days that exist, minutes the goal could have (kept within the limits as
+ * `dailyGoalMinutes`), one change per day; put in day order.
+ * The entry shape is frozen within version 2: 0.4.1 refuses the whole file when an entry is not
+ * `{from: a day, minutes: a whole number 1–1440}` or two entries share a day (other fields of an
+ * entry are ignored). A later change of it (e.g. `minutes: null` for "goal off") goes under a new
+ * settings key, which this version ignores, or a new version.
+ */
+function parseGoalHistory(value: unknown): GoalChange[] {
+  if (value === null || value === undefined) return [];
+  const changes = unique(
+    arr(value).map((c) => {
+      const q = obj(c);
+      return { from: day(q.from), minutes: clampGoalMinutes(int(q.minutes, 1, 24 * 60)) };
+    }),
+    (c) => c.from,
+  );
+  return changes.sort((a, b) => (a.from < b.from ? -1 : 1));
+}
+
+/** `settings` with the goal history, the key left out when it is empty. */
+function withGoalHistory(settings: BackupSettings, history: GoalChange[]): BackupSettings {
+  const { dailyGoalHistory: _old, ...rest } = settings;
+  return history.length === 0 ? rest : { ...rest, dailyGoalHistory: history };
+}
+
 function parseSettings(value: unknown): { settings: BackupSettings; skippedTargets: number } {
   const v = obj(value ?? {});
   const examDates: Partial<Record<ExamType, DayKey>> = {};
@@ -422,7 +453,13 @@ function parseSettings(value: unknown): { settings: BackupSettings; skippedTarge
     netTargets: netTargets.targets,
     lastSubject: v.lastSubject === null || v.lastSubject === undefined ? null : str(v.lastSubject, SUBJECT, 40),
   };
-  return { settings: withSubjectTargets(settings, parseSubjectTargets(v.subjectWeeklyTargets)), skippedTargets: netTargets.skipped };
+  return {
+    settings: withGoalHistory(
+      withSubjectTargets(settings, parseSubjectTargets(v.subjectWeeklyTargets)),
+      parseGoalHistory(v.dailyGoalHistory),
+    ),
+    skippedTargets: netTargets.skipped,
+  };
 }
 
 function parseProfile(value: unknown): BackupProfile | null {
@@ -521,6 +558,20 @@ function byId<T>(current: T[], incoming: T[], key: (item: T) => string): T[] {
 }
 
 /**
+ * Merge of the daily goal history. With neither a goal nor a history here, the file's history comes
+ * with its goal. A goal here without a history covers every day already (set before the history was
+ * kept): it stays so. Otherwise this device's history stays and the file adds only the changes from
+ * before this device's first one (e.g. the old phone's months, loaded on a new phone whose goal was
+ * set on the first day).
+ */
+function mergeGoalHistory(current: BackupSettings, incoming: BackupSettings): GoalChange[] {
+  const mine = current.dailyGoalHistory ?? [];
+  const theirs = incoming.dailyGoalHistory ?? [];
+  if (mine.length === 0) return current.dailyGoalMinutes === null ? theirs : [];
+  return [...theirs.filter((c) => c.from < mine[0].from), ...mine];
+}
+
+/**
  * The data to keep after importing `incoming` into `current`.
  * - `replace`: exactly the file's data (this device's sessions, exams, topics and settings go).
  * - `merge`: this device wins wherever both have the same record (same id, same topic, a setting
@@ -557,7 +608,10 @@ export function mergeBackup(current: BackupData, incoming: BackupData, mode: Imp
     sessions: byId(current.sessions, incoming.sessions, (s) => s.id),
     exams: byId(current.exams, incoming.exams, (e) => e.id),
     topicProgress: [...progress.values()],
-    settings: withSubjectTargets(settings, { ...i.subjectWeeklyTargets, ...c.subjectWeeklyTargets }),
+    settings: withGoalHistory(
+      withSubjectTargets(settings, { ...i.subjectWeeklyTargets, ...c.subjectWeeklyTargets }),
+      mergeGoalHistory(c, i),
+    ),
   };
 }
 

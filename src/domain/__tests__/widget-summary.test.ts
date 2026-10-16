@@ -36,6 +36,21 @@ function saved(day: DayKey, hour: number, minutes: number): CompletedSession {
 const DAYS = ['2026-10-04', '2026-10-05', '2026-10-06', TODAY, '2026-10-08', '2026-10-09'];
 
 describe('widgetTimeline', () => {
+  it('a raised goal: past days go by their own goal, today and the next days by the goal now', () => {
+    const lookup = savedTotalsLookup([saved('2026-10-05', 10, 70), saved('2026-10-06', 10, 70), saved(TODAY, 8, 70)], DAYS);
+    const goalHistory = [
+      { from: '2026-10-01', minutes: 60 },
+      { from: TODAY, minutes: 120 },
+    ];
+    const entries = widgetTimeline({ now: NOW, savedTotal: lookup, active: null, goalMinutes: 120, goalHistory });
+    // Monday and Tuesday met at 60; today (70 of 120) still open.
+    expect(entries[0]).toMatchObject({ goalMinutes: 120, goalMet: false, streakDays: 2 });
+    // Tomorrow: today is now judged by its own goal (120, missed): a rest day, the streak stays.
+    expect(entries[1]).toMatchObject({ day: '2026-10-08', goalMinutes: 120, streakDays: 2 });
+    // Without the history every day went by 120: no streak.
+    expect(widgetTimeline({ now: NOW, savedTotal: lookup, active: null, goalMinutes: 120 })[0].streakDays).toBe(0);
+  });
+
   it('idle: today now, then a fresh day at each of the next four midnights', () => {
     const lookup = savedTotalsLookup(
       [saved('2026-10-05', 10, 60), saved('2026-10-06', 10, 60), saved(TODAY, 8, 30)],
@@ -82,7 +97,7 @@ describe('widgetTimeline', () => {
           const day = istanbulDayKey(t);
           expect({ t: day, streak: shown.streakDays }).toEqual({
             t: day,
-            streak: computeStreak(lookup, day, 60).current,
+            streak: computeStreak(lookup, day, () => 60).current,
           });
           expect(shown.day === day || shown === entries[entries.length - 1]).toBe(true);
         }
