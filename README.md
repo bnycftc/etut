@@ -384,7 +384,7 @@ macOS 26 koşucusu:
     çalıştırmayın (biri diğerinin arşiv sertifikasını iptal edebilir).
 
 Sürüm numarası (`CFBundleShortVersionString`) `app.json` → `expo.version` alanından gelir
-(şu an `0.4.0`). Derleme numarası `<çalıştırma numarası>.<deneme numarası>` biçimindedir (ör. `12.1`); "Re-run jobs" deneme numarasını artırdığı için aynı numara iki kez yüklenmez.
+(şu an `0.4.1`). Derleme numarası `<çalıştırma numarası>.<deneme numarası>` biçimindedir (ör. `12.1`); "Re-run jobs" deneme numarasını artırdığı için aynı numara iki kez yüklenmez.
 
 ### `store-screenshots.yml` (elle ya da `store-screenshots` dalına push)
 6.9" iPhone (1320 × 2868) App Store ekran görüntüleri, simülatörde ve gerçekçi demo verisiyle.
@@ -407,7 +407,10 @@ derleme bağlamaz, fiyat ya da erişilebilirliğe dokunmaz.
   yenilikler" `tr/whats_new.txt`'den). Yazmadan önce Apple
   sınırlarını denetler. Varsayılan **kuru çalıştırma**: şimdiki ve istenen değerleri yazdırır, hiçbir
   şey yazmaz. `apply=true` yalnız farklı olanı yazar; düzenlenebilir sürüm yoksa `app.json` sürümüyle
-  oluşturur. App Privacy'ye dokunmaz.
+  oluşturur. App Privacy'ye dokunmaz. Düzenlenebilir sürümün adı `app.json` sürümünden farklıysa
+  (ör. 0.4.0 incelemeyi beklerken `main` 0.4.1'deyse) hiçbir şey yazmadan durur; o sürümün mağaza işleri
+  `release/<sürüm>` dalından (`gh workflow run asc-metadata.yml --ref release/0.4.0 -f apply=true`)
+  çalıştırılır. Sürüm adını gerçekten değiştirmek için `allow_version_change=true`.
 - `asc-privacy-url.yml`: düzenlenebilir uygulama bilgisinin her dilinde Gizlilik Politikası URL'sini
   yazar (varsayılan `https://bnycftc.github.io/etut/gizlilik.html`). Kuru çalıştırması yoktur.
 - `asc-screenshots.yml`: başarılı bir `store-screenshots.yml` çalıştırmasının (`run_id`) görüntülerini
