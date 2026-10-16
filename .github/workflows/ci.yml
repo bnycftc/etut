@@ -33,6 +33,10 @@ jobs:
       - name: Unit tests
         run: npx jest --ci
 
+      # scripts/store-compose.mjs (framed App Store screenshots): fonts, captions, output format.
+      - name: Store frame composer
+        run: npm run test:store-compose
+
       - name: Expo doctor
         run: npx --yes expo-doctor
 

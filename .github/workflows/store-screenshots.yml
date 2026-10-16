@@ -5,7 +5,10 @@ name: Store screenshots (iPhone 6.9")
 # e2e/store/demo-backup.js writes a backup dated relative to this run, the file is placed in the
 # simulator's "On My iPhone" folder, and the flow restores it through the app's own
 # "Yedekten geri yükle" screen. Nothing is uploaded to App Store Connect: the PNGs are an artifact
-# (app-store-screenshots-6.9). Needs no secrets.
+# (app-store-screenshots-6.9, the raw screens). The sources of the framed set that only
+# store-frames.yml uses (real Dynamic Island and Live Activity crops part-*, their full shots
+# tam-*, the dark mode screen koyu-* from e2e/store/screenshots-dark.yaml) are a second artifact,
+# app-store-screenshots-6.9-parts. Needs no secrets.
 # The simulator build steps are copied from e2e-ios.yml (Release, embedded JS bundle, ad-hoc
 # signed); the built .app is cached by a hash of the app sources, so a run that only changes the
 # flows or this file skips the build.
@@ -40,6 +43,7 @@ env:
   SHOT_HEIGHT: "2868"
   RESULTS: test-results/store
   SHOTS: app-store-screenshots-6.9
+  PARTS: app-store-screenshots-6.9-parts
   APP_CACHE_DIR: build/app-cache
 
 jobs:
@@ -329,40 +333,91 @@ jobs:
           echo "PASSED_ATTEMPT=$attempt" >> "$GITHUB_ENV"
           exit "$status"
 
-      # Only the store images ("NN-name.png") of the passing attempt; alpha is removed and the size
-      # is checked (App Store Connect rejects anything else for the 6.9" slot).
+      # The dark mode frame: same simulator and app state (onboarding and demo data from the flow
+      # above), the system switched to dark. Two attempts like the flow above.
+      - name: Run the dark mode flow
+        env:
+          SIMCTL_CHILD_TZ: ${{ env.SIM_TIMEZONE }}
+        run: |
+          xcrun simctl ui "$SIM_UDID" appearance dark
+          xcrun simctl ui "$SIM_UDID" appearance
+          xcrun simctl status_bar "$SIM_UDID" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
+          run_flow() {
+            maestro --device "$SIM_UDID" test e2e/store/screenshots-dark.yaml \
+              --format junit \
+              --output "$RESULTS/report-dark-$1.xml" \
+              --test-output-dir "$RESULTS/output-dark-$1" \
+              --debug-output "$RESULTS/debug-dark-$1" 2>&1 | tee "$RESULTS/maestro-dark-$1.log"
+            return "${PIPESTATUS[0]}"
+          }
+          set +e
+          run_flow 1
+          status=$?
+          attempt=1
+          if [ "$status" -ne 0 ]; then
+            echo "::warning::Dark mode flow failed on the first attempt; running it once more"
+            pkill -f 'xcodebuild test-without-building' || true
+            run_flow 2
+            status=$?
+            attempt=2
+          fi
+          echo "DARK_PASSED_ATTEMPT=$attempt" >> "$GITHUB_ENV"
+          exit "$status"
+
+      # From the passing attempts: the store images ("NN-name.png") into $SHOTS, the sources of the
+      # framed set into $PARTS: full screens (tam-*, koyu-*) and the cropped real renders (part-*,
+      # any size). Alpha is removed; full screens must have the 6.9" size (App Store Connect
+      # rejects anything else for that slot).
       - name: Check and flatten screenshots
         run: |
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet pillow
-          mkdir -p "$SHOTS"
+          mkdir -p "$SHOTS" "$PARTS"
           "$RUNNER_TEMP/venv/bin/python" - <<'PY'
           import glob, os, re
           from PIL import Image
-          src = os.path.join(os.environ["RESULTS"], f"output-{os.environ['PASSED_ATTEMPT']}")
-          out = os.environ["SHOTS"]
+          results = os.environ["RESULTS"]
+          light = os.path.join(results, f"output-{os.environ['PASSED_ATTEMPT']}")
+          dark = os.path.join(results, f"output-dark-{os.environ['DARK_PASSED_ATTEMPT']}")
           width, height = int(os.environ["SHOT_WIDTH"]), int(os.environ["SHOT_HEIGHT"])
-          paths = sorted(p for p in glob.glob(os.path.join(src, "**", "*.png"), recursive=True)
-                         if re.fullmatch(r"\d\d-[a-z0-9-]+\.png", os.path.basename(p)))
-          if not paths:
-              raise SystemExit(f"::error::No store screenshots under {src}")
-          bad = []
-          for p in paths:
-              img = Image.open(p)
-              print(f"{os.path.basename(p)}: {img.size[0]}x{img.size[1]} {img.mode}")
-              if img.size != (width, height):
-                  bad.append(f"{os.path.basename(p)} is {img.size[0]}x{img.size[1]}")
-                  continue
-              img.convert("RGB").save(os.path.join(out, os.path.basename(p)), "PNG", optimize=True)
-          for p in sorted(glob.glob(os.path.join(out, "*.png"))):
-              img = Image.open(p)
-              assert img.mode == "RGB" and img.size == (width, height), p
+
+          def find(src, pattern):
+              return sorted(p for p in glob.glob(os.path.join(src, "**", "*.png"), recursive=True)
+                            if re.fullmatch(pattern, os.path.basename(p)))
+
+          store = find(light, r"\d\d-[a-z0-9-]+\.png")
+          screens = find(light, r"tam-[a-z0-9-]+\.png") + find(dark, r"koyu-[a-z0-9-]+\.png")
+          crops = find(light, r"part-[a-z0-9-]+\.png")
+          if not store:
+              raise SystemExit(f"::error::No store screenshots under {light}")
+          names = {os.path.basename(p) for p in screens}
+          for required in ("tam-dynamic-island.png", "tam-canli-etkinlik.png", "koyu-yedek.png"):
+              if required not in names:
+                  raise SystemExit(f"::error::{required} missing (store-frames.yml needs it)")
+          bad, done = [], []
+          # (files, destination, must be a full 6.9" screen)
+          for paths, out, full in ((store, os.environ["SHOTS"], True), (screens, os.environ["PARTS"], True),
+                                   (crops, os.environ["PARTS"], False)):
+              for p in paths:
+                  name = os.path.basename(p)
+                  img = Image.open(p)
+                  print(f"{name}: {img.size[0]}x{img.size[1]} {img.mode}")
+                  if full and img.size != (width, height):
+                      bad.append(f"{name} is {img.size[0]}x{img.size[1]}")
+                      continue
+                  img.convert("RGB").save(os.path.join(out, name), "PNG", optimize=True)
+                  done.append((out, name, img.size))
+          for out, name, size in done:
+              img = Image.open(os.path.join(out, name))
+              assert img.mode == "RGB" and img.size == size, name
           if bad:
               raise SystemExit("::error::Wrong size: " + "; ".join(bad))
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as s:
-              s.write(f"### {len(paths)} screenshots, {width}×{height}, RGB PNG\n\n")
-              for p in paths:
-                  s.write(f"- {os.path.basename(p)}\n")
+              s.write(f"### {len(store)} screenshots, {width}×{height}, RGB PNG\n\n")
+              for out, name, size in done:
+                  s.write(f"- {out}/{name} ({size[0]}×{size[1]})\n")
+              if not crops:
+                  s.write("\nNo part-* crops (Maestro cropOn found nothing): store-frames.yml crops the tam-* shots.\n")
           PY
 
       - name: Upload store screenshots
@@ -370,6 +425,14 @@ jobs:
         with:
           name: ${{ env.SHOTS }}
           path: ${{ env.SHOTS }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload the sources of the framed set (store-frames.yml)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PARTS }}
+          path: ${{ env.PARTS }}
           if-no-files-found: error
           retention-days: 30
 

@@ -2,7 +2,11 @@
 # geri yükle" akışıyla yükleme, sonra mağaza görüntüleri. Yalnız .github/workflows/store-screenshots.yml
 # çalıştırır: o iş demo dosyasını (e2e/store/demo-backup.js) üretip simülatörün "iPhone'umda"
 # klasörüne etut-demo.json olarak koyar, durum çubuğunu 9:41'e sabitler, açık modu seçer.
-# Mağaza görüntüleri "NN-ad" adını taşır (iş yalnız bunları toplar); "debug-" olanlar teşhis içindir.
+# Mağaza görüntüleri "NN-ad" adını taşır; "part-" olanlar kahraman karesi için gerçek Dynamic Island
+# ve Live Activity kırpmaları (Maestro cropOn), "tam-" olanlar aynı anların tam ekranı (cropOn
+# SpringBoard öğesini bulamazsa scripts/store-compose.mjs bunlardan kırpar); "debug-" olanlar
+# teşhis içindir. Koyu mod görüntüsü ayrı akışta: e2e/store/screenshots-dark.yaml.
+# Çerçeveli set (başlık, arka plan): scripts/store-compose.mjs, store/app-store/tr/screenshots.json.
 appId: com.bnycftc.etut
 tags:
   - store
@@ -234,9 +238,32 @@ tags:
     timeout: 3000
 - takeScreenshot: 07-aylik-takvim
 
+# --- "Uygulamadan çıkınca: Çalışmaya devam say" (Ayarlar), for the Lock Screen shots below ---
+# With the default rule "Sor" the Live Activity says "Uygulamadan çıktın · mola sayılır" by the
+# time the Notification Center is pulled down (more than 10 s on the CI simulator, see
+# e2e/m-canli-sayac.yaml); with this setting it keeps counting and says "Çalışıyorsun".
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: today-total
+    timeout: 30000
+- tapOn:
+    id: tab-settings
+- scrollUntilVisible:
+    element:
+      id: settings-away-info
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: settings-away-count
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: settings-away-info
+      text: ".*çalışma sayılır.*"
+    timeout: 5000
+
 # --- 02 Çalışan sayaç (pomodoro; Matematik son ders olarak seçili) ---
-# No Live Activity image: on the CI simulator the Lock Screen shows 1 January whatever the status
-# bar override says, and system notifications ("Ready for Apple Intelligence") appear next to it.
 - launchApp
 - extendedWaitUntil:
     visible:
@@ -267,10 +294,81 @@ tags:
       id: today-total
     direction: UP
     timeout: 20000
-# A few seconds into the block, so the countdown has moved.
+# About 400 s into the 25 min block (Maestro has no sleep: wait for an id that never exists), so
+# the clock shows about 18:xx, the session total about 6:40 and the Live Activity's progress bar
+# has moved.
 - extendedWaitUntil:
     visible:
       id: e2e-never-present
-    timeout: 4000
+    timeout: 400000
     optional: true
 - takeScreenshot: 02-sayac
+
+# --- Hero parts: the real Dynamic Island and Lock Screen presentation, cropped ---
+# Only real renders, never a drawn device or Lock Screen (App Review 2.3.3). cropOn keeps the
+# system notifications ("Ready for Apple Intelligence") and the simulator's wrong Lock Screen date
+# out of the image. cropOn on SpringBoard elements is untested: the crops are optional and the
+# full shots (tam-) are kept for the luma fallback of scripts/store-compose.mjs.
+- pressKey: Home
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 3000
+    optional: true
+- takeScreenshot: tam-dynamic-island
+- takeScreenshot:
+    path: part-dynamic-island
+    cropOn:
+      id: "jindo-container-view.*"
+    optional: true
+# Notification Center (pulled down from the top-left edge) shows the Lock Screen presentation.
+- swipe:
+    start: 15%, 0%
+    end: 15%, 70%
+    duration: 600
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 2000
+    optional: true
+# A swipe is lost now and then on the CI simulator (run e2e-ios-37-1, retry): pull once more.
+- runFlow:
+    when:
+      notVisible:
+        text: "Matematik"
+    commands:
+      - swipe:
+          start: 15%, 0%
+          end: 15%, 70%
+          duration: 600
+      - extendedWaitUntil:
+          visible:
+            id: e2e-never-present
+          timeout: 2000
+          optional: true
+- takeScreenshot: debug-bildirim-merkezi
+# First Live Activity of this install: iOS asks under the banner. Text is matched in full, so
+# "İzin Ver" does not hit "İzin Verme".
+- tapOn:
+    text: "İzin Ver|Allow"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 2000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      text: "Çalışıyorsun"
+    timeout: 10000
+    optional: true
+- takeScreenshot: tam-canli-etkinlik
+- takeScreenshot:
+    path: part-canli-etkinlik
+    cropOn:
+      id: activity-content-view
+    optional: true
+- swipe:
+    start: 50%, 99%
+    end: 50%, 20%
+    duration: 400

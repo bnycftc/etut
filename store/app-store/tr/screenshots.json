@@ -1,0 +1,78 @@
+{
+  "canvas": { "width": 1320, "height": 2868 },
+  "backgrounds": {
+    "brand": { "from": "#3B5BDB", "to": "#2A3FA8", "title": "#FFFFFF", "sub": "#FFFFFF" },
+    "night": { "from": "#0B0F1A", "to": "#1D2744", "title": "#E9EDF6", "sub": "#A9B4CC" }
+  },
+  "chip": { "color": "#FFFFFF", "fill": "#000000", "opacity": 0.22 },
+  "frames": [
+    {
+      "out": "01-kilit-ekrani.png",
+      "layout": "hero",
+      "bg": "brand",
+      "screen": "02-sayac.png",
+      "screenCrop": { "top": 960, "bottom": 2600 },
+      "parts": { "island": "part-dynamic-island.png", "activity": "part-canli-etkinlik.png" },
+      "chip": "Kilit ekranı",
+      "title": ["Kilit ekranında da", "süren görünür"],
+      "sub": ["Ders seç, başlat; sayaç", "Dynamic Island’da da çalışır."]
+    },
+    {
+      "out": "02-net-grafigi.png",
+      "layout": "screen-bleed",
+      "bg": "brand",
+      "screen": "03-deneme-grafigi.png",
+      "title": ["Deneme netlerini", "grafikte izle"],
+      "sub": ["TYT, AYT ve ders bazında;", "kesik çizgi hedef netin."]
+    },
+    {
+      "out": "03-yanlis-konular.png",
+      "layout": "screen-full",
+      "bg": "brand",
+      "screen": "05-ders-karnesi.png",
+      "title": ["En çok yanlış", "yaptığın konular"],
+      "sub": ["Yanlış ve boşları konuya işaretle,", "Etüt listelesin."]
+    },
+    {
+      "out": "04-kronometre-pomodoro.png",
+      "layout": "screen-bleed",
+      "bg": "brand",
+      "screen": "01-ana-sayfa.png",
+      "title": ["Kronometre", "ya da pomodoro"],
+      "sub": ["Dersini seç, Başla’ya dokun;", "konu seçmek isteğe bağlı."]
+    },
+    {
+      "out": "05-net-hesabi.png",
+      "layout": "screen-full",
+      "bg": "brand",
+      "screen": "04-deneme-analizi.png",
+      "title": ["Doğru ve yanlışı gir,", "net hazır"],
+      "sub": ["Her dersin neti ve toplam net", "tek ekranda."]
+    },
+    {
+      "out": "06-haftalik-ozet.png",
+      "layout": "screen-bleed",
+      "bg": "brand",
+      "screen": "06-haftalik-ozet.png",
+      "title": ["Haftanı kendinle", "kıyasla"],
+      "sub": ["Haftada 1 dinlenme günü hakkın var,", "serin sürer."]
+    },
+    {
+      "out": "07-veriler-sende.png",
+      "layout": "screen-bleed",
+      "bg": "night",
+      "screen": "koyu-yedek.png",
+      "requires": ["offline"],
+      "title": ["Hesap yok,", "veriler telefonunda"],
+      "sub": ["Giriş ve reklam yok;", "uygulama internete bağlanmaz."]
+    },
+    {
+      "out": "08-aylik-takvim.png",
+      "layout": "screen-bleed",
+      "bg": "brand",
+      "screen": "07-aylik-takvim.png",
+      "title": ["Ayın tamamı", "tek takvimde"],
+      "sub": ["Renk koyulaştıkça o gün", "daha çok çalışmışsın."]
+    }
+  ]
+}

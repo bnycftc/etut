@@ -53,6 +53,8 @@
     "test:web": "node scripts/test-web.mjs",
     "gen:icons": "node scripts/gen-icons.mjs",
     "gen:licenses": "node scripts/gen-licenses.mjs",
+    "store:compose": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/store-compose.mjs",
+    "test:store-compose": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/store-compose.test.mjs",
     "test:all": "tsc --noEmit && jest --ci && node scripts/test-web.mjs",
     "test:db": "npx supabase test db",
     "test:db:pglite": "node scripts/test-db-pglite.mjs",

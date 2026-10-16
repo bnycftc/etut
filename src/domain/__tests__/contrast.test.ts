@@ -80,3 +80,32 @@ describe.each([
     expect(contrastRatio(colour, p.background)).toBeGreaterThanOrEqual(AA_GRAPHIC);
   });
 });
+
+// App Store frames (scripts/store-compose.mjs, store/app-store/tr/screenshots.json): the caption
+// colours on both ends of each background gradient and where the 8 % white ring passes, and the
+// hero frame's chip label on its translucent capsule.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const storeFrames = require('../../../store/app-store/tr/screenshots.json') as {
+  backgrounds: Record<string, { from: string; to: string; title: string; sub: string }>;
+  chip: { color: string; fill: string; opacity: number };
+};
+
+/** `top` drawn with opacity `alpha` over `bottom`, as #RRGGBB. */
+function over(bottom: string, top: string, alpha: number): string {
+  const channel = (hex: string, i: number) => parseInt(hex.slice(i, i + 2), 16);
+  return `#${[1, 3, 5]
+    .map((i) => Math.round(channel(bottom, i) * (1 - alpha) + channel(top, i) * alpha).toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+describe.each(Object.entries(storeFrames.backgrounds))('store frame background %s meets WCAG AA', (_name, bg) => {
+  const under = [bg.from, bg.to, over(bg.from, '#FFFFFF', 0.08), over(bg.to, '#FFFFFF', 0.08)];
+  it.each(under)('title and sub on %s ≥ 4.5', (colour) => {
+    expect(contrastRatio(bg.title, colour)).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio(bg.sub, colour)).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+  it.each([bg.from, bg.to])('chip label on its capsule over %s ≥ 4.5', (end) => {
+    const { color, fill, opacity } = storeFrames.chip;
+    expect(contrastRatio(color, over(end, fill, opacity))).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+});
