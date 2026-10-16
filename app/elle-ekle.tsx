@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { topicName, topicOfSubject } from '@/domain/curriculum';
+import { topicOfSubject } from '@/domain/curriculum';
 import { addDays, istanbulDayKey, istanbulTimeOfDay } from '@/domain/istanbul-day';
 import {
   buildManualSession,
@@ -26,7 +26,7 @@ import {
 import { tr } from '@/strings';
 import { syncFinishedSession, syncManualDeleted } from '@/sync/session-sync';
 import { Button, Card, Chip, ChipRow, Field, Label, Row, Screen, Tag } from '@/ui/components';
-import { formatDay, formatDuration } from '@/ui/format';
+import { formatDay, formatDuration, topicLabel } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
 import { TopicPicker } from '@/ui/topic-picker';
 
@@ -219,7 +219,7 @@ export default function ManualEntryScreen() {
       {recent.length === 0 ? <Label variant="muted">{tr.manual.empty}</Label> : null}
       {recent.map((s) => {
         const { hours, minutes } = istanbulTimeOfDay(s.startedAt);
-        const topic = topicName(s.topicId);
+        const topic = topicLabel(s.topicId);
         return (
           <Card key={s.id}>
             <Row>

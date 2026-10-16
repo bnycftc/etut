@@ -81,6 +81,7 @@ export default function HistoryScreen() {
               label: t.day === today ? tr.history.todayLabel : tr.weekdayShort(istanbulWeekday(t.day)),
               value: t.totalMs,
               valueLabel: t.totalMs === 0 ? '' : tr.history.barValue(hours, minutes),
+              a11yValue: formatDuration(t.totalMs),
               highlight: t.day === today,
             };
           })}

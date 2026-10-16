@@ -6,7 +6,7 @@ import { Modal, StyleSheet, View } from 'react-native';
 
 import { GROUPS_ENABLED } from '@/config/features';
 
-import { formatDayInput, readExamDayInput, resolveExamDate } from '@/domain/exam-dates';
+import { examDateKind, formatDayInput, readExamDayInput, resolveExamDate } from '@/domain/exam-dates';
 import { canUseParentMode } from '@/domain/groups';
 import { istanbulDayKey, istanbulYear } from '@/domain/istanbul-day';
 import type { YksArea } from '@/domain/net';
@@ -96,6 +96,8 @@ export default function SettingsScreen() {
   const examType = profile?.examType ?? 'DIGER';
   const customDay = useStored(`examDate|${examType}|${dataVersions.settings}`, () => loadCustomExamDate(examType));
   const examDate = resolveExamDate(examType, customDay);
+  // Estimate, official, the student's own or none: the line under the date says which (no year in it).
+  const examDateInfo = tr.countdown.settingsInfo(examType, examDateKind(examDate));
   const [dateText, setDateText] = useState('');
   const [dateError, setDateError] = useState(false);
   // Bumped when the error appears or the field is left with a wrong date, so VoiceOver reads it again.
@@ -244,7 +246,11 @@ export default function SettingsScreen() {
             {examDate?.estimated ? <Tag title={tr.countdown.estimated} /> : null}
             {examDate?.custom ? <Tag title={tr.countdown.custom} /> : null}
           </Row>
-          <Label variant="small">{tr.countdown.settingsInfo}</Label>
+          {examDateInfo !== null ? (
+            <Label variant="small" testID="settings-exam-date-info">
+              {examDateInfo}
+            </Label>
+          ) : null}
           <Row>
             <Field
               testID="settings-exam-date-input"
@@ -266,7 +272,7 @@ export default function SettingsScreen() {
             <Button
               testID="settings-exam-date-reset"
               kind="secondary"
-              title={tr.countdown.reset}
+              title={tr.countdown.reset(examDateKind(resolveExamDate(examType, null)))}
               onPress={() => {
                 storeCustomExamDate(profile.examType, null);
                 notifyDataChanged('settings');

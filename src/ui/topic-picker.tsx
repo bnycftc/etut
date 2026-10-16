@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { topicGroupsForSubject, topicName } from '../domain/curriculum';
+import { topicGroupsForSubject } from '../domain/curriculum';
 import type { YksArea } from '../domain/net';
 import type { ExamType } from '../domain/profile';
 import { tr } from '../strings';
 import { Button, Chip, ChipRow, Label, ResponsiveRow } from './components';
+import { topicLabel } from './format';
 
 /** Optional topic choice for a subject. Renders nothing when the subject has no topic list. */
 export function TopicPicker({
@@ -32,7 +33,7 @@ export function TopicPicker({
       <ResponsiveRow>
         <View style={{ flexGrow: 1, flexShrink: 1 }}>
           <Label variant="small">{tr.topicPicker.title}</Label>
-          <Label variant="muted">{topicName(topicId) ?? tr.topicPicker.none}</Label>
+          <Label variant="muted">{topicLabel(topicId) ?? tr.topicPicker.none}</Label>
         </View>
         <Button
           compact
@@ -66,6 +67,8 @@ export function TopicPicker({
                     key={t.id}
                     testID={`topic-${t.id}`}
                     title={t.name}
+                    // TYT and AYT share names (Fonksiyonlar…): the paper heading is not read with the chip.
+                    accessibilityLabel={topicLabel(t.id) ?? t.name}
                     selected={t.id === topicId}
                     onPress={() => {
                       onChange(t.id);

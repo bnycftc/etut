@@ -99,3 +99,35 @@ describe('CSV rows', () => {
     ]);
   });
 });
+
+describe('CSV exam rows, LGS', () => {
+  it('nets and the total are rounded to two decimals, the total from the unrounded sum', () => {
+    const score = (sectionId: string, questions: number, correct: number, wrong: number) => ({ sectionId, questions, correct, wrong });
+    const lgs: BackupExam = {
+      id: 'l1',
+      kind: 'LGS',
+      scope: 'genel',
+      bransSectionId: null,
+      takenOn: '2026-10-03',
+      createdAt: 1,
+      analysisDoneAt: null,
+      scores: [
+        score('turkce', 20, 17, 2),
+        score('inkilap', 10, 5, 2),
+        score('din', 10, 7, 1),
+        score('yabanci_dil', 10, 6, 1),
+        score('matematik', 20, 10, 1),
+        score('fen', 20, 11, 2),
+      ],
+      marks: [],
+    };
+    const rows = examRows([lgs], LABELS);
+    expect(rows.map((r) => r[8])).toEqual([16.33, 4.33, 6.67, 5.67, 9.67, 10.33]);
+    expect(rows[0][9]).toBe(53);
+    expect(toCsv(['net'], [[rows[0][8]]])).toBe(`${CSV_BOM}net\r\n16,33\r\n`);
+
+    // 9,67 + 4,33 + 6,67 + 5,67 + 9,67 + 10,33 = 46,34, but the app shows 46,33: so does the file.
+    const other = examRows([{ ...lgs, scores: [score('turkce', 20, 10, 1), ...lgs.scores.slice(1)] }], LABELS);
+    expect(other[0][9]).toBe(46.33);
+  });
+});

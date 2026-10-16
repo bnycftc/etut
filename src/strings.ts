@@ -6,6 +6,7 @@
 
 import type { BackupError } from './domain/backup';
 import type { MarkError } from './domain/exam-analysis';
+import type { ExamDateKind } from './domain/exam-dates';
 import type { ParentNoticeKind, ReactionKind, ReportReason } from './domain/groups';
 import type { ManualEntryError } from './domain/manual-entry';
 import type { ExamKind, ScoreError, YksArea } from './domain/net';
@@ -458,12 +459,30 @@ export const tr = {
     estimated: 'tahmini',
     custom: 'senin girdiğin tarih',
     settingsTitle: 'Sınav tarihi',
-    settingsInfo:
-      'ÖSYM ve MEB 2027 takvimini henüz açıklamadı; gösterilen tarih tahminidir. Kesin tarih açıklanınca buradan düzeltebilirsin.',
+    /**
+     * The line under the shown date, by what it is (`domain/exam-dates.ts`). No year in it: it must
+     * stay true when the built-in dates are updated. `null` = nothing to add (the tag says it).
+     */
+    settingsInfo: (examType: ExamType, kind: ExamDateKind): string | null => {
+      switch (kind) {
+        case 'estimated':
+          return examType === 'KPSS'
+            ? 'Bu tarih, bir sonraki KPSS Lisans (B grubu) oturumu için önceki yılların düzenine göre bir tahmindir. A grubuna ya da başka bir oturuma giriyorsan tarihini kendin gir.'
+            : 'Bu tarih önceki yılların düzenine göre bir tahmindir; kesin tarih açıklanınca buradan düzeltebilirsin.';
+        case 'official':
+          return 'Bu tarih resmî sınav takviminden; değişirse buradan düzeltebilirsin.';
+        case 'none':
+          return 'Sınav tarihini girersen Sayaç ekranında geri sayım görünür.';
+        case 'custom':
+          return null;
+      }
+    },
     none: 'Tarih yok',
     input: 'Tarih (GG.AA.YYYY)',
     placeholder: 'GG.AA.YYYY',
-    reset: 'Tahmini tarihe dön',
+    /** Button that drops the student's date; `builtIn` is what is shown after it. */
+    reset: (builtIn: ExamDateKind) =>
+      builtIn === 'none' ? 'Tarihi kaldır' : builtIn === 'official' ? 'Resmî tarihe dön' : 'Tahmini tarihe dön',
     invalid: 'Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.',
   },
 
@@ -545,6 +564,8 @@ export const tr = {
      */
     markA11y: (topic: string, mark: string, paper: string | null) =>
       paper === null ? `${topic}: ${mark}` : `${paper} ${topic}: ${mark}`,
+    /** A topic name with its paper where TYT and AYT share the name: `AYT Fonksiyonlar`. */
+    withPaper: (topic: string, paper: string | null) => (paper === null ? topic : `${paper} ${topic}`),
     noTime: 'Henüz süre yok',
     unsupported: 'Konu listeleri YKS, LGS ve KPSS için var.',
   },
@@ -599,7 +620,19 @@ export const tr = {
     countLabel: (section: string, what: string) => `${section}, ${what}`,
     questions: (n: number) => `${n} soru`,
     correctWrongShort: (correct: number, wrong: number) => `${correct} D · ${wrong} Y`,
+    /** Screen-reader name of a section row on the exam screen ("30 D · 6 Y" spelled out). */
+    sectionA11y: (section: string, correct: number, wrong: number, net: string) =>
+      `${section}: ${correct} doğru, ${wrong} yanlış, ${net} net`,
+    /** Shown under the totals when the rounded section nets do not add up to the total (LGS). */
+    roundingNote: 'Toplam net, yuvarlanmamış ders netlerinden hesaplanır; ders netlerinin toplamından 0,01 farklı olabilir.',
     fixErrors: 'Hatalı alanları düzelt.',
+    /** "Kaydet" on a form with no correct or wrong answer anywhere (it would be a 0-net exam). */
+    emptyExam: 'Kaydetmek için en az bir derse doğru ya da yanlış sayısı gir.',
+    /** Leaving the form (Vazgeç or pulling the sheet down) with unsaved input. */
+    discardNew: 'Girdiklerin kaydedilmeyecek. Çıkılsın mı?',
+    discardEdit: 'Değişikliklerin kaydedilmeyecek. Çıkılsın mı?',
+    discardLeave: 'Kaydetmeden çık',
+    discardStay: 'Düzenlemeye dön',
     deleteConfirm: 'Bu deneme silinsin mi?',
     notFound: 'Deneme bulunamadı.',
     /** How the net is computed on this paper (4 for YKS/KPSS, 3 for LGS). */
@@ -609,7 +642,7 @@ export const tr = {
     edit: 'Düzenle',
     editTitle: 'Denemeyi düzenle',
     editNote:
-      'Konu işaretlerin korunur. Yanlış ya da boş sayısı işaretlediklerinin altına inen dersin işaretleri silinir; sınavı değiştirirsen hepsi silinir.',
+      'Konu işaretlerin korunur. Yanlış ya da boş sayısı işaretlediklerinin altına inen dersin işaretleri silinir. Deneme türünü (Genel/Branş) ya da branşı değiştirirsen formda kalmayan derslerin işaretleri de silinir; sınavı değiştirirsen hepsi silinir. İşaret silinirse analiz yeniden bekler.',
     prevField: '‹ Önceki',
     nextField: 'Sonraki ›',
     prevFieldA11y: 'Önceki kutu',
@@ -680,13 +713,14 @@ export const tr = {
     /** How a target net is checked (`TARGET_WINDOW` in domain/exam-analysis.ts). */
     targetRule: (window: number) =>
       `Hedef netin, bu dersteki son ${window} denemedeki (genel ya da branş) netlerinin ortalamasıyla kıyaslanır.`,
-    targetPlaceholder: 'ör. 30',
+    /** `example` fits the section (`targetExample` in domain/exam-analysis.ts). */
+    targetPlaceholder: (example: string) => `ör. ${example}`,
     targetNone: 'Bu ders için hedef koymadın.',
     targetCurrent: (target: string) => `Hedef: ${target} net`,
     targetSave: 'Hedefi kaydet',
     targetClear: 'Hedefi kaldır',
-    targetInvalid: (questions: number) =>
-      `0’dan büyük, en fazla ${questions} olan ve 0,25’in katı bir net gir (ör. 32,5).`,
+    targetInvalid: (questions: number, example: string) =>
+      `0’dan büyük, en fazla ${questions} olan ve en çok iki ondalıklı bir net gir (ör. ${example}).`,
     gap: (gap: string, average: string) =>
       `Hedefe ${gap} net kaldı (son denemelerin ortalaması: ${average}).`,
     reached: (average: string) => `Hedefe ulaştın (son denemelerin ortalaması: ${average}).`,
@@ -1537,6 +1571,10 @@ export const tr = {
     openTopics: 'Konuları işaretle',
     examsTitle: 'Deneme netleri',
     examsEmpty: 'Bu ders için henüz deneme neti yok. Deneme ekleyince netlerin burada görünür.',
+    /** The subject has no test of its own in the exam form (Eğitim Bilimleri, Diğer…). */
+    examsNoSection: 'Bu dersin deneme formunda ayrı bir testi yok.',
+    /** The exam type has no exam form at all ("Diğer"). */
+    examsNoForm: 'Bu sınav için deneme formu yok; deneme netleri burada görünmez.',
     sectionTitle: (paper: string, section: string) => `${paper} · ${section}`,
     geometryNote: 'Geometri soruları Matematik testinin içinde; netler o testten.',
     missedTitle: 'En çok yanlış yaptığın konular',

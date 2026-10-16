@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { hoursMinutes } from '@/domain/clock';
 import { weekDays } from '@/domain/compare';
-import { topicName, topicsForSubject } from '@/domain/curriculum';
+import { topicsForSubject } from '@/domain/curriculum';
 import { activeSpan, dailyTotals, type SessionSpan, spanStudyMs } from '@/domain/daily-totals';
 import { targetKey } from '@/domain/exam-analysis';
 import { addDays, DAY_MS, dayStartMs, istanbulDayKey } from '@/domain/istanbul-day';
@@ -43,7 +43,7 @@ import {
   Screen,
   Stepper,
 } from '@/ui/components';
-import { formatDuration } from '@/ui/format';
+import { formatDuration, topicLabel } from '@/ui/format';
 import { NetChart } from '@/ui/net-chart';
 import { subjectColor } from '@/ui/subject-colors';
 import { space, usePalette } from '@/ui/theme';
@@ -89,6 +89,7 @@ export default function ReportCardScreen() {
       exams.map((e) => e.kind),
     );
     const netTargets = loadNetTargets();
+    const sections = examSectionsForSubject(subjectId, kinds);
     return {
       sessions: sessionsOverlapping(dayStartMs(trendFrom), dayStartMs(weekStart) + 7 * DAY_MS).filter(
         (s) => s.subjectId === subjectId,
@@ -98,7 +99,9 @@ export default function ReportCardScreen() {
       statuses: loadTopicStatuses(),
       marks: listAllMarks(),
       target: loadSubjectTargets()[subjectId] ?? null,
-      nets: examSectionsForSubject(subjectId, kinds)
+      // No exam form at all ("Diğer"), or no test of this subject in it (Eğitim Bilimleri, Diğer…).
+      examsMissing: kinds.length === 0 ? 'form' : sections.length === 0 ? 'section' : null,
+      nets: sections
         .map((section) => ({
           ...section,
           history: sectionNetHistory(section.kind, section.sectionId).slice(-CHART_LIMIT),
@@ -203,6 +206,7 @@ export default function ReportCardScreen() {
                 label: shortDay(w.weekStart),
                 value: w.ms,
                 valueLabel: w.ms === 0 ? '' : tr.history.barValue(hours, minutes),
+                a11yValue: formatDuration(w.ms),
                 highlight: w.weekStart === weekStart,
               };
             })}
@@ -228,7 +232,7 @@ export default function ReportCardScreen() {
                 <Label variant="muted">{tr.report.reviewList}</Label>
                 {summary.review.map((t) => (
                   <ResponsiveRow key={t.id}>
-                    <Label style={{ flexShrink: 1, flexGrow: 1 }}>{t.name}</Label>
+                    <Label style={{ flexShrink: 1, flexGrow: 1 }}>{topicLabel(t.id) ?? t.name}</Label>
                     <Label variant="small">
                       {(data.topicMs[t.id] ?? 0) > 0 ? formatDuration(data.topicMs[t.id] ?? 0) : tr.report.noTime}
                     </Label>
@@ -248,7 +252,7 @@ export default function ReportCardScreen() {
                   <View style={{ gap: 2 }}>
                     {summary.untouched.map((t) => (
                       <Label key={t.id} variant="muted">
-                        {t.name}
+                        {topicLabel(t.id) ?? t.name}
                       </Label>
                     ))}
                   </View>
@@ -268,7 +272,15 @@ export default function ReportCardScreen() {
       <Card testID="report-exams">
         <Label variant="heading">{tr.report.examsTitle}</Label>
         {subjectId === 'geometri' ? <Label variant="small">{tr.report.geometryNote}</Label> : null}
-        {data.nets.length === 0 ? <Label variant="muted">{tr.report.examsEmpty}</Label> : null}
+        {data.nets.length === 0 ? (
+          <Label variant="muted" testID="report-exams-empty">
+            {data.examsMissing === 'form'
+              ? tr.report.examsNoForm
+              : data.examsMissing === 'section'
+                ? tr.report.examsNoSection
+                : tr.report.examsEmpty}
+          </Label>
+        ) : null}
         {data.nets.map((s) => (
           <View key={`${s.kind}:${s.sectionId}`} style={{ gap: space.sm }}>
             <Label>{tr.report.sectionTitle(tr.examKind(s.kind), tr.subject(s.sectionId))}</Label>
@@ -288,6 +300,7 @@ export default function ReportCardScreen() {
         {data.nets.some((s) => s.history.some((p) => p.scope === 'brans')) ? (
           <Label variant="small">{tr.exams.chartBransLegend}</Label>
         ) : null}
+        {data.nets.some((s) => s.target !== null) ? <Label variant="small">{tr.exams.chartTargetLegend}</Label> : null}
       </Card>
 
       <Card testID="report-missed">
@@ -296,7 +309,7 @@ export default function ReportCardScreen() {
         {missed.map((m, i) => (
           <View key={m.topicId} style={{ gap: 2 }}>
             <Label>
-              {i + 1}. {topicName(m.topicId) ?? tr.analysis.unknownTopic}
+              {i + 1}. {topicLabel(m.topicId) ?? tr.analysis.unknownTopic}
             </Label>
             <Label variant="small">
               {tr.report.missedRow(m.wrong, m.blank, m.ms > 0 ? formatDuration(m.ms) : tr.report.noTime)}

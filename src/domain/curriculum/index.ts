@@ -127,3 +127,24 @@ export function topicName(topicId: string | null | undefined): string | null {
   if (!topicId) return null;
   return findTopic(topicId)?.name ?? null;
 }
+
+let sharedNames: Set<string> | null = null;
+
+/**
+ * `TYT` / `AYT` when a topic's name is used in both papers (Fonksiyonlar, Olasılık…), so a list or
+ * a screen reader can tell the two apart; `null` for every other topic (LGS and KPSS included).
+ */
+export function sharedTopicPaper(topicId: string | null | undefined): TopicPaper {
+  if (!topicId) return null;
+  if (sharedNames === null) {
+    const names = (source: SubjectTopics) =>
+      new Set(Object.values(source).flatMap((topics) => (topics ?? []).map((t) => t.name)));
+    const ayt = names(AYT_TOPICS);
+    sharedNames = new Set([...names(TYT_TOPICS)].filter((n) => ayt.has(n)));
+  }
+  const name = topicName(topicId);
+  if (name === null || !sharedNames.has(name)) return null;
+  if (topicId.startsWith('tyt.')) return 'TYT';
+  if (topicId.startsWith('ayt.')) return 'AYT';
+  return null;
+}

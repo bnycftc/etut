@@ -2,11 +2,11 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { topicName } from '@/domain/curriculum';
 import {
   parseTargetNet,
   studyTargetForTopic,
   TARGET_WINDOW,
+  targetExample,
   targetKey,
   targetProgress,
   topMissedTopics,
@@ -37,7 +37,7 @@ import {
   Screen,
   Tag,
 } from '@/ui/components';
-import { formatDay } from '@/ui/format';
+import { formatDay, topicLabel } from '@/ui/format';
 import { Icon } from '@/ui/icon';
 import { NetChart } from '@/ui/net-chart';
 import { space, usePalette } from '@/ui/theme';
@@ -128,7 +128,8 @@ export default function ExamsScreen() {
 
   const missed = data.missed.map((m) => ({
     ...m,
-    name: topicName(m.topicId) ?? tr.analysis.unknownTopic,
+    // With TYT/AYT where both papers have the topic name: both can be in the list.
+    name: topicLabel(m.topicId) ?? tr.analysis.unknownTopic,
     study: studyTargetForTopic(examType, yksArea, m.topicId),
   }));
 
@@ -280,12 +281,12 @@ export default function ExamsScreen() {
                 onChange={setTargetText}
                 maxLength={6}
                 numeric={false}
-                placeholder={tr.trend.targetPlaceholder}
+                placeholder={tr.trend.targetPlaceholder(formatNet(targetExample(section.questions)))}
               />
             </Row>
             {targetError ? (
               <Label variant="small" style={{ color: c.danger }}>
-                {tr.trend.targetInvalid(section.questions)}
+                {tr.trend.targetInvalid(section.questions, formatNet(targetExample(section.questions)))}
               </Label>
             ) : null}
             <Row>

@@ -204,14 +204,14 @@ export function ListRow({
   );
 }
 
-/** Text button with an icon for a navigation header ("Geçmiş"). */
+/** Text button, with an icon or without ("Vazgeç"), for a navigation header ("Geçmiş"). */
 export function HeaderButton({
   icon,
   title,
   onPress,
   testID,
 }: {
-  icon: IconName;
+  icon?: IconName;
   title: string;
   onPress: () => void;
   testID?: string;
@@ -225,7 +225,7 @@ export function HeaderButton({
       onPress={onPress}
       hitSlop={8}
       style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}>
-      <Icon name={icon} color={c.accent} size={20} />
+      {icon ? <Icon name={icon} color={c.accent} size={20} /> : null}
       <Text style={{ color: c.accent, fontSize: 17 }} maxFontSizeMultiplier={MAX_FONT_SCALE.header}>
         {title}
       </Text>
@@ -283,8 +283,16 @@ export function ChipRow({ children }: { children: ReactNode }) {
   return <View style={styles.chipRow}>{children}</View>;
 }
 
-export function Row({ children }: { children: ReactNode }) {
-  return <View style={styles.row}>{children}</View>;
+/** With `accessibilityLabel` the row is one screen-reader element read as that sentence. */
+export function Row({ children, accessibilityLabel }: { children: ReactNode; accessibilityLabel?: string }) {
+  return (
+    <View
+      style={styles.row}
+      accessible={accessibilityLabel === undefined ? undefined : true}
+      accessibilityLabel={accessibilityLabel}>
+      {children}
+    </View>
+  );
 }
 
 /** Small "elle" style tag next to a value. */
@@ -503,6 +511,8 @@ export interface Bar {
   label: string;
   value: number;
   valueLabel: string;
+  /** What a screen reader says for the value when `valueLabel` is shorthand (`2:05` → `2 sa 5 dk`). */
+  a11yValue?: string;
   highlight?: boolean;
 }
 
@@ -513,7 +523,7 @@ export interface Bar {
 export function BarChart({ bars, height = 140 }: { bars: Bar[]; height?: number }) {
   const c = usePalette();
   const max = Math.max(...bars.map((b) => b.value), 0);
-  const summary = tr.a11y.chart(bars.map((b) => tr.a11y.chartItem(b.label, b.valueLabel)).join(', '));
+  const summary = tr.a11y.chart(bars.map((b) => tr.a11y.chartItem(b.label, b.a11yValue ?? b.valueLabel)).join(', '));
   return (
     <View
       accessible

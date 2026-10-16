@@ -1,6 +1,7 @@
 import {
   daysUntil,
   EXAM_DATES,
+  examDateKind,
   examDaysLeft,
   formatDayInput,
   isValidCustomExamDay,
@@ -12,6 +13,15 @@ import { istanbulWeekday } from '../istanbul-day';
 import { canDeclareBirthYear, guardRecordAfter, isSoloOnly } from '../profile';
 
 describe('exam countdown', () => {
+  it('says what the shown date is: set by the student, an estimate, an official date or none', () => {
+    expect(examDateKind(resolveExamDate('YKS', null))).toBe('estimated');
+    expect(examDateKind(resolveExamDate('KPSS', null))).toBe('estimated');
+    expect(examDateKind(resolveExamDate('YKS', '2027-06-26'))).toBe('custom');
+    expect(examDateKind(resolveExamDate('DIGER', null))).toBe('none');
+    expect(examDateKind(resolveExamDate('DIGER', '2027-07-01'))).toBe('custom');
+    expect(examDateKind({ day: '2027-06-19', estimated: false, custom: false })).toBe('official');
+  });
+
   it('built-in 2027 dates are marked as estimates', () => {
     expect(EXAM_DATES.YKS).toEqual({ day: '2027-06-19', estimated: true, days: 2 });
     expect(istanbulWeekday('2027-06-19')).toBe(5); // Saturday

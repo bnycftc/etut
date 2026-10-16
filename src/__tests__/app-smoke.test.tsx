@@ -849,7 +849,7 @@ describe('mock exam analysis', () => {
     expect(screen.getByTestId('trend-target').props.children).toBe('Bu ders için hedef koymadın.');
     fireEvent.changeText(screen.getByTestId('trend-target-input'), '45');
     fireEvent.press(screen.getByTestId('trend-target-save'));
-    expect(screen.getByText('0’dan büyük, en fazla 40 olan ve 0,25’in katı bir net gir (ör. 32,5).')).toBeTruthy();
+    expect(screen.getByText('0’dan büyük, en fazla 40 olan ve en çok iki ondalıklı bir net gir (ör. 30).')).toBeTruthy();
     fireEvent.changeText(screen.getByTestId('trend-target-input'), '30');
     fireEvent.press(screen.getByTestId('trend-target-save'));
     expect(memory.netTargets['TYT:matematik']).toBe(30);
@@ -857,6 +857,18 @@ describe('mock exam analysis', () => {
     expect(screen.getByTestId('trend-gap').props.children).toBe(
       'Hedefe 1,5 net kaldı (son denemelerin ortalaması: 28,5).',
     );
+  });
+
+  it('the target example fits the section; two decimals are allowed', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('trend-section-tarih'));
+    expect(screen.getByTestId('trend-target-input').props.placeholder).toBe('ör. 3,75');
+    fireEvent.changeText(screen.getByTestId('trend-target-input'), '6');
+    fireEvent.press(screen.getByTestId('trend-target-save'));
+    expect(screen.getByText('0’dan büyük, en fazla 5 olan ve en çok iki ondalıklı bir net gir (ör. 3,75).')).toBeTruthy();
+    fireEvent.changeText(screen.getByTestId('trend-target-input'), '3,67');
+    fireEvent.press(screen.getByTestId('trend-target-save'));
+    expect(memory.netTargets['TYT:tarih']).toBe(3.67);
   });
 });
 
@@ -892,6 +904,94 @@ describe('mock exam entry, editing and charts', () => {
     expect(memory.exams[0]).toMatchObject({ kind: 'TYT', totalNet: 10 });
     // Back on the list (the form closed after the first tap).
     expect(screen.getByTestId('exam-item-0-net').props.children).toEqual(['10', ' ', 'net']);
+  });
+
+  it('Kaydet on a form with nothing entered is refused with the reason', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.press(screen.getByTestId('exam-save'));
+    expect(memory.saves).toBe(0);
+    expect(screen.getByTestId('exam-empty-error').props.children).toBe(
+      'Kaydetmek için en az bir derse doğru ya da yanlış sayısı gir.',
+    );
+    // A typed 0 is still nothing entered.
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '0');
+    fireEvent.press(screen.getByTestId('exam-save'));
+    expect(memory.saves).toBe(0);
+    fireEvent.changeText(screen.getByTestId('exam-wrong-turkce'), '2');
+    expect(screen.queryByTestId('exam-empty-error')).toBeNull();
+    fireEvent.press(screen.getByTestId('exam-save'));
+    expect(memory.exams[0]).toMatchObject({ totalNet: -0.5 });
+  });
+
+  it('Vazgeç closes an untouched form; with something entered it asks first', () => {
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.press(screen.getByTestId('exam-cancel'));
+    expect(screen.queryByTestId('exam-form')).toBeNull();
+
+    fireEvent.press(screen.getByTestId('exams-add'));
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '10');
+    fireEvent.press(screen.getByTestId('exam-cancel'));
+    expect(screen.getByTestId('exam-discard-question').props.children).toBe('Girdiklerin kaydedilmeyecek. Çıkılsın mı?');
+    fireEvent.press(screen.getByTestId('exam-discard-stay'));
+    expect(screen.queryByTestId('exam-discard-question')).toBeNull();
+    expect(screen.getByTestId('exam-correct-turkce').props.value).toBe('10');
+    // Any other way out (pulling the sheet down lands here too) is held the same way.
+    act(() => router.back());
+    expect(screen.getByTestId('exam-discard-question')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('exam-discard-leave'));
+    expect(screen.queryByTestId('exam-form')).toBeNull();
+    expect(memory.saves).toBe(0);
+  });
+
+  it('edit: closing unchanged does not ask, a change does; an emptied form is not saved', () => {
+    memory.exams = [TYT_E1];
+    renderRouter(APP_DIR, { initialUrl: '/deneme/e1' });
+    fireEvent.press(screen.getByTestId('exam-edit'));
+    fireEvent.press(screen.getByTestId('exam-cancel'));
+    expect(screen.queryByTestId('exam-form')).toBeNull();
+    expect(screen.getByTestId('exam-detail-total')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('exam-edit'));
+    fireEvent.press(screen.getByTestId('exam-prev-day'));
+    fireEvent.press(screen.getByTestId('exam-cancel'));
+    expect(screen.getByTestId('exam-discard-question').props.children).toBe(
+      'Değişikliklerin kaydedilmeyecek. Çıkılsın mı?',
+    );
+    fireEvent.press(screen.getByTestId('exam-discard-stay'));
+    for (const id of ['exam-correct-turkce', 'exam-wrong-turkce', 'exam-correct-matematik', 'exam-wrong-matematik']) {
+      fireEvent.changeText(screen.getByTestId(id), '');
+    }
+    fireEvent.press(screen.getByTestId('exam-save'));
+    expect(screen.getByTestId('exam-empty-error')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('exam-cancel'));
+    fireEvent.press(screen.getByTestId('exam-discard-leave'));
+    expect(memory.exams[0]).toMatchObject({ takenOn: '2026-10-01', totalNet: 57.5 });
+  });
+
+  it('exam detail: each section row is read as one sentence; no rounding note when the nets add up', () => {
+    memory.exams = [TYT_E1];
+    renderRouter(APP_DIR, { initialUrl: '/deneme/e1' });
+    expect(screen.getByLabelText('Türkçe: 30 doğru, 4 yanlış, 29 net')).toBeTruthy();
+    expect(screen.queryByTestId('exam-detail-rounding')).toBeNull();
+  });
+
+  it('exam detail: LGS section nets that do not add up to the total get a note', () => {
+    memory.profile = { ...ADULT_SAYISAL, examType: 'LGS', yksArea: null };
+    const s = (sectionId: string, questions: number, correct: number, wrong: number) => ({ sectionId, questions, correct, wrong });
+    memory.exams = [
+      {
+        ...TYT_E1,
+        kind: 'LGS',
+        totalNet: 46 + 1 / 3,
+        // 9,67 + 4,33 + 6,67 + 5,67 + 9,67 + 10,33 = 46,34, total 46,33.
+        scores: [s('turkce', 20, 10, 1), s('inkilap', 10, 5, 2), s('din', 10, 7, 1), s('yabanci_dil', 10, 6, 1), s('matematik', 20, 10, 1), s('fen', 20, 11, 2)],
+      },
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/deneme/e1' });
+    expect(screen.getByTestId('exam-detail-total').props.children).toBe('46,33');
+    expect(screen.getByTestId('exam-detail-rounding')).toBeTruthy();
   });
 
   it('after Kaydet the list confirms the net and offers the analysis once', () => {
@@ -1292,8 +1392,33 @@ describe('exam countdown', () => {
     expect(input().props.value).toBe('');
     expect(screen.getByTestId('settings-exam-date').props.children).toBe('26 Haziran 2027');
     expect(screen.getByText('senin girdiğin tarih')).toBeTruthy();
+    // The tag says it is the student's date; the "tahmin" line is gone.
+    expect(screen.queryByTestId('settings-exam-date-info')).toBeNull();
+    expect(screen.getByTestId('settings-exam-date-reset')).toHaveTextContent('Tahmini tarihe dön');
     fireEvent.press(screen.getByTestId('settings-exam-date-reset'));
     expect(memory.examDates.YKS).toBeUndefined();
+    expect(screen.getByTestId('settings-exam-date-info').props.children).toBe(
+      'Bu tarih önceki yılların düzenine göre bir tahmindir; kesin tarih açıklanınca buradan düzeltebilirsin.',
+    );
+  });
+
+  it('KPSS: the date line names the session the default date is for', () => {
+    memory.profile = { ...ADULT_SAYISAL, examType: 'KPSS', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    expect(screen.getByTestId('settings-exam-date-info').props.children).toMatch(/^Bu tarih, bir sonraki KPSS Lisans \(B grubu\)/);
+  });
+
+  it('"Diğer" without a date says what one gives; its own date is removed, not reset to an estimate', () => {
+    memory.profile = { ...ADULT_SAYISAL, examType: 'DIGER', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    expect(screen.getByTestId('settings-exam-date').props.children).toBe('Tarih yok');
+    expect(screen.getByTestId('settings-exam-date-info').props.children).toBe(
+      'Sınav tarihini girersen Sayaç ekranında geri sayım görünür.',
+    );
+    fireEvent.changeText(screen.getByTestId('settings-exam-date-input'), '01.07.2027');
+    expect(memory.examDates.DIGER).toBe('2027-07-01');
+    // There is no estimate to go back to.
+    expect(screen.getByTestId('settings-exam-date-reset')).toHaveTextContent('Tarihi kaldır');
   });
 
   it('a custom date is shown on the home screen without "tahmini"', () => {
@@ -2989,6 +3114,35 @@ describe('ders karnesi, soru sayısı, ders hedefi, aylık görünüm', () => {
     expect(screen.getByTestId('topics-subject-kimya').props.accessibilityState?.selected).toBe(true);
   });
 
+  it('report card: a subject with no test of its own is not told to add an exam; the target line is explained', () => {
+    memory.exams = [
+      {
+        id: 'e1',
+        kind: 'TYT',
+        scope: 'genel',
+        bransSectionId: null,
+        takenOn: '2026-10-01',
+        totalNet: 25.5,
+        createdAt: 1,
+        analysisDoneAt: 2,
+        scores: [{ sectionId: 'matematik', questions: 40, correct: 27, wrong: 6 }],
+      },
+    ];
+    memory.netTargets = { 'TYT:matematik': 30 };
+    renderRouter(APP_DIR, { initialUrl: '/karne/matematik' });
+    expect(screen.getByText('Kesik çizgi: hedef net.')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('report-subject-diger'));
+    expect(screen.getByTestId('report-exams-empty').props.children).toBe('Bu dersin deneme formunda ayrı bir testi yok.');
+  });
+
+  it('report card for "Diğer": no exam form at all', () => {
+    memory.profile = { ...ADULT_SAYISAL, examType: 'DIGER', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/karne/genel' });
+    expect(screen.getByTestId('report-exams-empty').props.children).toBe(
+      'Bu sınav için deneme formu yok; deneme netleri burada görünmez.',
+    );
+  });
+
   it('entry points: the Karne shortcut on the timer and the button in Konular', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     // Existing shortcuts are still there, Karne is added after them.
@@ -3150,6 +3304,34 @@ describe('accessibility names on key screens', () => {
       accessibilityLabel: 'AYT Türev: Tekrar lazım',
       accessibilityState: { selected: true },
     });
+  });
+
+  it('a study-time chart reads its values as durations, not as clock times', () => {
+    renderRouter(APP_DIR, { initialUrl: '/gecmis' });
+    // The bar shows "1:00"; VoiceOver hears "1 sa 0 dk".
+    expect(screen.getByLabelText(/^Grafik\. .*Bugün: 1 sa 0 dk$/)).toBeTruthy();
+  });
+
+  it('a topic name both papers share carries its paper in the timer picker and the most-missed list', () => {
+    memory.marks = {
+      e1: [
+        { sectionId: 'matematik', topicId: 'tyt.matematik.fonksiyonlar', wrong: 3, blank: 0 },
+        { sectionId: 'matematik', topicId: 'ayt.matematik.fonksiyonlar', wrong: 2, blank: 0 },
+      ],
+    };
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('subject-matematik'));
+    fireEvent.press(screen.getByTestId('topic-picker-toggle'));
+    expect(screen.getByTestId('topic-tyt.matematik.fonksiyonlar').props.accessibilityLabel).toBe('TYT Fonksiyonlar');
+    expect(screen.getByTestId('topic-ayt.matematik.fonksiyonlar').props.accessibilityLabel).toBe('AYT Fonksiyonlar');
+    // A name of one paper only stays as it is.
+    expect(screen.getByTestId('topic-ayt.matematik.turev').props.accessibilityLabel).toBe('Türev');
+    fireEvent.press(screen.getByTestId('topic-ayt.matematik.fonksiyonlar'));
+    expect(screen.getByText('AYT Fonksiyonlar')).toBeTruthy();
+
+    act(() => router.push('/denemeler'));
+    expect(screen.getByLabelText('TYT Fonksiyonlar: tekrar lazım')).toBeTruthy();
+    expect(screen.getByLabelText('AYT Fonksiyonlar: tekrar lazım')).toBeTruthy();
   });
 
   it('an exam in the list is one button with a full sentence and a hint', () => {

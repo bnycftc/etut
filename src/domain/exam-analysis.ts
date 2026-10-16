@@ -96,16 +96,21 @@ export function targetProgress(target: number, nets: readonly number[]): TargetP
 }
 
 /**
- * Target net text ("32,5" or "32.5") → number. Nets are multiples of 0.25 between 0 and the
- * section's question count; anything else is `null`.
+ * Target net text ("32,5" or "32.5") → number: above 0, at most the section's question count, at
+ * most two decimals (the same on every paper: LGS nets are thirds, shown as 16,67); anything else
+ * is `null`. Backups are checked with the same rule (`backup.ts`).
  */
 export function parseTargetNet(text: string, questions: number): number | null {
   const t = text.trim().replace(',', '.');
   if (!/^\d{1,3}(\.\d{1,2})?$/.test(t)) return null;
   const value = Number(t);
   if (value <= 0 || value > questions) return null;
-  if (Math.round(value * 4) !== value * 4) return null;
   return value;
+}
+
+/** Example target shown for a section (placeholder and error): three quarters of its questions. */
+export function targetExample(questions: number): number {
+  return (questions * 3) / 4;
 }
 
 /** Key of a target net: the same section id means different things in TYT and AYT. */
