@@ -6,6 +6,7 @@ import {
   studyTargetForTopic,
   examNeedsAnalysis,
   parseTargetNet,
+  targetExample,
   targetKey,
   targetProgress,
   topMissedTopics,
@@ -80,15 +81,28 @@ describe('target net', () => {
     expect(targetProgress(10, [1, 0.25, 0.25])?.recentAverage).toBe(0.5);
   });
 
-  it('parses target nets in Turkish or dotted notation, multiples of 0.25 within the section', () => {
+  it('parses target nets in Turkish or dotted notation, at most two decimals within the section', () => {
     expect(parseTargetNet('32,5', 40)).toBe(32.5);
     expect(parseTargetNet('32.75', 40)).toBe(32.75);
     expect(parseTargetNet('40', 40)).toBe(40);
     expect(parseTargetNet('41', 40)).toBeNull();
     expect(parseTargetNet('0', 40)).toBeNull();
-    expect(parseTargetNet('12,3', 40)).toBeNull();
+    expect(parseTargetNet('12,3', 40)).toBe(12.3);
+    // LGS nets are thirds: a net the student actually scored can be the target.
+    expect(parseTargetNet('16,67', 20)).toBe(16.67);
+    expect(parseTargetNet('16,667', 20)).toBeNull();
     expect(parseTargetNet('abc', 40)).toBeNull();
     expect(parseTargetNet('', 40)).toBeNull();
+  });
+
+  it('the example target always fits its section', () => {
+    expect(targetExample(40)).toBe(30);
+    expect(targetExample(5)).toBe(3.75);
+    expect(targetExample(7)).toBe(5.25);
+    for (const questions of [5, 6, 7, 10, 13, 20, 27, 30, 40, 80]) {
+      const example = targetExample(questions);
+      expect(parseTargetNet(String(example).replace('.', ','), questions)).toBe(example);
+    }
   });
 
   it('target keys keep TYT and AYT sections apart', () => {

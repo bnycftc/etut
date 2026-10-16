@@ -105,6 +105,7 @@ export default function WeeklyScreen() {
               label: tr.weekdayShort(istanbulWeekday(d.day)),
               value: d.totalMs,
               valueLabel: d.totalMs === 0 ? '' : tr.history.barValue(hours, minutes),
+              a11yValue: formatDuration(d.totalMs),
               highlight: d.day === stats.today,
             };
           })}

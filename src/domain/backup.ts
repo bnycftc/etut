@@ -344,7 +344,8 @@ function parseNetTargets(value: unknown): { targets: Record<string, number>; ski
   for (const [key, target] of Object.entries(obj(value ?? {}))) {
     const [kind, sectionId, extra] = key.split(':');
     if (sectionId === undefined || extra !== undefined) fail();
-    if (typeof target !== 'number' || !(target > 0) || target * 4 !== Math.round(target * 4)) fail();
+    // The rule of `parseTargetNet`: above 0, at most two decimals (LGS targets such as 16,67).
+    if (typeof target !== 'number' || !(target > 0) || Math.abs(target * 100 - Math.round(target * 100)) > 1e-6) fail();
     const section = isExamKind(kind) ? EXAM_SECTIONS[kind].find((s) => s.id === sectionId) : undefined;
     if (section === undefined || target > section.questions) {
       skipped++;

@@ -7,7 +7,7 @@
 
 import { blankCount } from './exam-analysis';
 import { ISTANBUL_OFFSET_MS, istanbulDayKey } from './istanbul-day';
-import { net } from './net';
+import { net, roundNet, totalNet } from './net';
 import { normalizeQuestions } from './questions';
 import type { BackupExam } from './backup';
 import type { CompletedSession } from './timer';
@@ -78,13 +78,14 @@ export function sessionRows(sessions: readonly CompletedSession[], labels: CsvLa
 
 /**
  * One row per exam section. Columns: day, paper, type, section, questions, correct, wrong,
- * blank, net, exam total net, analysis done.
+ * blank, net, exam total net, analysis done. Nets are rounded to two decimals as in the app (LGS
+ * nets are thirds); the total is rounded from the unrounded sum, so it matches the app's total.
  */
 export function examRows(exams: readonly BackupExam[], labels: CsvLabels): CsvValue[][] {
   return [...exams]
     .sort((a, b) => a.takenOn.localeCompare(b.takenOn) || a.createdAt - b.createdAt)
     .flatMap((e) => {
-      const total = e.scores.reduce((sum, s) => sum + net(s.correct, s.wrong, e.kind), 0);
+      const total = roundNet(totalNet(e.scores, e.kind));
       return e.scores.map((s) => [
         e.takenOn,
         labels.examKind(e.kind),
@@ -94,7 +95,7 @@ export function examRows(exams: readonly BackupExam[], labels: CsvLabels): CsvVa
         s.correct,
         s.wrong,
         blankCount(s),
-        net(s.correct, s.wrong, e.kind),
+        roundNet(net(s.correct, s.wrong, e.kind)),
         total,
         labels.yesNo(e.analysisDoneAt !== null),
       ]);

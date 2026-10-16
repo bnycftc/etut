@@ -245,7 +245,7 @@ describe('backup validation', () => {
     ['unknown topic status', { topicProgress: [{ topicId: 't', status: 'maybe', updatedAt: 1 }] }],
     ['net target that is not a number', { settings: { netTargets: { 'TYT:fizik': '5' } } }],
     ['net target key without a section', { settings: { netTargets: { TYT: 5 } } }],
-    ['net target not a multiple of 0.25', { settings: { netTargets: { 'TYT:matematik': 10.1 } } }],
+    ['net target with more than two decimals', { settings: { netTargets: { 'TYT:matematik': 10.125 } } }],
     ['bad exam date', { settings: { examDates: { YKS: '19.06.2027' } } }],
     ['exam date not on the calendar', { settings: { examDates: { YKS: '2026-00-00' } } }],
     ['exam taken on a day that does not exist', { exams: [exam('e', { takenOn: '2026-99-99' })] }],
@@ -280,6 +280,13 @@ describe('backup validation', () => {
     expect(result.file.topicProgress).toEqual(DATA.topicProgress);
     expect(result.file.settings.dailyGoalMinutes).toBe(120);
     expect(result.skippedSessions).toBe(0);
+  });
+
+  it('net targets with two decimals (LGS thirds such as 16,67) round-trip like the app accepts them', () => {
+    const targets = { 'TYT:matematik': 30, 'TYT:fizik': 5.3, 'LGS:turkce': 16.67, 'LGS:fen': 18.33 };
+    const file = parsed(fileText({ settings: { ...DATA.settings, netTargets: targets } }));
+    expect(file.settings.netTargets).toEqual(targets);
+    expect(parsed(serializeBackup(file)).settings.netTargets).toEqual(targets);
   });
 
   it('a current file skips nothing', () => {

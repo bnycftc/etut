@@ -46,6 +46,18 @@ export function resolveExamDate(examType: ExamType, custom: DayKey | null): Reso
   return builtIn === null ? null : { ...builtIn, custom: false };
 }
 
+/**
+ * What the shown exam date is, for the text next to it: set by the student, a built-in estimate,
+ * a built-in official date, or no date at all ("Diğer" without a date of its own).
+ */
+export type ExamDateKind = 'custom' | 'estimated' | 'official' | 'none';
+
+export function examDateKind(date: ResolvedExamDate | null): ExamDateKind {
+  if (date === null) return 'none';
+  if (date.custom) return 'custom';
+  return date.estimated ? 'estimated' : 'official';
+}
+
 /** Whole Istanbul days from `today` to `examDay` (0 on the exam day, negative after it). */
 export function daysUntil(examDay: DayKey, today: DayKey): number {
   return Math.round((dayStartMs(examDay) - dayStartMs(today)) / DAY_MS);

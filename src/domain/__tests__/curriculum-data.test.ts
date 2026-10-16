@@ -1,3 +1,4 @@
+import { sharedTopicPaper } from '../curriculum';
 import { KPSS_TOPICS } from '../curriculum/kpss';
 import { LGS_TOPICS } from '../curriculum/lgs';
 import type { SubjectTopics, Topic } from '../curriculum/types';
@@ -74,5 +75,28 @@ describe('curriculum data', () => {
     const ids = PAPERS.flatMap(([, topics]) => entries(topics).flatMap(([, list]) => list.map((t) => t.id)));
     const duplicates = ids.filter((id, i) => ids.indexOf(id) !== i);
     expect(duplicates).toEqual([]);
+  });
+});
+
+describe('topic names shared by TYT and AYT', () => {
+  it('carry their paper; names of one paper, LGS and KPSS do not', () => {
+    expect(sharedTopicPaper('tyt.matematik.fonksiyonlar')).toBe('TYT');
+    expect(sharedTopicPaper('ayt.matematik.fonksiyonlar')).toBe('AYT');
+    expect(sharedTopicPaper('ayt.matematik.turev')).toBeNull();
+    expect(sharedTopicPaper('tyt.fizik.basinc')).toBeNull();
+    expect(sharedTopicPaper('lgs.turkce.sozcukte-anlam')).toBeNull();
+    expect(sharedTopicPaper('kpss.turkce.sozcukte-anlam')).toBeNull();
+    expect(sharedTopicPaper('tyt.yok.yok')).toBeNull();
+    expect(sharedTopicPaper(null)).toBeNull();
+  });
+
+  it('every TYT/AYT pair with the same name gets told apart', () => {
+    const all = [...Object.values(TYT_TOPICS), ...Object.values(AYT_TOPICS)].flatMap((topics) => topics ?? []);
+    const byName = new Map<string, Topic[]>();
+    for (const t of all) byName.set(t.name, [...(byName.get(t.name) ?? []), t]);
+    for (const topics of byName.values()) {
+      const papers = new Set(topics.map((t) => t.id.slice(0, 3)));
+      if (papers.size > 1) for (const t of topics) expect(sharedTopicPaper(t.id)).toBe(t.id.slice(0, 3).toUpperCase());
+    }
   });
 });

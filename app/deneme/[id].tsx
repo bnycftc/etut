@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 import { topicName } from '@/domain/curriculum';
 import { examNeedsAnalysis } from '@/domain/exam-analysis';
-import { formatNet, net } from '@/domain/net';
+import { formatNet, net, sectionNetsAddUp } from '@/domain/net';
 import { useAppState, useStored } from '@/state/app-state';
 import { deleteMockExam, getExamMarks, getMockExam } from '@/storage/mock-exams';
 import { tr } from '@/strings';
@@ -38,7 +38,14 @@ export default function ExamDetailScreen() {
       </Card>
       <Card>
         {exam.scores.map((s) => (
-          <Row key={s.sectionId}>
+          <Row
+            key={s.sectionId}
+            accessibilityLabel={tr.exams.sectionA11y(
+              tr.subject(s.sectionId),
+              s.correct,
+              s.wrong,
+              formatNet(net(s.correct, s.wrong, exam.kind)),
+            )}>
             <Label style={{ flex: 1 }}>{tr.subject(s.sectionId)}</Label>
             <Label variant="muted">
               {tr.exams.correctWrongShort(s.correct, s.wrong)}
@@ -54,6 +61,11 @@ export default function ExamDetailScreen() {
           </Label>
           <Label variant="heading" testID="exam-detail-total">{formatNet(exam.totalNet)}</Label>
         </Row>
+        {sectionNetsAddUp(exam.scores, exam.kind) ? null : (
+          <Label variant="small" testID="exam-detail-rounding">
+            {tr.exams.roundingNote}
+          </Label>
+        )}
       </Card>
 
       {examNeedsAnalysis(exam.scores) ? (

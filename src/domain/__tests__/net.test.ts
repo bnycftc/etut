@@ -4,7 +4,10 @@ import {
   EXAM_SECTIONS,
   examKindsInOrder,
   formatNet,
+  isEmptyExam,
   net,
+  roundNet,
+  sectionNetsAddUp,
   sectionsFor,
   totalNet,
   validateScore,
@@ -109,5 +112,30 @@ describe('exam structure', () => {
     expect(aytKindForArea(null)).toBe('AYT_SAY');
     expect(examKindsInOrder('sozel')).toEqual(['TYT', 'AYT_SOZ', 'AYT_SAY', 'AYT_EA', 'YDT']);
     expect(examKindsInOrder(null)).toEqual([...YKS_EXAM_KINDS]);
+  });
+});
+
+describe('empty exam and rounded nets', () => {
+  const s = (sectionId: string, questions: number, correct: number, wrong: number) => ({ sectionId, questions, correct, wrong });
+
+  it('an exam with no correct and no wrong answer anywhere is empty', () => {
+    expect(isEmptyExam([s('turkce', 40, 0, 0), s('matematik', 40, 0, 0)])).toBe(true);
+    expect(isEmptyExam([s('turkce', 40, 0, 0), s('matematik', 40, 0, 1)])).toBe(false);
+    expect(isEmptyExam([s('turkce', 40, 1, 0)])).toBe(false);
+  });
+
+  it('LGS thirds are rounded to two decimals as shown', () => {
+    expect(roundNet(net(17, 2, 'LGS'))).toBe(16.33);
+    expect(formatNet(net(17, 2, 'LGS'))).toBe('16,33');
+    expect(roundNet(28.75)).toBe(28.75);
+  });
+
+  it('LGS: rounded section nets can miss the rounded total by 0,01; YKS quarters always add up', () => {
+    // 9,67 + 4,33 + 6,67 + 5,67 + 9,67 + 10,33 = 46,34; the total is 46,33.
+    const lgs = [s('turkce', 20, 10, 1), s('inkilap', 10, 5, 2), s('din', 10, 7, 1), s('yabanci_dil', 10, 6, 1), s('matematik', 20, 10, 1), s('fen', 20, 11, 2)];
+    expect(formatNet(totalNet(lgs, 'LGS'))).toBe('46,33');
+    expect(sectionNetsAddUp(lgs, 'LGS')).toBe(false);
+    expect(sectionNetsAddUp([s('turkce', 20, 18, 3)], 'LGS')).toBe(true);
+    expect(sectionNetsAddUp([s('turkce', 40, 30, 5), s('matematik', 40, 21, 7)], 'TYT')).toBe(true);
   });
 });

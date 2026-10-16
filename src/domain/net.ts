@@ -115,6 +115,14 @@ export function totalNet(scores: readonly SectionScore[], kind: ExamKind): numbe
   return scores.reduce((sum, s) => sum + net(s.correct, s.wrong, kind), 0);
 }
 
+/**
+ * Nothing entered: no correct and no wrong answer in any section. Such a form is not saved, since it
+ * would be a 0-net exam waiting for the analysis of every question.
+ */
+export function isEmptyExam(scores: readonly SectionScore[]): boolean {
+  return scores.every((s) => s.correct === 0 && s.wrong === 0);
+}
+
 /** Sections that a mock exam of this kind and scope contains. */
 export function sectionsFor(
   kind: ExamKind,
@@ -127,10 +135,23 @@ export function sectionsFor(
   return one ? [one] : [];
 }
 
+/** A net rounded to two decimals, as it is shown (LGS nets are thirds: 16,333… → 16,33). */
+export function roundNet(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 /** Nets are multiples of 0.25; show at most two decimals in Turkish notation. */
 export function formatNet(value: number): string {
-  const rounded = Math.round(value * 100) / 100;
-  return String(rounded).replace('.', ',');
+  return String(roundNet(value)).replace('.', ',');
+}
+
+/**
+ * Whether the rounded section nets add up to the rounded total. On LGS papers (thirds) they can
+ * differ by 0,01, because the total is computed from the unrounded section nets.
+ */
+export function sectionNetsAddUp(scores: readonly SectionScore[], kind: ExamKind): boolean {
+  const parts = scores.reduce((sum, s) => sum + roundNet(net(s.correct, s.wrong, kind)), 0);
+  return roundNet(parts) === roundNet(totalNet(scores, kind));
 }
 
 export type YksArea = 'sayisal' | 'esit_agirlik' | 'sozel' | 'dil';

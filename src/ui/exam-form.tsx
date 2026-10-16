@@ -1,3 +1,5 @@
+import { router, Stack, useNavigation } from 'expo-router';
+import { type NavigationAction, usePreventRemove } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
@@ -15,6 +17,7 @@ import {
   type ExamKind,
   type ExamScope,
   formatNet,
+  isEmptyExam,
   net,
   type SectionScore,
   sectionsFor,
@@ -24,7 +27,7 @@ import {
 } from '../domain/net';
 import { useNow } from '../state/app-state';
 import { tr } from '../strings';
-import { Button, Card, Chip, ChipRow, Label, Row } from './components';
+import { Button, Card, Chip, ChipRow, HeaderButton, Label, ResponsiveRow, Row } from './components';
 import { formatDay } from './format';
 import { InfoLink } from './info-link';
 import { space, usePalette } from './theme';
@@ -83,6 +86,25 @@ function entriesOf(scores: readonly SectionScore[]): Record<string, Entry> {
 }
 
 /**
+ * Whether leaving now loses something: a new exam once any count is entered, a saved exam once any
+ * value differs from what was saved (opening and closing it unchanged never asks).
+ */
+function hasUnsavedInput(values: ExamFormValues, initial: ExamFormInitial | undefined): boolean {
+  if (initial === undefined) return !isEmptyExam(values.scores);
+  // A section the saved exam has no row for was an empty box.
+  const before = new Map(initial.scores.map((s) => [s.sectionId, s]));
+  return (
+    values.kind !== initial.kind ||
+    values.scope !== initial.scope ||
+    values.bransSectionId !== initial.bransSectionId ||
+    values.takenOn !== initial.takenOn ||
+    values.scores.some(
+      (s) => s.correct !== (before.get(s.sectionId)?.correct ?? 0) || s.wrong !== (before.get(s.sectionId)?.wrong ?? 0),
+    )
+  );
+}
+
+/**
  * Mock exam form, for a new exam and for correcting a saved one. Number pad with
  * "‹ Önceki / Sonraki › / Bitti" above it on iOS (the pad has no return key) and a "next" return
  * key elsewhere; the focused box scrolls above the keyboard and the total with "Kaydet" stays at
@@ -115,6 +137,13 @@ export function ExamForm({
   const [saveAttempt, setSaveAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+  // "Kaydet" on a form with nothing entered: refused with a reason (read out again on each tap).
+  const [emptyAttempt, setEmptyAttempt] = useState(0);
+  // Leaving with unsaved input (Vazgeç or pulling the sheet down) asks first; the held navigation
+  // runs on "Kaydetmeden çık".
+  const [leaveAttempt, setLeaveAttempt] = useState(0);
+  const pendingLeave = useRef<NavigationAction | null>(null);
+  const navigation = useNavigation();
   const inputs = useRef<Record<string, TextInput | null>>({});
   const keyboardHeight = useKeyboardHeight();
   const [focused, setFocused] = useState<number | null>(null);
@@ -132,7 +161,29 @@ export function ExamForm({
   }));
   const errors = scores.map(validateScore);
   const hasErrors = errors.some((e) => e !== null);
+  const empty = isEmptyExam(scores);
   const fields = sections.flatMap((s) => [`${s.id}:correct`, `${s.id}:wrong`]);
+  const values: ExamFormValues = {
+    kind,
+    scope,
+    bransSectionId: scope === 'brans' ? bransId : null,
+    takenOn: day,
+    scores,
+  };
+  const unsaved = hasUnsavedInput(values, initial);
+
+  // iOS: while it holds, pulling the sheet down is stopped natively and lands here instead.
+  usePreventRemove(unsaved, ({ data }) => {
+    // "Kaydet" closes the form itself (onSave → router.back()): nothing is lost then.
+    if (savingRef.current) {
+      navigation.dispatch(data.action);
+      return;
+    }
+    pendingLeave.current = data.action;
+    Keyboard.dismiss();
+    setLeaveAttempt((n) => n + 1);
+  });
+  const askingToLeave = leaveAttempt > 0 && unsaved;
 
   const chooseKind = (k: ExamKind) => {
     if (k === kind) return;
@@ -165,15 +216,32 @@ export function ExamForm({
       setSaveAttempt((n) => n + 1);
       return;
     }
+    if (empty) {
+      setEmptyAttempt((n) => n + 1);
+      return;
+    }
     savingRef.current = true;
     setSaving(true);
-    onSave({ kind, scope, bransSectionId: scope === 'brans' ? bransId : null, takenOn: day, scores });
+    onSave(values);
+  };
+
+  const stay = () => {
+    pendingLeave.current = null;
+    setLeaveAttempt(0);
+  };
+
+  const leave = () => {
+    const action = pendingLeave.current;
+    // This screen already let the held action through, so dispatching it again does not ask again.
+    if (action !== null) navigation.dispatch(action);
   };
 
   const choice = (group: string, item: string) => tr.exams.choiceLabel(group, item);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
+      {/* A sheet has no back button: "Vazgeç" is the visible way out (it asks first when needed). */}
+      <Stack.Screen options={HEADER_OPTIONS} />
       <ScrollView
         testID="exam-form"
         style={{ flex: 1 }}
@@ -334,14 +402,32 @@ export function ExamForm({
       </ScrollView>
 
       <SafeAreaView edges={['bottom']} style={[styles.footer, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <View style={{ flex: 1 }}>
-          <Label variant="small">{tr.exams.totalNet}</Label>
-          <Label variant="heading" testID="exam-total-net">
-            {hasErrors ? '–' : formatNet(totalNet(scores, kind))}
+        {askingToLeave ? (
+          <View style={styles.footerNote}>
+            <Label live={leaveAttempt} testID="exam-discard-question">
+              {initial ? tr.exams.discardEdit : tr.exams.discardNew}
+            </Label>
+            <ResponsiveRow>
+              <Button testID="exam-discard-stay" kind="secondary" title={tr.exams.discardStay} onPress={stay} />
+              <Button testID="exam-discard-leave" kind="danger" title={tr.exams.discardLeave} onPress={leave} />
+            </ResponsiveRow>
+          </View>
+        ) : null}
+        {emptyAttempt > 0 && empty ? (
+          <Label live={emptyAttempt} testID="exam-empty-error" style={{ color: c.danger }}>
+            {tr.exams.emptyExam}
           </Label>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Button testID="exam-save" title={tr.common.save} disabled={saving} onPress={save} />
+        ) : null}
+        <View style={styles.footerRow}>
+          <View style={{ flex: 1 }}>
+            <Label variant="small">{tr.exams.totalNet}</Label>
+            <Label variant="heading" testID="exam-total-net">
+              {hasErrors ? '–' : formatNet(totalNet(scores, kind))}
+            </Label>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button testID="exam-save" title={tr.common.save} disabled={saving} onPress={save} />
+          </View>
         </View>
       </SafeAreaView>
 
@@ -371,6 +457,11 @@ export function ExamForm({
     </View>
   );
 }
+
+/** One object for every render: the header is set once, not on each keystroke. */
+const HEADER_OPTIONS = {
+  headerLeft: () => <HeaderButton testID="exam-cancel" title={tr.common.cancel} onPress={() => router.back()} />,
+};
 
 function CountInput({
   label,
@@ -431,13 +522,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
+    gap: space.sm,
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
+  footerRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  footerNote: { gap: space.sm },
   accessory: {
     position: 'absolute',
     left: 0,

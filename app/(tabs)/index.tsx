@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { formatClock } from '@/domain/clock';
-import { topicName, topicOfSubject } from '@/domain/curriculum';
+import { topicOfSubject } from '@/domain/curriculum';
 import { activeSpan, dailyTotals } from '@/domain/daily-totals';
 import { daysUntil, resolveExamDate } from '@/domain/exam-dates';
 import { goalStep, UNDO_FINISH_MS } from '@/domain/finish';
@@ -42,7 +42,7 @@ import {
 } from '@/ui/components';
 import { BackupNudge } from '@/ui/backup-reminder';
 import { announce, hapticSuccess, hapticTap } from '@/ui/feedback';
-import { formatDuration } from '@/ui/format';
+import { formatDuration, topicLabel } from '@/ui/format';
 import { GoalSheet } from '@/ui/goal-sheet';
 import { Icon } from '@/ui/icon';
 import { InfoLink } from '@/ui/info-link';
@@ -256,8 +256,8 @@ export default function TimerScreen() {
               ) : null}
             </ResponsiveRow>
             <Label variant="small" testID="finish-detail">
-              {(topicName(finished.topicId)
-                ? tr.finish.studiedTopic(tr.subject(finished.subjectId), topicName(finished.topicId) ?? '')
+              {(topicLabel(finished.topicId)
+                ? tr.finish.studiedTopic(tr.subject(finished.subjectId), topicLabel(finished.topicId) ?? '')
                 : tr.finish.studied(tr.subject(finished.subjectId))) +
                 (step !== null && !step.reached ? ` · ${tr.finish.goalStep(step.beforePercent, step.afterPercent)}` : '')}
             </Label>
@@ -419,7 +419,7 @@ export default function TimerScreen() {
             <Dot color={subjectColor(active.subjectId, c)} />
             <Label variant="muted" testID="timer-subject" style={{ textAlign: 'center', flexShrink: 1 }}>
               {tr.subject(active.subjectId)}
-              {topicName(active.topicId) ? ` · ${topicName(active.topicId)}` : ''}
+              {topicLabel(active.topicId) ? ` · ${topicLabel(active.topicId)}` : ''}
             </Label>
           </View>
           {pomodoro !== null ? (
