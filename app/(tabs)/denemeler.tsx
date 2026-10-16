@@ -194,7 +194,8 @@ export default function ExamsScreen() {
       {/* The card above already offers the analysis of the exam just saved. */}
       {pending.length > 0 && !savedPending ? (
         <Card>
-          <Label testID="analysis-reminder" variant="heading" style={{ color: c.warning }}>
+          {/* Neutral, not a warning colour: an analysis is never overdue. */}
+          <Label testID="analysis-reminder" variant="heading">
             {tr.analysis.pendingTitle(pending.length)}
           </Label>
           <Label variant="muted">{tr.analysis.pendingBody}</Label>

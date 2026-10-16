@@ -253,6 +253,18 @@ describe('values read back as stored; damaged values fall back to the defaults',
     kv.storeReplaceUndo(null);
     expect(mainKv().has('etut.replaceUndo.v1')).toBe(false);
   });
+
+  it('the one-time widget card: not yet, due, dismissed', () => {
+    expect(kv.loadWidgetTip()).toBe('waiting');
+    kv.storeWidgetTip('due');
+    expect(kv.loadWidgetTip()).toBe('due');
+    kv.storeWidgetTip('dismissed');
+    expect(kv.loadWidgetTip()).toBe('dismissed');
+    mainKv().set('etut.widgetTip.v1', 'something');
+    expect(kv.loadWidgetTip()).toBe('waiting');
+    kv.storeWidgetTip('waiting');
+    expect(mainKv().has('etut.widgetTip.v1')).toBe(false);
+  });
 });
 
 describe('daily goal history', () => {

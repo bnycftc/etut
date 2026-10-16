@@ -1,18 +1,20 @@
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { clockParts, formatClock } from '@/domain/clock';
+import { comparisonLine, type ComparisonLine } from '@/domain/compare';
 import { topicOfSubject } from '@/domain/curriculum';
 import { activeSpan, dailyTotals } from '@/domain/daily-totals';
 import { examDaysLeft, resolveExamDate } from '@/domain/exam-dates';
-import { goalStep, UNDO_FINISH_MS } from '@/domain/finish';
+import { goalStep, topicMarkToRestore, UNDO_FINISH_MS } from '@/domain/finish';
 import { istanbulDayKey } from '@/domain/istanbul-day';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
 import { defaultSubject, subjectsFor } from '@/domain/subjects';
 import { elapsedMs, isPaused } from '@/domain/timer';
+import { type TimedTopicStatus, toggleStatus, type TopicStatus } from '@/domain/topics';
 import { type FinishOptions, useAppState, useNow, useStored } from '@/state/app-state';
 import { useStudyStats } from '@/state/study-stats';
 import {
@@ -26,6 +28,7 @@ import {
 } from '@/storage/kv';
 import { tr } from '@/strings';
 import { setSessionQuestions } from '@/storage/report';
+import { loadTopicMark, setTopicStatus } from '@/storage/topics';
 import { isSyncActive } from '@/sync/session-sync';
 import {
   Button,
@@ -53,6 +56,7 @@ import { QuestionCount } from '@/ui/question-count';
 import { awayCardText, TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
 import { FirstUseTips } from '@/ui/tips';
 import { TopicPicker } from '@/ui/topic-picker';
+import { noteFinishForWidgetTip, WidgetTip } from '@/ui/widget-tip';
 
 /** A phase change seen within this time of the previous render tick happened on screen. */
 const PHASE_SIGNAL_MAX_GAP_MS = 3_000;
@@ -72,6 +76,11 @@ interface Finished {
   sessionTodayMs: number;
   at: number;
   undoable: boolean;
+  /**
+   * The topic's mark before the first "Bitti" / "Tekrar lazım" tap in the summary; "Geri al" puts
+   * it back. `undefined` = no tap yet (`null` = the topic had no mark).
+   */
+  topicBefore?: TimedTopicStatus | null;
 }
 
 export default function TimerScreen() {
@@ -107,7 +116,8 @@ export default function TimerScreen() {
   };
   const pomodoroConfig = useStored(`pomodoro|${app.dataVersions.settings}`, loadPomodoroConfig);
 
-  const { today, todayTotal, todayManual, comparison, goal, streak, studyDays } = useStudyStats(now);
+  const { today, todayTotal, todayManual, todayQuestions, comparison, goal, streak, studyDays } = useStudyStats(now);
+  const compare = comparisonLine(comparison);
   const customExamDay = useStored(`examDate|${examType}|${app.dataVersions.settings}`, () =>
     loadCustomExamDate(examType),
   );
@@ -187,14 +197,36 @@ export default function TimerScreen() {
         undoable: done.durationMs > 0 && !isSyncActive(),
       });
       setSubjectId(done.subjectId);
+      noteFinishForWidgetTip(done.durationMs);
       hapticSuccess();
       announce(tr.finish.announce(saved, formatDuration(todayAfterMs)));
     }
   };
   const finishCheck = useFinishCheck(finish);
 
+  // "Bitti" / "Tekrar lazım" for the topic of the session just saved: the stored mark (also one set
+  // on Konular in the meantime) shows on the chips.
+  const finishedTopicId = finished !== null && topicLabel(finished.topicId) !== null ? finished.topicId : null;
+  const finishedTopicStatus = useStored(`finishTopic|${finishedTopicId}|${app.dataVersions.topics}`, () =>
+    finishedTopicId === null ? null : (loadTopicMark(finishedTopicId)?.status ?? null),
+  );
+  const markTopic = (tapped: TopicStatus) => {
+    if (finished === null || finishedTopicId === null) return;
+    // The mark from before the first tap is kept for "Geri al".
+    const before = finished.topicBefore !== undefined ? finished.topicBefore : loadTopicMark(finishedTopicId);
+    setTopicStatus(finishedTopicId, toggleStatus(finishedTopicStatus ?? undefined, tapped), Date.now());
+    setFinished((f) => (f === null || f.topicBefore !== undefined ? f : { ...f, topicBefore: before }));
+    app.notifyDataChanged('topics');
+  };
+
   const undo = () => {
+    const marked = finished;
     if (app.undoFinish()) {
+      if (marked !== null && marked.topicId !== null && marked.topicBefore !== undefined) {
+        const restore = topicMarkToRestore(marked.topicBefore, Date.now());
+        setTopicStatus(marked.topicId, restore.status, restore.at);
+        app.notifyDataChanged('topics');
+      }
       setFinished(null);
       hapticTap();
       announce(tr.finish.undone);
@@ -254,7 +286,7 @@ export default function TimerScreen() {
                   testID="finish-undo"
                   kind="secondary"
                   title={tr.finish.undo}
-                  accessibilityHint={tr.finish.undoHint}
+                  accessibilityHint={finished.topicBefore !== undefined ? tr.finish.undoHintTopic : tr.finish.undoHint}
                   onPress={undo}
                 />
               ) : null}
@@ -270,6 +302,26 @@ export default function TimerScreen() {
                 {tr.finish.goalReached}
                 {streak !== null && streak.current > 0 ? ` ${tr.finish.streak(streak.current)}` : ''}
               </Label>
+            ) : null}
+            {finishedTopicId !== null ? (
+              <View style={{ gap: space.xs }}>
+                <Label variant="small">{tr.finish.topicMark}</Label>
+                <ChipRow>
+                  {(['done', 'review'] as const).map((status) => {
+                    const title = status === 'done' ? tr.topics.done : tr.topics.review;
+                    return (
+                      <Chip
+                        key={status}
+                        testID={`finish-topic-${status}`}
+                        title={title}
+                        accessibilityLabel={tr.topics.markA11y(topicLabel(finishedTopicId) ?? '', title, null)}
+                        selected={finishedTopicStatus === status}
+                        onPress={() => markTopic(status)}
+                      />
+                    );
+                  })}
+                </ChipRow>
+              </View>
             ) : null}
             {finished.durationMs > 0 ? (
               <QuestionCount
@@ -290,9 +342,16 @@ export default function TimerScreen() {
         <ResponsiveRow>
           <View style={styles.grow}>
             <Label variant="muted">{tr.timer.today}</Label>
-            <Label variant="title" testID="today-total">
-              {formatDuration(todayTotal)}
-            </Label>
+            <View style={styles.totalLine}>
+              <Label variant="title" testID="today-total">
+                {formatDuration(todayTotal)}
+              </Label>
+              {todayQuestions > 0 ? (
+                <Label variant="muted" testID="today-questions">
+                  {tr.timer.todayQuestions(todayQuestions)}
+                </Label>
+              ) : null}
+            </View>
             {todayManual > 0 ? (
               <Label variant="small">{tr.timer.manualPart(formatDuration(todayManual))}</Label>
             ) : null}
@@ -315,6 +374,7 @@ export default function TimerScreen() {
             />
           )}
         </ResponsiveRow>
+        {compare !== null ? <CompareLine line={compare} /> : null}
         {goalStreak !== null ? (
           <>
             <ProgressBar ratio={goalRatio(todayTotal, goalStreak.goal)} label={tr.goal.title} />
@@ -531,20 +591,7 @@ export default function TimerScreen() {
 
       {active === null ? <BackupNudge studyDays={studyDays} now={now} /> : null}
 
-      <Card>
-        <Label variant="heading">{tr.compare.title}</Label>
-        <CompareRow
-          testID="compare-yesterday"
-          label={tr.compare.yesterday}
-          value={comparison.yesterdaySameTime}
-        />
-        <CompareRow label={tr.compare.thisWeek} value={comparison.thisWeek} />
-        <CompareRow
-          testID="compare-last-week"
-          label={tr.compare.lastWeek}
-          value={comparison.lastWeekSameTime}
-        />
-      </Card>
+      {active === null ? <WidgetTip finishedAt={finished?.at ?? null} /> : null}
     </Screen>
   );
 }
@@ -560,14 +607,20 @@ function leftA11y(ms: number): string {
   return tr.pomodoro.leftA11y(hours, minutes, seconds);
 }
 
-function CompareRow({ label, value, testID }: { label: string; value: number; testID?: string }) {
+/** "Dün bu saate kadar 1 sa 20 dk · Geçen hafta bu zamana kadar 5 sa 0 dk": only the parts with time. */
+function CompareLine({ line }: { line: ComparisonLine }) {
+  const parts: { testID: string; label: string; ms: number }[] = [];
+  if (line.yesterday !== null) parts.push({ testID: 'compare-yesterday', label: tr.compare.yesterday, ms: line.yesterday });
+  if (line.lastWeek !== null) parts.push({ testID: 'compare-last-week', label: tr.compare.lastWeek, ms: line.lastWeek });
   return (
-    <ResponsiveRow>
-      <Label variant="muted" style={styles.grow}>
-        {label}
-      </Label>
-      <Label testID={testID}>{formatDuration(value)}</Label>
-    </ResponsiveRow>
+    <Label variant="small" testID="compare-line">
+      {parts.map((p, i) => (
+        <Fragment key={p.testID}>
+          {i > 0 ? ' · ' : ''}
+          {p.label} <Text testID={p.testID}>{formatDuration(p.ms)}</Text>
+        </Fragment>
+      ))}
+    </Label>
   );
 }
 
@@ -581,5 +634,6 @@ const styles = StyleSheet.create({
   grow: { flexGrow: 1, flexShrink: 1 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   modeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
+  totalLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: space.sm },
   pill: { alignSelf: 'center', borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 2 },
 });

@@ -36,6 +36,26 @@ export function compareWithPast(spans: SessionSpan[], now: number): SelfComparis
   };
 }
 
+/** Shown parts of the home screen's comparison line need at least this much (a whole "1 dk"). */
+const COMPARE_MIN_MS = 60_000;
+
+export interface ComparisonLine {
+  /** Yesterday up to the same clock time; `null` = nothing to show for yesterday. */
+  yesterday: number | null;
+  /** Last week up to the same weekday and time; `null` = nothing to show for last week. */
+  lastWeek: number | null;
+}
+
+/**
+ * The one comparison line under today's total: only the parts of the past that hold study time.
+ * `null` before there is any (the first days): no "0 dk · 0 dk · 0 dk" to compare with.
+ */
+export function comparisonLine(c: SelfComparison): ComparisonLine | null {
+  const yesterday = c.yesterdaySameTime >= COMPARE_MIN_MS ? c.yesterdaySameTime : null;
+  const lastWeek = c.lastWeekSameTime >= COMPARE_MIN_MS ? c.lastWeekSameTime : null;
+  return yesterday === null && lastWeek === null ? null : { yesterday, lastWeek };
+}
+
 export interface WeeklySummary {
   weekStart: DayKey;
   days: DayTotal[];

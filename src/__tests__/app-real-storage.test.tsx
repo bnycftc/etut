@@ -834,6 +834,29 @@ describe('timer on the real storage', () => {
     act(() => jest.advanceTimersByTime(UNDO_FINISH_MS + 1_000));
     expect(allSessions()).toHaveLength(1);
     expect(allSessions()[0].questions).toBe(35);
+    // Read back from the database into today's line.
+    expect(screen.getByTestId('today-questions').props.children).toBe('· 35 soru');
+  });
+
+  it('a topic marked in the summary is stored; "Geri al" puts the earlier mark back with its time', () => {
+    getDb().runSync("INSERT INTO topic_progress (topic_id, status, updated_at) VALUES ('tyt.fizik.basinc', 'review', 7)");
+    const marks = () => getDb().getAllSync('SELECT topic_id, status, updated_at FROM topic_progress');
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('subject-fizik'));
+    fireEvent.press(screen.getByTestId('topic-picker-toggle'));
+    fireEvent.press(screen.getByTestId('topic-tyt.fizik.basinc'));
+    start();
+    at(T0 + 20 * MIN);
+    finish();
+    // The first Bitir also makes the one-time widget card due.
+    expect(mainKv().get('etut.widgetTip.v1')).toBe('due');
+    expect(screen.getByTestId('widget-tip')).toBeTruthy();
+    expect(screen.getByTestId('finish-topic-review').props.accessibilityState).toEqual({ selected: true });
+    fireEvent.press(screen.getByTestId('finish-topic-done'));
+    expect(marks()).toEqual([{ topic_id: 'tyt.fizik.basinc', status: 'done', updated_at: T0 + 20 * MIN }]);
+    fireEvent.press(screen.getByTestId('finish-undo'));
+    expect(allSessions()).toHaveLength(0);
+    expect(marks()).toEqual([{ topic_id: 'tyt.fizik.basinc', status: 'review', updated_at: 7 }]);
   });
 
   it('"Geri al": inside the window the stored row goes and the session runs on; after it, it stays', () => {

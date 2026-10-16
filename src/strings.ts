@@ -418,6 +418,8 @@ export const tr = {
 
   timer: {
     today: 'Bugün',
+    /** Next to today's total when today's sessions have a question count (never a rate per hour). */
+    todayQuestions: (n: number) => `· ${n} soru`,
     history: 'Geçmiş',
     pickSubject: 'Ders seç',
     start: 'Başla',
@@ -533,10 +535,9 @@ export const tr = {
     invalid: 'Bugün ya da sonrası için GG.AA.YYYY biçiminde bir tarih gir.',
   },
 
+  /** The line under today's total, only with study time in that past (`comparisonLine`); `weekly`: shortcut. */
   compare: {
-    title: 'Kendinle kıyas',
     yesterday: 'Dün bu saate kadar',
-    thisWeek: 'Bu hafta',
     lastWeek: 'Geçen hafta bu zamana kadar',
     weekly: 'Haftalık özet',
   },
@@ -896,6 +897,14 @@ export const tr = {
     goal: (goal: string) => `Hedef ${goal}`,
     goalMet: 'Hedef tamam',
     running: 'Sayaç açık',
+  },
+
+  /** One-time card on the timer screen after the first Bitir (iOS); steps: guide.lockScreen.widgetSteps. */
+  widgetTip: {
+    title: 'Ana ekrana widget ekle',
+    body: 'Widget bugünkü süreni, hedefini, serini ve sınavına kalan günü uygulamayı açmadan gösterir.',
+    dismiss: 'Gösterme',
+    dismissHint: 'Bu kart bir daha görünmez; adımlar “Nasıl çalışır”da da var.',
   },
 
   groups: {
@@ -1350,7 +1359,11 @@ export const tr = {
     streak: (days: number) => `Serin ${days} gün oldu.`,
     undo: 'Geri al',
     undoHint: 'Kaydı siler, sayaç kaldığı yerden devam eder.',
+    /** "Geri al" after a topic chip below was tapped: the mark goes back too. */
+    undoHintTopic: 'Kaydı siler ve konu işaretini eski hâline getirir; sayaç kaldığı yerden devam eder.',
     undone: 'Geri alındı. Sayaç kaldığı yerden devam ediyor.',
+    /** "Bitti" / "Tekrar lazım" (topics.done / topics.review) for the session's topic. */
+    topicMark: 'Konuyu işaretle (isteğe bağlı)',
     announce: (saved: string, today: string) => `${saved}. Bugün toplam ${today}.`,
   },
 
