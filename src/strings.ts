@@ -430,6 +430,8 @@ export const tr = {
     /** `4 Ekim 2026 · 14:30` */
     when: (date: string, hours: number, minutes: number) =>
       `${date} · ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`,
+    /** Screen-reader name of an entry's "Sil" (one per listed entry): `Sil: Fizik, 4 Ekim 2026 · 14:30, 45 dk`. */
+    deleteA11y: (entry: string, when: string, duration: string) => `Sil: ${entry}, ${when}, ${duration}`,
   },
 
   /** Label of sessions added afterwards (`source = 'manual'`). */
@@ -519,6 +521,8 @@ export const tr = {
     change: 'Değiştir',
     close: 'Kapat',
     clear: 'Konusuz çalış',
+    /** Screen-reader name of a topic chip: TYT and AYT share names (Fonksiyonlar…), so the paper comes first. */
+    topicA11y: (topic: string, paper: string | null) => (paper === null ? topic : `${paper} ${topic}`),
   },
 
   topics: {

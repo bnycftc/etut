@@ -24,7 +24,7 @@ import {
 } from '../domain/net';
 import { useNow } from '../state/app-state';
 import { tr } from '../strings';
-import { Button, Card, Chip, ChipRow, Label, Row } from './components';
+import { Button, Card, Chip, ChipRow, Label, ResponsiveRow, Row } from './components';
 import { formatDay } from './format';
 import { InfoLink } from './info-link';
 import { space, usePalette } from './theme';
@@ -258,7 +258,7 @@ export function ExamForm({
               onPress={() => setDay(yesterday)}
             />
           </ChipRow>
-          <Row>
+          <ResponsiveRow>
             <Button
               testID="exam-prev-day"
               kind="secondary"
@@ -272,7 +272,7 @@ export function ExamForm({
               disabled={day >= today}
               onPress={() => setDay(addDays(day, 1))}
             />
-          </Row>
+          </ResponsiveRow>
           <Label variant="muted" testID="exam-day">
             {formatDay(day)}
           </Label>
@@ -438,11 +438,14 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
+  // Wraps at large text sizes ("Bitti" on a second line) instead of running off the screen; stacking
+  // all three would cover too much of the form above the keyboard.
   accessory: {
     position: 'absolute',
     left: 0,
     right: 0,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: space.sm,
     paddingHorizontal: space.sm,
     paddingVertical: space.xs,

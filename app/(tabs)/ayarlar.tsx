@@ -2,7 +2,8 @@ import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Modal, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GROUPS_ENABLED } from '@/config/features';
 
@@ -166,6 +167,8 @@ export default function SettingsScreen() {
       setBackingUp(false);
     }
   };
+  // The dialog is drawn under the status bar and the home indicator.
+  const insets = useSafeAreaInsets();
 
   return (
     <Screen testID="settings-screen">
@@ -371,66 +374,82 @@ export default function SettingsScreen() {
       </Card>
 
       {/* The button sits at the bottom of a long screen: confirm in a centred dialog so the
-          destructive choice is always on screen, never hidden behind the tab bar. */}
+          destructive choice is always on screen, never hidden behind the tab bar. At large text
+          sizes only the text scrolls: Vazgeç and "Evet, hepsini sil" stay visible below it. */}
       <Modal
         visible={confirming}
         transparent
         animationType={reduceMotion ? 'none' : 'fade'}
         onRequestClose={() => setConfirming(false)}>
-        <View style={styles.backdrop}>
+        <View style={[styles.backdrop, { paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom }]}>
+          {/* Tapping the dimmed area cancels (decorative for screen readers: Vazgeç does the same). */}
+          <Pressable
+            testID="settings-delete-all-backdrop"
+            style={StyleSheet.absoluteFill}
+            onPress={() => setConfirming(false)}
+            accessible={false}
+            importantForAccessibility="no"
+          />
           <View
             testID="settings-delete-all-dialog"
             accessibilityViewIsModal
             style={[styles.dialog, { backgroundColor: c.surface, borderColor: c.border }]}>
-            <Label variant="heading">{tr.settings.deleteAll}</Label>
-            <Label>{tr.settings.deleteAllConfirm}</Label>
-            <Label variant="small">{tr.settings.deleteAllAgeNote}</Label>
+            <ScrollView
+              testID="settings-delete-all-scroll"
+              style={styles.dialogText}
+              contentContainerStyle={styles.dialogTextContent}>
+              <Label variant="heading">{tr.settings.deleteAll}</Label>
+              <Label>{tr.settings.deleteAllConfirm}</Label>
+              <Label variant="small">{tr.settings.deleteAllAgeNote}</Label>
+              <Button
+                kind="secondary"
+                testID="settings-delete-all-backup"
+                title={tr.settings.deleteAllBackupFirst}
+                disabled={deleting || backingUp}
+                onPress={() => void backupFirst()}
+              />
+              {backupNote !== null ? (
+                <Label
+                  testID="settings-delete-all-backup-note"
+                  variant="small"
+                  live
+                  style={'error' in backupNote ? { color: c.danger } : undefined}>
+                  {'error' in backupNote ? backupNote.error : backupNote.message}
+                </Label>
+              ) : null}
+              {deleteError ? (
+                <>
+                  <Label variant="small" live style={{ color: c.danger }}>
+                    {tr.settings.deleteAllServerFailed}
+                  </Label>
+                  {/* Offline or the server is down: the device data can always be deleted (KVKK m.7). */}
+                  <Button
+                    kind="secondary"
+                    testID="settings-delete-local-only"
+                    title={tr.settings.deleteAllLocalOnly}
+                    disabled={deleting}
+                    onPress={() => {
+                      setConfirming(false);
+                      setDeleteError(false);
+                      resetAll();
+                    }}
+                  />
+                </>
+              ) : null}
+            </ScrollView>
+            {/* Vazgeç first: if anything is ever cut off, it is not the way out. */}
             <Button
               kind="secondary"
-              testID="settings-delete-all-backup"
-              title={tr.settings.deleteAllBackupFirst}
-              disabled={deleting || backingUp}
-              onPress={() => void backupFirst()}
+              testID="settings-delete-all-cancel"
+              title={tr.common.cancel}
+              onPress={() => setConfirming(false)}
             />
-            {backupNote !== null ? (
-              <Label
-                testID="settings-delete-all-backup-note"
-                variant="small"
-                style={'error' in backupNote ? { color: c.danger } : undefined}>
-                {'error' in backupNote ? backupNote.error : backupNote.message}
-              </Label>
-            ) : null}
             <Button
               kind="danger"
               testID="settings-delete-all-confirm"
               title={tr.settings.deleteAllYes}
               disabled={deleting || backingUp}
               onPress={() => void deleteAll()}
-            />
-            {deleteError ? (
-              <>
-                <Label variant="small" style={{ color: c.danger }}>
-                  {tr.settings.deleteAllServerFailed}
-                </Label>
-                {/* Offline or the server is down: the device data can always be deleted (KVKK m.7). */}
-                <Button
-                  kind="secondary"
-                  testID="settings-delete-local-only"
-                  title={tr.settings.deleteAllLocalOnly}
-                  disabled={deleting}
-                  onPress={() => {
-                    setConfirming(false);
-                    setDeleteError(false);
-                    resetAll();
-                  }}
-                />
-              </>
-            ) : null}
-            <Button
-              kind="secondary"
-              testID="settings-delete-all-cancel"
-              title={tr.common.cancel}
-              onPress={() => setConfirming(false)}
             />
           </View>
         </View>
@@ -509,5 +528,9 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
+    maxHeight: '100%',
   },
+  // Sized to its text, and shrinks (then scrolls) when the dialog reaches the screen height.
+  dialogText: { flexGrow: 0, flexShrink: 1 },
+  dialogTextContent: { gap: 12 },
 });

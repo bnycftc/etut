@@ -410,7 +410,10 @@ export function TextField({
   );
 }
 
-/** − value + control. Each button announces the current value. */
+/**
+ * − value + control. Each button announces the current value. At accessibility text sizes the
+ * label gets its own line above − value +, so neither is squeezed into a narrow column.
+ */
 export function Stepper({
   label,
   value,
@@ -432,6 +435,7 @@ export function Stepper({
   accessibilityLabel?: string;
 }) {
   const c = usePalette();
+  const large = useLargeText();
   const button = (symbol: string, a11yLabel: string, onPress: () => void, disabled: boolean, id: string) => (
     <Pressable
       testID={testID ? `${testID}-${id}` : undefined}
@@ -449,11 +453,15 @@ export function Stepper({
     </Pressable>
   );
   return (
-    <View style={styles.row}>
-      <Text style={[styles.muted, { color: c.textMuted, flex: 1 }]}>{label}</Text>
-      {button('−', tr.a11y.decrease(accessibilityLabel), onMinus, minusDisabled, 'minus')}
-      <Text style={[styles.body, { color: c.text, minWidth: 64, textAlign: 'center' }]}>{value}</Text>
-      {button('+', tr.a11y.increase(accessibilityLabel), onPlus, plusDisabled, 'plus')}
+    <View style={large ? styles.stack : styles.row}>
+      <Text style={[styles.muted, { color: c.textMuted }, large ? null : { flex: 1 }]}>{label}</Text>
+      <View style={styles.row}>
+        {button('−', tr.a11y.decrease(accessibilityLabel), onMinus, minusDisabled, 'minus')}
+        <Text style={[styles.body, { color: c.text, minWidth: 64, textAlign: 'center' }, large ? { flex: 1 } : null]}>
+          {value}
+        </Text>
+        {button('+', tr.a11y.increase(accessibilityLabel), onPlus, plusDisabled, 'plus')}
+      </View>
     </View>
   );
 }

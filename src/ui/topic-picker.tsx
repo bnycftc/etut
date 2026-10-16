@@ -66,6 +66,7 @@ export function TopicPicker({
                     key={t.id}
                     testID={`topic-${t.id}`}
                     title={t.name}
+                    accessibilityLabel={tr.topicPicker.topicA11y(t.name, showPaper ? g.paper : null)}
                     selected={t.id === topicId}
                     onPress={() => {
                       onChange(t.id);

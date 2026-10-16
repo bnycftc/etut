@@ -1511,6 +1511,96 @@ describe('first-use tips', () => {
   });
 });
 
+describe('accessibility text sizes (iOS Larger Text)', () => {
+  // The same module instance the app uses; the jest preset reports fontScale 2 by default.
+  const RN = jest.requireActual<typeof import('react-native')>('react-native');
+  let dimensions: jest.SpyInstance | null = null;
+  /** 1 = the default text size; iOS AX1…AX5 are about 1.8, 2.1, 2.6, 3.1 and 3.6. */
+  function textSize(fontScale: number) {
+    dimensions = jest.spyOn(RN.Dimensions, 'get').mockReturnValue({ width: 393, height: 852, scale: 3, fontScale });
+  }
+  afterEach(() => {
+    dimensions?.mockRestore();
+    dimensions = null;
+  });
+
+  type Node = ReturnType<typeof screen.getByTestId>;
+  /** `flexDirection` of the laid-out views around a control, nearest first. */
+  function directions(node: Node): string[] {
+    const found: string[] = [];
+    for (let n = node.parent; n !== null; n = n.parent) {
+      const direction = typeof n.type === 'string' ? RN.StyleSheet.flatten(n.props.style)?.flexDirection : undefined;
+      if (direction !== undefined) found.push(direction);
+    }
+    return found;
+  }
+  const contains = (node: Node, testID: string) => node.findAll((n) => n.props.testID === testID).length > 0;
+
+  it('first-use tips: only the text scrolls, Geç and İleri stay on the card below it, stacked', () => {
+    textSize(3);
+    memory.tipsSeen = false;
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    const card = screen.getByTestId('tips-card');
+    const scroll = screen.getByTestId('tips-scroll');
+    expect(contains(card, 'tips-scroll')).toBe(true);
+    expect(contains(scroll, 'tips-step-title')).toBe(true);
+    for (const id of ['tips-skip', 'tips-next']) {
+      expect(contains(card, id)).toBe(true);
+      expect(contains(scroll, id)).toBe(false);
+    }
+    expect(directions(screen.getByTestId('tips-skip'))[0]).toBe('column');
+    // A tap outside the card is one more way out (not for VoiceOver, which stays on the card).
+    fireEvent.press(screen.getByTestId('tips-backdrop', { includeHiddenElements: true }));
+    expect(screen.queryByTestId('tips-card')).toBeNull();
+    expect(memory.tipsSeen).toBe(true);
+  });
+
+  it('"Tüm verileri sil": only the text and "Önce yedek al" scroll; Vazgeç, then the delete button, stay below it', () => {
+    textSize(3);
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    fireEvent.press(screen.getByTestId('settings-delete-all'));
+    const dialog = screen.getByTestId('settings-delete-all-dialog');
+    const scroll = screen.getByTestId('settings-delete-all-scroll');
+    expect(contains(scroll, 'settings-delete-all-backup')).toBe(true);
+    for (const id of ['settings-delete-all-cancel', 'settings-delete-all-confirm']) {
+      expect(contains(dialog, id)).toBe(true);
+      expect(contains(scroll, id)).toBe(false);
+    }
+    const order = dialog
+      .findAll((n) => typeof n.type === 'string' && typeof n.props.testID === 'string')
+      .map((n) => n.props.testID);
+    expect(order.indexOf('settings-delete-all-cancel')).toBeLessThan(order.indexOf('settings-delete-all-confirm'));
+    // A tap outside the dialog cancels (not for VoiceOver, which stays on the dialog).
+    fireEvent.press(screen.getByTestId('settings-delete-all-backdrop', { includeHiddenElements: true }));
+    expect(screen.queryByTestId('settings-delete-all-dialog')).toBeNull();
+    expect(memory.profile).not.toBeNull();
+  });
+
+  it.each([
+    [1, 'row'],
+    [2, 'column'],
+  ])('text size %d: the two week buttons are laid out in a %s', (fontScale, direction) => {
+    textSize(fontScale);
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    expect(directions(screen.getByTestId('weekly-next'))[0]).toBe(direction);
+  });
+
+  it.each([
+    [1, 'row'],
+    [2, 'column'],
+  ])('text size %d: a stepper keeps − value + in one row, with its label in a %s around it', (fontScale, direction) => {
+    textSize(fontScale);
+    memory.profile = ADULT_SAYISAL;
+    memory.dailyGoal = 120;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    // At large text the label gets its own line above − value +.
+    expect(directions(screen.getByTestId('settings-goal-minus')).slice(0, 2)).toEqual(['row', direction]);
+  });
+});
+
 describe('empty states', () => {
   beforeEach(() => {
     memory.profile = ADULT_SAYISAL;
@@ -3004,6 +3094,99 @@ describe('accessibility names on key screens', () => {
     // The same name twice on one screen ("Bitti", "Saat") leaves a VoiceOver user guessing.
     const names = found.map(nameOf);
     expect(names.filter((name, i) => names.indexOf(name) !== i)).toEqual([]);
+  });
+
+  // States the resting screens above do not show: several entries with their own "Sil" (one being
+  // confirmed), and the open topic picker, where TYT and AYT share topic names.
+  it.each<[string, () => void]>([
+    [
+      '/elle-ekle with several entries, one asking "Bu kayıt silinsin mi?"',
+      () => {
+        const start = Date.now() - 50 * 3_600_000;
+        memory.sessions.push({ id: 's3', subjectId: 'fizik', topicId: null, startedAt: start, endedAt: start + 1_800_000, pauses: [], durationMs: 1_800_000, source: 'manual' });
+        renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+        fireEvent.press(screen.getByTestId('manual-delete-s2'));
+      },
+    ],
+    [
+      '/ with the topic picker open on Matematik',
+      () => {
+        renderRouter(APP_DIR, { initialUrl: '/' });
+        fireEvent.press(screen.getByTestId('subject-matematik'));
+        fireEvent.press(screen.getByTestId('topic-picker-toggle'));
+        expect(screen.getByTestId('topic-tyt.matematik.fonksiyonlar').props.accessibilityLabel).toBe('TYT Fonksiyonlar');
+      },
+    ],
+  ])('%s: every control has a name of its own', (_, open) => {
+    open();
+    const names = controls().map(nameOf);
+    expect(names.length).toBeGreaterThan(0);
+    expect(names.filter((name) => name === '')).toEqual([]);
+    expect(names.filter((name, i) => names.indexOf(name) !== i)).toEqual([]);
+  });
+
+  it('the "Sil" of an entry says which entry it deletes', () => {
+    renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    expect(screen.getByTestId('manual-delete-s2').props.accessibilityLabel).toBe('Sil: Matematik, 6 Ekim 2026 · 10:00, 1 sa 0 dk');
+    fireEvent.press(screen.getByTestId('manual-delete-s2'));
+    expect(screen.getByTestId('manual-delete-yes-s2').props.accessibilityLabel).toBe('Sil: Matematik, 6 Ekim 2026 · 10:00, 1 sa 0 dk');
+  });
+
+  it('more messages that appear after an action are read out, a repeated mistake again', async () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    announce.mockClear();
+    const said = (message: string) => announce.mock.calls.filter(([m]) => m === message).length;
+    // Net target ("Hedefi kaydet") on Denemeler.
+    renderRouter(APP_DIR, { initialUrl: '/denemeler' });
+    fireEvent.press(screen.getByTestId('trend-section-matematik'));
+    fireEvent.changeText(screen.getByTestId('trend-target-input'), '45');
+    fireEvent.press(screen.getByTestId('trend-target-save'));
+    fireEvent.press(screen.getByTestId('trend-target-save'));
+    expect(said('0’dan büyük, en fazla 40 olan ve 0,25’in katı bir net gir (ör. 32,5).')).toBe(2);
+    // The note under "Önce yedek al" in the delete dialog.
+    act(() => router.push('/ayarlar'));
+    fireEvent.press(screen.getByTestId('settings-delete-all'));
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('settings-delete-all-backup'));
+    });
+    expect(announce).toHaveBeenLastCalledWith(
+      'Yedek dosyası hazırlandı. Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez.',
+    );
+    announce.mockRestore();
+  });
+
+  it('a wrong question count after Bitir is read out on each Kaydet', () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    announce.mockClear();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('subject-fizik'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    act(() => {
+      jest.setSystemTime(Date.now() + 30 * 60_000);
+      jest.advanceTimersByTime(1000);
+    });
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    fireEvent.changeText(screen.getByTestId('finish-questions-input'), '5000');
+    fireEvent.press(screen.getByTestId('finish-questions-save'));
+    fireEvent.press(screen.getByTestId('finish-questions-save'));
+    expect(announce.mock.calls.filter(([m]) => m === '0 ile 2000 arasında bir tam sayı gir.')).toHaveLength(2);
+    announce.mockRestore();
+  });
+
+  it('a Başla refused for the declared age is read out on each tap', () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    announce.mockClear();
+    const year = new Date().getUTCFullYear();
+    memory.profile = null;
+    memory.youngestBirthYear = year - 12;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText(String(year - 20)));
+    fireEvent.press(screen.getByText('KPSS'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    const blocked = screen.getByTestId('onboarding-age-blocked').props.children;
+    expect(announce.mock.calls.filter(([m]) => m === blocked)).toHaveLength(2);
+    announce.mockRestore();
   });
 
   it('reminder toggles are switches named by their reminder', () => {

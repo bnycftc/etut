@@ -35,6 +35,8 @@ export default function OnboardingScreen() {
   const [yksArea, setYksArea] = useState<YksArea | null>(null);
   const [goal, setGoal] = useState<number | null>(null);
   const [blocked, setBlocked] = useState(false);
+  // Each refused Başla reads the message out again (it sits above the button).
+  const [blockedAttempt, setBlockedAttempt] = useState(0);
 
   const profile = buildProfile({ birthYear, examType, yksArea }, currentYear, Date.now());
   // Why Başla is still off: the first missing answer, in screen order.
@@ -145,7 +147,7 @@ export default function OnboardingScreen() {
           onPress={() => router.push({ pathname: '/yasal/[doc]', params: { doc: 'aydinlatma' } })}
         />
         {blocked ? (
-          <Label testID="onboarding-age-blocked" style={{ color: c.danger }}>
+          <Label testID="onboarding-age-blocked" live={blockedAttempt} style={{ color: c.danger }}>
             {tr.onboarding.ageBlocked}
           </Label>
         ) : null}
@@ -158,6 +160,7 @@ export default function OnboardingScreen() {
             if (profile === null) return;
             const result = saveProfile(profile);
             setBlocked(result === 'age_blocked');
+            if (result === 'age_blocked') setBlockedAttempt((n) => n + 1);
             if (result === 'ok' && goal !== null) {
               storeDailyGoal(goal);
               notifyDataChanged('settings');
