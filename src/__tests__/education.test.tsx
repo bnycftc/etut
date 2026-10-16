@@ -246,7 +246,7 @@ describe('the tour again', () => {
   it('the first tip mentions the screen kept on, the lock screen timer and "Geri al"', () => {
     memory.tipsSeen = false;
     renderRouter(APP_DIR, { initialUrl: '/' });
-    expect(screen.getByText(/ekran kendiliğinden kapanmaz/)).toBeTruthy();
+    expect(screen.getByText(/Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez/)).toBeTruthy();
     expect(screen.getByText(/kilit ekranında/)).toBeTruthy();
     expect(screen.getByText(/“Geri al”/)).toBeTruthy();
     fireEvent.press(screen.getByTestId('tips-next'));

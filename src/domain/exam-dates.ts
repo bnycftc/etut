@@ -26,10 +26,12 @@ export interface ExamDate {
   day: DayKey;
   /** Not yet announced by ÖSYM/MEB; shown as "tahmini". */
   estimated: boolean;
+  /** Days the exam takes, from `day` (YKS: TYT, then AYT/YDT); missing = 1. */
+  days?: number;
 }
 
 export const EXAM_DATES: Record<ExamType, ExamDate | null> = {
-  YKS: { day: '2027-06-19', estimated: true },
+  YKS: { day: '2027-06-19', estimated: true, days: 2 },
   LGS: { day: '2027-06-13', estimated: true },
   KPSS: { day: '2028-09-03', estimated: true },
   DIGER: null,
@@ -41,14 +43,24 @@ export interface ResolvedExamDate extends ExamDate {
 }
 
 export function resolveExamDate(examType: ExamType, custom: DayKey | null): ResolvedExamDate | null {
-  if (custom !== null) return { day: custom, estimated: false, custom: true };
   const builtIn = EXAM_DATES[examType];
+  // A date the student enters is the first day; the exam keeps its length (YKS: two days).
+  if (custom !== null) return { day: custom, estimated: false, custom: true, days: builtIn?.days };
   return builtIn === null ? null : { ...builtIn, custom: false };
 }
 
 /** Whole Istanbul days from `today` to `examDay` (0 on the exam day, negative after it). */
 export function daysUntil(examDay: DayKey, today: DayKey): number {
   return Math.round((dayStartMs(examDay) - dayStartMs(today)) / DAY_MS);
+}
+
+/**
+ * The countdown: days left to the exam, 0 on every exam day ("Sınav günü bugün", also on YKS's
+ * AYT/YDT day), negative only after the last one.
+ */
+export function examDaysLeft(exam: Pick<ExamDate, 'day' | 'days'>, today: DayKey): number {
+  const left = daysUntil(exam.day, today);
+  return left < 0 && left > -(exam.days ?? 1) ? 0 : left;
 }
 
 /** `GG.AA.YYYY` (also `/` or `-` separated, one-digit day/month allowed) → day key, or `null`. */

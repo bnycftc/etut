@@ -109,6 +109,11 @@ jest.mock('expo-keep-awake', () => ({
   },
 }));
 
+/** Notification taps: one that launched the app (handed over on subscribing), and the listener. */
+const mockTaps: { launchUrl: string | null; listener: ((url: string) => void) | null } = {
+  launchUrl: null,
+  listener: null,
+};
 jest.mock('../system/notifications', () => ({
   notifications: {
     supported: true,
@@ -124,7 +129,13 @@ jest.mock('../system/notifications', () => ({
     cancelAll: async () => {
       memory.planned = [];
     },
-    onOpen: () => () => {},
+    onOpen: (listener: (url: string) => void) => {
+      mockTaps.listener = listener;
+      if (mockTaps.launchUrl !== null) listener(mockTaps.launchUrl);
+      return () => {
+        mockTaps.listener = null;
+      };
+    },
   },
 }));
 
@@ -335,6 +346,9 @@ jest.mock('../storage/sessions', () => ({
     memory.sessions = memory.sessions.filter((s) => !(s.id === id && s.source === 'manual'));
   },
   deleteSessionForUndo: (id: string) => {
+    memory.sessions = memory.sessions.filter((s) => !(s.id === id && s.source === 'timer'));
+  },
+  deleteTimerSession: (id: string) => {
     memory.sessions = memory.sessions.filter((s) => !(s.id === id && s.source === 'timer'));
   },
   topicTotals: () => {
@@ -1213,6 +1227,25 @@ describe('pomodoro mode', () => {
     vibrate.mockRestore();
   });
 
+  it('the pause button says "Duraklat" ("Mola" is the phase); the clock is read as the time left', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('mode-pomodoro'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    jump(47_000);
+    expect(screen.getByTestId('timer-clock').props.children).toBe('24:12');
+    expect(screen.getByTestId('timer-clock').props.accessibilityLabel).toBe('24 dakika 12 saniye kaldı');
+    expect(screen.queryByRole('button', { name: 'Mola' })).toBeNull();
+    fireEvent.press(screen.getByRole('button', { name: 'Duraklat' }));
+    expect(screen.getByTestId('timer-status').props.children).toBe('Duraklatıldı');
+    fireEvent.press(screen.getByRole('button', { name: 'Devam' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    // The stopwatch keeps "Mola" and its digits (E2E reads them).
+    fireEvent.press(screen.getByTestId('mode-stopwatch'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(screen.getByRole('button', { name: 'Mola' })).toBeTruthy();
+    expect(screen.getByTestId('timer-clock').props.accessibilityLabel).toBeUndefined();
+  });
+
   it('settings change the pomodoro lengths within limits', () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
     fireEvent.press(screen.getByTestId('settings-pomodoro-workMin-plus'));
@@ -1957,7 +1990,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
       await settle();
       expect(memory.active?.backgroundedAt).not.toBeNull();
       expect(memory.liveActivities[0].status).toBe('Kısa mola');
-      expect(memory.liveActivityStaleAt).toBe(startedAt + 30 * 60_000);
+      expect(memory.liveActivityStaleAt).toBe(startedAt + 30 * 60_000 + 10_000);
       // Away during a break costs nothing until it ends; then the next block is shown frozen.
       expect(memory.liveActivities[0]).toMatchObject({
         awayAt: startedAt + 30 * 60_000,
@@ -2038,6 +2071,32 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
       expect(memory.liveActivityStaleAt).toBeNull();
     });
 
+    it('a Live Activity 6 hours old still gets the away update there; its refresh waits for the foreground', async () => {
+      const from = (AppState.addEventListener as jest.Mock).mock.calls.length;
+      renderRouter(APP_DIR, { initialUrl: '/' });
+      fireEvent.press(screen.getByText('Fizik'));
+      fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+      await settle();
+      const record = memory.liveActivityRecord!;
+      act(() => jest.setSystemTime(record.startedAt + 6.5 * 3_600_000));
+      emitAppState('background', from);
+      await settle();
+      const leftAt = memory.active!.backgroundedAt!;
+      // Not ended (a start is refused in the background): the running one says the app was left.
+      expect(memory.liveActivities).toHaveLength(1);
+      expect(memory.liveActivities[0]).toMatchObject({
+        status: 'Uygulamadan çıktın · 10 sn sonra mola sayılır',
+        awayAt: leftAt,
+      });
+      expect(memory.liveActivityStaleAt).toBe(leftAt + 10_000);
+      expect(memory.liveActivityRecord).toEqual(record);
+      // Back in the app: now it is replaced (a new 8-hour window).
+      emitAppState('active', from);
+      await settle();
+      expect(memory.liveActivities).toHaveLength(1);
+      expect(memory.liveActivityRecord!.startedAt).toBeGreaterThan(record.startedAt);
+    });
+
     it('never starts a Live Activity there; it starts once the app is back', async () => {
       const from = (AppState.addEventListener as jest.Mock).mock.calls.length;
       renderRouter(APP_DIR, { initialUrl: '/' });
@@ -2055,6 +2114,22 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
       expect(memory.liveActivities).toHaveLength(1);
       expect(memory.liveActivityRecord).toMatchObject({ sessionId: memory.active?.id });
     });
+  });
+
+  it('a tapped notification opens its screen, also the tap that launched the app', async () => {
+    mockTaps.launchUrl = '/denemeler';
+    try {
+      renderRouter(APP_DIR, { initialUrl: '/' });
+      await settle();
+      expect(screen.getByTestId('exams-screen')).toBeTruthy();
+    } finally {
+      mockTaps.launchUrl = null;
+    }
+    act(() => router.navigate('/'));
+    expect(screen.getByTestId('timer-screen')).toBeTruthy();
+    act(() => mockTaps.listener!('/denemeler'));
+    await settle();
+    expect(screen.getByTestId('exams-screen')).toBeTruthy();
   });
 
   it('the widget shows today, the goal and the streak; "delete all" leaves nothing personal', async () => {
@@ -2145,7 +2220,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     const kinds = memory.planned.map((n) => n.kind);
     expect(kinds).toContain('pomodoro');
     expect(kinds).toContain('long_session');
-    fireEvent.press(screen.getByRole('button', { name: 'Mola' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Duraklat' }));
     await settle();
     expect(memory.planned.filter((n) => n.kind === 'pomodoro' || n.kind === 'long_session')).toEqual([]);
   });
@@ -2367,6 +2442,49 @@ describe('timer and data safety', () => {
     fireEvent.press(screen.getByTestId('away-credit'));
     finish();
     expect(memory.sessions[0].durationMs).toBe(62 * MIN);
+  });
+
+  it('pomodoro: back seconds after a break nothing is asked; a card names the study time it would add', () => {
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('mode-pomodoro'));
+    start();
+    const startedAt = memory.active!.startedAt;
+    // Left in the short break (25:00–30:00), back 4 s after it ended (the "Mola bitti" tap).
+    away(from, startedAt + 26 * MIN, startedAt + 30 * MIN + 4_000);
+    expect(screen.queryByTestId('away-title')).toBeNull();
+    // Two hours away from a work block: 30 min of it were pomodoro breaks anyway.
+    away(from, startedAt + 40 * MIN, startedAt + 160 * MIN);
+    expect(screen.getByTestId('away-title').props.children).toBe('2 sa 0 dk uygulamanın dışındaydın.');
+    expect(screen.getByText('Çalışma bloklarına denk gelen 1 sa 30 dk mola sayıldı.')).toBeTruthy();
+    finish();
+    expect(screen.getByText('Çalışma bloklarına denk gelen 1 sa 30 dk çalışma mıydı?')).toBeTruthy();
+    const before = jest.requireActual('../domain/timer').elapsedMs(memory.active!, startedAt + 160 * MIN);
+    fireEvent.press(screen.getByTestId('finish-away-credit'));
+    expect(memory.sessions[0].durationMs - before).toBe(90 * MIN);
+  });
+
+  it('a timer session can be deleted in Geçmiş after a second confirmation', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    const startedAt = memory.active!.startedAt;
+    act(() => jest.setSystemTime(startedAt + 11 * HOUR));
+    finish();
+    fireEvent.press(screen.getByTestId('finish-long-all'));
+    const id = memory.sessions[0].id;
+    const day = jest.requireActual('../domain/istanbul-day').istanbulDayKey(startedAt);
+    act(() => router.push('/gecmis'));
+    // Folded away until asked for.
+    expect(screen.queryByTestId(`history-delete-${id}`)).toBeNull();
+    fireEvent.press(screen.getByTestId(`history-sessions-${day}`));
+    fireEvent.press(screen.getByTestId(`history-delete-${id}`));
+    expect(screen.getByText(/Bu sayaç kaydı silinsin mi\?/)).toBeTruthy();
+    fireEvent.press(screen.getByTestId(`history-delete-no-${id}`));
+    expect(memory.sessions).toHaveLength(1);
+    fireEvent.press(screen.getByTestId(`history-delete-${id}`));
+    fireEvent.press(screen.getByTestId(`history-delete-yes-${id}`));
+    expect(memory.sessions).toHaveLength(0);
+    expect(screen.getByTestId('history-empty')).toBeTruthy();
   });
 
   it('a session over 10 hours asks; "İlk 10 saati kaydet" keeps 10 hours', () => {

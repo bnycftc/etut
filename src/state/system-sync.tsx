@@ -11,7 +11,7 @@
  * Never ticks.
  */
 
-import { router } from 'expo-router';
+import { router, useNavigationContainerRef } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
@@ -78,7 +78,7 @@ function loadSurfaceData(savedTotal: (day: DayKey) => number, examType: ExamType
 
 function examFor(examType: ExamType): WidgetExam | null {
   const date = resolveExamDate(examType, loadCustomExamDate(examType));
-  return date === null ? null : { examType, day: date.day };
+  return date === null ? null : { examType, day: date.day, days: date.days };
 }
 
 /** Runs async jobs one at a time; a job queued while another runs replaces the older queued one. */
@@ -122,20 +122,21 @@ async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
   const record = loadLiveActivityRecord();
   const instances = liveActivity.count();
   if (record !== null && instances > 0 && record.sessionId === active?.id) seenLive = recordKey(record);
-  const action = liveActivityAction({
+  const decided = liveActivityAction({
     sessionId: active?.id ?? null,
     instances,
     record,
     now,
     seenThisLaunch: record !== null && seenLive === recordKey(record),
   });
-  if (action === 'dismissed') {
+  if (decided === 'dismissed') {
     if (record !== null) storeLiveActivityRecord({ ...record, dismissed: true });
     return;
   }
-  // A start would be refused here, and a restart would end the old one and leave none: both wait
-  // for the foreground.
-  if (inBackground() && (action === 'start' || action === 'retry' || action === 'restart')) return;
+  // A start would be refused here: it waits for the foreground. A restart would end the old one
+  // and leave none, so the old one gets this update (the away status) and the restart waits too.
+  const action = decided === 'restart' && inBackground() ? 'update' : decided;
+  if (inBackground() && (action === 'start' || action === 'retry')) return;
   if (action === 'end' || action === 'restart') {
     await liveActivity.endAll();
     lastLiveKey = null;
@@ -240,23 +241,40 @@ export function SystemSync(): null {
   );
   const session = profile === null ? null : active;
   const phaseEnds = usePhaseEnds(session, foreground);
+  const navigation = useNavigationContainerRef();
+  // Route of a tapped notification, opened once the navigator can (a tap that launched the app
+  // comes before it is ready).
+  const [openUrl, setOpenUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (status) => {
       if (status === 'active') setForeground((n) => n + 1);
     });
-    const unsubscribe = notifications.onOpen((url) => {
-      try {
-        router.navigate(url);
-      } catch {
-        // Not ready to navigate (e.g. onboarding): stay where the app opens.
-      }
-    });
+    const unsubscribe = notifications.onOpen(setOpenUrl);
     return () => {
       subscription.remove();
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (openUrl === null) return;
+    const open = () => {
+      setOpenUrl(null);
+      // Without a profile only onboarding exists: stay there.
+      if (profile === null) return;
+      try {
+        router.navigate(openUrl);
+      } catch {
+        // Not possible from here: stay where the app opens.
+      }
+    };
+    if (navigation.isReady()) {
+      open();
+      return;
+    }
+    return navigation.addListener('ready', open);
+  }, [openUrl, profile, navigation]);
 
   useEffect(() => {
     runLiveActivity(() => syncLiveActivity(session));

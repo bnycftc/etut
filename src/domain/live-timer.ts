@@ -9,7 +9,8 @@
  *
  * Away from the app (rule 'ask'): the app sends one last update when it goes to the background,
  * with `awayAt` (`provisionalAwayAt`). The Live Activity keeps the running clock through the
- * 10-second tolerance; at `staleAt` the system marks it stale and the layout switches by itself to
+ * 10-second tolerance (left in a pomodoro break: until the tolerance after the break); at `staleAt`
+ * the system marks it stale and the layout switches by itself to
  * `away`: the clock frozen at the study time of `awayAt`, and an honest status. Without push nothing
  * else can change it while the app is away; the app updates it again when it comes back.
  *
@@ -81,9 +82,12 @@ export function liveTimerView(session: ActiveSession, now: number, awayAt: numbe
   const view = runningView(session, now);
   if (awayAt === null) return view;
   const away = awayView(session, awayAt);
-  // The running clock goes on through the tolerance (and up to the end of a break); then it freezes.
-  const freezeAt = Math.max(awayAt, (session.backgroundedAt ?? awayAt) + BACKGROUND_TOLERANCE_MS);
-  return { ...view, away, staleAt: Math.min(view.staleAt ?? Number.POSITIVE_INFINITY, freezeAt) };
+  // Nothing is taken before the tolerance after `awayAt` (`provisionalAwayAt`); then it freezes.
+  // A phase ending at `awayAt` (the break the student left in) does not switch earlier: back within
+  // the tolerance after the break, nothing is asked (the break clock shows 0:00 meanwhile).
+  const freezeAt = awayAt + BACKGROUND_TOLERANCE_MS;
+  const phaseEnd = view.staleAt !== null && view.staleAt > awayAt ? view.staleAt : Number.POSITIVE_INFINITY;
+  return { ...view, away, staleAt: Math.min(phaseEnd, freezeAt) };
 }
 
 function awayView(session: ActiveSession, awayAt: number): NonNullable<LiveTimerView['away']> {

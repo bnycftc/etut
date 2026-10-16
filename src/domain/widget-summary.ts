@@ -28,7 +28,7 @@
  */
 
 import { activeSpan, dailyTotals, type SessionSpan } from './daily-totals';
-import { daysUntil } from './exam-dates';
+import { examDaysLeft } from './exam-dates';
 import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey, splitByIstanbulDay } from './istanbul-day';
 import { pomodoroStatus, upcomingPhaseChanges } from './pomodoro';
 import type { ExamType } from './profile';
@@ -84,6 +84,8 @@ export interface WidgetExam {
   examType: ExamType;
   /** First day of the exam (Istanbul). */
   day: DayKey;
+  /** Days the exam takes (`ExamDate.days`); missing = 1. */
+  days?: number;
 }
 
 export interface WidgetTimelineInput {
@@ -128,7 +130,7 @@ function isCounting(active: ActiveSession | null, at: number): boolean {
 function entryAt(input: WidgetTimelineInput, at: number, known: boolean): WidgetEntry {
   const { savedTotal, active, goalMinutes, exam } = input;
   const day = istanbulDayKey(at);
-  const daysLeft = exam ? daysUntil(exam.day, day) : null;
+  const daysLeft = exam ? examDaysLeft(exam, day) : null;
   const running = active === null ? null : runningByDay(active, at);
   const total = (d: DayKey) => savedTotal(d) + (running?.get(d) ?? 0);
   const todayMs = total(day);
@@ -155,7 +157,7 @@ export function widgetTimeline(timelineInput: WidgetTimelineInput): WidgetEntry[
   const today = istanbulDayKey(now);
   // A running session goes on counting in the timeline; only an idle one settles (see SETTLED_MIDNIGHT).
   const idle = active === null || isPaused(active);
-  const examAhead = input.exam ? daysUntil(input.exam.day, today) >= 0 : false;
+  const examAhead = input.exam ? examDaysLeft(input.exam, today) >= 0 : false;
   const midnights = !idle ? MIDNIGHTS_AHEAD : examAhead ? COUNTDOWN_MIDNIGHTS : SETTLED_MIDNIGHT;
   for (let i = 1; i <= midnights; i++) points.add(dayStartMs(addDays(today, i)));
   const horizon = dayStartMs(addDays(today, midnights));

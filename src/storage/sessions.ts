@@ -93,14 +93,22 @@ export function recentManualSessions(limit: number): CompletedSession[] {
     .map(toSession);
 }
 
-/** Only manual entries can be deleted from the app (timer sessions are kept as recorded). */
+/** Elle ekle: the student deletes one of their manual entries. */
 export function deleteManualSession(id: string): void {
   getDb().runSync(`DELETE FROM sessions WHERE id = ? AND source = 'manual'`, id);
 }
 
 /**
+ * Geçmiş: the student deletes a timer session after a second confirmation (e.g. a timer left
+ * running overnight). Timer sessions are never shortened or edited: kept as recorded, or gone.
+ */
+export function deleteTimerSession(id: string): void {
+  getDb().runSync(`DELETE FROM sessions WHERE id = ? AND source = 'timer'`, id);
+}
+
+/**
  * "Geri al" right after Bitir (domain/finish.ts): the session goes back to running, so its
- * just-saved record is removed. Not for editing history: timer sessions are otherwise kept.
+ * just-saved record is removed.
  */
 export function deleteSessionForUndo(id: string): void {
   getDb().runSync(`DELETE FROM sessions WHERE id = ? AND source = 'timer'`, id);

@@ -323,4 +323,12 @@ describe('diffNotifications', () => {
   it('leaves notifications of other origins alone', () => {
     expect(diffNotifications([{ id: 'other', signature: null }], [])).toEqual({ cancel: [], schedule: [] });
   });
+
+  it('compares with the signature the adapter stored (e.g. with the trigger on the phone clock)', () => {
+    const stored = (offset: string) => (n: PlannedNotification) => `${notificationSignature(n)}|${offset}`;
+    const scheduled = [{ id: a.id, signature: stored('+03:00')(a) }];
+    expect(diffNotifications(scheduled, [a], stored('+03:00'))).toEqual({ cancel: [], schedule: [] });
+    // The phone moved to another time zone: same plan, other trigger, so it is scheduled again.
+    expect(diffNotifications(scheduled, [a], stored('+02:00'))).toEqual({ cancel: [a.id], schedule: [a] });
+  });
 });

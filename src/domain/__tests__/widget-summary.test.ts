@@ -254,6 +254,14 @@ describe('widgetTimeline: exam countdown', () => {
     expect(passed).toHaveLength(5);
   });
 
+  it('a two-day exam (YKS: AYT/YDT the next day) says 0 on both days', () => {
+    const yks = { examType: 'YKS' as const, day: '2026-10-08', days: 2 };
+    const entries = widgetTimeline({ now: NOW, savedTotal: () => 0, active: null, goalMinutes: null, exam: yks });
+    expect(entries.find((e) => e.at === midnight(TODAY, 1))?.countdown).toEqual({ examType: 'YKS', daysLeft: 0 });
+    expect(entries.find((e) => e.at === midnight(TODAY, 2))?.countdown).toEqual({ examType: 'YKS', daysLeft: 0 });
+    expect(entries.find((e) => e.at === midnight(TODAY, 3))?.countdown).toBeNull();
+  });
+
   it('without a date nothing changes', () => {
     const entries = widgetTimeline({ now: NOW, savedTotal: () => 0, active: null, goalMinutes: 60, exam: null });
     expect(entries).toHaveLength(5);

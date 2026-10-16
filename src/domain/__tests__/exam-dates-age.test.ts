@@ -1,6 +1,7 @@
 import {
   daysUntil,
   EXAM_DATES,
+  examDaysLeft,
   formatDayInput,
   isValidCustomExamDay,
   parseDayInput,
@@ -12,7 +13,7 @@ import { canDeclareBirthYear, guardRecordAfter, isSoloOnly } from '../profile';
 
 describe('exam countdown', () => {
   it('built-in 2027 dates are marked as estimates', () => {
-    expect(EXAM_DATES.YKS).toEqual({ day: '2027-06-19', estimated: true });
+    expect(EXAM_DATES.YKS).toEqual({ day: '2027-06-19', estimated: true, days: 2 });
     expect(istanbulWeekday('2027-06-19')).toBe(5); // Saturday
     expect(istanbulWeekday('2027-06-13')).toBe(6); // Sunday (LGS)
     expect(istanbulWeekday(EXAM_DATES.KPSS!.day)).toBe(6); // Sunday (KPSS GY-GK)
@@ -27,9 +28,22 @@ describe('exam countdown', () => {
     expect(daysUntil('2027-06-19', '2027-06-20')).toBe(-1);
   });
 
+  it('the countdown says "today" on every exam day: YKS also on its AYT/YDT day', () => {
+    const yks = EXAM_DATES.YKS!;
+    expect(examDaysLeft(yks, '2027-06-18')).toBe(1);
+    expect(examDaysLeft(yks, '2027-06-19')).toBe(0);
+    expect(examDaysLeft(yks, '2027-06-20')).toBe(0);
+    expect(examDaysLeft(yks, '2027-06-21')).toBe(-2);
+    // One-day exams (LGS, KPSS, a date without a length) are over the next day.
+    expect(examDaysLeft(EXAM_DATES.LGS!, '2027-06-14')).toBe(-1);
+    expect(examDaysLeft({ day: '2027-03-01' }, '2027-03-02')).toBe(-1);
+    // A YKS date the student enters keeps the two days.
+    expect(examDaysLeft(resolveExamDate('YKS', '2027-06-26')!, '2027-06-27')).toBe(0);
+  });
+
   it('a date set by the student overrides the estimate', () => {
-    expect(resolveExamDate('YKS', null)).toEqual({ day: '2027-06-19', estimated: true, custom: false });
-    expect(resolveExamDate('YKS', '2027-06-26')).toEqual({ day: '2027-06-26', estimated: false, custom: true });
+    expect(resolveExamDate('YKS', null)).toEqual({ day: '2027-06-19', estimated: true, custom: false, days: 2 });
+    expect(resolveExamDate('YKS', '2027-06-26')).toEqual({ day: '2027-06-26', estimated: false, custom: true, days: 2 });
     expect(resolveExamDate('DIGER', null)).toBeNull();
     expect(resolveExamDate('DIGER', '2027-03-01')?.custom).toBe(true);
   });

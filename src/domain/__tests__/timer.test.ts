@@ -18,6 +18,7 @@ import {
   onAppLaunch,
   pauseSession,
   pendingAwayMs,
+  pendingAwayStudyMs,
   provisionalAwayAt,
   resumeSession,
   startSession,
@@ -216,6 +217,56 @@ describe('background tolerance rule', () => {
     expect(back.pauses).toEqual([]);
     expect(back.backgroundedAt).toBeNull();
   });
+
+  describe('pomodoro: the tolerance counts study time, not time away', () => {
+    // Default 25/5/15: the first short break is 25:00–30:00.
+    const pomodoro = () => startSession('p1', 'matematik', T0, { pomodoro: DEFAULT_POMODORO });
+
+    it('left during the break, back 4 s after it ended ("Mola bitti" tapped): nothing is asked', () => {
+      const back = onAppForeground(onAppBackground(pomodoro(), T0 + min(26)), T0 + min(30) + sec(4));
+      expect(back.pendingAway).toBeNull();
+      expect(back.pauses).toEqual([]);
+      expect(finishQuestion(back, T0 + min(30) + sec(4))).toBeNull();
+      // The 4 s of the new block are study time.
+      expect(elapsedMs(back, T0 + min(30) + sec(4))).toBe(min(25) + sec(4));
+    });
+
+    it('left 5 s before the break, back 4 s after it: 9 s of study lost, nothing is asked', () => {
+      const back = onAppForeground(onAppBackground(pomodoro(), T0 + min(25) - sec(5)), T0 + min(30) + sec(4));
+      expect(back.pendingAway).toBeNull();
+      expect(elapsedMs(back, T0 + min(30) + sec(4))).toBe(min(25) + sec(4));
+    });
+
+    it('more study time than the tolerance: the whole absence is a break, the prompt names the study time', () => {
+      const back = onAppForeground(onAppBackground(pomodoro(), T0 + min(26)), T0 + min(30) + sec(11));
+      expect(back.pendingAway).toEqual({ start: T0 + min(26), end: T0 + min(30) + sec(11) });
+      expect(pendingAwayMs(back)).toBe(min(4) + sec(11));
+      // "Çalışıyordum" adds the 11 s of the new block, not the 4 min 11 s away.
+      expect(pendingAwayStudyMs(back)).toBe(sec(11));
+      const now = T0 + min(31);
+      expect(elapsedMs(creditAway(back), now) - elapsedMs(back, now)).toBe(pendingAwayStudyMs(back));
+    });
+  });
+});
+
+describe('pendingAwayStudyMs (the number the away prompt shows)', () => {
+  it('stopwatch: all of the time away, merged absences included', () => {
+    let s = onAppForeground(onAppBackground(started(), T0 + min(10)), T0 + min(70));
+    s = onAppForeground(onAppBackground(markSeen(s, T0 + min(71)), T0 + min(72)), T0 + min(132));
+    expect(pendingAwayStudyMs(s)).toBe(min(120));
+    expect(pendingAwayStudyMs(s)).toBe(pendingAwayMs(s));
+    expect(pendingAwayStudyMs(creditAway(s))).toBe(0);
+  });
+
+  it('pomodoro: two hours away are what "Çalışıyordum" adds, the pomodoro breaks left out', () => {
+    const s = startSession('p1', 'matematik', T0, { pomodoro: DEFAULT_POMODORO });
+    const back = onAppForeground(onAppBackground(s, T0 + min(10)), T0 + min(130));
+    expect(pendingAwayMs(back)).toBe(min(120));
+    const now = T0 + min(130);
+    expect(pendingAwayStudyMs(back)).toBe(elapsedMs(creditAway(back), now) - elapsedMs(back, now));
+    // 10–130: breaks 25–30, 55–60, 85–90, 115–130 (long) = 30 min.
+    expect(pendingAwayStudyMs(back)).toBe(min(90));
+  });
 });
 
 describe('several absences before the student answers', () => {
@@ -296,17 +347,33 @@ describe('provisionalAwayAt (where the Lock Screen timer and the widget freeze w
     expect(provisionalAwayAt(onAppBackground(pomodoro(), T0 + min(25)), 'ask')).toBe(T0 + min(30));
   });
 
-  it('the study time kept after a late return without an answer is the study time at that moment', () => {
+  it('nothing is taken up to the tolerance after it; after a costlier return the study time at that moment is kept', () => {
     for (const [session, leftAt] of [
       [started(), T0 + min(10)],
       [pomodoro(), T0 + min(10)],
       [pomodoro(), T0 + min(26)],
+      [pomodoro(), T0 + min(25) - sec(5)],
     ] as const) {
       const bg = onAppBackground(session, leftAt);
       const freezeAt = provisionalAwayAt(bg, 'ask')!;
-      // Just past the tolerance, during the break, in the next work block, hours later.
-      for (const later of [leftAt + BACKGROUND_TOLERANCE_MS + sec(1), T0 + min(29), T0 + min(40), T0 + min(200)]) {
-        expect(elapsedMs(onAppForeground(bg, later), later)).toBe(elapsedMs(bg, freezeAt));
+      // Within the tolerance after it (for a break: just after the break end), during the break,
+      // just past the tolerance, in the next work block, hours later.
+      for (const later of [
+        freezeAt + sec(4),
+        freezeAt + BACKGROUND_TOLERANCE_MS,
+        T0 + min(29),
+        freezeAt + BACKGROUND_TOLERANCE_MS + sec(1),
+        T0 + min(40),
+        T0 + min(200),
+      ]) {
+        if (later < leftAt) continue;
+        const kept = elapsedMs(onAppForeground(bg, later), later);
+        const cost = elapsedMs(bg, later) - elapsedMs(bg, leftAt);
+        if (later <= freezeAt + BACKGROUND_TOLERANCE_MS || cost <= BACKGROUND_TOLERANCE_MS) {
+          expect(kept).toBe(elapsedMs(bg, later));
+        } else {
+          expect(kept).toBe(elapsedMs(bg, freezeAt));
+        }
       }
     }
   });

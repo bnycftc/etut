@@ -16,3 +16,13 @@ export function hoursMinutes(ms: number): { hours: number; minutes: number } {
   const totalMinutes = Math.floor(Math.max(0, ms) / 60_000);
   return { hours: Math.floor(totalMinutes / 60), minutes: totalMinutes % 60 };
 }
+
+/** Whole hours, minutes and seconds of `ms` (the parts `formatClock` shows). */
+export function clockParts(ms: number): { hours: number; minutes: number; seconds: number } {
+  const totalSeconds = Math.floor(Math.max(0, ms) / 1000);
+  return {
+    hours: Math.floor(totalSeconds / 3600),
+    minutes: Math.floor((totalSeconds % 3600) / 60),
+    seconds: totalSeconds % 60,
+  };
+}

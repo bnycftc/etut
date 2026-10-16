@@ -177,7 +177,8 @@ describe('liveTimerView: away from the app (rule "Sor")', () => {
       blockInSet: 2,
       clock: { from: at(30), to: at(55), countsDown: true, pausedAt: at(30) },
     });
-    expect(v.staleAt).toBe(at(30));
+    // Back within the tolerance after the break nothing is asked, so it is not frozen before that.
+    expect(v.staleAt).toBe(at(30) + BACKGROUND_TOLERANCE_MS);
   });
 
   it('a phase end inside the tolerance comes first', () => {
