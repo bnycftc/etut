@@ -1,0 +1,118 @@
+name: Store frames
+
+# Frames the raw App Store screenshots of a successful store-screenshots.yml run: caption, brand
+# background and the real screen in a rounded card (scripts/store-compose.mjs, captions and order
+# in store/app-store/tr/screenshots.json, fonts in store/fonts). Takes about two minutes on
+# ubuntu, so a caption change does not need the 90 minute macOS run again.
+# Input: the run ID of a store-screenshots.yml run; its artifacts app-store-screenshots-6.9 (raw
+# NN-name.png screens) and app-store-screenshots-6.9-parts (part-*, tam-*, koyu-*) are framed with
+# the scripts and texts of the branch this workflow runs on.
+# Output: app-store-screenshots-6.9-framed (only NN-name.png, 1320 × 2868 RGB), which
+# asc-screenshots.yml takes with this run's ID, and store-frames-preview (contact sheet, the first
+# three frames as App Store search shows them; never uploaded to App Store Connect).
+# Nothing is sent to App Store Connect, no secrets.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Run ID of a successful store-screenshots.yml run (the number in its URL)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: store-frames-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RAW: test-results/store-raw
+  FRAMED: app-store-screenshots-6.9-framed
+  PREVIEW: test-results/store-preview
+
+jobs:
+  frames:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check the screenshot run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          case "$RUN_ID" in
+            ''|*[!0-9]*) echo "::error::run_id must be a number"; exit 1 ;;
+          esac
+          info="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+            --jq '[.path, (.conclusion // "none"), (.head_branch // "-"), .head_sha, .created_at] | @tsv')"
+          IFS=$'\t' read -r path conclusion branch sha created <<< "$info"
+          echo "run $RUN_ID: $path, $conclusion, branch $branch, commit $sha, $created"
+          case "$path" in
+            .github/workflows/store-screenshots.yml|.github/workflows/store-screenshots.yml@*) ;;
+            *) echo "::error::run $RUN_ID is not a store-screenshots.yml run"; exit 1 ;;
+          esac
+          [ "$conclusion" = "success" ] || { echo "::error::run $RUN_ID did not succeed ($conclusion)"; exit 1; }
+          if [ "$branch" != "$GITHUB_REF_NAME" ]; then
+            echo "::warning::The screenshots come from branch $branch, the captions from $GITHUB_REF_NAME: check that they describe the same app version"
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Only @resvg/resvg-js is used; no install scripts are needed for it.
+      - name: Install JS dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Download the raw screenshots
+        uses: actions/download-artifact@v4
+        with:
+          name: app-store-screenshots-6.9
+          path: ${{ env.RAW }}
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Download the frame sources
+        uses: actions/download-artifact@v4
+        with:
+          name: app-store-screenshots-6.9-parts
+          path: ${{ env.RAW }}
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Self-test of the composer
+        run: npm run test:store-compose
+
+      - name: Compose the framed set
+        run: |
+          ls -la "$RAW"
+          npm run store:compose -- --raw "$RAW" --out "$FRAMED" --preview "$PREVIEW"
+          {
+            echo "### Framed screenshots from run ${{ inputs.run_id }}"
+            echo
+            for f in "$FRAMED"/*.png; do echo "- $(basename "$f")"; done
+            echo
+            echo "Upload with asc-screenshots.yml, run_id = this run (${{ github.run_id }})."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the framed set
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.FRAMED }}
+          path: ${{ env.FRAMED }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload the previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-frames-preview
+          path: ${{ env.PREVIEW }}
+          if-no-files-found: error
+          retention-days: 7
