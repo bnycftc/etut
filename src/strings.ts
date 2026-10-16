@@ -31,7 +31,7 @@ export const DATA_CONTROLLER = {
 };
 
 /** Date shown as "Son güncelleme" on the legal texts. */
-export const LEGAL_UPDATED = '15 Ekim 2026';
+export const LEGAL_UPDATED = '16 Ekim 2026';
 
 export interface LegalSection {
   heading: string;
@@ -44,6 +44,14 @@ export interface LegalDoc {
 }
 
 const C = DATA_CONTROLLER;
+
+/**
+ * What the backup file and the CSV files hold, word for word the same in Aydınlatma and Gizlilik §3.
+ * Keep it in step with `buildBackupFile` (domain/backup.ts) and `readSettings` (storage/backup.ts).
+ */
+// [AVUKAT TEYİDİ] Liste dosyanın gerçek içeriğine göre tamamlandı (alan, son ders, dosya bilgisi).
+const BACKUP_CONTENTS =
+  'Yedek dosyasında doğum yılın, sınav türün ve alanın, tüm çalışma kayıtların (soru sayıları dahil), deneme netlerin ve analizlerin, konu işaretlerin, günlük hedefin, derslere koyduğun haftalık hedefler, hedef netlerin, sınav tarihlerin, sayacı en son başlattığın ders, sayaç türün ve pomodoro ayarların, bir de dosyanın oluşturulduğu zaman ve uygulama sürümü bulunur. CSV dosyaları çalışma kayıtlarını (girdiysen soru sayısıyla) ve denemeleri içerir.';
 
 const legalDocs = {
   aydinlatma: {
@@ -59,22 +67,30 @@ const legalDocs = {
         heading: 'Uygulama ne kaydediyor?',
         paragraphs: [
           'Doğum yılın (yalnız yıl), sınav türün ve alanın; çalışma oturumların (ders, konu, başlangıç ve bitiş zamanı, molalar ve uygulamadan çıktığın süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı); konu ilerlemen; deneme netlerin ve analizlerin; günlük hedefin, derslere koyduğun haftalık hedefler, hedef netlerin ve sınav tarihin; sayaç ayarların (pomodoro, ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihlerin, en son ne zaman yedek dosyası oluşturduğun ve yedek hatırlatmasını ne zaman kapattığın.',
+          // [AVUKAT TEYİDİ] Toplama yöntemi (KVKK m.10/1-ç; `docs/hukuk/kvkk/01` zorunlu unsur): otomatik
+          // (cihazda) ve otomatik olmayan (e-posta, mektup) ayrımı bu cümleyle yeterli mi.
+          'Bu bilgiler, uygulamayı kullanırken senin girdiklerinden ve sayacın tuttuğu zamanlardan oluşur; uygulama onları otomatik olarak bu telefona kaydeder. Bize e-posta ya da mektupla yazarsan yazdıkların bize otomatik olmayan yolla ulaşır.',
           'Uygulamanın hiç sormadıkları ve kaydetmedikleri: adın, e-postan, telefon numaran, okulun, konumun, fotoğrafların, rehberin, reklam kimliğin.',
         ],
       },
       {
         heading: 'Ne için?',
         paragraphs: [
-          'Sayacı çalıştırmak, sana kendi istatistiklerini göstermek ve yaşına uygun ayarları açmak için. 15 yaşından küçüksen grup özellikleri hiç görünmez.',
+          // [AVUKAT TEYİDİ] K-15 (a): bu metin onboarding'de doğum yılı kaydedilmeden önce açılır; eşik ve
+          // sonucu (15 yaş altında çalışma kartı kapalı) burada değil, Gizlilik §6 ve Kullanım §3'te yazar.
+          'Sayacı çalıştırmak, sana kendi istatistiklerini göstermek ve yaşına uygun ayarları açmak için.',
         ],
       },
       {
         heading: 'Nerede duruyor, kim görüyor?',
         paragraphs: [
-          'Bu telefonda. Uygulamanın sunucusu ve hesabı yok; uygulama internete bağlanmaz ve bilgilerini bize ya da başka bir şirkete göndermez. Hiçbir şey kendiliğinden bize gelmez; bize yalnız senin e-postayla göndermeyi seçtiğin şey ulaşır.',
+          // [AVUKAT TEYİDİ] Özne uygulama: iOS'ta "Uygulama Geliştiricileriyle Paylaş" açıksa Apple'ın çökme
+          // kaydı ve kimliksiz kullanım sayılarını geliştiriciye iletmesi bu cümlenin dışında; anılmalı mı?
+          'Bu telefonda. Uygulamanın sunucusu ve hesabı yok; uygulama internete bağlanmaz. Uygulama hiçbir bilgini kendiliğinden bize ya da başka bir şirkete göndermez; bize yalnız senin e-postayla göndermeyi seçtiğin şey ulaşır.',
           'Telefonunun kendi yedeği (iCloud ya da bilgisayara yedekleme) açıksa iOS uygulama verilerini de bu yedeğe katar. Bu yedek senin Apple hesabında ya da bilgisayarında durur; bize gelmez.',
-          'Yedek dosyası, CSV ya da çalışma kartı oluşturup paylaşırsan dosyanın nereye gideceğine sen karar verirsin. Yedek dosyasında doğum yılın, sınav türün, tüm çalışma kayıtların (soru sayıları dahil), denemelerin, konu işaretlerin, hedeflerin, sınav tarihlerin ve sayaç türü ile pomodoro ayarların bulunur; CSV dosyaları çalışma kayıtlarını (girdiysen soru sayısıyla) ve denemeleri içerir.',
-          'Hakkında → İletişim’den bize e-posta gönderirsen e-posta adresin, yazdıkların ve konu satırındaki uygulama ve işletim sistemi sürümü bize ulaşır. Bunları yalnız sana cevap vermek ve KVKK başvurunu sonuçlandırmak için kullanırız; başka bir amaçla kullanmaz, kimseyle paylaşmayız.',
+          `Yedek dosyası, CSV ya da çalışma kartı oluşturup paylaşırsan dosyanın nereye gideceğine sen karar verirsin. ${BACKUP_CONTENTS}`,
+          // [AVUKAT TEYİDİ] Gönderen adı ve ekler eklendi: ad öğrencinin e-posta hesabından gelir, uygulama sormaz.
+          'Hakkında → İletişim’den bize e-posta gönderirsen e-posta adresin, e-posta uygulamanın gönderen olarak gösterdiği ad (hesabında kayıtlıysa), yazdıkların, eklediğin dosyalar ve konu satırındaki uygulama ve işletim sistemi sürümü bize ulaşır. Bunları yalnız sana cevap vermek ve KVKK başvurunu sonuçlandırmak için kullanırız; başka bir amaçla kullanmaz, kimseyle paylaşmayız.',
           // [AVUKAT TEYİDİ] KVKK m.9 dayanağı. bny'nin destek kutusu Gmail (Google LLC, ABD); `docs/hukuk/kvkk/00`
           // §1.1'e göre yurt dışındaki bir e-posta hizmetinde saklamak aktarımdır. Kurul'un standart sözleşmesi
           // (SS-2) Google ile imzalanmadı ve Kurum'a bildirilmedi; bireysel Gmail'de bu yol yok (`00` §2), bu
@@ -94,7 +110,7 @@ const legalDocs = {
         paragraphs: [
           'Sen silene kadar. Ayarlar → Tüm verileri sil her şeyi siler; uygulamayı kaldırmak da bu telefondakileri siler. Telefonunun kendi yedeğindeki kopya o yedekle birlikte silinir.',
           'Tek istisna: 15 yaş altı beyanında, beyan edilen doğum yılı yaş kuralı gereği 15 yaşına gelinceye kadar bu cihazda ayrıca saklanır (yaşın yeniden kayıtla yükseltilemesin diye).',
-          'Yedekten “Değiştir” ile yükleme yaparsan, geri alabilmen için önceki verilerinin bir kopyası bu telefonda kalır. Bir gün geçtikten sonra uygulamayı ilk açışında ya da Yedek ekranını açınca silinir. “Tüm verileri sil” bu kopyayı da siler.',
+          'Yedekten “Değiştir” ile yükleme yaparsan, geri alabilmen için önceki verilerinin bir kopyası bu telefonda kalır. Bir gün geçtikten sonra uygulamayı ilk açışında ya da “Yedekle ve geri yükle” ekranını açınca silinir. “Tüm verileri sil” bu kopyayı da siler.',
           'Bize yazdığın e-postaları konu kapandıktan sonra 1 yıl, KVKK başvurularını ve cevaplarımızı 3 yıl saklar, sonra sileriz.',
         ],
       },
@@ -103,15 +119,26 @@ const legalDocs = {
         paragraphs: [
           // [AVUKAT TEYİDİ] Destek yazışması için m.5/2-c (kullanım şartları sözleşmesi) ve yurt dışı cümlesi:
           // yukarıdaki m.9 notu.
-          'Uygulamanın bu telefonda tuttuğu bilgiler, uygulamayı senin isteğinle kullanabilmen için gereklidir (KVKK m.5/2-c, sözleşmenin kurulması ve ifası). Bize e-posta yazarsan yazışma, sorununu çözmek için yine m.5/2-c’ye; KVKK başvurusuysa cevap verme yükümlülüğümüze (m.5/2-ç, KVKK m.13) dayanır. E-postanın Google’ın yurt dışındaki sunucularında durması, bize e-postayla yazmayı senin seçmene dayanır (KVKK m.9); istemezsen mektupla yazabilirsin. Reklam, analitik, çökme raporu ve izleme yoktur.',
+          'Uygulamanın bu telefonda tuttuğu bilgiler, uygulamayı senin isteğinle kullanabilmen için gereklidir (KVKK m.5/2-c, sözleşmenin kurulması ve ifası). Bize e-posta yazarsan yazışma, sorununu çözmek için yine m.5/2-c’ye; KVKK başvurusuysa cevap verme yükümlülüğümüze (m.5/2-ç, KVKK m.13) dayanır. E-postanın Google’ın yurt dışındaki sunucularında durması, bize e-postayla yazmayı senin seçmene dayanır (KVKK m.9); istemezsen mektupla yazabilirsin. Uygulamada reklam, analitik, çökme raporu ve izleme yoktur.',
         ],
       },
       {
         heading: 'Hakların',
         paragraphs: [
+          // [AVUKAT TEYİDİ] KVKK m.11/1 (a)–(ğ) sırayla ve sade dille; kanun metnine uygunluğu.
+          'KVKK m.11’e göre bize başvurarak şu haklarını kullanabilirsin:',
+          '(a) Hakkında kişisel veri işlenip işlenmediğini öğrenmek.',
+          '(b) İşlendiyse bununla ilgili bilgi istemek.',
+          '(c) Verilerinin hangi amaçla işlendiğini ve bu amaca uygun kullanılıp kullanılmadığını öğrenmek.',
+          '(ç) Verilerinin yurt içinde ya da yurt dışında kimlere aktarıldığını bilmek.',
+          '(d) Verilerin eksik ya da yanlış işlendiyse düzeltilmesini istemek.',
+          '(e) Verilerinin KVKK m.7’deki şartlarla silinmesini ya da yok edilmesini istemek.',
+          '(f) (d) ve (e)’ye göre yapılan düzeltmenin ya da silmenin, verilerinin aktarıldığı kişilere de bildirilmesini istemek.',
+          '(g) Verilerinin yalnız otomatik sistemlerle analiz edilmesi sonucunda aleyhine bir sonuç çıkarsa buna itiraz etmek.',
+          '(ğ) Verilerinin kanuna aykırı işlenmesi yüzünden zarara uğradıysan zararının giderilmesini istemek.',
           // [AVUKAT TEYİDİ] Başvuru Tebliği m.5/1: uygulamadaki mailto (kayıtlı e-posta değil) başvuru kanalı
           // sayılır mı; yazılı başvuru için posta adresi (ev adresi şart mı) — rapor E3, 4.2.
-          'KVKK m.11 kapsamındaki haklarını kullanabilirsin. Uygulamadaki verilerin yalnız sende: Ayarlar’dan görebilir, yedek ya da CSV olarak dışa aktarabilir, istediğin an silebilirsin. Başvurunu Hakkında → İletişim’den e-postayla ' +
+          'Uygulamadaki verilerin yalnız sende: Ayarlar’dan görebilir, yedek ya da CSV olarak dışa aktarabilir, istediğin an silebilirsin. Başvurunu Hakkında → İletişim’den e-postayla ' +
             `(${C.contact}) ya da imzalı bir mektupla ${C.address} adresine yapabilirsin. En geç 30 gün içinde ücretsiz ve yazılı cevap veririz. Cevabımızdan memnun kalmazsan Kişisel Verileri Koruma Kurulu’na şikâyet edebilirsin.`,
         ],
       },
@@ -132,7 +159,9 @@ const legalDocs = {
         paragraphs: [
           'Doğum yılı (yaş kuralı için), sınav türü ve alan (ders ve konu listesi için), çalışma oturumları (ders, konu, zamanlar, molalar ve uygulama dışında geçen süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı), konu ilerlemesi, deneme netleri ve analizleri, günlük hedef, derslere koyduğun haftalık hedefler, hedef netler, sınav tarihi, pomodoro ve sayaç ayarları (ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihleri, son yedek dosyasının oluşturulma zamanı ve yedek hatırlatmasının kapatıldığı zaman.',
           'Yedekten “Değiştir” ile yükleme yaparsan, geri alabilmen için önceki verilerinin bir kopyası bir gün boyunca bu telefonda kalır (5. bölüm).',
-          'iPhone’da widget eklersen bugünkü süre, hedef, seri ve sınavına kalan gün, widget’ın okuyabildiği ortak bir alanda yine bu telefonda tutulur.',
+          // [AVUKAT TEYİDİ] Widget koşulu kaldırıldı (uygulama bu alana her değişiklikte yazar) ve kilit ekranı
+          // sayacının gösterdiği ders ve konu adı eklendi.
+          'iPhone’da uygulama, widget gösterebilsin diye bugünkü süre, hedef, seri ve sınavına kalan gün bilgisini, widget eklemesen de, widget’ın okuyabildiği ortak bir alanda yine bu telefonda tutar. Sayaç açıkken kilit ekranında ve Dynamic Island’da ders ve konu adı görünür.',
           'Uygulama ad, e-posta, telefon, okul, konum, rehber, fotoğraf ve reklam kimliği hiç sormaz ve toplamaz.',
         ],
       },
@@ -142,7 +171,7 @@ const legalDocs = {
           'Uygulama bize veri göndermez; senin hakkında elimize geçebilecek tek şey bize kendin yazdığın e-postalardır. Onları yalnız sana cevap vermek ve KVKK başvurunu sonuçlandırmak için kullanırız. Hiçbir bilgiyi satmayız, reklam ya da başka bir amaçla kimseyle paylaşmayız.',
           // [AVUKAT TEYİDİ] KVKK m.9 dayanağı: "Aydınlatma metni" → "Nerede duruyor" altındaki nota bak.
           `E-posta adresimiz Gmail’de olduğu için bu e-postalar Google’ın (Google LLC, ABD) Türkiye dışındaki sunucularında saklanır; bu, KVKK m.9 kapsamında yurt dışına aktarımdır ve yalnız sen bize e-postayla yazmayı seçersen olur. İstemezsen imzalı bir mektupla ${C.address} adresine yazabilirsin; o zaman yurt dışına hiçbir şey gitmez.`,
-          'Yedek, CSV ya da çalışma kartı yalnız sen dokunduğunda, telefonunun paylaşım ekranıyla dışarı çıkar. Seçtiğin uygulama ya da servis (ör. Dosyalar, AirDrop, bir mesajlaşma uygulaması) kendi kurallarına tabidir. Yedek dosyasında doğum yılın, sınav türün, tüm çalışma kayıtların (soru sayıları dahil), denemelerin, konu işaretlerin ve hedeflerin bulunur; CSV dosyaları çalışma kayıtlarını (girdiysen soru sayısıyla) ve denemeleri içerir. Çalışma kartında ad, yaş, okul gibi seni tanıtan bilgi yer almaz.',
+          `Yedek, CSV ya da çalışma kartı yalnız sen dokunduğunda, telefonunun paylaşım ekranıyla dışarı çıkar. Seçtiğin uygulama ya da servis (ör. Dosyalar, AirDrop, bir mesajlaşma uygulaması) kendi kurallarına tabidir. ${BACKUP_CONTENTS} Çalışma kartında ad, yaş, okul gibi seni tanıtan bilgi yer almaz.`,
         ],
       },
       {
@@ -157,13 +186,14 @@ const legalDocs = {
         heading: '5. Saklama ve silme',
         paragraphs: [
           'Veriler sen silene kadar cihazda kalır. Ayarlar → Tüm verileri sil ya da uygulamayı kaldırmak bu telefondakilerin hepsini siler; telefonunun kendi yedeğindeki kopya o yedekle birlikte silinir. 15 yaş altı beyanında yalnız beyan edilen doğum yılı, 15 yaşına gelinceye kadar ayrıca saklanır.',
-          '“Değiştir” ile yedek yüklediğinde önceki verilerinin geri alma kopyası, bir gün geçtikten sonra uygulamayı ilk açışında ya da Yedek ekranını açınca silinir. Bize yazdığın e-postaları konu kapandıktan sonra 1 yıl, KVKK başvurularını ve cevaplarımızı 3 yıl saklar, sonra sileriz.',
+          '“Değiştir” ile yedek yüklediğinde önceki verilerinin geri alma kopyası, bir gün geçtikten sonra uygulamayı ilk açışında ya da “Yedekle ve geri yükle” ekranını açınca silinir. Bize yazdığın e-postaları konu kapandıktan sonra 1 yıl, KVKK başvurularını ve cevaplarımızı 3 yıl saklar, sonra sileriz.',
         ],
       },
       {
         heading: '6. Çocuklar ve gençler',
         paragraphs: [
-          'Etüt çocuklara özel bir uygulama değildir ve App Store’da Çocuklar kategorisinde yer almaz. 15 yaşından küçükler uygulamayı yalnız cihazda, grupsuz kullanır. Yaş beyanı sonradan yükseltilemez; yedek geri yüklemek de yaşı yükseltemez.',
+          // [AVUKAT TEYİDİ] 0.4.0'da gruplar kimsede yok; yaşa bağlı tek fark çalışma kartı (K-15 için bkz. Aydınlatma "Ne için?").
+          'Etüt çocuklara özel bir uygulama değildir ve App Store’da Çocuklar kategorisinde yer almaz. 15 yaşından küçükler için çalışma kartı kapalıdır; uygulamanın geri kalanı herkes için aynıdır. Yaş beyanı sonradan yükseltilemez; yedek geri yüklemek de yaşı yükseltemez.',
         ],
       },
       {
@@ -175,7 +205,8 @@ const legalDocs = {
       {
         heading: '8. Hakların',
         paragraphs: [
-          'Verilerini görebilir, yedek ya da CSV olarak dışa aktarabilir ve silebilirsin. KVKK kapsamındaki başvurunu Hakkında → İletişim’den e-postayla ' +
+          // [AVUKAT TEYİDİ] m.11 haklarının tek tek listesi Aydınlatma metninde; buradan oraya gönderme yeterli mi.
+          'Verilerini görebilir, yedek ya da CSV olarak dışa aktarabilir ve silebilirsin. KVKK m.11’deki haklarının hepsi Aydınlatma metninin “Hakların” bölümünde tek tek yazar. KVKK kapsamındaki başvurunu Hakkında → İletişim’den e-postayla ' +
             `(${C.contact}) ya da imzalı bir mektupla ${C.address} adresine yapabilirsin. En geç 30 gün içinde ücretsiz ve yazılı cevap veririz. Cevabımızdan memnun kalmazsan Kişisel Verileri Koruma Kurulu’na şikâyet edebilirsin.`,
         ],
       },
@@ -210,13 +241,14 @@ const legalDocs = {
       {
         heading: '3. Yaş',
         paragraphs: [
-          'Doğum yılını doğru seçmelisin. 15 yaşından küçüksen uygulamayı yalnız cihazda, grupsuz kullanırsın.',
+          // [AVUKAT TEYİDİ] Gizlilik §6 ile aynı: yaşa bağlı tek fark çalışma kartı.
+          'Doğum yılını doğru seçmelisin. 15 yaşından küçüksen çalışma kartı kapalıdır; uygulamanın geri kalanı herkes için aynıdır.',
         ],
       },
       {
         heading: '4. Verilerin',
         paragraphs: [
-          'Verilerin bu telefonda tutulur; Etüt onları hiçbir sunucuya göndermez. Telefonunun kendi yedeği (iCloud ya da bilgisayara yedekleme) açıksa iOS onları o yedeğe de katar. Bu yedek yoksa, telefon değiştirirken ya da uygulamayı silmeden önce Ayarlar → Yedekle ile yedek al; yedeği saklamak senin elindedir.',
+          'Verilerin bu telefonda tutulur; Etüt onları hiçbir sunucuya göndermez. Telefonunun kendi yedeği (iCloud ya da bilgisayara yedekleme) açıksa iOS onları o yedeğe de katar. Bu yedek yoksa, telefon değiştirirken ya da uygulamayı silmeden önce Ayarlar → Yedekle ve geri yükle → “Yedek dosyası oluştur” ile yedek al; yedeği saklamak senin elindedir.',
         ],
       },
       {
@@ -1518,7 +1550,7 @@ export const tr = {
   /** Hakkında → İletişim (e-mail with the app and OS version in the subject, nothing else). */
   contact: {
     title: 'İletişim',
-    info: 'Soru, hata, öneri ya da KVKK başvurun için bize e-posta gönderebilirsin. Konu satırına yalnız uygulama ve işletim sistemi sürümü eklenir. E-posta adresin ve yazdıkların bize ulaşır; e-postalarımız Gmail’de, yani Google’ın yurt dışındaki sunucularında durur. İstemezsen aşağıdaki adrese mektupla yazabilirsin. Ayrıntılar “Aydınlatma metni”nde.',
+    info: 'Soru, hata, öneri ya da KVKK başvurun için bize e-posta gönderebilirsin. Konu satırına yalnız uygulama ve işletim sistemi sürümü eklenir. E-posta adresin, e-posta uygulamanın gönderen olarak gösterdiği ad, yazdıkların ve eklediğin dosyalar bize ulaşır; e-postalarımız Gmail’de, yani Google’ın yurt dışındaki sunucularında durur. İstemezsen aşağıdaki adrese mektupla yazabilirsin. Ayrıntılar “Aydınlatma metni”nde.',
     send: 'E-posta gönder',
     soon: 'E-posta · Yakında',
     soonInfo: 'İletişim adresi yayından önce eklenecek.',

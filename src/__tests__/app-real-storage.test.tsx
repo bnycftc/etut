@@ -511,6 +511,23 @@ describe('backup screen on the real storage', () => {
     expect(kv.loadProfile()?.yksArea).toBe('sayisal');
   });
 
+  it('the "Geri al" copy is dropped on the first return to the app after its day, without a restart', () => {
+    kv.storeReplaceUndo({ createdAt: T0, text: backup() });
+    const from = listenersFrom();
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(kv.loadReplaceUndo()).not.toBeNull();
+    // Back within the day: kept.
+    emitAppState('background', from);
+    act(() => jest.setSystemTime(T0 + 23 * HOUR));
+    emitAppState('active', from);
+    expect(kv.loadReplaceUndo()).not.toBeNull();
+    // Back after the day, the app was only suspended: gone.
+    emitAppState('background', from);
+    act(() => jest.setSystemTime(T0 + 25 * HOUR));
+    emitAppState('active', from);
+    expect(kv.loadReplaceUndo()).toBeNull();
+  });
+
   it('a restore made in pomodoro mode shows pomodoro on the open timer screen; a tap is stored', async () => {
     mockSurfaces.pickText = backup({ settings: { timerMode: 'pomodoro' } });
     renderRouter(APP_DIR, { initialUrl: '/' });

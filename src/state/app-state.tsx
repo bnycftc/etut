@@ -175,10 +175,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const notifyDataChanged = (...kinds: ChangedKinds) => setDataVersions((v) => bumpVersions(v, kinds));
 
   // The copy kept for "Geri al" holds a full copy of the data: drop it once its day is over,
-  // whether or not the backup screen is opened again.
+  // whether or not the backup screen is opened again. Checked at start and on every return to
+  // the app (a suspended app is not restarted), as the legal texts say.
   useEffect(() => {
-    const undo = loadReplaceUndo();
-    if (undo !== null && replaceUndoExpired(undo.createdAt, Date.now())) storeReplaceUndo(null);
+    const dropExpiredUndo = () => {
+      const undo = loadReplaceUndo();
+      if (undo !== null && replaceUndoExpired(undo.createdAt, Date.now())) storeReplaceUndo(null);
+    };
+    dropExpiredUndo();
+    const subscription = AppState.addEventListener('change', (status) => {
+      if (status === 'active') dropExpiredUndo();
+    });
+    return () => subscription.remove();
   }, []);
 
   useEffect(() => {
