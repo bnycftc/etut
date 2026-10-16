@@ -7,6 +7,7 @@ import { topicOfSubject } from '@/domain/curriculum';
 import { activeSpan, dailyTotals } from '@/domain/daily-totals';
 import { examDaysLeft, resolveExamDate } from '@/domain/exam-dates';
 import { goalStep, UNDO_FINISH_MS } from '@/domain/finish';
+import { istanbulDayKey } from '@/domain/istanbul-day';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
@@ -203,7 +204,8 @@ export default function TimerScreen() {
   };
 
   const setGoal = (minutes: number | null) => {
-    storeDailyGoal(minutes, today);
+    // The day of the tap, not of the render clock (it ticks once a minute while idle).
+    storeDailyGoal(minutes, istanbulDayKey(Date.now()));
     app.notifyDataChanged('settings');
   };
 

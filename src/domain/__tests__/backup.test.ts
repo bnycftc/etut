@@ -544,6 +544,11 @@ describe('daily goal history (0.4.1, still version 2)', () => {
     ]);
   });
 
+  it('ignores other fields of an entry: only {from, minutes} is read', () => {
+    const settings = { ...DATA.settings, dailyGoalHistory: [{ from: '2026-09-01', minutes: 60, note: 'x' }] };
+    expect(parsed(fileText({ settings })).settings.dailyGoalHistory).toEqual([{ from: '2026-09-01', minutes: 60 }]);
+  });
+
   it.each([
     ['not a list', { from: '2026-09-01', minutes: 60 }],
     ['a day that does not exist', [{ from: '2026-02-30', minutes: 60 }]],

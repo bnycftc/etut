@@ -407,6 +407,10 @@ function withSubjectTargets(settings: BackupSettings, targets: SubjectTargets): 
 /**
  * The daily goal history: days that exist, minutes the goal could have (kept within the limits as
  * `dailyGoalMinutes`), one change per day; put in day order.
+ * The entry shape is frozen within version 2: 0.4.1 refuses the whole file when an entry is not
+ * `{from: a day, minutes: a whole number 1–1440}` or two entries share a day (other fields of an
+ * entry are ignored). A later change of it (e.g. `minutes: null` for "goal off") goes under a new
+ * settings key, which this version ignores, or a new version.
  */
 function parseGoalHistory(value: unknown): GoalChange[] {
   if (value === null || value === undefined) return [];

@@ -455,6 +455,22 @@ describe('daily goal history on the real storage', () => {
     act(() => router.push('/haftalik'));
     expect(screen.getByText('Hedefi tutturduğun gün: 2/7')).toBeTruthy();
   });
+
+  it('a change just after midnight is noted on the new day, though the idle clock still shows the old one', async () => {
+    kv.storeDailyGoal(60, '2026-10-01');
+    jest.setSystemTime(Date.parse('2026-10-07T20:59:30Z')); // 23:59:30 Istanbul
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    // 00:00:10 on 8 October; the idle render clock ticks once a minute and has not moved yet.
+    jest.setSystemTime(Date.parse('2026-10-07T21:00:10Z'));
+    fireEvent.press(screen.getByTestId('goal-edit'));
+    fireEvent.press(screen.getByTestId('goal-preset-120'));
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    await settle();
+    expect(kv.loadDailyGoalHistory()).toEqual([
+      { from: '2026-10-01', minutes: 60 },
+      { from: '2026-10-08', minutes: 120 },
+    ]);
+  });
 });
 
 describe('backup screen on the real storage', () => {
