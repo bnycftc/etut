@@ -1,10 +1,11 @@
 /**
  * Mock exam analysis ("deneme analizi"), in two steps: first the nets are saved, later the
  * student tags wrong and blank questions with curriculum topics ("analizi tamamla").
- * Also: per-section net trend, most-missed topics and per-section target nets.
+ * Also: per-section net trend, most-missed topics (recent exams only) and per-section target nets.
  */
 
 import { topicsForSubject } from './curriculum';
+import { type DayKey, dayStartMs } from './istanbul-day';
 import type { ExamKind, SectionScore, YksArea } from './net';
 import type { ExamType } from './profile';
 import { subjectsFor } from './subjects';
@@ -32,6 +33,20 @@ export function examNeedsAnalysis(scores: readonly SectionScore[]): boolean {
   return scores.some(sectionNeedsAnalysis);
 }
 
+/** What one tap on a topic tags in the quick analysis: a wrong or a blank question. */
+export type MarkKind = 'wrong' | 'blank';
+
+/**
+ * Kind a tap tags in one section of the quick analysis: the one picked on its Yanlış | Boş switch
+ * (wrong answers before anything was picked), but never a kind the section has none of.
+ */
+export function markKindFor(score: SectionScore, picked: MarkKind | null): MarkKind {
+  const kind = picked ?? 'wrong';
+  if (kind === 'wrong' && score.wrong === 0) return 'blank';
+  if (kind === 'blank' && blankCount(score) === 0) return 'wrong';
+  return kind;
+}
+
 /**
  * Tagged counts may not exceed the section's wrong/blank counts. Tagging fewer is fine
  * (not every question has to be attributed).
@@ -54,25 +69,87 @@ export function validateSectionMarks(
   return null;
 }
 
+/** A topic mark with the exam it belongs to (`listAllMarks`). */
+export interface ExamTopicMark extends TopicMark {
+  examId: string;
+  takenOn: DayKey;
+  /** When the exam was entered: orders exams of the same day, like the exam list. */
+  createdAt: number;
+}
+
+/**
+ * "En çok yanlış" looks at the topic marks of the student's most recent analysed exams only: the
+ * last `MISSED_WINDOW` exams with at least one topic marked. A topic missed in October leaves the
+ * list once five newer exams were analysed without it, so studying it shows (the same idea as
+ * `TARGET_WINDOW`). An exam saved as analysed without any mark tells nothing and does not count.
+ */
+export const MISSED_WINDOW = 5;
+
 export interface TopicMiss {
   topicId: string;
   wrong: number;
   blank: number;
+  /** Day of the most recent exam (in the window) in which the topic was missed. */
+  lastMissedOn: DayKey;
 }
 
-/** Topics with the most wrong answers across all exams (blank breaks ties), largest first. */
-export function topMissedTopics(marks: readonly TopicMark[], limit = 5): TopicMiss[] {
+/** Newest first: exam day, then entry time (the order of the exam list); the id keeps it stable. */
+function newerExam(a: ExamTopicMark, b: ExamTopicMark): number {
+  if (a.takenOn !== b.takenOn) return a.takenOn < b.takenOn ? 1 : -1;
+  return b.createdAt - a.createdAt || b.examId.localeCompare(a.examId);
+}
+
+/**
+ * Topics with the most wrong answers in the last `window` analysed exams (blank breaks ties),
+ * largest first. Pass the marks of one subject to get that subject's window (the report card):
+ * then the window counts the exams in which a topic of that subject was marked, so branch exams
+ * of other subjects do not push its topics out.
+ */
+export function topMissedTopics(
+  marks: readonly ExamTopicMark[],
+  limit = 5,
+  window = MISSED_WINDOW,
+): TopicMiss[] {
+  const counted = marks.filter((m) => m.wrong + m.blank > 0).sort(newerExam);
+  const exams = new Set<string>();
   const byTopic = new Map<string, TopicMiss>();
-  for (const m of marks) {
-    const t = byTopic.get(m.topicId) ?? { topicId: m.topicId, wrong: 0, blank: 0 };
+  for (const m of counted) {
+    if (!exams.has(m.examId)) {
+      if (exams.size === window) break;
+      exams.add(m.examId);
+    }
+    // Newest first, so the first mark of a topic is its most recent miss.
+    const t = byTopic.get(m.topicId) ?? { topicId: m.topicId, wrong: 0, blank: 0, lastMissedOn: m.takenOn };
     t.wrong += m.wrong;
     t.blank += m.blank;
     byTopic.set(m.topicId, t);
   }
   return [...byTopic.values()]
-    .filter((t) => t.wrong + t.blank > 0)
     .sort((a, b) => b.wrong - a.wrong || b.blank - a.blank || a.topicId.localeCompare(b.topicId))
     .slice(0, limit);
+}
+
+/**
+ * Where "o denemeden beri X dk" starts counting the study time on a missed topic: the start of the
+ * (Istanbul) day of the last exam that missed it. The exam's own day counts: students often go
+ * over a topic the evening after the exam.
+ */
+export function missedSinceMs(miss: TopicMiss): number {
+  return dayStartMs(miss.lastMissedOn);
+}
+
+/**
+ * Topic chips of the analysis screen: the topics missed most in recent exams (`misses`, as from
+ * `topMissedTopics`) first in that order, then the rest in curriculum order.
+ */
+export function orderTopicsByMisses<T extends { id: string }>(
+  topics: readonly T[],
+  misses: readonly TopicMiss[],
+): T[] {
+  const rank = new Map(misses.map((m, i) => [m.topicId, i]));
+  const at = (t: T) => rank.get(t.id) ?? misses.length;
+  // `sort` is stable: topics of equal rank keep their curriculum order.
+  return [...topics].sort((a, b) => at(a) - at(b));
 }
 
 /** How many recent nets the "hedefe uzaklık" average uses. */

@@ -15,6 +15,7 @@ import {
   recentManualSessions,
   saveSession,
   sessionsOverlapping,
+  topicStudySince,
   topicTotals,
 } from '../sessions';
 
@@ -124,4 +125,20 @@ it('topicTotals sums study time per topic and ignores sessions without one', () 
   saveSession(session('c', 40, 5, { topicId: 'tyt.fizik.optik' }), 1);
   saveSession(session('d', 60, 50), 1);
   expect(topicTotals()).toEqual({ 'tyt.fizik.basinc': 25 * MIN, 'tyt.fizik.optik': 5 * MIN });
+});
+
+it('topicStudySince sums each topic from its own moment on (sessions starting then or later)', () => {
+  saveSession(session('before', 0, 10, { topicId: 'tyt.fizik.basinc' }), 1);
+  saveSession(session('at', 20, 15, { topicId: 'tyt.fizik.basinc' }), 1);
+  saveSession(session('later', 40, 5, { topicId: 'tyt.fizik.basinc', source: 'manual' }), 1);
+  saveSession(session('optik', 60, 7, { topicId: 'tyt.fizik.optik' }), 1);
+  saveSession(session('none', 70, 50), 1);
+  expect(
+    topicStudySince({
+      'tyt.fizik.basinc': T0 + 20 * MIN,
+      'tyt.fizik.optik': T0 + 61 * MIN,
+      'tyt.fizik.dalgalar': T0,
+    }),
+  ).toEqual({ 'tyt.fizik.basinc': 20 * MIN, 'tyt.fizik.optik': 0, 'tyt.fizik.dalgalar': 0 });
+  expect(topicStudySince({})).toEqual({});
 });

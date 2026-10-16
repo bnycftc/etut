@@ -1,4 +1,4 @@
-import { analysisAfterEdit, examNeedsAnalysis, type TopicMark } from '../domain/exam-analysis';
+import { analysisAfterEdit, type ExamTopicMark, examNeedsAnalysis, type TopicMark } from '../domain/exam-analysis';
 import type { DayKey } from '../domain/istanbul-day';
 import { type ExamKind, type ExamScope, net, type SectionScore, totalNet } from '../domain/net';
 import { getDb } from './db';
@@ -230,11 +230,17 @@ export function getExamMarks(examId: string): TopicMark[] {
     .map(toMark);
 }
 
-/** Every topic mark of every exam (for "en çok yanlış yapılan konular"). */
-export function listAllMarks(): TopicMark[] {
+/**
+ * Every topic mark of every exam, with the exam's day and entry time (for "en çok yanlış yapılan
+ * konular", which looks at the most recent analysed exams: `topMissedTopics`).
+ */
+export function listAllMarks(): ExamTopicMark[] {
   return getDb()
-    .getAllSync<MarkRow>('SELECT section_id, topic_id, wrong, blank FROM mock_exam_marks')
-    .map(toMark);
+    .getAllSync<MarkRow & { exam_id: string; taken_on: string; created_at: number }>(
+      `SELECT m.exam_id, e.taken_on, e.created_at, m.section_id, m.topic_id, m.wrong, m.blank
+       FROM mock_exam_marks m JOIN mock_exams e ON e.id = m.exam_id`,
+    )
+    .map((r) => ({ ...toMark(r), examId: r.exam_id, takenOn: r.taken_on, createdAt: r.created_at }));
 }
 
 /** Replaces the exam's marks and marks the analysis as done. Zero rows are not stored. */

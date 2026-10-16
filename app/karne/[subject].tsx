@@ -6,7 +6,7 @@ import { hoursMinutes } from '@/domain/clock';
 import { weekDays } from '@/domain/compare';
 import { topicsForSubject } from '@/domain/curriculum';
 import { activeSpan, dailyTotals, type SessionSpan, spanStudyMs } from '@/domain/daily-totals';
-import { targetKey } from '@/domain/exam-analysis';
+import { MISSED_WINDOW, targetKey } from '@/domain/exam-analysis';
 import { addDays, DAY_MS, dayStartMs, istanbulDayKey } from '@/domain/istanbul-day';
 import { examKindsToShow } from '@/domain/net';
 import { questionTotals } from '@/domain/questions';
@@ -305,7 +305,13 @@ export default function ReportCardScreen() {
 
       <Card testID="report-missed">
         <Label variant="heading">{tr.report.missedTitle}</Label>
-        {missed.length === 0 ? <Label variant="muted">{tr.report.missedEmpty}</Label> : null}
+        {missed.length === 0 ? (
+          <Label variant="muted">{tr.report.missedEmpty}</Label>
+        ) : (
+          <Label variant="small" testID="report-missed-window">
+            {tr.report.missedWindow(MISSED_WINDOW)}
+          </Label>
+        )}
         {missed.map((m, i) => (
           <View key={m.topicId} style={{ gap: 2 }}>
             <Label>

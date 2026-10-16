@@ -139,7 +139,18 @@ describe('deleting a saved exam', () => {
     expect(getExamMarks('e1')).toEqual([]);
     expect(listMockExams().map((e) => e.id)).toEqual(['e2']);
     expect(getMockExam('e2')?.scores).toEqual(tyt);
-    expect(listAllMarks()).toEqual([{ sectionId: 'matematik', topicId: 'tyt.matematik.mutlak-deger', wrong: 2, blank: 0 }]);
+    // Each mark carries its exam's day and entry time (the "en çok yanlış" window).
+    expect(listAllMarks()).toEqual([
+      {
+        examId: 'e2',
+        takenOn: '2026-10-05',
+        createdAt: 10,
+        sectionId: 'matematik',
+        topicId: 'tyt.matematik.mutlak-deger',
+        wrong: 2,
+        blank: 0,
+      },
+    ]);
     // The net charts no longer show it either.
     expect(sectionNetHistory('TYT', 'turkce').map((p) => p.examId)).toEqual(['e2']);
   });

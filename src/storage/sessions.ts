@@ -124,3 +124,21 @@ export function topicTotals(): Record<string, number> {
   for (const r of rows) out[r.topic_id] = r.total;
   return out;
 }
+
+/**
+ * Study time on each topic in sessions that started at or after that topic's moment in `since`
+ * ("o denemeden beri", `missedSinceMs`). One small indexed query per topic (the five most missed).
+ */
+export function topicStudySince(since: Readonly<Record<string, number>>): Record<string, number> {
+  const db = getDb();
+  const out: Record<string, number> = {};
+  for (const [topicId, from] of Object.entries(since)) {
+    const row = db.getFirstSync<{ total: number | null }>(
+      'SELECT SUM(duration_ms) AS total FROM sessions WHERE topic_id = ? AND started_at >= ?',
+      topicId,
+      from,
+    );
+    out[topicId] = row?.total ?? 0;
+  }
+  return out;
+}
