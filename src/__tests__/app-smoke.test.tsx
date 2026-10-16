@@ -28,6 +28,8 @@ const memory: {
   timerMode: 'stopwatch' | 'pomodoro';
   pomodoroConfig: { workMin: number; shortBreakMin: number; longBreakMin: number; longEvery: number };
   topicStatuses: Record<string, 'done' | 'review'>;
+  /** `updated_at` of the marks, as setTopicStatus wrote it. */
+  topicTimes: Record<string, number>;
   exams: MockExamWithScores[];
   /** Calls of saveMockExam (a double tap must not save twice). */
   saves: number;
@@ -48,6 +50,7 @@ const memory: {
   replaceUndo: { createdAt: number; text: string } | null;
   lastBackupAt: number | null;
   backupNudgeDismissedAt: number | null;
+  widgetTip: 'waiting' | 'due' | 'dismissed';
   /** Calls of `sessionsOverlapping` (how often the stored sessions are read). */
   sessionLoads: number;
   /** System surfaces (src/system adapters, replaced below). */
@@ -70,6 +73,7 @@ const memory: {
   timerMode: 'stopwatch',
   pomodoroConfig: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 },
   topicStatuses: {},
+  topicTimes: {},
   exams: [],
   saves: 0,
   marks: {},
@@ -87,6 +91,7 @@ const memory: {
   replaceUndo: null,
   lastBackupAt: null,
   backupNudgeDismissedAt: null,
+  widgetTip: 'waiting',
   sessionLoads: 0,
   permission: 'undetermined',
   grantOnRequest: true,
@@ -234,6 +239,10 @@ jest.mock('../storage/kv', () => ({
   storeBackupNudgeDismissedAt: (ms: number) => {
     memory.backupNudgeDismissedAt = ms;
   },
+  loadWidgetTip: () => memory.widgetTip,
+  storeWidgetTip: (state: typeof memory.widgetTip) => {
+    memory.widgetTip = state;
+  },
   loadKeepAwake: () => memory.keepAwakeSetting,
   storeKeepAwake: (on: boolean) => {
     memory.keepAwakeSetting = on;
@@ -250,6 +259,7 @@ jest.mock('../storage/kv', () => ({
     memory.replaceUndo = null;
     memory.lastBackupAt = null;
     memory.backupNudgeDismissedAt = null;
+    memory.widgetTip = 'waiting';
     memory.keepAwakeSetting = true;
     memory.awayRule = 'ask';
     memory.profile = null;
@@ -362,11 +372,16 @@ jest.mock('../storage/sessions', () => ({
 
 jest.mock('../storage/topics', () => ({
   loadTopicStatuses: () => memory.topicStatuses,
-  setTopicStatus: (id: string, status: 'done' | 'review' | null) => {
+  loadTopicMark: (id: string) => {
+    const status = memory.topicStatuses[id];
+    return status === undefined ? null : { status, updatedAt: memory.topicTimes[id] ?? 0 };
+  },
+  setTopicStatus: (id: string, status: 'done' | 'review' | null, now: number) => {
     const next = { ...memory.topicStatuses };
     if (status === null) delete next[id];
     else next[id] = status;
     memory.topicStatuses = next;
+    memory.topicTimes = { ...memory.topicTimes, [id]: now };
   },
 }));
 
@@ -452,6 +467,7 @@ beforeEach(() => {
   memory.timerMode = 'stopwatch';
   memory.pomodoroConfig = { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 };
   memory.topicStatuses = {};
+  memory.topicTimes = {};
   memory.exams = [];
   memory.saves = 0;
   memory.marks = {};
@@ -469,6 +485,7 @@ beforeEach(() => {
   memory.replaceUndo = null;
   memory.lastBackupAt = null;
   memory.backupNudgeDismissedAt = null;
+  memory.widgetTip = 'waiting';
   mockKeepAwake.clear();
   memory.sessionLoads = 0;
   memory.permission = 'undetermined';
@@ -597,6 +614,47 @@ describe('the moment after Bitir', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     expect(screen.queryByTestId('timer-saved')).toBeNull();
   });
+
+  it('the first Bitir that saved time brings the one-time widget card; "Gösterme" hides it for good', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.queryByTestId('widget-tip')).toBeNull();
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    jump(2 * 60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(memory.widgetTip).toBe('due');
+    expect(screen.getByTestId('widget-tip')).toBeTruthy();
+    expect(screen.getByText('Ana ekrana widget ekle')).toBeTruthy();
+    expect(screen.getByText('1. Ana ekranda boş bir yere basılı tut.')).toBeTruthy();
+    // Not while a session runs; back on the idle screen until it is closed.
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(screen.queryByTestId('widget-tip')).toBeNull();
+    jump(60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(screen.getByTestId('widget-tip')).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Gösterme' }));
+    expect(screen.queryByTestId('widget-tip')).toBeNull();
+    expect(memory.widgetTip).toBe('dismissed');
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    jump(60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(screen.queryByTestId('widget-tip')).toBeNull();
+  });
+
+  it('no widget card where there is no widget (web, Android)', () => {
+    const widget = jest.requireMock('../system/home-widget') as { homeWidget: { supported: boolean } };
+    widget.homeWidget.supported = false;
+    try {
+      renderRouter(APP_DIR, { initialUrl: '/' });
+      fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+      jump(2 * 60_000);
+      fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+      expect(screen.getByTestId('timer-saved')).toBeTruthy();
+      expect(screen.queryByTestId('widget-tip')).toBeNull();
+      expect(memory.widgetTip).toBe('waiting');
+    } finally {
+      widget.homeWidget.supported = true;
+    }
+  });
 });
 
 it('with the group module off a 15+ profile sees no Groups tab; start, pause, finish saves a session', () => {
@@ -648,6 +706,59 @@ describe('topic tracking', () => {
     act(() => jest.advanceTimersByTime(61_000));
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
     expect(memory.sessions[0]).toMatchObject({ topicId: 'tyt.fizik.basinc', source: 'timer' });
+  });
+
+  it('the summary marks the topic "Bitti" / "Tekrar lazım"; "Geri al" puts the earlier mark back', () => {
+    memory.topicStatuses = { 'tyt.fizik.basinc': 'review' };
+    memory.topicTimes = { 'tyt.fizik.basinc': 7 };
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByTestId('topic-picker-toggle'));
+    fireEvent.press(screen.getByTestId('topic-tyt.fizik.basinc'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    act(() => jest.advanceTimersByTime(61_000));
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    const selected = (id: string) => screen.getByTestId(id).props.accessibilityState?.selected;
+    expect(screen.getByText('Konuyu işaretle (isteğe bağlı)')).toBeTruthy();
+    expect(selected('finish-topic-review')).toBe(true);
+    expect(screen.getByLabelText('Basınç: Bitti')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('finish-topic-done'));
+    expect(memory.topicStatuses['tyt.fizik.basinc']).toBe('done');
+    expect(selected('finish-topic-done')).toBe(true);
+    expect(selected('finish-topic-review')).toBe(false);
+    // Tapping the chosen one again clears it, as on Konular.
+    fireEvent.press(screen.getByTestId('finish-topic-done'));
+    expect(memory.topicStatuses['tyt.fizik.basinc']).toBeUndefined();
+    fireEvent.press(screen.getByTestId('finish-topic-done'));
+    expect(screen.getByTestId('finish-undo').props.accessibilityHint).toBe(
+      'Kaydı siler ve konu işaretini eski hâline getirir; sayaç kaldığı yerden devam eder.',
+    );
+    fireEvent.press(screen.getByTestId('finish-undo'));
+    expect(memory.sessions).toHaveLength(0);
+    expect(memory.topicStatuses['tyt.fizik.basinc']).toBe('review');
+    expect(memory.topicTimes['tyt.fizik.basinc']).toBe(7);
+    expect(memory.active?.topicId).toBe('tyt.fizik.basinc');
+  });
+
+  it('a mark from the summary stays after the undo window; a session without a topic has no chips', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    act(() => jest.advanceTimersByTime(61_000));
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(screen.getByTestId('timer-saved')).toBeTruthy();
+    expect(screen.queryByTestId('finish-topic-done')).toBeNull();
+
+    fireEvent.press(screen.getByTestId('topic-picker-toggle'));
+    fireEvent.press(screen.getByTestId('topic-tyt.fizik.basinc'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    act(() => jest.advanceTimersByTime(61_000));
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    fireEvent.press(screen.getByTestId('finish-topic-review'));
+    act(() => jest.advanceTimersByTime(UNDO_FINISH_MS + 1_000));
+    expect(screen.queryByTestId('finish-undo')).toBeNull();
+    expect(memory.topicStatuses['tyt.fizik.basinc']).toBe('review');
+    expect(memory.sessions[0].topicId).toBe('tyt.fizik.basinc');
   });
 
   it('changing the subject clears the topic', () => {
@@ -1224,7 +1335,24 @@ describe('goal, streak and "dünkü sen"', () => {
     expect(screen.getByTestId('streak').props.children).toBe('Seri: 3 gün');
     expect(screen.getByTestId('compare-yesterday').props.children).toBe('1 sa 0 dk');
     expect(screen.getByTestId('compare-last-week').props.children).toBe('30 dk');
+    expect(screen.getByTestId('compare-line')).toHaveTextContent(
+      'Dün bu saate kadar 1 sa 0 dk · Geçen hafta bu zamana kadar 30 dk',
+    );
     expect(screen.getByText('1 sa 0 dk elle eklendi')).toBeTruthy();
+  });
+
+  it('the first days show no comparison; later only the past that holds study time', () => {
+    memory.sessions = [];
+    const first = renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.getByTestId('today-total').props.children).toBe('0 dk');
+    expect(screen.queryByTestId('compare-line')).toBeNull();
+    expect(screen.queryByText('Kendinle kıyas')).toBeNull();
+    first.unmount();
+
+    memory.sessions = [session('lw', '2026-09-30T07:00:00Z', '2026-09-30T07:30:00Z')]; // last Wednesday only
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.getByTestId('compare-line')).toHaveTextContent('Geçen hafta bu zamana kadar 30 dk');
+    expect(screen.queryByTestId('compare-yesterday')).toBeNull();
   });
 
   it('without a goal, the home card sets one in place (presets, 15 min steps, off)', () => {
@@ -3214,11 +3342,15 @@ describe('ders karnesi, soru sayısı, ders hedefi, aylık görünüm', () => {
     expect(screen.getByTestId('finish-questions-message').props.children).toBe('0 ile 2000 arasında bir tam sayı gir.');
     expect(memory.sessions[0].questions).toBeUndefined();
 
+    expect(screen.queryByTestId('today-questions')).toBeNull();
     fireEvent.changeText(screen.getByTestId('finish-questions-input'), '35');
     fireEvent.press(screen.getByTestId('finish-questions-save'));
     expect(memory.sessions[0].questions).toBe(35);
     expect(screen.getByTestId('finish-questions-message').props.children).toBe('35 soru kaydedildi.');
     expect(screen.getByLabelText('Kaç soru çözdün? (isteğe bağlı)')).toBeTruthy();
+    // Today's line counts it next to the time (never as a rate).
+    expect(screen.getByTestId('today-total').props.children).toBe('30 dk');
+    expect(screen.getByTestId('today-questions').props.children).toBe('· 35 soru');
   });
 
   it('"Elle ekle" takes an optional count; a wrong one stops the entry with a message', () => {

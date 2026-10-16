@@ -1,4 +1,4 @@
-import { compareWithPast, weeklySummary } from '../compare';
+import { comparisonLine, compareWithPast, weeklySummary } from '../compare';
 import { dailyTotals, pastDayTotals, type SessionSpan } from '../daily-totals';
 import type { DayKey } from '../istanbul-day';
 import { computeStreak, goalRatio, weekStartOf } from '../streak';
@@ -176,6 +176,27 @@ describe('compareWithPast', () => {
     const c = compareWithPast(spans, now);
     expect(c.thisWeek).toBe(min(60 + 60)); // Mon 1 h + Mon 00:00–01:00
     expect(c.lastWeekSameTime).toBe(min(120 + 60)); // Mon 2 h + Wed 09:00–10:00
+  });
+});
+
+describe('comparisonLine (home screen)', () => {
+  const of = (yesterdaySameTime: number, lastWeekSameTime: number) =>
+    comparisonLine({ today: min(10), yesterdaySameTime, thisWeek: min(10), lastWeekSameTime });
+
+  it('no line while the past holds no study time (the first days)', () => {
+    expect(of(0, 0)).toBeNull();
+    // Less than a minute would read "0 dk".
+    expect(of(59_999, 30_000)).toBeNull();
+  });
+
+  it('only the parts with study time', () => {
+    expect(of(min(80), 0)).toEqual({ yesterday: min(80), lastWeek: null });
+    expect(of(0, min(300))).toEqual({ yesterday: null, lastWeek: min(300) });
+    expect(of(min(1), min(300))).toEqual({ yesterday: min(1), lastWeek: min(300) });
+  });
+
+  it('today, this week and a study-free yesterday never make a line on their own', () => {
+    expect(comparisonLine({ today: min(90), yesterdaySameTime: 0, thisWeek: min(300), lastWeekSameTime: 0 })).toBeNull();
   });
 });
 

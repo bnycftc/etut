@@ -60,7 +60,7 @@ tags:
     visible:
       id: timer-saved
     timeout: 10000
-# The card button sits in the "Kendinle kıyas" card at the bottom of the timer screen.
+# The card button sits in the "Kısayollar" card below the subject card of the timer screen.
 - scrollUntilVisible:
     element:
       id: open-share

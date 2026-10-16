@@ -1,4 +1,4 @@
-import { canUndoFinish, goalStep, UNDO_FINISH_MS } from '../finish';
+import { canUndoFinish, goalStep, topicMarkToRestore, UNDO_FINISH_MS } from '../finish';
 
 describe('undo window after Bitir', () => {
   it('is open right after finishing and closes after UNDO_FINISH_MS', () => {
@@ -30,5 +30,15 @@ describe('goal step of a finished session', () => {
 
   it('never goes below zero (session longer than today, e.g. across midnight)', () => {
     expect(goalStep(20 * MIN, 50 * MIN, 60)).toEqual({ beforePercent: 0, afterPercent: 33, reached: false });
+  });
+});
+
+describe('topic mark set in the summary, then "Geri al"', () => {
+  it('puts back the earlier mark with its own time', () => {
+    expect(topicMarkToRestore({ status: 'review', updatedAt: 7 }, 9_000)).toEqual({ status: 'review', at: 7 });
+  });
+
+  it('clears a mark the topic did not have before', () => {
+    expect(topicMarkToRestore(null, 9_000)).toEqual({ status: null, at: 9_000 });
   });
 });

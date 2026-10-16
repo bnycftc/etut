@@ -6,15 +6,30 @@
  * record, as if Bitir had never been pressed. The few seconds in between count like any other
  * second of the session; the window is shorter than the 10 s background tolerance, so it can
  * never be used to turn a break into study time.
+ *
+ * A session with a topic also offers "Bitti" / "Tekrar lazım" in the summary. "Geri al" takes a
+ * mark set there back too (`topicMarkToRestore`).
  */
 
 import { goalRatio } from './streak';
+import type { TimedTopicStatus, TopicStatus } from './topics';
 
 /** "Geri al" is offered for this long after Bitir. */
 export const UNDO_FINISH_MS = 8_000;
 
 export function canUndoFinish(finishedAt: number, now: number): boolean {
   return now >= finishedAt && now - finishedAt <= UNDO_FINISH_MS;
+}
+
+/**
+ * What "Geri al" writes for a topic marked in the summary: the mark it had before the first tap,
+ * with its own time, or no mark when it had none. The topic is left as if Bitir never happened.
+ */
+export function topicMarkToRestore(
+  before: TimedTopicStatus | null,
+  now: number,
+): { status: TopicStatus | null; at: number } {
+  return before === null ? { status: null, at: now } : { status: before.status, at: before.updatedAt };
 }
 
 export interface GoalStep {

@@ -8,6 +8,12 @@ export function isTopicStatus(value: unknown): value is TopicStatus {
   return value === 'done' || value === 'review';
 }
 
+/** A topic's stored mark with the time it was set. */
+export interface TimedTopicStatus {
+  status: TopicStatus;
+  updatedAt: number;
+}
+
 export interface TopicProgress {
   total: number;
   done: number;

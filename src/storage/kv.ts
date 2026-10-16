@@ -18,6 +18,7 @@ import { type ExamType, isProfile, type Profile } from '../domain/profile';
 import { normalizeReminderPrefs, type ReminderPrefs } from '../domain/reminders';
 import { clampGoalMinutes } from '../domain/streak';
 import { type ActiveSession, type AwayRule, toActiveSession } from '../domain/timer';
+import { parseWidgetTipState, type WidgetTipState } from '../domain/widget-tip';
 
 const KEYS = {
   profile: 'etut.profile.v1',
@@ -37,6 +38,7 @@ const KEYS = {
   replaceUndo: 'etut.replaceUndo.v1',
   lastBackupAt: 'etut.lastBackupAt.v1',
   backupNudgeDismissedAt: 'etut.backupNudgeDismissedAt.v1',
+  widgetTip: 'etut.widgetTip.v1',
 } as const;
 
 export type TimerMode = 'stopwatch' | 'pomodoro';
@@ -275,6 +277,16 @@ export function loadBackupNudgeDismissedAt(): number | null {
 
 export function storeBackupNudgeDismissedAt(ms: number): void {
   Storage.setItemSync(KEYS.backupNudgeDismissedAt, JSON.stringify(ms));
+}
+
+/** The one-time widget card on the timer screen (rule: domain/widget-tip.ts). */
+export function loadWidgetTip(): WidgetTipState {
+  return parseWidgetTipState(Storage.getItemSync(KEYS.widgetTip));
+}
+
+export function storeWidgetTip(state: WidgetTipState): void {
+  if (state === 'waiting') Storage.removeItemSync(KEYS.widgetTip);
+  else Storage.setItemSync(KEYS.widgetTip, state);
 }
 
 /** expo-sqlite/kv-store keeps its rows in this database file (expo-sqlite src/Storage.ts). */

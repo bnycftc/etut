@@ -8,6 +8,7 @@ import { useRef } from 'react';
 import { compareWithPast, type SelfComparison } from '../domain/compare';
 import { activeSpan, dailyTotals, pastDayTotals, type SessionSpan } from '../domain/daily-totals';
 import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey, lastDays } from '../domain/istanbul-day';
+import { questionTotals } from '../domain/questions';
 import { computeStreak, goalMet, STREAK_LOOKBACK_DAYS, type StreakResult, weekStartOf } from '../domain/streak';
 import { loadDailyGoal } from '../storage/kv';
 import { sessionsOverlapping } from '../storage/sessions';
@@ -17,6 +18,8 @@ export interface StudyStats {
   today: DayKey;
   todayTotal: number;
   todayManual: number;
+  /** Questions of today's sessions, if the student gave any (`questions.ts`); 0 = none given. */
+  todayQuestions: number;
   comparison: SelfComparison;
   /** Daily goal in minutes; `null` = none. */
   goal: number | null;
@@ -46,7 +49,9 @@ export function useStudyStats(now: number): StudyStats {
     const recentFrom = dayStartMs(weekStartOf(today)) - 7 * DAY_MS;
     let pastStudyDays = 0;
     for (const ms of past.values()) if (ms > 0) pastStudyDays++;
-    return { past, pastStudyDays, recent: sessions.filter((s) => s.endedAt > recentFrom) };
+    // A running session has no count yet: today's questions change only with the stored data.
+    const todayQuestions = questionTotals(sessions, [today]).total;
+    return { past, pastStudyDays, todayQuestions, recent: sessions.filter((s) => s.endedAt > recentFrom) };
   });
   const goal = useStored(`goal|${dataVersions.settings}`, loadDailyGoal);
 
@@ -85,5 +90,14 @@ export function useStudyStats(now: number): StudyStats {
   }
 
   const studyDays = stored.pastStudyDays + (todayTotal > 0 ? 1 : 0);
-  return { today, todayTotal, todayManual, comparison: compareWithPast(spans, now), goal, streak, studyDays };
+  return {
+    today,
+    todayTotal,
+    todayManual,
+    todayQuestions: stored.todayQuestions,
+    comparison: compareWithPast(spans, now),
+    goal,
+    streak,
+    studyDays,
+  };
 }

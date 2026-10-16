@@ -1,5 +1,14 @@
-import { isTopicStatus, type TopicStatus } from '../domain/topics';
+import { isTopicStatus, type TimedTopicStatus, type TopicStatus } from '../domain/topics';
 import { getDb } from './db';
+
+/** One topic's mark with the time it was set; `null` = not marked. */
+export function loadTopicMark(topicId: string): TimedTopicStatus | null {
+  const row = getDb().getFirstSync<{ status: string; updated_at: number }>(
+    'SELECT status, updated_at FROM topic_progress WHERE topic_id = ?',
+    topicId,
+  );
+  return row !== null && isTopicStatus(row.status) ? { status: row.status, updatedAt: row.updated_at } : null;
+}
 
 export function loadTopicStatuses(): Record<string, TopicStatus> {
   const rows = getDb().getAllSync<{ topic_id: string; status: string }>(
