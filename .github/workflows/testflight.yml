@@ -20,6 +20,10 @@ name: TestFlight
 # Automatic signing registers the extension's App ID and the App Group capability itself; if
 # Apple refuses, register them once by hand (README, "App Store Connect'te elle yapılacaklar").
 #
+# Gate (job "gate", ubuntu, before any macOS minute): a tag v<x.y.z> must equal app.json
+# expo.version; without internal_only only main or a v* tag on main may build; npm ci, tsc and jest
+# must pass.
+#
 # Required repository secrets: ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY (raw .p8 text or base64 of it).
 # The API key needs the Admin role: cloud-managed distribution signing is refused for other roles.
 # Optional: DIST_CERT_P12_BASE64 (base64 of an Apple Distribution .p12), DIST_CERT_PASSWORD.
@@ -28,7 +32,7 @@ on:
   workflow_dispatch:
     inputs:
       internal_only:
-        description: "Internal TestFlight testing only: allow the [DOLDURULACAK] legal placeholders. Such a build must never go to external testing or App Review."
+        description: "Internal TestFlight testing only: allow the [DOLDURULACAK] legal placeholders and a ref other than main. Such a build must never go to external testing or App Review."
         type: boolean
         default: false
   push:
@@ -53,8 +57,66 @@ env:
   BUILD_NUMBER: ${{ github.run_number }}.${{ github.run_attempt }}
 
 jobs:
+  gate:
+    name: Release ref, version, typecheck and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Full history: the check below needs origin/main next to the tagged commit.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # App Store Connect can send any uploaded build to external testing or App Review, so only
+      # the release line uploads: main, or a v* tag on a commit of main whose version is the app's.
+      - name: Release ref and version
+        env:
+          INTERNAL_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.internal_only }}
+        run: |
+          app_version="$(node -p "require('./app.json').expo.version")"
+          echo "Ref $GITHUB_REF ($GITHUB_SHA), app.json version $app_version"
+          case "$GITHUB_REF" in
+            refs/tags/v*)
+              [ "${GITHUB_REF_NAME#v}" = "$app_version" ] \
+                || { echo "::error::Tag $GITHUB_REF_NAME does not match app.json expo.version $app_version"; exit 1; }
+              ;;
+          esac
+          if [ "$INTERNAL_ONLY" = "true" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "::warning::Built from $GITHUB_REF, not main. Internal TestFlight only."
+              echo "Build $BUILD_NUMBER from $GITHUB_REF (not main): internal TestFlight only." >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 0
+          fi
+          case "$GITHUB_REF" in
+            refs/heads/main) ;;
+            refs/tags/v*)
+              git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+                || { echo "::error::Tag $GITHUB_REF_NAME is not on main. Tag a commit of main, or run manually with internal_only."; exit 1; }
+              ;;
+            *)
+              echo "::error::$GITHUB_REF is neither main nor a v* tag. Run from main, or manually with internal_only for internal testing."
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npx jest --ci
+
   testflight:
     name: Archive and upload to TestFlight
+    needs: gate
     runs-on: macos-26
     timeout-minutes: 90
     steps:
@@ -360,8 +422,42 @@ jobs:
           mkdir -p build
           find "${TMPDIR:-/tmp}" -maxdepth 1 -name '*.xcdistributionlogs' -exec cp -R {} build/ \; || true
 
+      # The archive step's environment holds the data controller's name, postal address and e-mail
+      # (secrets, kept out of this public repository), and Xcode writes the environment of every
+      # script phase into the raw log ("export NAME\=value", spaces escaped with a backslash).
+      # GitHub masks secrets in the console only, not inside uploaded files: replace the values
+      # before the upload. Prints file names and counts, never a value.
+      - name: Scrub data controller from logs
+        if: failure()
+        env:
+          DC_NAME: ${{ secrets.DATA_CONTROLLER_NAME }}
+          DC_ADDRESS: ${{ secrets.DATA_CONTROLLER_ADDRESS }}
+          DC_CONTACT: ${{ secrets.DATA_CONTROLLER_CONTACT }}
+        run: |
+          python3 - <<'PY'
+          import glob, os, re
+          values = [os.environ.get(k, "") for k in ("DC_NAME", "DC_ADDRESS", "DC_CONTACT")]
+          # Each value whole and each of its lines (a multi-line address), longest first, with an
+          # optional backslash before every character.
+          parts = sorted({p.strip() for v in values for p in [v, *v.splitlines()] if len(p.strip()) >= 3}, key=len, reverse=True)
+          patterns = [re.compile(r"\\?".join(re.escape(ch) for ch in p)) for p in parts]
+          env_line = re.compile(r"(EXPO_PUBLIC_DATA_CONTROLLER_[A-Z]+\\?=).*")
+          files = glob.glob("build/*.log") + glob.glob("build/*.xcdistributionlogs/**/*", recursive=True)
+          for path in filter(os.path.isfile, files):
+              with open(path, encoding="utf-8", errors="surrogateescape") as f:
+                  text = f.read()
+              text, hits = env_line.subn(lambda m: m.group(1) + "[scrubbed]", text)
+              for pattern in patterns:
+                  text, n = pattern.subn("[scrubbed]", text)
+                  hits += n
+              if hits:
+                  with open(path, "w", encoding="utf-8", errors="surrogateescape") as f:
+                      f.write(text)
+                  print(f"{path}: {hits} replacement(s)")
+          PY
+
       # The repository is public, so artifacts are downloadable by anyone signed in to GitHub:
-      # upload logs only, never the signed archive or IPA.
+      # upload logs only (scrubbed above), never the signed archive or IPA.
       - name: Upload logs
         if: failure()
         uses: actions/upload-artifact@v4

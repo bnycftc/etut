@@ -13,9 +13,9 @@ concurrency:
 
 jobs:
   check:
-    name: Typecheck, test, doctor
+    name: Typecheck, test, doctor, iOS bundle
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -35,6 +35,52 @@ jobs:
 
       - name: Expo doctor
         run: npx --yes expo-doctor
+
+      # The bundle the device runs: Jest does not apply the React Compiler (app.json) or the
+      # expo-widgets transform of the 'widget' layouts, the export does.
+      - name: Export the iOS bundle
+        run: npx expo export --platform ios --source-maps --output-dir dist
+
+      # Hakkında → Lisanslar lists the npm packages in that bundle at their installed versions.
+      - name: Licence list up to date
+        run: |
+          node scripts/gen-licenses.mjs dist
+          if ! git diff --exit-code -- src/legal/licenses.ts; then
+            echo "::error::src/legal/licenses.ts is out of date: run npm run gen:licenses and commit it"
+            exit 1
+          fi
+
+  web:
+    # scripts/test-web.mjs: the real app, React Compiler included, in headless Chromium on its own
+    # Expo web dev server. A job of its own, so a slow web run does not hold up the checks above.
+    name: Web smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Web smoke test
+        run: npm run test:web
+
+      - name: Upload screenshots and dev server log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-web-${{ github.run_number }}-${{ github.run_attempt }}
+          path: test-results/web
+          if-no-files-found: ignore
+          retention-days: 7
 
   backend:
     # The SQL rules and the supabase-js path against the real local stack (Docker on the runner):
