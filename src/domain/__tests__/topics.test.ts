@@ -10,7 +10,7 @@ import { AYT_TOPICS } from '../curriculum/yks-ayt';
 import { TYT_TOPICS } from '../curriculum/yks-tyt';
 import { EXAM_KINDS, EXAM_SECTIONS } from '../net';
 import { SUBJECTS_BY_EXAM } from '../subjects';
-import { toggleStatus, topicProgress } from '../topics';
+import { reviewFirst, toggleStatus, topicProgress } from '../topics';
 
 describe('topics of a timer subject', () => {
   it('YKS sayısal physics has TYT and AYT topics; eşit ağırlık only TYT', () => {
@@ -92,6 +92,13 @@ describe('topic progress', () => {
     });
     expect(topicProgress(topics, { a: 'done', b: 'done', c: 'done' }).percent).toBe(100);
     expect(topicProgress([], {}).percent).toBe(0);
+  });
+
+  it('"tekrar lazım" topics come first, the rest keep the curriculum order', () => {
+    const d = { id: 'd', name: 'D' };
+    const four = [...topics, d];
+    expect(reviewFirst(four, { c: 'review', a: 'done', d: 'review' }).map((t) => t.id)).toEqual(['c', 'd', 'a', 'b']);
+    expect(reviewFirst(four, {}).map((t) => t.id)).toEqual(['a', 'b', 'c', 'd']);
   });
 
   it('tapping the active status clears it, another one switches', () => {

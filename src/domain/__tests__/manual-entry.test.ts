@@ -1,7 +1,10 @@
 import { dailyTotals } from '../daily-totals';
 import {
   buildManualSession,
+  durationFields,
   earliestManualDay,
+  justFinishedStart,
+  MANUAL_DURATION_CHIPS,
   MANUAL_MAX_MS,
   parseDurationFields,
   parseStartTime,
@@ -94,11 +97,38 @@ describe('form parsing', () => {
     expect(parseStartTime('2026-10-04', '1a', '10')).toBeNull();
   });
 
+  it('a duration chip fills fields that read back as the same duration', () => {
+    expect(durationFields(45)).toEqual({ hours: '0', minutes: '45' });
+    expect(durationFields(90)).toEqual({ hours: '1', minutes: '30' });
+    for (const m of MANUAL_DURATION_CHIPS) {
+      const f = durationFields(m);
+      expect(parseDurationFields(f.hours, f.minutes)).toBe(min(m));
+    }
+  });
+
   it('reads the duration from hours and minutes', () => {
     expect(parseDurationFields('1', '30')).toBe(min(90));
     expect(parseDurationFields('', '45')).toBe(min(45));
     expect(parseDurationFields('2', '')).toBe(min(120));
     expect(parseDurationFields('0', '60')).toBeNull();
     expect(parseDurationFields('-1', '0')).toBeNull();
+  });
+});
+
+describe('"az önce bitti"', () => {
+  it('ends at the start of the current minute, so the entry is valid right away', () => {
+    const now = NOW + 42_500; // 18:00:42.5 Istanbul
+    const start = justFinishedStart(now, min(45));
+    expect(start).toBe(at('2026-10-04T14:15:00Z')); // 17:15–18:00
+    expect(validateManualEntry(entry('2026-10-04T14:15:00Z', 45), [], now)).toBeNull();
+    expect(justFinishedStart(NOW, min(45))).toBe(start);
+  });
+
+  it('just after Istanbul midnight the entry starts on the day before', () => {
+    const now = at('2026-10-04T21:10:00Z'); // 5 Oct 00:10 Istanbul
+    const start = justFinishedStart(now, min(30));
+    expect(start).toBe(parseStartTime('2026-10-04', '23', '40'));
+    const s = buildManualSession('m3', { subjectId: 'fizik', topicId: null, startMs: start, durationMs: min(30) });
+    expect(dailyTotals([s], ['2026-10-04', '2026-10-05']).map((t) => t.totalMs)).toEqual([min(20), min(10)]);
   });
 });

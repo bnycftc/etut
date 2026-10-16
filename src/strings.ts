@@ -461,6 +461,14 @@ export const tr = {
     minutes: 'Dakika',
     /** Screen-reader name of a time box: `Başlangıç, Saat` / `Süre, Saat`. */
     fieldA11y: (group: string, field: string) => `${group}, ${field}`,
+    /** A duration chip: `45 dk`. */
+    chipMinutes: (minutes: number) => `${minutes} dk`,
+    timeTitle: 'Ne zaman?',
+    /** Today's default (the entry ends now) and the button that returns to it. */
+    justFinished: 'Az önce bitti',
+    /** `Az önce bitti: 11:15–12:00` */
+    justFinishedSpan: (start: string, end: string) => `Az önce bitti: ${start}–${end}`,
+    changeTime: 'Saati değiştir',
     add: 'Ekle',
     added: (duration: string) => `Eklendi: ${duration} (elle)`,
     limits:
@@ -586,6 +594,10 @@ export const tr = {
     everyLabel: 'Uzun mola sıklığı',
     minutes: (n: number) => `${n} dk`,
     every: (n: number) => `${n} turda bir`,
+    presets: 'Hazır düzenler',
+    /** A preset chip: `50/10`. */
+    preset: (work: number, short: number) => `${work}/${short}`,
+    presetA11y: (work: number, short: number) => `${work} dakika çalışma, ${short} dakika mola`,
     reset: 'Varsayılana dön',
   },
 

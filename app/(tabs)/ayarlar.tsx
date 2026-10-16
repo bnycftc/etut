@@ -16,6 +16,8 @@ import {
   normalizePomodoroConfig,
   type PomodoroConfig,
   POMODORO_LIMITS,
+  POMODORO_PRESETS,
+  samePomodoroConfig,
 } from '@/domain/pomodoro';
 import { EXAM_TYPES, type ExamType, YKS_AREAS } from '@/domain/profile';
 import { effectiveReminderPrefs } from '@/domain/reminders';
@@ -321,6 +323,19 @@ export default function SettingsScreen() {
       <Card>
         <Label variant="heading">{tr.pomodoro.settingsTitle}</Label>
         <Label variant="small">{tr.pomodoro.breakNote}</Label>
+        <Label variant="muted">{tr.pomodoro.presets}</Label>
+        <ChipRow>
+          {POMODORO_PRESETS.map((preset) => (
+            <Chip
+              key={`${preset.workMin}-${preset.shortBreakMin}`}
+              testID={`settings-pomodoro-preset-${preset.workMin}-${preset.shortBreakMin}`}
+              title={tr.pomodoro.preset(preset.workMin, preset.shortBreakMin)}
+              accessibilityLabel={tr.pomodoro.presetA11y(preset.workMin, preset.shortBreakMin)}
+              selected={samePomodoroConfig(pomodoro, preset)}
+              onPress={() => setPomodoro(preset)}
+            />
+          ))}
+        </ChipRow>
         {POMODORO_FIELDS.map(({ key, label, step, format }) => (
           <Stepper
             key={key}

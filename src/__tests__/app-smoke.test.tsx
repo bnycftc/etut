@@ -832,6 +832,26 @@ describe('topic tracking', () => {
     fireEvent.press(screen.getByTestId('topic-review-tyt.fizik.basinc'));
     expect(screen.getByText('1 konu tekrar bekliyor')).toBeTruthy();
   });
+
+  it('topics screen: "tekrar lazım" topics come first; a mark made there does not move the rows', () => {
+    memory.topicStatuses = { 'tyt.fizik.dalgalar': 'review', 'tyt.fizik.basinc': 'done' };
+    renderRouter(APP_DIR, { initialUrl: '/konular' });
+    fireEvent.press(screen.getByTestId('topics-subject-fizik'));
+    const order = () => screen.getAllByTestId(/^topic-review-tyt\.fizik\./).map((n) => n.props.testID as string);
+    const opened = order();
+    expect(opened.slice(0, 3)).toEqual([
+      'topic-review-tyt.fizik.dalgalar',
+      'topic-review-tyt.fizik.fizik-bilimine-giris',
+      'topic-review-tyt.fizik.madde-ve-ozellikleri',
+    ]);
+    fireEvent.press(screen.getByTestId('topic-review-tyt.fizik.hareket'));
+    expect(memory.topicStatuses['tyt.fizik.hareket']).toBe('review');
+    expect(order()).toEqual(opened);
+    // Opening the subject again sorts with the new mark.
+    fireEvent.press(screen.getByTestId('topics-subject-kimya'));
+    fireEvent.press(screen.getByTestId('topics-subject-fizik'));
+    expect(order().slice(0, 2)).toEqual(['topic-review-tyt.fizik.hareket', 'topic-review-tyt.fizik.dalgalar']);
+  });
 });
 
 describe('manual entry ("elle")', () => {
@@ -883,9 +903,45 @@ describe('manual entry ("elle")', () => {
 
   it('a future time is refused', () => {
     renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    fireEvent.press(screen.getByTestId('manual-change-time'));
     // Today, ending 23:59 + 10 h is always after now.
     fill('23', '59', '10', '0');
     expect(screen.getByTestId('manual-error').props.children).toBe('Henüz gelmemiş bir zaman eklenemez.');
+  });
+
+  it('today the entry "just finished" by default: a duration chip and Ekle are enough', () => {
+    renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    expect(screen.queryByTestId('manual-start-hour')).toBeNull();
+    expect(screen.getByTestId('manual-just-finished').props.children).toBe('Az önce bitti');
+    // A chip fills the duration fields (any other length is typed there).
+    fireEvent.press(screen.getByTestId('manual-duration-chip-90'));
+    expect(screen.getByTestId('manual-duration-hours').props.value).toBe('1');
+    expect(screen.getByTestId('manual-duration-minutes').props.value).toBe('30');
+    expect(screen.getByTestId('manual-duration-chip-90').props.accessibilityState).toMatchObject({ selected: true });
+    fireEvent.press(screen.getByTestId('manual-duration-chip-45'));
+    expect(screen.getByTestId('manual-duration-chip-90').props.accessibilityState).toMatchObject({ selected: false });
+    const span = screen.getByTestId('manual-just-finished').props.children as string;
+    fireEvent.press(screen.getByTestId('manual-add'));
+    expect(screen.getByTestId('manual-added').props.children).toBe('Eklendi: 45 dk (elle)');
+    const [saved] = memory.sessions;
+    expect(saved).toMatchObject({ source: 'manual', durationMs: 45 * 60_000 });
+    // Ends at the start of the current minute.
+    expect(saved.endedAt % 60_000).toBe(0);
+    expect(Date.now() - saved.endedAt).toBeGreaterThanOrEqual(0);
+    expect(Date.now() - saved.endedAt).toBeLessThan(60_000);
+    const clock = (ms: number) => new Date(ms + 3 * 3_600_000).toISOString().slice(11, 16);
+    expect(span).toBe(`Az önce bitti: ${clock(saved.startedAt)}–${clock(saved.endedAt)}`);
+  });
+
+  it('"Saati değiştir" opens the start fields, "Az önce bitti" closes them; another day always asks', () => {
+    renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    fireEvent.press(screen.getByTestId('manual-change-time'));
+    expect(screen.queryByTestId('manual-just-finished')).toBeNull();
+    fireEvent.press(screen.getByTestId('manual-use-just-finished'));
+    expect(screen.queryByTestId('manual-start-hour')).toBeNull();
+    fireEvent.press(screen.getByTestId('manual-prev-day'));
+    expect(screen.getByTestId('manual-start-hour')).toBeTruthy();
+    expect(screen.queryByTestId('manual-use-just-finished')).toBeNull();
   });
 
   it('history shows the manual part of a day', () => {
@@ -1651,6 +1707,23 @@ describe('pomodoro mode', () => {
     expect(memory.pomodoroConfig.workMin).toBe(30);
     fireEvent.press(screen.getByTestId('settings-pomodoro-longEvery-minus'));
     expect(memory.pomodoroConfig.longEvery).toBe(3);
+  });
+
+  it('a pomodoro preset sets all four lengths; changing one leaves no preset selected', () => {
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    const selected = (id: string) => screen.getByTestId(`settings-pomodoro-preset-${id}`).props.accessibilityState?.selected;
+    expect(selected('25-5')).toBe(true);
+    expect(screen.getByTestId('settings-pomodoro-preset-50-10').props.accessibilityLabel).toBe('50 dakika çalışma, 10 dakika mola');
+    fireEvent.press(screen.getByTestId('settings-pomodoro-preset-50-10'));
+    expect(memory.pomodoroConfig).toEqual({ workMin: 50, shortBreakMin: 10, longBreakMin: 30, longEvery: 4 });
+    expect([selected('25-5'), selected('50-10'), selected('90-15')]).toEqual([false, true, false]);
+    fireEvent.press(screen.getByTestId('settings-pomodoro-preset-90-15'));
+    expect(memory.pomodoroConfig).toEqual({ workMin: 90, shortBreakMin: 15, longBreakMin: 30, longEvery: 2 });
+    fireEvent.press(screen.getByTestId('settings-pomodoro-workMin-minus'));
+    expect(memory.pomodoroConfig.workMin).toBe(85);
+    expect([selected('25-5'), selected('50-10'), selected('90-15')]).toEqual([false, false, false]);
+    fireEvent.press(screen.getByTestId('settings-pomodoro-preset-25-5'));
+    expect(memory.pomodoroConfig).toEqual({ workMin: 25, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 });
   });
 });
 
@@ -3954,6 +4027,7 @@ describe('accessibility names on key screens', () => {
     // React Native's jest setup already mocks it: spyOn returns that mock, with earlier tests' calls.
     announce.mockClear();
     renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    fireEvent.press(screen.getByTestId('manual-change-time'));
     fireEvent.press(screen.getByTestId('manual-add'));
     expect(announce).toHaveBeenLastCalledWith('Başlangıç saatini ve süreyi kontrol et.');
     // The same mistake again is read out again (else the tap would seem to do nothing).

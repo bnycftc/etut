@@ -15,6 +15,8 @@ export const MANUAL_MIN_MS = MIN_MS;
 export const MANUAL_MAX_MS = 10 * 60 * MIN_MS;
 /** Today and the 6 days before it. */
 export const MANUAL_DAYS = 7;
+/** Duration chips of the form, in minutes; any other length goes into the hours/minutes fields. */
+export const MANUAL_DURATION_CHIPS = [15, 30, 45, 60, 90] as const;
 
 export type ManualEntryError =
   | 'invalid'
@@ -98,6 +100,19 @@ export function parseStartTime(day: DayKey, hours: string, minutes: string): num
   if (h === null || !Number.isInteger(h) || !Number.isInteger(m)) return null;
   if (h < 0 || h > 23 || m < 0 || m > 59) return null;
   return dayStartMs(day) + h * 60 * MIN_MS + m * MIN_MS;
+}
+
+/**
+ * "Az önce bitti", the form's default for today: the entry ends at the start of the current
+ * minute (never after now) and starts `durationMs` before that.
+ */
+export function justFinishedStart(now: number, durationMs: number): number {
+  return now - (now % MIN_MS) - durationMs;
+}
+
+/** The hours and minutes field texts of a whole-minute duration (a duration chip fills them). */
+export function durationFields(minutes: number): { hours: string; minutes: string } {
+  return { hours: String(Math.floor(minutes / 60)), minutes: String(minutes % 60) };
 }
 
 /** Hours + minutes fields → milliseconds; `null` if invalid. Empty fields count as 0. */
