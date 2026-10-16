@@ -4,7 +4,9 @@ import {
   normalizePomodoroConfig,
   phaseAt,
   pomodoroBreaks,
+  POMODORO_PRESETS,
   pomodoroStatus,
+  samePomodoroConfig,
 } from '../pomodoro';
 import {
   type ActiveSession,
@@ -163,6 +165,17 @@ describe('pomodoro config', () => {
       longBreakMin: 60,
       longEvery: 2,
     });
+  });
+
+  it('presets: 25/5 is the default, 50/10 and 90/15 follow; all in range, long break longer', () => {
+    expect(POMODORO_PRESETS.map((p) => `${p.workMin}/${p.shortBreakMin}`)).toEqual(['25/5', '50/10', '90/15']);
+    expect(POMODORO_PRESETS[0]).toBe(DEFAULT_POMODORO);
+    for (const p of POMODORO_PRESETS) {
+      expect(normalizePomodoroConfig(p)).toEqual(p);
+      expect(p.longBreakMin).toBeGreaterThan(p.shortBreakMin);
+    }
+    expect(samePomodoroConfig({ ...DEFAULT_POMODORO }, DEFAULT_POMODORO)).toBe(true);
+    expect(samePomodoroConfig({ ...DEFAULT_POMODORO, longEvery: 3 }, DEFAULT_POMODORO)).toBe(false);
   });
 
   it('custom 50/10, long 20 every 2', () => {

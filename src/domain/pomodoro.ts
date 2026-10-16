@@ -37,6 +37,21 @@ export const POMODORO_LIMITS: Record<keyof PomodoroConfig, { min: number; max: n
   longEvery: { min: 2, max: 8 },
 };
 
+/**
+ * Ready-made settings (Ayarlar → Pomodoro): the classic 25/5 and the library blocks graduates
+ * use, 50/10 and 90/15 (research 4-2 §2). Each one sets all four values, so its long break stays
+ * longer than its short break.
+ */
+export const POMODORO_PRESETS: readonly PomodoroConfig[] = [
+  DEFAULT_POMODORO,
+  { workMin: 50, shortBreakMin: 10, longBreakMin: 30, longEvery: 4 },
+  { workMin: 90, shortBreakMin: 15, longBreakMin: 30, longEvery: 2 },
+];
+
+export function samePomodoroConfig(a: PomodoroConfig, b: PomodoroConfig): boolean {
+  return (Object.keys(POMODORO_LIMITS) as (keyof PomodoroConfig)[]).every((k) => a[k] === b[k]);
+}
+
 /** "Molayı geç": at wall time `at`, the pomodoro clock jumped forward by `ms`. */
 export interface PomodoroSkip {
   at: number;

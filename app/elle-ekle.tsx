@@ -5,7 +5,11 @@ import { topicOfSubject } from '@/domain/curriculum';
 import { addDays, istanbulDayKey, istanbulTimeOfDay } from '@/domain/istanbul-day';
 import {
   buildManualSession,
+  durationFields,
   earliestManualDay,
+  justFinishedStart,
+  MANUAL_DURATION_CHIPS,
+  MANUAL_MIN_MS,
   type ManualEntryError,
   parseDurationFields,
   parseStartTime,
@@ -32,6 +36,12 @@ import { TopicPicker } from '@/ui/topic-picker';
 
 const RECENT_LIMIT = 10;
 
+/** `11:15` (Istanbul time). */
+function clockLabel(ms: number): string {
+  const { hours, minutes } = istanbulTimeOfDay(ms);
+  return tr.reminders.time(hours, minutes);
+}
+
 /** "Sayacı açmayı unuttum": add a past session by hand (saved as `source = 'manual'`). */
 export default function ManualEntryScreen() {
   const { profile, active, dataVersions, notifyDataChanged } = useAppState();
@@ -52,6 +62,10 @@ export default function ManualEntryScreen() {
   const [startM, setStartM] = useState('');
   const [durH, setDurH] = useState('');
   const [durM, setDurM] = useState('');
+  // Today the entry ends "az önce" (now) unless the student opens the time fields ("Saati değiştir").
+  const [customTime, setCustomTime] = useState(false);
+  const justFinished = day === today && !customTime;
+  const durationMs = parseDurationFields(durH, durM);
   const [questionsText, setQuestionsText] = useState('');
   const [questionsError, setQuestionsError] = useState(false);
   const [error, setError] = useState<ManualEntryError | null>(null);
@@ -66,8 +80,8 @@ export default function ManualEntryScreen() {
     setAttempt((n) => n + 1);
     setMessage(null);
     const now = Date.now();
-    const startMs = parseStartTime(day, startH, startM);
-    const durationMs = parseDurationFields(durH, durM);
+    const startMs =
+      durationMs === null ? null : justFinished ? justFinishedStart(now, durationMs) : parseStartTime(day, startH, startM);
     if (startMs === null || durationMs === null) {
       setError('invalid');
       return;
@@ -145,29 +159,22 @@ export default function ManualEntryScreen() {
         </ResponsiveRow>
         <Label variant="muted">{day === today ? tr.history.todayLabel : formatDay(day)}</Label>
 
-        <Label variant="heading">{tr.manual.start}</Label>
-        <Row>
-          <Field
-            testID="manual-start-hour"
-            label={tr.manual.hour}
-            accessibilityLabel={tr.manual.fieldA11y(tr.manual.start, tr.manual.hour)}
-            value={startH}
-            onChange={setStartH}
-            maxLength={2}
-            placeholder={tr.manual.placeholders.startHour}
-          />
-          <Field
-            testID="manual-start-minute"
-            label={tr.manual.minute}
-            accessibilityLabel={tr.manual.fieldA11y(tr.manual.start, tr.manual.minute)}
-            value={startM}
-            onChange={setStartM}
-            maxLength={2}
-            placeholder={tr.manual.placeholders.startMinute}
-          />
-        </Row>
-
         <Label variant="heading">{tr.manual.duration}</Label>
+        <ChipRow>
+          {MANUAL_DURATION_CHIPS.map((minutes) => (
+            <Chip
+              key={minutes}
+              testID={`manual-duration-chip-${minutes}`}
+              title={tr.manual.chipMinutes(minutes)}
+              selected={durationMs === minutes * MANUAL_MIN_MS}
+              onPress={() => {
+                const fields = durationFields(minutes);
+                setDurH(fields.hours);
+                setDurM(fields.minutes);
+              }}
+            />
+          ))}
+        </ChipRow>
         <Row>
           <Field
             testID="manual-duration-hours"
@@ -188,6 +195,55 @@ export default function ManualEntryScreen() {
             placeholder={tr.manual.placeholders.durationMinutes}
           />
         </Row>
+
+        <Label variant="heading">{tr.manual.timeTitle}</Label>
+        {justFinished ? (
+          <>
+            <Label testID="manual-just-finished">
+              {durationMs !== null && durationMs > 0
+                ? tr.manual.justFinishedSpan(clockLabel(justFinishedStart(now, durationMs)), clockLabel(now))
+                : tr.manual.justFinished}
+            </Label>
+            <Button
+              testID="manual-change-time"
+              kind="secondary"
+              title={tr.manual.changeTime}
+              onPress={() => setCustomTime(true)}
+            />
+          </>
+        ) : (
+          <>
+            <Label variant="muted">{tr.manual.start}</Label>
+            <Row>
+              <Field
+                testID="manual-start-hour"
+                label={tr.manual.hour}
+                accessibilityLabel={tr.manual.fieldA11y(tr.manual.start, tr.manual.hour)}
+                value={startH}
+                onChange={setStartH}
+                maxLength={2}
+                placeholder={tr.manual.placeholders.startHour}
+              />
+              <Field
+                testID="manual-start-minute"
+                label={tr.manual.minute}
+                accessibilityLabel={tr.manual.fieldA11y(tr.manual.start, tr.manual.minute)}
+                value={startM}
+                onChange={setStartM}
+                maxLength={2}
+                placeholder={tr.manual.placeholders.startMinute}
+              />
+            </Row>
+            {day === today ? (
+              <Button
+                testID="manual-use-just-finished"
+                kind="secondary"
+                title={tr.manual.justFinished}
+                onPress={() => setCustomTime(false)}
+              />
+            ) : null}
+          </>
+        )}
         <Label variant="small">{tr.manual.limits}</Label>
 
         <Row>

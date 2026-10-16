@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { topicGroupsForSubject } from '@/domain/curriculum';
 import { subjectsFor } from '@/domain/subjects';
-import { toggleStatus, topicProgress, type TopicStatus } from '@/domain/topics';
+import { reviewFirst, toggleStatus, topicProgress, type TopicStatus } from '@/domain/topics';
 import { useAppState, useStored } from '@/state/app-state';
 import { loadLastSubject } from '@/storage/kv';
 import { topicTotals } from '@/storage/sessions';
@@ -36,6 +36,9 @@ export default function TopicsScreen() {
     statuses: loadTopicStatuses(),
     totals: topicTotals(),
   }));
+  // "Tekrar lazım" topics come first, in the order the subject was opened with: a topic marked
+  // here stays in place (no row jumps away under the finger or the VoiceOver focus).
+  const orderBy = useStored(`order|${subjectId}`, loadTopicStatuses);
 
   if (subjectId === null) {
     return (
@@ -96,7 +99,7 @@ export default function TopicsScreen() {
                 <Label variant="muted">{tr.topics.percent(p.percent)}</Label>
               </Row>
             ) : null}
-            {g.topics.map((t) => {
+            {reviewFirst(g.topics, orderBy).map((t) => {
               const status = data.statuses[t.id];
               const ms = data.totals[t.id] ?? 0;
               return (
