@@ -1,4 +1,4 @@
-import { Redirect } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Platform, useColorScheme, useWindowDimensions, View } from 'react-native';
 import { captureRef, releaseCapture } from 'react-native-view-shot';
@@ -24,7 +24,9 @@ export default function ShareCardScreen() {
   const now = useNow(active !== null && !isPaused(active), 30_000);
   const stats = useStudyStats(now);
   const system = useColorScheme();
-  const [period, setPeriod] = useState<CardPeriod>('day');
+  // Opened from Haftalık özet on the weekly card; from anywhere else on today's.
+  const params = useLocalSearchParams<{ period?: string }>();
+  const [period, setPeriod] = useState<CardPeriod>(params.period === 'week' ? 'week' : 'day');
   const [scheme, setScheme] = useState<CardScheme>(system === 'dark' ? 'dark' : 'light');
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

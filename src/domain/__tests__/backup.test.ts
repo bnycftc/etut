@@ -11,7 +11,9 @@ import {
   importedProfile,
   mergeBackup,
   parseBackup,
+  readReplaceUndo,
   REPLACE_UNDO_MS,
+  replaceUndoComplete,
   replaceUndoExpired,
   serializeBackup,
 } from '../backup';
@@ -299,6 +301,26 @@ describe('backup validation', () => {
     expect(parseBackup(text)).toMatchObject({ ok: true, skippedSessions: 1 });
     const kept = parseBackup(text, { keepWrongClockSessions: true });
     expect(kept.ok && kept.file.sessions.map((s) => s.id)).toEqual(['ok', 'old']);
+  });
+
+  it('"Geri al" copy: read back with wrong-clock sessions, and complete only when nothing is lost', () => {
+    const old = session('old', { startedAt: Date.UTC(2001, 0, 1), endedAt: Date.UTC(2001, 0, 1, 1), pauses: [], durationMs: 3_600_000 });
+    const copy = readReplaceUndo(fileText({ sessions: [session('ok'), old] }));
+    expect(copy?.file.sessions.map((s) => s.id)).toEqual(['ok', 'old']);
+    expect(copy && replaceUndoComplete(copy)).toBe(true);
+
+    // An exam and a net target that no longer fit the exam tables can not be put back: counted.
+    const stale = readReplaceUndo(
+      fileText({
+        exams: [exam('ok'), { ...exam('paper'), kind: 'AYT_XYZ' }],
+        settings: { ...DATA.settings, netTargets: { 'TYT:matematik': 30, 'TYT:fizik': 8 } },
+      }),
+    );
+    expect(stale).toMatchObject({ lostExams: 1, lostTargets: 1 });
+    expect(stale?.file.exams.map((e) => e.id)).toEqual(['ok']);
+    expect(stale && replaceUndoComplete(stale)).toBe(false);
+
+    expect(readReplaceUndo('{"format":"etut-yedek"')).toBeNull();
   });
 
   it('"Geri al" is offered for a day after the replace', () => {

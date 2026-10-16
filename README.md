@@ -187,7 +187,7 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   penceresi yoktur; "Tüm verileri sil" de işletim sistemindeki izni geri almaz, yalnız onayı siler.
   İzin yalnız öğrenci bir hatırlatıcıyı açtığında, açıklama ekranından sonra istenir (izin zaten
   verilmişse düğme yalnız onaylar); reddedilirse uygulama aynen çalışır. Açıklama ekranı açılacak
-  hatırlatıcıları listeler (önerilen: uzun oturum, pomodoro, deneme analizi; günlük kapalı).
+  hatırlatıcıyı listeler: yalnız öğrencinin açtığı gelir, diğerleri kapalı kalır ve tek tek açılır.
   Açıklama ekranında Apple HIG'e göre tek düğme ("Devam et") vardır, sistem izin penceresini açar;
   ekran kaydırılarak kapatılmaz, izin verme ya da reddetme sistem penceresinde yapılır.
   Plan her değişiklikte yeniden hesaplanır ve sistemdekiyle karşılaştırılır (sabit kimlikler):
@@ -470,6 +470,8 @@ ağ isteği atmaz (`test:web` bunu denetler):
   yüklenir: şimdiki tabloya uymayan deneme ve net hedefleri atlanır ve önizlemede sayılır. "Değiştir"
   ikinci kez onay ister ve yazmadan önce bu cihazdaki verinin kopyasını kv deposuna alır; yedek
   ekranında bir gün boyunca "Geri al" ile o hâline dönülür ("Tüm verileri sil" kopyayı da siler).
+  Kopya alınır alınmaz geri okunur; her şeyi geri getiremeyecekse (okunamıyor ya da tabloya uymayan
+  deneme/hedef var) "Değiştir" yapılmaz. "Kopyayı sil" de ikinci kez onay ister.
   K-17: yaş yedekle yükseltilemez; yedekteki yaş daha küçükse küçük olan esas alınır (seçicinin
   sunmadığı bir yıl, ör. 2200, yok sayılır), 15 altı bayrağı içe aktarmayla kapanmaz. Dosya
   şifrelenmez (metinde yazıyor).

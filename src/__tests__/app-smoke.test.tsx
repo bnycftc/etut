@@ -1873,6 +1873,30 @@ describe('share card', () => {
     expect(memory.sharedImages).toEqual([{ uri: '/tmp/etut-card.png', name: 'etut-calisma-2026-10-08.png' }]);
   });
 
+  it('"Kartı paylaş" on Haftalık özet opens the weekly card, not an empty "Bugün"', () => {
+    memory.profile = ADULT_SAYISAL;
+    jest.setSystemTime(Date.parse('2026-10-07T21:30:00Z')); // Thursday 8 Oct 00:30 Istanbul
+    // Studied on Wednesday, nothing yet today.
+    memory.sessions = [
+      {
+        id: 's1',
+        subjectId: 'fizik',
+        topicId: null,
+        startedAt: Date.parse('2026-10-07T18:00:00Z'),
+        endedAt: Date.parse('2026-10-07T18:30:00Z'),
+        pauses: [],
+        durationMs: 30 * 60_000,
+        source: 'timer',
+      },
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    fireEvent.press(screen.getByTestId('weekly-share'));
+    expect(screen.getByText('Bu haftaki çalışmam')).toBeTruthy();
+    expect(screen.getByTestId('share-period-week').props.accessibilityState).toMatchObject({ selected: true });
+    expect(screen.getByTestId('share-card-share').props.accessibilityState).toMatchObject({ disabled: false });
+    expect(screen.queryByTestId('share-nothing')).toBeNull();
+  });
+
   it('under 15 (solo) the card is not offered and its screen does not open (ADR-001)', () => {
     memory.profile = { birthYear: new Date().getUTCFullYear() - 12, examType: 'LGS', yksArea: null, soloOnly: true, createdAt: 0 };
     renderRouter(APP_DIR, { initialUrl: '/' });
@@ -2391,11 +2415,13 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.checked).toBe(false);
     fireEvent.press(screen.getByTestId('reminder-daily-toggle'));
     await settle();
-    // The explanation lists what will be on, the requested daily reminder included.
-    expect(screen.getByTestId('notification-permission-item-daily')).toBeTruthy();
-    expect(screen.getByTestId('notification-permission-item-longSession').props.children).toBe(
-      '• Uzun oturum uyarısı (3 saat)',
+    // The explanation lists what will be on: only the requested daily reminder, the others stay off.
+    expect(screen.getByTestId('notification-permission-item-daily').props.children).toBe(
+      '• Günlük çalışma hatırlatıcısı (20:00)',
     );
+    expect(screen.queryByTestId('notification-permission-item-longSession')).toBeNull();
+    expect(screen.queryByTestId('notification-permission-item-pomodoro')).toBeNull();
+    expect(screen.getByTestId('notification-permission-others-off')).toBeTruthy();
     expect(memory.permissionRequests).toBe(0);
     // Apple HIG: one "Continue"-like button, no second way out of the explanation.
     expect(screen.queryByTestId('notification-permission-later')).toBeNull();
@@ -2412,6 +2438,8 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     expect(screen.getByTestId('reminder-daily-time').props.children).toBe('20:45');
     await settle();
     expect(memory.planned.some((n) => n.kind === 'daily')).toBe(true);
+    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.checked).toBe(false);
+    expect(screen.getByTestId('reminder-pomodoro-toggle').props.accessibilityState.checked).toBe(false);
   });
 
   it('a refused permission keeps the app working and the reminders silent', async () => {
@@ -2420,6 +2448,9 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     await settle();
     fireEvent.press(screen.getByTestId('reminders-permission'));
     await settle();
+    // Asking for the permission alone turns no reminder on.
+    expect(screen.queryByTestId('notification-permission-item-longSession')).toBeNull();
+    expect(screen.getByTestId('notification-permission-none-on')).toBeTruthy();
     fireEvent.press(screen.getByTestId('notification-permission-allow'));
     await settle();
     expect(screen.getByTestId('notification-permission-denied')).toBeTruthy();
@@ -2464,9 +2495,11 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     await settle();
     expect(memory.remindersConfirmed).toBe(true);
     expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.checked).toBe(true);
+    // Only that one: the pomodoro reminder stays off until it is turned on by itself.
+    expect(screen.getByTestId('reminder-pomodoro-toggle').props.accessibilityState.checked).toBe(false);
     const kinds = memory.planned.map((n) => n.kind);
     expect(kinds).toContain('long_session');
-    expect(kinds).toContain('pomodoro');
+    expect(kinds).not.toContain('pomodoro');
   });
 
   it('"delete all" forgets the confirmation: the permission stays, the reminders do not', async () => {
@@ -2810,11 +2843,23 @@ describe('timer and data safety', () => {
     expect(screen.queryByTestId('backup-undo-card')).toBeNull();
   });
 
-  it('the copy can be deleted; one older than a day is neither offered nor kept', async () => {
-    memory.replaceUndo = { createdAt: Date.now() - HOUR, text: backupText({}) };
+  it('the copy can be deleted, after a second question; one older than a day is neither offered nor kept', async () => {
+    const copy = { createdAt: Date.now() - HOUR, text: backupText({}) };
+    memory.replaceUndo = copy;
     renderRouter(APP_DIR, { initialUrl: '/yedek' });
     expect(screen.getByTestId('backup-undo-card')).toBeTruthy();
+    // Deleting can not be taken back: it asks first, and "Geri al" is not offered meanwhile.
     fireEvent.press(screen.getByTestId('backup-undo-discard'));
+    expect(screen.getByTestId('backup-undo-discard-sure').props.children).toBe(
+      'Emin misin? Kopya silinirse “Değiştir”den önceki veriler bir daha geri getirilemez.',
+    );
+    expect(screen.queryByTestId('backup-undo')).toBeNull();
+    expect(memory.replaceUndo).toEqual(copy);
+    fireEvent.press(screen.getByTestId('backup-undo-discard-no'));
+    expect(screen.getByTestId('backup-undo')).toBeTruthy();
+    expect(memory.replaceUndo).toEqual(copy);
+    fireEvent.press(screen.getByTestId('backup-undo-discard'));
+    fireEvent.press(screen.getByTestId('backup-undo-discard-yes'));
     expect(memory.replaceUndo).toBeNull();
     expect(screen.queryByTestId('backup-undo-card')).toBeNull();
   });
@@ -2842,6 +2887,71 @@ describe('timer and data safety', () => {
     expect(screen.getByTestId('backup-error').props.children).toBe('Kopya okunamadı, geri alınamadı.');
     expect(memory.replaceUndo).toEqual(broken);
     expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
+  });
+
+  const staleExam = {
+    id: 'old',
+    kind: 'AYT_XYZ',
+    scope: 'genel',
+    bransSectionId: null,
+    takenOn: '2026-09-01',
+    createdAt: 1,
+    analysisDoneAt: null,
+    scores: [{ sectionId: 'matematik', questions: 40, correct: 10, wrong: 0 }],
+    marks: [],
+  };
+
+  it('"Değiştir" is refused when its copy could not bring everything back; nothing changes', async () => {
+    // E.g. after an update changed the exam tables: this exam and target no longer fit them.
+    memory.sessions = [sessionAt('a')];
+    memory.exams = [{ ...staleExam, totalNet: 10 } as unknown as MockExamWithScores];
+    memory.netTargets = { 'TYT:fizik': 8 };
+    memory.pickText = backupText({});
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-import'));
+    });
+    fireEvent.press(screen.getByTestId('backup-mode-replace'));
+    fireEvent.press(screen.getByTestId('backup-confirm'));
+    fireEvent.press(screen.getByTestId('backup-replace-yes'));
+    expect(screen.getByTestId('backup-error').props.children).toBe(
+      'Bu telefondaki 1 deneme ve 1 net hedefi uygulamanın şimdiki sınav biçimine (soru sayıları, dersler) uymuyor; “Geri al” bunları geri getiremeyeceği için hiçbir şey değiştirilmedi. İstersen “Birleştir” ile yükleyebilirsin.',
+    );
+    expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
+    expect(memory.exams.map((e) => e.id)).toEqual(['old']);
+    expect(memory.netTargets).toEqual({ 'TYT:fizik': 8 });
+    expect(memory.replaceUndo).toBeNull();
+    // The file is still there to merge instead.
+    expect(screen.getByTestId('backup-preview')).toBeTruthy();
+  });
+
+  it('"Geri al" with a copy that no longer fits: puts back the rest, says what it could not, keeps the copy', () => {
+    memory.sessions = [sessionAt('x')];
+    const copy = {
+      createdAt: Date.now() - HOUR,
+      text: backupText({ sessions: [sessionAt('a')], exams: [staleExam], settings: { netTargets: { 'TYT:fizik': 8 } } }),
+    };
+    memory.replaceUndo = copy;
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    fireEvent.press(screen.getByTestId('backup-undo'));
+    fireEvent.press(screen.getByTestId('backup-undo-yes'));
+    expect(memory.sessions.map((s) => s.id)).toEqual(['a']);
+    expect(screen.getByTestId('backup-message').props.children).toBe(
+      'Geri alındı. Şu an 1 çalışma kaydı, 0 deneme ve 0 konu işareti var. Kopyadaki 1 deneme ve 1 net hedefi uygulamanın şimdiki sınav biçimine uymadığı için geri getirilemedi; kopya bu telefonda duruyor.',
+    );
+    expect(memory.replaceUndo).toEqual(copy);
+  });
+
+  it('an export says which exams would not load back', async () => {
+    memory.profile = ADULT_SAYISAL;
+    memory.exams = [{ ...staleExam, totalNet: 10 } as unknown as MockExamWithScores];
+    renderRouter(APP_DIR, { initialUrl: '/yedek' });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('backup-export'));
+    });
+    expect(screen.getByTestId('backup-message').props.children).toBe(
+      'Yedek dosyası hazırlandı. Uygulamanın şimdiki sınav biçimine (soru sayıları, dersler) uymayan 1 deneme geri yüklemede alınmayacak.',
+    );
   });
 
   it('an old backup with an exam that no longer fits loads the rest and says what was left out', async () => {

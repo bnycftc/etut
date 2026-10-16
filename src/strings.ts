@@ -294,6 +294,10 @@ const backupErrors: Record<BackupError, string> = {
   invalid: 'Yedek dosyası bozuk ya da değiştirilmiş; hiçbir şey yüklenmedi.',
 };
 
+/** `2 deneme ve 1 net hedefi`, `2 deneme`, `1 net hedefi` */
+const examsAndTargets = (exams: number, targets: number): string =>
+  exams > 0 && targets > 0 ? `${exams} deneme ve ${targets} net hedefi` : exams > 0 ? `${exams} deneme` : `${targets} net hedefi`;
+
 const subjects: Record<string, string> = {
   matematik: 'Matematik',
   geometri: 'Geometri',
@@ -800,8 +804,12 @@ export const tr = {
   notificationPermission: {
     title: 'Bildirim izni',
     heading: 'Hatırlatıcılar için bildirim izni',
-    body: 'Etüt yalnız açık olan hatırlatıcılar için bildirim gösterir:',
+    body: 'Etüt yalnız açık olan hatırlatıcılar için bildirim gösterir.',
     willBeOn: 'İzin verirsen şunlar açık olur:',
+    /** Under the list: only the reminder the student turned on comes on. */
+    othersOff: 'Diğer hatırlatıcılar kapalı kalır; istersen sonra Hatırlatıcılar ekranından tek tek açabilirsin.',
+    /** No reminder was turned on (only the permission was asked for). */
+    noneOn: 'Hiçbir hatırlatıcı kendiliğinden açılmaz; izin verdikten sonra istediğini Hatırlatıcılar ekranından açabilirsin.',
     local:
       'Bildirimler bu cihazda kurulur. Etüt bunun için hiçbir sunucuya bağlanmaz ve bilgi göndermez.',
     later: 'İzin vermezsen uygulama aynen çalışır; yalnız hatırlatıcılar gelmez. Fikrini sonra Ayarlar’dan değiştirebilirsin.',
@@ -1397,6 +1405,19 @@ export const tr = {
     undone: (sessions: number, exams: number, topics: number) =>
       `Geri alındı. Şu an ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti var.`,
     undoFailed: 'Kopya okunamadı, geri alınamadı.',
+    /** "Geri al" put back all but these (they no longer fit the exam tables): the copy is kept. */
+    undonePartly: (sessions: number, exams: number, topics: number, lostExams: number, lostTargets: number) =>
+      `Geri alındı. Şu an ${sessions} çalışma kaydı, ${exams} deneme ve ${topics} konu işareti var. Kopyadaki ${examsAndTargets(lostExams, lostTargets)} uygulamanın şimdiki sınav biçimine uymadığı için geri getirilemedi; kopya bu telefonda duruyor.`,
+    /** "Değiştir" refused before anything changed: the copy for "Geri al" would not bring all back. */
+    copyUnreadable:
+      'Bu telefondaki veriler “Geri al” için eksiksiz kopyalanamadı, bu yüzden hiçbir şey değiştirilmedi. İstersen “Birleştir” ile yükleyebilirsin.',
+    copyIncomplete: (exams: number, targets: number) =>
+      `Bu telefondaki ${examsAndTargets(exams, targets)} uygulamanın şimdiki sınav biçimine (soru sayıları, dersler) uymuyor; “Geri al” bunları geri getiremeyeceği için hiçbir şey değiştirilmedi. İstersen “Birleştir” ile yükleyebilirsin.`,
+    /** After "Yedek dosyası hazırlandı." */
+    exportSkipped: (exams: number, targets: number) =>
+      `Uygulamanın şimdiki sınav biçimine (soru sayıları, dersler) uymayan ${examsAndTargets(exams, targets)} geri yüklemede alınmayacak.`,
+    undoDiscardSure: 'Emin misin? Kopya silinirse “Değiştir”den önceki veriler bir daha geri getirilemez.',
+    undoDiscardYes: 'Evet, kopyayı sil',
   },
 
   /** Ayarlar → Yardım: the guide and the tips again. */

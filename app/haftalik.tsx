@@ -151,7 +151,8 @@ export default function WeeklyScreen() {
           testID="weekly-share"
           kind="secondary"
           title={tr.share.open}
-          onPress={() => router.push('/paylas')}
+          // The card of the week just looked at, not today's.
+          onPress={() => router.push({ pathname: '/paylas', params: { period: 'week' } })}
         />
       ) : null}
 
