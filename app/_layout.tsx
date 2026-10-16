@@ -62,7 +62,7 @@ function RootStack() {
       <Stack.Screen name="hakkinda" options={{ title: tr.about.title }} />
       <Stack.Screen name="yasal/[doc]" options={{ title: tr.about.legalTitle }} />
       <Stack.Screen name="lisanslar" options={{ title: tr.about.licenses }} />
-      {/* Help text only (no data): a sheet, so a "Nedir?" link also works from the exam form modal. */}
+      {/* Help text only (no data): a sheet, so an (i) link also works from the exam form modal. */}
       <Stack.Screen name="nasil-calisir" options={{ title: tr.guide.title, presentation: 'modal' }} />
 
     </Stack>

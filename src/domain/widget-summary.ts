@@ -76,8 +76,11 @@ export interface WidgetEntry {
   goalReachedAt: number | null;
   /** `null` without a goal. */
   streakDays: number | null;
-  /** Days left to the exam on `day` (0 = exam day); missing/`null` = no date, passed, or not known for sure. */
-  countdown?: { examType: ExamType; daysLeft: number } | null;
+  /**
+   * Days left to the exam on `day` (0 = exam day); missing/`null` = no date, passed, or not known
+   * for sure. `estimated`: the date is the built-in estimate (missing = official or the student's).
+   */
+  countdown?: { examType: ExamType; daysLeft: number; estimated?: boolean } | null;
 }
 
 export interface WidgetExam {
@@ -86,6 +89,8 @@ export interface WidgetExam {
   day: DayKey;
   /** Days the exam takes (`ExamDate.days`); missing = 1. */
   days?: number;
+  /** The built-in estimate, not an official or the student's own date (`ExamDate.estimated`). */
+  estimated?: boolean;
 }
 
 export interface WidgetTimelineInput {
@@ -152,7 +157,8 @@ function entryAt(input: WidgetTimelineInput, at: number, known: boolean, goalOf:
     goalRatio: goalMinutes === null ? 0 : goalRatio(todayMs, goalMinutes),
     goalReachedAt: null,
     streakDays: goalOf === null ? null : computeStreak(total, day, goalOf).current,
-    countdown: exam && daysLeft !== null && daysLeft >= 0 ? { examType: exam.examType, daysLeft } : null,
+    countdown:
+      exam && daysLeft !== null && daysLeft >= 0 ? { examType: exam.examType, daysLeft, estimated: exam.estimated } : null,
   };
 }
 

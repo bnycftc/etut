@@ -82,7 +82,7 @@ function loadSurfaceData(savedTotal: (day: DayKey) => number, examType: ExamType
 
 function examFor(examType: ExamType, today: DayKey): WidgetExam | null {
   const date = resolveExamDate(examType, loadCustomExamDate(examType), today);
-  return date === null ? null : { examType, day: date.day, days: date.days };
+  return date === null ? null : { examType, day: date.day, days: date.days, estimated: date.estimated };
 }
 
 /** Runs async jobs one at a time; a job queued while another runs replaces the older queued one. */

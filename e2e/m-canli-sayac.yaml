@@ -244,7 +244,9 @@ tags:
 - launchApp:
     stopApp: false
     permissions: {}
-- extendedWaitUntil:
-    visible:
+# Back on the summary: it can push Başla below the fold (scrollUntilVisible also waits for it).
+- scrollUntilVisible:
+    element:
       id: timer-start
-    timeout: 15000
+    direction: DOWN
+    timeout: 30000

@@ -593,6 +593,22 @@ describe('the moment after Bitir', () => {
     });
   }
 
+  /** The texts in the hero number size (40 pt) on the timer screen. */
+  const displayTexts = () =>
+    screen.root
+      .findAll((n) => typeof n.type === 'string' && StyleSheet.flatten(n.props.style)?.fontSize === 40)
+      .map((n) => n.props.children);
+  /** The muted line of the summary, part by part. */
+  const todayLine = () =>
+    screen
+      .getByTestId('finish-today')
+      .findAll((n) => typeof n.type === 'string' && typeof n.props.children === 'string')
+      .map((n) => n.props.children);
+  /** The colour of the goal ring's first arc (the ring is hidden from screen readers). */
+  const ringColour = () =>
+    StyleSheet.flatten(screen.getByTestId('goal-ring-progress-right', { includeHiddenElements: true }).props.style)
+      .borderBottomColor;
+
   beforeEach(() => {
     memory.profile = ADULT_SAYISAL;
     jest.useFakeTimers();
@@ -618,7 +634,15 @@ describe('the moment after Bitir', () => {
     expect(StyleSheet.flatten(savedTexts[1].props.style)).toMatchObject({ fontSize: 40, fontWeight: '800' });
     expect(screen.getByTestId('finish-detail').props.children).toBe('Fizik çalıştın · Hedef: %0 → %50');
     expect(screen.queryByTestId('finish-goal-reached')).toBeNull();
+    // One hero number and one ring on the card: today's total steps down to the muted line, the
+    // ring shows the day's share of the goal (and still opens the goal sheet).
+    expect(displayTexts()).toEqual(['30 dk']);
     expect(screen.getByTestId('today-total').props.children).toBe('30 dk');
+    expect(StyleSheet.flatten(screen.getByTestId('today-total').props.style)).toMatchObject({ fontSize: 15 });
+    expect(todayLine()).toEqual(['Bugün', '30 dk', '· hedef 1 sa 0 dk']);
+    expect(screen.getAllByTestId('goal-ring')).toHaveLength(1);
+    expect(screen.getByTestId('goal-ring').props.accessibilityValue).toEqual({ text: '%50' });
+    expect(screen.queryByTestId('goal-edit')).toBeNull();
     expect(Haptics.notificationAsync).toHaveBeenCalledWith('success');
     expect(announce).toHaveBeenCalledWith('Kaydedildi: 30 dk. Bugün toplam 30 dk.');
     // The core loop is right there again: the subject stays picked, one tap starts.
@@ -626,7 +650,7 @@ describe('the moment after Bitir', () => {
     announce.mockRestore();
   });
 
-  it('a session that reaches the goal says so, once and without streak talk; the ring fills to 100 %', () => {
+  it('a session that reaches the goal says so, once and without streak talk; the card ring fills to 100 %', () => {
     memory.dailyGoal = 30;
     const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
     const timing = jest.spyOn(Animated, 'timing');
@@ -645,13 +669,25 @@ describe('the moment after Bitir', () => {
     expect(within(screen.getByTestId('finish-summary')).queryByText(/[Ss]eri|tebrik/)).toBeNull();
     expect(ringFills()).toHaveLength(1);
     expect(announce).toHaveBeenCalledWith('Kaydedildi: 31 dk. Bugün toplam 31 dk. Bugünkü hedef tamam.');
-    expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
-    // The next session of the day does not celebrate again.
+    // It is the card's own ring (no second one in the summary): full, in the success colour, with
+    // the seal; the saved time stays the one big number.
+    expect(screen.getAllByTestId('goal-ring')).toHaveLength(1);
+    expect(screen.getByTestId('goal-ring').props.accessibilityValue).toEqual({ text: '%100' });
+    expect(screen.UNSAFE_getByProps({ name: 'checkmark.seal.fill' })).toBeTruthy(); // exactly one
+    expect(ringColour()).toBe(LIGHT.success);
+    expect(displayTexts()).toEqual(['31 dk']);
+    expect(todayLine()).toEqual(['Bugün', '31 dk', '· hedef 30 dk']);
+    // Başla: the summary goes, today's total is the card's big number again with the goal line.
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(screen.queryByTestId('finish-summary')).toBeNull();
+    expect(displayTexts()).toEqual([screen.getByTestId('today-total').props.children]);
+    expect(screen.getByTestId('goal-edit')).toBeTruthy();
+    // The next session of the day does not celebrate again: no fill, no seal.
     jump(5 * 60_000);
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
     expect(screen.queryByTestId('finish-goal-reached')).toBeNull();
     expect(ringFills()).toHaveLength(1);
+    expect(screen.UNSAFE_queryAllByProps({ name: 'checkmark.seal.fill' })).toHaveLength(0);
     timing.mockRestore();
     announce.mockRestore();
   });
@@ -1690,15 +1726,29 @@ describe('goal, streak and "dünkü sen"', () => {
   it('the Bugün card: the ring and the goal line open the goal sheet; no "Değiştir" button', () => {
     memory.dailyGoal = 240;
     renderRouter(APP_DIR, { initialUrl: '/' });
+    // The soft tint has its 1 pt edge in light mode too, so the card stands off the page.
+    expect(StyleSheet.flatten(screen.getByTestId('today-card').props.style)).toMatchObject({
+      backgroundColor: LIGHT.accentSoft,
+      borderWidth: 1,
+      borderColor: LIGHT.heroBorder,
+    });
     expect(screen.getByTestId('today-total').props.children).toBe('1 sa 0 dk');
     expect(screen.getByTestId('goal-progress').props.children).toBe('Hedef 4 sa 0 dk · %25');
     expect(screen.queryByText('Değiştir')).toBeNull();
     expect(ringColour()).toBe(LIGHT.accent);
+    // The track is the soft brand blue (`barSoft`), visible on the card also at 0 %.
+    const track = screen
+      .getByTestId('goal-ring-progress', { includeHiddenElements: true })
+      .findAll((n) => typeof n.type === 'string' && StyleSheet.flatten(n.props.style)?.borderColor === LIGHT.barSoft);
+    expect(track).toHaveLength(1);
     // The goal line is the control for screen readers: its words, then what a tap does.
     const line = screen.getByTestId('goal-edit');
     expect(line.props.accessibilityRole).toBe('button');
     expect(line.props.accessibilityLabel).toBe('Hedef 4 sa 0 dk · %25');
     expect(line.props.accessibilityHint).toBe('Günlük hedefi değiştir');
+    // A 13 pt line: its touch area reaches 44 pt above and below it.
+    const slop = line.props.hitSlop as { top: number; bottom: number };
+    expect(16 + slop.top + slop.bottom).toBeGreaterThanOrEqual(44);
     fireEvent.press(line);
     expect(screen.getByTestId('goal-sheet')).toBeTruthy();
     fireEvent.press(screen.getByTestId('goal-sheet-done'));
@@ -1753,10 +1803,12 @@ describe('goal, streak and "dünkü sen"', () => {
     expect(memory.dailyGoal).toBe(195);
     fireEvent.press(screen.getByTestId('goal-sheet-done'));
     expect(screen.queryByTestId('goal-sheet')).toBeNull();
-    // Still on the timer screen, now with progress and streak.
+    // Still on the timer screen, now with progress. No day met 3 sa 15 dk yet: no streak badge
+    // (never a "0 gün") and no rest-day rule under it.
     expect(screen.getByTestId('timer-start')).toBeTruthy();
     expect(screen.getByTestId('goal-progress').props.children).toBe('Hedef 3 sa 15 dk · %30');
-    expect(screen.getByTestId('streak')).toBeTruthy();
+    expect(screen.queryByTestId('streak')).toBeNull();
+    expect(screen.queryByTestId('streak-rest')).toBeNull();
     fireEvent.press(screen.getByTestId('goal-edit'));
     fireEvent.press(screen.getByTestId('goal-sheet-off'));
     expect(memory.dailyGoal).toBeNull();
@@ -2339,11 +2391,12 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
   it.each([
     [1, 'row'],
     [2, 'column'],
-  ])('text size %d: Mola and Bitir, then the saved time and "Geri al", sit in a %s', (fontScale, direction) => {
+  ])('text size %d: Mola and Bitir, then the saved time and the goal ring, sit in a %s', (fontScale, direction) => {
     textSize(fontScale);
     jest.useFakeTimers();
     jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z'));
     memory.profile = ADULT_SAYISAL;
+    memory.dailyGoal = 60;
     renderRouter(APP_DIR, { initialUrl: '/' });
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     expect(directions(screen.getByTestId('timer-finish'))[0]).toBe(direction);
@@ -2352,7 +2405,9 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
       jest.advanceTimersByTime(1000);
     });
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
-    expect(directions(screen.getByTestId('finish-undo'))[0]).toBe(direction);
+    expect(directions(screen.getByTestId('goal-ring'))[0]).toBe(direction);
+    // "Geri al" has a line of its own at the end of the summary.
+    expect(directions(screen.getByTestId('finish-undo'))[0]).toBe('row');
     // At any size VoiceOver reads the saved time as one element.
     expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 2 dk');
   });
@@ -4124,6 +4179,25 @@ describe('accessibility names on key screens', () => {
         fireEvent.press(screen.getByTestId('subject-matematik'));
         fireEvent.press(screen.getByTestId('topic-picker-toggle'));
         expect(screen.getByTestId('topic-tyt.matematik.fonksiyonlar').props.accessibilityLabel).toBe('TYT Fonksiyonlar');
+      },
+    ],
+    [
+      '/ right after a Bitir that reached the goal, with its topic to mark',
+      () => {
+        renderRouter(APP_DIR, { initialUrl: '/' });
+        fireEvent.press(screen.getByTestId('subject-fizik'));
+        fireEvent.press(screen.getByTestId('topic-picker-toggle'));
+        fireEvent.press(screen.getByTestId('topic-tyt.fizik.basinc'));
+        fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+        act(() => {
+          jest.setSystemTime(Date.now() + 61 * 60_000);
+          jest.advanceTimersByTime(1000);
+        });
+        fireEvent.press(screen.getByTestId('timer-finish'));
+        // The summary with everything it can hold: the ring, the topic marks, the count, Geri al.
+        for (const id of ['finish-goal-reached', 'goal-ring', 'finish-topic-done', 'finish-questions-save', 'finish-undo']) {
+          expect(screen.getByTestId(id)).toBeTruthy();
+        }
       },
     ],
   ])('%s: every control has a name of its own', (_, open) => {

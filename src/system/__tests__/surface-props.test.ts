@@ -107,10 +107,17 @@ describe('widget props', () => {
     });
   });
 
-  it('exam countdown line: days left, the exam day, and none', () => {
+  it('exam countdown line: days left, the exam day (estimated or not), and none', () => {
     expect(todayWidgetProps({ ...base, countdown: { examType: 'YKS', daysLeft: 255 } }).countdownLine).toBe('YKS’ye 255 gün');
     expect(todayWidgetProps({ ...base, countdown: { examType: 'DIGER', daysLeft: 3 } }).countdownLine).toBe('Sınavına 3 gün');
     expect(todayWidgetProps({ ...base, countdown: { examType: 'LGS', daysLeft: 0 } }).countdownLine).toBe('Sınav bugün');
+    // The built-in estimate says so, as the timer's card does ("Tahmini sınav günü bugün").
+    expect(todayWidgetProps({ ...base, countdown: { examType: 'YKS', daysLeft: 0, estimated: true } }).countdownLine).toBe(
+      'Tahmini sınav günü bugün',
+    );
+    expect(todayWidgetProps({ ...base, countdown: { examType: 'YKS', daysLeft: 3, estimated: true } }).countdownLine).toBe(
+      'YKS’ye 3 gün',
+    );
     expect(todayWidgetProps({ ...base, countdown: null }).countdownLine).toBeNull();
     expect(emptyWidgetProps().countdownLine).toBeNull();
   });

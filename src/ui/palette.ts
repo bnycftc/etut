@@ -6,16 +6,19 @@
  * `background` and `surface` and on every tonal fill it is drawn on (button labels on their fills,
  * the label of a selected subject chip on the subject colour), and ≥ 3:1 for `controlBorder`
  * (input and chip outlines), chart `bar`s, filled controls and the subject colours
- * (`subject-colors.ts`). `border` (the dark hero card's edge) and the tonal fills against the
- * surface are decorative: a tonal control is recognised by its label.
+ * (`subject-colors.ts`). `border`, `heroBorder` (the hero card's edge), the goal ring's track and
+ * the tonal fills against the surface are decorative: a tonal control is recognised by its label,
+ * the ring by the words next to it.
  */
 export interface Palette {
   /** Screen background: blue-grey paper (light), designed navy-black (dark). */
   background: string;
   /** Cards. */
   surface: string;
-  /** Decorative edge: the hero card in dark mode, sheets and bars. */
+  /** Decorative edge: sheets and bars. */
   border: string;
+  /** Decorative 1 pt edge of the hero card, so its soft tint stands off the page in both themes. */
+  heroBorder: string;
   /** Outline of what can be typed into or picked: inputs and unselected chips. */
   controlBorder: string;
   text: string;
@@ -50,7 +53,8 @@ export interface Palette {
   bar: string;
   /**
    * The other days of the weekly chart: soft, so today's `accent` bar stands out (≥ 3:1 apart).
-   * Every bar has its value written above it, so the fill is never the only cue.
+   * Every bar has its value written above it, so the fill is never the only cue. Also the track of
+   * the goal ring on the hero card: ≥ 1.5:1 against `accentSoft`, so an empty ring still shows.
    */
   barSoft: string;
   /** Empty bar / progress track. */
@@ -61,6 +65,7 @@ export const LIGHT: Palette = {
   background: '#F3F5FA',
   surface: '#FFFFFF',
   border: '#E3E7F0',
+  heroBorder: '#CBD5F7',
   controlBorder: '#7B8597',
   text: '#111827',
   textMuted: '#59627A',
@@ -81,7 +86,7 @@ export const LIGHT: Palette = {
   onDanger: '#FFFFFF',
   disabled: '#E6E9F0',
   bar: '#4F6BE0',
-  barSoft: '#B5C3F4',
+  barSoft: '#B4C2F4',
   barMuted: '#D6DCEA',
 };
 
@@ -89,6 +94,7 @@ export const DARK: Palette = {
   background: '#0B0F1A',
   surface: '#151B2B',
   border: '#273149',
+  heroBorder: '#273149',
   controlBorder: '#6E7993',
   text: '#E9EDF6',
   textMuted: '#A2ABBF',
@@ -96,8 +102,9 @@ export const DARK: Palette = {
   accentText: '#0B0F1A',
   accentSoft: '#1D2744',
   secondaryFill: '#243359',
-  // iOS-style filled button: white label on a deeper blue than the text accent.
-  primary: '#3D5FE0',
+  // iOS-style filled button: white label on a deeper blue than the text accent, light enough to
+  // stay ≥ 3:1 on the running card's subject tint too.
+  primary: '#4769EA',
   onPrimary: '#FFFFFF',
   // The light subject colours of the dark theme carry a dark label.
   onSubject: '#0B0F1A',

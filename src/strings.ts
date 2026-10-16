@@ -350,6 +350,9 @@ const examTypes: Record<ExamType, string> = {
 const countdownDays = (examType: ExamType, days: number): string =>
   examType === 'DIGER' ? `Sınavına ${days} gün` : `${examTypes[examType]}’ye ${days} gün`;
 
+/** The day's one celebration after Bitir: shown under the saved time and read out with it. */
+const finishGoalReached = 'Bugünkü hedef tamam';
+
 const yksAreas: Record<YksArea, string> = {
   sayisal: 'Sayısal',
   esit_agirlik: 'Eşit Ağırlık',
@@ -1401,7 +1404,9 @@ export const tr = {
     studiedTopic: (subject: string, topic: string) => `${subject} · ${topic}`,
     goalStep: (before: number, after: number) => `Hedef: %${before} → %${after}`,
     /** Once, in the summary of the session that reached the daily goal: positive, no streak talk. */
-    goalReached: 'Bugünkü hedef tamam',
+    goalReached: finishGoalReached,
+    /** After today's total on the summary's muted line: "Bugün 3 sa 5 dk · hedef 3 sa 0 dk". */
+    todayGoal: (goal: string) => `· hedef ${goal}`,
     undo: 'Geri al',
     undoHint: 'Kaydı siler, sayaç kaldığı yerden devam eder.',
     /** "Geri al" after a topic chip below was tapped: the mark goes back too. */
@@ -1410,7 +1415,7 @@ export const tr = {
     /** "Bitti" / "Tekrar lazım" (topics.done / topics.review) for the session's topic. */
     topicMark: 'Konuyu işaretle (isteğe bağlı)',
     announce: (saved: string, today: string, goalReached: boolean) =>
-      `${saved}. Bugün toplam ${today}.${goalReached ? ' Bugünkü hedef tamam.' : ''}`,
+      `${saved}. Bugün toplam ${today}.${goalReached ? ` ${finishGoalReached}.` : ''}`,
   },
 
   /** Daily goal sheet on the timer screen and the optional onboarding step. */
@@ -1599,7 +1604,7 @@ export const tr = {
     goal: {
       title: 'Günlük hedef',
       paragraphs: (minMinutes: number, maxHours: number) => [
-        `Günlük hedefi istersen koyarsın: ${minMinutes} dakika ile ${maxHours} saat arasında. Sayaç ekranındaki çubuk bugünkü sürenin hedefe oranını gösterir; elle eklediğin süre de sayılır.`,
+        `Günlük hedefi istersen koyarsın: ${minMinutes} dakika ile ${maxHours} saat arasında. Sayaç ekranındaki halka bugünkü sürenin hedefe oranını gösterir; halkaya ya da altındaki hedef satırına dokunarak hedefi değiştirebilirsin. Elle eklediğin süre de sayılır.`,
         'Hedefi değiştirirsen yeni hedef bugünden itibaren geçerli olur; önceki her gün, o gün geçerli olan hedefle sayılır. Böylece hedefini yükseltmek serini bozmaz. Hedefi kapatırsan seri gösterilmez.',
       ],
     },
@@ -1783,5 +1788,7 @@ export const tr = {
   /** Exam countdown line on the Home Screen widget (the days text is `countdown.days`). */
   widgetCountdown: {
     today: 'Sınav bugün',
+    /** The exam day by the built-in estimate, worded as on the timer's card (`countdown.todayEstimated`). */
+    todayEstimated: 'Tahmini sınav günü bugün',
   },
 } as const;

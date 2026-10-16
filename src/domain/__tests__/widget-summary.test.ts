@@ -288,6 +288,9 @@ describe('widgetTimeline: exam countdown', () => {
     expect(entries[0].countdown).toEqual({ examType: 'LGS', daysLeft: 1 });
     expect(entries.find((e) => e.at === midnight(TODAY, 1))?.countdown).toEqual({ examType: 'LGS', daysLeft: 0 });
     expect(entries.find((e) => e.at === midnight(TODAY, 2))?.countdown).toBeNull();
+    // A built-in estimate stays marked as one (the widget words its exam day as the timer's card).
+    const estimated = widgetTimeline({ now: NOW, savedTotal: () => 0, active: null, goalMinutes: null, exam: { ...near, estimated: true } });
+    expect(estimated.find((e) => e.at === midnight(TODAY, 1))?.countdown).toEqual({ examType: 'LGS', daysLeft: 0, estimated: true });
     // A passed date: no countdown and the usual short idle timeline.
     const passed = widgetTimeline({
       now: NOW,

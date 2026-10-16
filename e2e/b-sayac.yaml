@@ -73,9 +73,14 @@ tags:
       id: timer-saved
       text: "Kaydedildi: 1 dk"
     timeout: 10000
+# After Bitir the saved time is the card's big number; today's total is on the muted line under it.
 - assertVisible:
     id: today-total
     text: "[1-9][0-9]* dk"
-- assertVisible:
-    id: timer-start
+# The summary (saved time, goal ring, question count, Geri al) pushes Başla down: scroll to it.
+- scrollUntilVisible:
+    element:
+      id: timer-start
+    direction: DOWN
+    timeout: 20000
 - takeScreenshot: b-sayac-05-bitti

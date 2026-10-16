@@ -33,7 +33,7 @@ const NET_RULES: { exam: string; kind: ExamKind; example: { correct: number; wro
 /**
  * "Nasıl çalışır": the rules a student meets, in short plain paragraphs. Every number comes from
  * the domain module that applies the rule, so the text cannot drift from the app. Opened with
- * `?bolum=<section>` (the "Nedir?" links) it scrolls to that section and outlines it.
+ * `?bolum=<section>` (the (i) links next to a term) it scrolls to that section and outlines it.
  */
 export default function GuideScreen() {
   const c = usePalette();

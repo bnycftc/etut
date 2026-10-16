@@ -45,7 +45,7 @@ import {
 } from '@/ui/components';
 import { BackupNudge } from '@/ui/backup-reminder';
 import { announce, hapticSuccess, hapticTap } from '@/ui/feedback';
-import { GoalDone, SavedMark } from '@/ui/finish-moment';
+import { SavedMark } from '@/ui/finish-moment';
 import { formatDuration, topicLabel } from '@/ui/format';
 import { GoalSheet } from '@/ui/goal-sheet';
 import { Icon } from '@/ui/icon';
@@ -62,6 +62,9 @@ import { noteFinishForWidgetTip, WidgetTip } from '@/ui/widget-tip';
 
 /** A phase change seen within this time of the previous render tick happened on screen. */
 const PHASE_SIGNAL_MAX_GAP_MS = 3_000;
+
+/** Around the goal line on the "Bugün" card (13 pt text, 15–16 pt tall): a touch target of 44 pt or more. */
+const GOAL_LINE_SLOP = { top: 15, bottom: 15 };
 
 /** What the summary after "Bitir" shows; frozen at that moment. */
 interface Finished {
@@ -256,6 +259,8 @@ export default function TimerScreen() {
 
   const goalStreak = goal !== null && streak !== null ? { goal, streak } : null;
   const step = finished !== null && goal !== null ? goalStep(finished.todayAfterMs, finished.sessionTodayMs, goal) : null;
+  // The summary of the session that reached the goal: the day's one celebration (K-14).
+  const stepReached = step?.reached === true;
   const goalShare = goalStreak === null ? 0 : goalRatio(todayTotal, goalStreak.goal);
   const goalPercent = Math.floor(goalShare * 100);
   const goalLine =
@@ -265,6 +270,8 @@ export default function TimerScreen() {
         ? tr.goal.met
         : tr.goal.progress(formatDuration(goalStreak.goal * 60_000), goalPercent);
   const openGoal = () => setGoalOpen(true);
+  // No badge before the first day that meets the goal: never a "0" (and no loss to read into it).
+  const streakDays = goalStreak !== null && goalStreak.streak.current > 0 ? goalStreak.streak.current : null;
 
   // The card's top line: the exam countdown (or that its date has passed), muted.
   const estimated = examDate?.estimated === true;
@@ -290,33 +297,59 @@ export default function TimerScreen() {
       </Label>
     ) : null;
 
+  // The card's one ring: today's share of the goal, idle and after Bitir. In the summary of the
+  // session that reached the goal it fills from where the day stood to 100 % once, in the success
+  // colour with the seal. It opens the goal sheet, as the goal line does (both are announced:
+  // every touch target is a named control). Without a goal: the button that sets one.
+  const ring =
+    goalStreak !== null ? (
+      <Pressable
+        testID="goal-ring"
+        accessibilityRole="button"
+        accessibilityLabel={tr.goal.title}
+        accessibilityValue={{ text: `%${stepReached ? 100 : goalPercent}` }}
+        accessibilityHint={tr.home.goalEditA11y}
+        onPress={openGoal}
+        style={({ pressed }) => [{ alignSelf: large ? 'flex-start' : 'center', opacity: pressed ? 0.6 : 1 }]}>
+        <Ring
+          testID="goal-ring-progress"
+          ratio={stepReached ? 1 : goalShare}
+          color={stepReached || goalStreak.streak.todayMet ? c.success : c.accent}
+          track={c.barSoft}
+          fillFrom={stepReached && step !== null ? step.beforePercent / 100 : undefined}>
+          {stepReached ? <Icon name="goalDone" color={c.success} size={28} /> : null}
+        </Ring>
+      </Pressable>
+    ) : (
+      <Button compact testID="goal-set" kind="secondary" title={tr.goal.set} onPress={openGoal} />
+    );
+
   return (
     <Screen testID="timer-screen">
       <TimerKeepAwake running={running} />
       <FirstUseTips />
       <GoalSheet visible={goalOpen} goal={goal} onChange={setGoal} onClose={() => setGoalOpen(false)} />
 
-      {/* Today, the one hero of the screen: today's total with the goal ring, a muted countdown
-          line and the streak badge above it; the summary after Bitir lives here too. */}
-      <Card tone="hero">
-        {countdown !== null || goalStreak !== null ? (
+      {/* Today, the one hero of the screen: one big number and one ring under a muted countdown
+          line and the streak badge. Idle the number is today's total; right after Bitir it is the
+          time just saved, and today's total steps down to a muted line. */}
+      <Card tone="hero" testID="today-card">
+        {countdown !== null || streakDays !== null ? (
           <View style={styles.heroHead}>
             <View style={large ? styles.heroTopStack : styles.heroTop}>
               {countdown}
-              {goalStreak !== null ? (
+              {streakDays !== null ? (
                 <View
                   testID="streak"
                   accessible
-                  accessibilityLabel={tr.goal.streak(goalStreak.streak.current)}
+                  accessibilityLabel={tr.goal.streak(streakDays)}
                   style={[styles.badge, large ? null : styles.badgeEnd, { backgroundColor: c.surface }]}>
                   <Icon name="streak" color={c.streak} size={16} />
-                  <Text style={[styles.badgeText, { color: c.streak }]}>
-                    {tr.goal.streakBadge(goalStreak.streak.current)}
-                  </Text>
+                  <Text style={[styles.badgeText, { color: c.streak }]}>{tr.goal.streakBadge(streakDays)}</Text>
                 </View>
               ) : null}
             </View>
-            {goalStreak !== null ? (
+            {streakDays !== null ? (
               <View style={[styles.inline, large ? null : styles.toEnd]}>
                 <Label variant="small" testID="streak-rest" style={{ flexShrink: 1, textAlign: large ? 'left' : 'right' }}>
                   {tr.goal.restRule}
@@ -329,25 +362,37 @@ export default function TimerScreen() {
 
         {finished !== null ? (
           <View testID="finish-summary" style={{ gap: space.sm }}>
-            {/* The saved time is the hero; "Geri al" is a tonal red step back (it deletes the record). */}
             <ResponsiveRow>
-              <View style={[styles.inline, styles.grow]}>
-                <SavedMark />
-                <View testID="timer-saved" accessible accessibilityLabel={finished.saved} style={styles.grow}>
-                  <Label variant="muted">{tr.finish.savedTitle}</Label>
-                  <Label variant="display">{finished.duration}</Label>
+              <View style={[styles.grow, { gap: space.xs }]}>
+                <View style={styles.inline}>
+                  <SavedMark />
+                  <View testID="timer-saved" accessible accessibilityLabel={finished.saved} style={styles.grow}>
+                    <Label variant="muted">{tr.finish.savedTitle}</Label>
+                    <Label variant="display">{finished.duration}</Label>
+                  </View>
+                </View>
+                {stepReached ? (
+                  <Text testID="finish-goal-reached" style={[typography.heading, { color: c.text, flexShrink: 1 }]}>
+                    {tr.finish.goalReached}
+                  </Text>
+                ) : null}
+                {/* Separate texts, not one sentence: E2E finds today-total by its id on iOS too. */}
+                <View testID="finish-today" style={styles.todayLine}>
+                  <Label variant="muted">{tr.timer.today}</Label>
+                  <Label variant="muted" testID="today-total">
+                    {formatDuration(todayTotal)}
+                  </Label>
+                  {todayQuestions > 0 ? (
+                    <Label variant="muted" testID="today-questions">
+                      {tr.timer.todayQuestions(todayQuestions)}
+                    </Label>
+                  ) : null}
+                  {goalStreak !== null ? (
+                    <Label variant="muted">{tr.finish.todayGoal(formatDuration(goalStreak.goal * 60_000))}</Label>
+                  ) : null}
                 </View>
               </View>
-              {finished.undoable ? (
-                <Button
-                  compact
-                  testID="finish-undo"
-                  kind="dangerSoft"
-                  title={tr.finish.undo}
-                  accessibilityHint={finished.topicBefore !== undefined ? tr.finish.undoHintTopic : tr.finish.undoHint}
-                  onPress={undo}
-                />
-              ) : null}
+              {ring}
             </ResponsiveRow>
             <Label variant="muted" testID="finish-detail">
               {(topicLabel(finished.topicId)
@@ -355,7 +400,6 @@ export default function TimerScreen() {
                 : tr.finish.studied(tr.subject(finished.subjectId))) +
                 (step !== null && !step.reached ? ` · ${tr.finish.goalStep(step.beforePercent, step.afterPercent)}` : '')}
             </Label>
-            {step?.reached ? <GoalDone testID="finish-goal-reached" fromRatio={step.beforePercent / 100} /> : null}
             {finishedTopicId !== null ? (
               <View style={{ gap: space.xs }}>
                 <Label variant="small">{tr.finish.topicMark}</Label>
@@ -389,64 +433,59 @@ export default function TimerScreen() {
                 }}
               />
             ) : null}
-          </View>
-        ) : null}
-
-        <ResponsiveRow>
-          <View style={styles.grow}>
-            <Label variant="muted">{tr.timer.today}</Label>
-            <View style={styles.totalLine}>
-              <Label variant="display" testID="today-total">
-                {formatDuration(todayTotal)}
-              </Label>
-              {todayQuestions > 0 ? (
-                <Label variant="muted" testID="today-questions">
-                  {tr.timer.todayQuestions(todayQuestions)}
-                </Label>
-              ) : null}
-            </View>
-            {todayManual > 0 ? (
-              <Label variant="small">{tr.timer.manualPart(formatDuration(todayManual))}</Label>
+            {finished.undoable ? (
+              // A tonal red step back (it deletes the record), last and at the end of the line.
+              <View style={[styles.inline, styles.toEnd]}>
+                <Button
+                  compact
+                  testID="finish-undo"
+                  kind="dangerSoft"
+                  title={tr.finish.undo}
+                  accessibilityHint={finished.topicBefore !== undefined ? tr.finish.undoHintTopic : tr.finish.undoHint}
+                  onPress={undo}
+                />
+              </View>
             ) : null}
           </View>
-          {goalStreak !== null ? (
-            // The ring opens the goal sheet, as the goal line under it does (both are announced:
-            // every touch target is a named control).
-            <Pressable
-              testID="goal-ring"
-              accessibilityRole="button"
-              accessibilityLabel={tr.goal.title}
-              accessibilityValue={{ text: `%${goalPercent}` }}
-              accessibilityHint={tr.home.goalEditA11y}
-              onPress={openGoal}
-              style={({ pressed }) => [{ alignSelf: large ? 'flex-start' : 'center', opacity: pressed ? 0.6 : 1 }]}>
-              <Ring
-                testID="goal-ring-progress"
-                ratio={goalShare}
-                color={goalStreak.streak.todayMet ? c.success : c.accent}
-                track={c.barMuted}
-              />
-            </Pressable>
-          ) : (
-            <Button compact testID="goal-set" kind="secondary" title={tr.goal.set} onPress={openGoal} />
-          )}
-        </ResponsiveRow>
-        {goalStreak !== null ? (
-          <Pressable
-            testID="goal-edit"
-            accessibilityRole="button"
-            accessibilityLabel={goalLine}
-            accessibilityHint={tr.home.goalEditA11y}
-            onPress={openGoal}
-            hitSlop={{ top: 12, bottom: 12 }}
-            style={({ pressed }) => [styles.goalLine, { opacity: pressed ? 0.6 : 1 }]}>
-            <Label testID="goal-progress" variant="small" style={{ flexShrink: 1 }}>
-              {goalLine}
-            </Label>
-            <Icon name="chevron" color={c.accent} size={14} />
-          </Pressable>
-        ) : null}
-        {compare !== null ? <CompareLine line={compare} /> : null}
+        ) : (
+          <>
+            <ResponsiveRow>
+              <View style={styles.grow}>
+                <Label variant="muted">{tr.timer.today}</Label>
+                <View style={styles.totalLine}>
+                  <Label variant="display" testID="today-total">
+                    {formatDuration(todayTotal)}
+                  </Label>
+                  {todayQuestions > 0 ? (
+                    <Label variant="muted" testID="today-questions">
+                      {tr.timer.todayQuestions(todayQuestions)}
+                    </Label>
+                  ) : null}
+                </View>
+                {todayManual > 0 ? (
+                  <Label variant="small">{tr.timer.manualPart(formatDuration(todayManual))}</Label>
+                ) : null}
+              </View>
+              {ring}
+            </ResponsiveRow>
+            {goalStreak !== null ? (
+              <Pressable
+                testID="goal-edit"
+                accessibilityRole="button"
+                accessibilityLabel={goalLine}
+                accessibilityHint={tr.home.goalEditA11y}
+                onPress={openGoal}
+                hitSlop={GOAL_LINE_SLOP}
+                style={({ pressed }) => [styles.goalLine, { opacity: pressed ? 0.6 : 1 }]}>
+                <Label testID="goal-progress" variant="small" style={{ flexShrink: 1 }}>
+                  {goalLine}
+                </Label>
+                <Icon name="chevron" color={c.accent} size={14} />
+              </Pressable>
+            ) : null}
+            {compare !== null ? <CompareLine line={compare} /> : null}
+          </>
+        )}
       </Card>
 
       {away !== null && !finishCheck.open ? (
@@ -739,5 +778,7 @@ const styles = StyleSheet.create({
   goalLine: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'flex-start' },
   modeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
   totalLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: space.sm },
+  // After Bitir: "Bugün 3 sa 5 dk · hedef 3 sa 0 dk", muted, wrapping between its parts.
+  todayLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: space.xs },
   status: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
 });

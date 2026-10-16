@@ -209,10 +209,17 @@ async function runScenario(page, baseUrl) {
   await visible('timer-start');
   // The group module is off (no server yet): no Groups tab at all, not a "coming soon" one.
   check((await byId('tab-groups').count()) === 0, 'no groups tab while the group module is off');
-  // Sayısal: no literature and no foreign language among the subjects.
+  await screenshot('timer-idle');
+  // Sayısal: no literature and no foreign language among the subjects. The card shows the recent
+  // six and folds the rest behind "Tüm dersler": open the whole list first, so a folded subject
+  // cannot pass for a missing one.
+  if ((await byId('subjects-all').count()) > 0) {
+    await byId('subjects-all').click();
+    await byId('subjects-all').waitFor({ state: 'detached', timeout: STEP_TIMEOUT_MS });
+  }
+  check(await byId('subject-tarih').isVisible(), 'the whole Sayısal list must be open');
   check((await byId('subject-edebiyat').count()) === 0, 'Sayısal must not offer Türk Dili ve Edebiyatı');
   check((await byId('subject-yabanci_dil').count()) === 0, 'Sayısal must not offer Yabancı Dil');
-  await screenshot('timer-idle');
   await byId('subject-fizik').click();
   await byId('timer-start').click();
   await visible('timer-clock');

@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, type TextStyle, Vie
 import { tr } from '../strings';
 import { announce } from './feedback';
 import { Icon, type IconName } from './icon';
-import { DARK, MAX_FONT_SCALE, space, typography, useLargeText, usePalette } from './theme';
+import { MAX_FONT_SCALE, space, typography, useLargeText, usePalette } from './theme';
 
 export function Screen({ children, testID }: { children: ReactNode; testID?: string }) {
   const c = usePalette();
@@ -21,8 +21,8 @@ export function Screen({ children, testID }: { children: ReactNode; testID?: str
 
 /**
  * A surface on the screen background: no hairline, no shadow, 16 pt corners. The `hero` card
- * (one per screen, the "today" card) is the soft brand tint with 20 pt corners and, in dark mode
- * where the tint is close to the background, a 1 pt edge.
+ * (one per screen, the "today" card) is the soft brand tint with 20 pt corners and a 1 pt edge
+ * (`heroBorder`): the tint alone is close to the background in both themes.
  */
 export function Card({
   children,
@@ -49,7 +49,7 @@ export function Card({
         styles.card,
         hero ? styles.cardHero : null,
         { backgroundColor: tint ?? (hero ? c.accentSoft : c.surface) },
-        hero && c === DARK ? { borderWidth: 1, borderColor: c.border } : null,
+        hero ? { borderWidth: 1, borderColor: c.heroBorder } : null,
         outline ? { borderColor: outline, borderWidth: 2 } : null,
       ]}>
       {children}

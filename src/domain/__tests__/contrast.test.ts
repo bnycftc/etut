@@ -75,11 +75,12 @@ describe.each([
     // Weekly chart: today's bar stands out from the other days (each bar has its value written
     // above it, so the soft fill is never the only cue).
     ['accent', 'barSoft'],
-    // The goal ring on the "Bugün" card: its fill (brand blue, success once the goal is met)
-    // against the card and against its own track. The goal line next to it says it in words.
+    // The goal ring on the "Bugün" card: its fill (brand blue, success and the seal once the goal
+    // is met) against the card and against its own track (`barSoft`, with `accent` above). The goal
+    // line next to it, or the muted line after Bitir, says it in words.
     ['accent', 'accentSoft'],
     ['success', 'accentSoft'],
-    ['success', 'barMuted'],
+    ['success', 'barSoft'],
   ];
   it.each(graphics)('control/graphic %s on %s ≥ 3', (fg, bg) => {
     expect(contrastRatio(p[fg], p[bg])).toBeGreaterThanOrEqual(AA_GRAPHIC);
@@ -105,21 +106,26 @@ describe.each([
   // The running timer card is the surface tinted with 8 % of the subject colour (`subjectTint`):
   // clock and subject line, the status ("Çalışıyorsun" / "Moladasın" / pomodoro's muted total),
   // the finish questions; its outline is the subject colour while counting, else `controlBorder`.
+  // Filled controls sit on the tint too: Devam when paused, and the primary buttons of the Bitir
+  // check ("Çalışıyordum, ekle ve bitir", "Hepsini kaydet"), which also come up while it runs.
   const onTint: (keyof Palette)[] = ['text', 'textMuted', 'success', 'warning'];
-  it.each(timerSubjects)('running card of %s: its text ≥ 4.5 and its outline ≥ 3 on the tint', (id) => {
+  const onTintGraphics: (keyof Palette)[] = ['controlBorder', 'primary'];
+  it.each(timerSubjects)('running card of %s: its text ≥ 4.5, its outline and filled controls ≥ 3 on the tint', (id) => {
     const tint = subjectTint(id, p);
     for (const fg of onTint) expect(contrastRatio(p[fg], tint)).toBeGreaterThanOrEqual(AA_TEXT);
     expect(contrastRatio(subjectColor(id, p), tint)).toBeGreaterThanOrEqual(AA_GRAPHIC);
-    expect(contrastRatio(p.controlBorder, tint)).toBeGreaterThanOrEqual(AA_GRAPHIC);
+    for (const fg of onTintGraphics) expect(contrastRatio(p[fg], tint)).toBeGreaterThanOrEqual(AA_GRAPHIC);
   });
 
-  // The goal ring after Bitir: success fill and seal on the "today" card, next to the empty track.
-  it.each([['success', 'accentSoft'], ['success', 'barMuted']] as [keyof Palette, keyof Palette][])(
-    'goal ring %s on %s ≥ 3',
-    (fg, bg) => {
-      expect(contrastRatio(p[fg], p[bg])).toBeGreaterThanOrEqual(AA_GRAPHIC);
-    },
-  );
+  // Informational, below any WCAG threshold on purpose (decorative, the words carry the meaning):
+  // the empty goal ring's track still shows on the "Bugün" card at 0 % in the morning, and the
+  // card's 1 pt edge sets the soft tint off the page.
+  it('goal ring track barSoft on accentSoft ≥ 1.5', () => {
+    expect(contrastRatio(p.barSoft, p.accentSoft)).toBeGreaterThanOrEqual(1.5);
+  });
+  it('hero card edge heroBorder on background ≥ 1.3', () => {
+    expect(contrastRatio(p.heroBorder, p.background)).toBeGreaterThanOrEqual(1.3);
+  });
 });
 
 describe('subject tint', () => {

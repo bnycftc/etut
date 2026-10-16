@@ -152,7 +152,9 @@ export function todayWidgetProps(entry: WidgetEntry): TodayWidgetProps {
     countdownLine: !entry.countdown
       ? null
       : entry.countdown.daysLeft === 0
-        ? tr.widgetCountdown.today
+        ? entry.countdown.estimated === true
+          ? tr.widgetCountdown.todayEstimated
+          : tr.widgetCountdown.today
         : tr.countdown.days(entry.countdown.examType, entry.countdown.daysLeft),
   };
 }
