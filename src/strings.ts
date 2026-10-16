@@ -168,7 +168,7 @@ const legalDocs = {
       {
         heading: '3. Paylaşım',
         paragraphs: [
-          'Uygulama bize veri göndermez; senin hakkında elimize geçebilecek tek şey bize kendin yazdığın e-postalardır. Onları yalnız sana cevap vermek ve KVKK başvurunu sonuçlandırmak için kullanırız. Hiçbir bilgiyi satmayız, reklam ya da başka bir amaçla kimseyle paylaşmayız.',
+          'Uygulama hiçbir bilgini kendiliğinden bize göndermez; bize yalnız kendin yazmayı seçtiğin e-postalar ve mektuplar ulaşır. Onları yalnız sana cevap vermek ve KVKK başvurunu sonuçlandırmak için kullanırız. Hiçbir bilgiyi satmayız, reklam ya da başka bir amaçla kimseyle paylaşmayız.',
           // [AVUKAT TEYİDİ] KVKK m.9 dayanağı: "Aydınlatma metni" → "Nerede duruyor" altındaki nota bak.
           `E-posta adresimiz Gmail’de olduğu için bu e-postalar Google’ın (Google LLC, ABD) Türkiye dışındaki sunucularında saklanır; bu, KVKK m.9 kapsamında yurt dışına aktarımdır ve yalnız sen bize e-postayla yazmayı seçersen olur. İstemezsen imzalı bir mektupla ${C.address} adresine yazabilirsin; o zaman yurt dışına hiçbir şey gitmez.`,
           `Yedek, CSV ya da çalışma kartı yalnız sen dokunduğunda, telefonunun paylaşım ekranıyla dışarı çıkar. Seçtiğin uygulama ya da servis (ör. Dosyalar, AirDrop, bir mesajlaşma uygulaması) kendi kurallarına tabidir. ${BACKUP_CONTENTS} Çalışma kartında ad, yaş, okul gibi seni tanıtan bilgi yer almaz.`,
@@ -805,7 +805,7 @@ export const tr = {
     title: 'Bildirim izni',
     heading: 'Hatırlatıcılar için bildirim izni',
     body: 'Etüt yalnız açık olan hatırlatıcılar için bildirim gösterir.',
-    willBeOn: 'İzin verirsen şunlar açık olur:',
+    willBeOn: (count: number) => (count === 1 ? 'İzin verirsen bu hatırlatıcı açılır:' : 'İzin verirsen bunlar açılır:'),
     /** Under the list: only the reminder the student turned on comes on. */
     othersOff: 'Diğer hatırlatıcılar kapalı kalır; istersen sonra Hatırlatıcılar ekranından tek tek açabilirsin.',
     /** No reminder was turned on (only the permission was asked for). */
@@ -1446,8 +1446,8 @@ export const tr = {
     timer: {
       title: 'Sayaç ve uzakta kuralı',
       paragraphs: (toleranceSeconds: number, undoSeconds: number, longHours: number) => [
-        'Ders seç, Başla’ya dokun. Süre, başladığın andan itibaren saate bakılarak hesaplanır; “Mola” sayacı durdurur, “Devam” sürdürür.',
-        `Uygulamadan ${toleranceSeconds} saniyeden uzun çıkarsan ya da telefon kilitlenirse o süre mola sayılır. Dönünce “… uygulamanın dışındaydın” kartı çıkar: “Çalışıyordum, süreye ekle” dersen süre eklenir, “Tamam, mola kalsın” dersen eklenmez. Cevaplamadan Bitir’e dokunursan önce bu sorulur.`,
+        'Ders seç, Başla’ya dokun. Süre, başladığın andan itibaren saate bakılarak hesaplanır; “Mola” (pomodoroda “Duraklat”) sayacı durdurur, “Devam” sürdürür.',
+        `Uygulamadan ${toleranceSeconds} saniyeden uzun çıkarsan ya da telefon kilitlenirse o süre mola sayılır. Dönünce “… uygulamanın dışındaydın” kartı çıkar: “Çalışıyordum, süreye ekle” dersen süre eklenir, “Tamam, mola kalsın” dersen eklenmez. Cevaplamadan Bitir’e dokunursan önce bu sorulur. Pomodoro molasında uygulamadan çıkmak sorun değil: yalnız mola bittikten sonra kaçan çalışma süresi sorulur.`,
         'Kitaptan çalışırken telefonu kilitliyorsan Ayarlar → Sayaç çalışırken → Uygulamadan çıkınca bölümünde “Çalışmaya devam say”ı seç: dışarıda geçen süre sorulmadan çalışma sayılır. O zaman mola verirken “Mola”ya dokunmayı unutma.',
         'Uygulamayı tamamen kapatırsan sayaç kaybolmaz: yeniden açınca, uygulamanın kapandığı andan sonraki süre de “Uygulamadan çıkınca” ayarına göre sorulur ya da çalışma sayılır.',
         'Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez, böylece süren molaya dönmez. Pili biraz daha çok kullanır; Ayarlar’dan kapatabilirsin.',
@@ -1521,7 +1521,7 @@ export const tr = {
       title: '“Tahmini” sınav tarihi',
       paragraphs: [
         'ÖSYM ya da MEB sınav takvimini henüz açıklamadıysa geri sayım, önceki yılların düzenine göre tahmin ettiğimiz tarihe göre yapılır; yanında “tahmini” yazar.',
-        'Kesin tarihi biliyorsan ya da başka bir oturuma giriyorsan Ayarlar → Sınav tarihi’nden kendin gir; “tahmini” etiketi kalkar. “Tahmini tarihe dön” ile geri alabilirsin.',
+        'Kesin tarihi biliyorsan ya da başka bir oturuma giriyorsan Ayarlar → Sınav tarihi’nden kendin gir; “tahmini” etiketi kalkar. Girdiğin tarihi aynı karttaki düğmeyle geri alabilirsin.',
       ],
     },
     lockScreen: {

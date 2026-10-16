@@ -67,7 +67,7 @@ export default function NotificationPermissionScreen() {
         <Label>{tr.notificationPermission.body}</Label>
         {willBeOn.length > 0 ? (
           <>
-            <Label variant="muted">{tr.notificationPermission.willBeOn}</Label>
+            <Label variant="muted">{tr.notificationPermission.willBeOn(willBeOn.length)}</Label>
             {willBeOn.map((k) => (
               <Label key={k} testID={`notification-permission-item-${k}`}>
                 {`• ${reminderLabel(k, prefs)}`}

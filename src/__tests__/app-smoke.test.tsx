@@ -3530,15 +3530,17 @@ describe('accessibility names on key screens', () => {
     fireEvent.changeText(screen.getByTestId('trend-target-input'), '45');
     fireEvent.press(screen.getByTestId('trend-target-save'));
     fireEvent.press(screen.getByTestId('trend-target-save'));
-    expect(said('0’dan büyük, en fazla 40 olan ve 0,25’in katı bir net gir (ör. 32,5).')).toBe(2);
+    expect(said('0’dan büyük, en fazla 40 olan ve en çok iki ondalıklı bir net gir (ör. 30).')).toBe(2);
     // The note under "Önce yedek al" in the delete dialog.
     act(() => router.push('/ayarlar'));
     fireEvent.press(screen.getByTestId('settings-delete-all'));
     await act(async () => {
       fireEvent.press(screen.getByTestId('settings-delete-all-backup'));
     });
+    // The fixture's two-section TYT exams do not fit the TYT tables, so the note also says they would
+    // be skipped on restore; what is checked here is that the note is read out.
     expect(announce).toHaveBeenLastCalledWith(
-      'Yedek dosyası hazırlandı. Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez.',
+      expect.stringMatching(/^Yedek dosyası hazırlandı\..*Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez\.$/),
     );
     announce.mockRestore();
   });

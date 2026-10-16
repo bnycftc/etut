@@ -230,7 +230,7 @@ export default function SettingsScreen() {
             onPress={saveExam}
           />
           {examSaved ? (
-            <Label testID="settings-exam-saved" variant="small">
+            <Label testID="settings-exam-saved" variant="small" live>
               {tr.settings.examChangeSaved}
             </Label>
           ) : null}

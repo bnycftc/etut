@@ -48,9 +48,11 @@ tags:
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: g-sil-02b-yedek-paylasim
-# Close the share sheet as i-yedek does (tap the dimmed area above it, else drag it down).
-- tapOn:
-    point: "50%,8%"
+# Close the share sheet by dragging it down. No tap on the dimmed area as in i-yedek: if the sheet
+# is already gone, that tap would land on the delete dialog's backdrop and close the dialog.
+- swipe:
+    start: 50%, 55%
+    end: 50%, 98%
 - waitForAnimationToEnd:
     timeout: 5000
 - runFlow:
