@@ -128,14 +128,17 @@ describe('values read back as stored; damaged values fall back to the defaults',
     kv.clearLastSubject();
     expect(kv.loadLastSubject()).toBeNull();
 
-    kv.storeDailyGoal(5);
+    kv.storeDailyGoal(5, '2026-10-07');
     expect(kv.loadDailyGoal()).toBe(15);
-    kv.storeDailyGoal(120);
+    kv.storeDailyGoal(120, '2026-10-07');
     expect(kv.loadDailyGoal()).toBe(120);
     mainKv().set('etut.dailyGoalMinutes.v1', '"lots"');
     expect(kv.loadDailyGoal()).toBeNull();
-    kv.storeDailyGoal(null);
+    kv.storeDailyGoal(null, '2026-10-07');
     expect(kv.loadDailyGoal()).toBeNull();
+
+    // Both changes were on one day: the last one is that day's goal (more in the test below).
+    expect(kv.loadDailyGoalHistory()).toEqual([{ from: '2026-10-07', minutes: 120 }]);
 
     expect(kv.loadTimerMode()).toBe('stopwatch');
     expect(kv.loadStoredTimerMode()).toBeNull();
@@ -244,11 +247,60 @@ describe('values read back as stored; damaged values fall back to the defaults',
   });
 });
 
+describe('daily goal history', () => {
+  const history = () => JSON.parse(mainKv().get('etut.dailyGoalHistory.v1') ?? 'null');
+
+  it('every change is noted on its day; turning the goal off keeps it', () => {
+    kv.storeDailyGoal(60, '2026-10-01');
+    kv.storeDailyGoal(120, '2026-10-08');
+    kv.storeDailyGoal(null, '2026-10-09');
+    expect(kv.loadDailyGoal()).toBeNull();
+    expect(kv.loadDailyGoalHistory()).toEqual([
+      { from: '2026-10-01', minutes: 60 },
+      { from: '2026-10-08', minutes: 120 },
+    ]);
+    kv.storeDailyGoal(90, '2026-10-12');
+    expect(kv.loadDailyGoal()).toBe(90);
+    expect(history()).toEqual([
+      { from: '2026-10-01', minutes: 60 },
+      { from: '2026-10-08', minutes: 120 },
+      { from: '2026-10-12', minutes: 90 },
+    ]);
+  });
+
+  it('a goal set before the history was kept (0.4.0) is noted from the day before the first change', () => {
+    mainKv().set('etut.dailyGoalMinutes.v1', '60');
+    expect(kv.loadDailyGoalHistory()).toEqual([]);
+    kv.storeDailyGoal(180, '2026-10-08');
+    expect(kv.loadDailyGoalHistory()).toEqual([
+      { from: '2026-10-07', minutes: 60 },
+      { from: '2026-10-08', minutes: 180 },
+    ]);
+  });
+
+  it('restore puts back the goal and its history exactly; an empty history removes the key', () => {
+    kv.storeDailyGoal(60, '2026-10-01');
+    kv.restoreDailyGoal(45, [{ from: '2026-09-01', minutes: 45 }]);
+    expect(kv.loadDailyGoal()).toBe(45);
+    expect(kv.loadDailyGoalHistory()).toEqual([{ from: '2026-09-01', minutes: 45 }]);
+    kv.restoreDailyGoal(null, []);
+    expect(mainKv().has('etut.dailyGoalHistory.v1')).toBe(false);
+    expect(mainKv().has('etut.dailyGoalMinutes.v1')).toBe(false);
+  });
+
+  it('a damaged history reads as none, damaged entries are dropped', () => {
+    mainKv().set('etut.dailyGoalHistory.v1', '{not json');
+    expect(kv.loadDailyGoalHistory()).toEqual([]);
+    mainKv().set('etut.dailyGoalHistory.v1', JSON.stringify([{ from: '2026-10-01', minutes: 60 }, { from: 'x' }]));
+    expect(kv.loadDailyGoalHistory()).toEqual([{ from: '2026-10-01', minutes: 60 }]);
+  });
+});
+
 describe('"Tüm verileri sil" (wipeAllData)', () => {
   function fill() {
     kv.storeProfile(PROFILE);
     kv.storeActiveSession(startSession('s1', 'fizik', 1000));
-    kv.storeDailyGoal(60);
+    kv.storeDailyGoal(60, '2026-10-07');
     kv.storeLiveActivityRecord({ sessionId: 's1', startedAt: 1000 });
     kv.storeReplaceUndo({ createdAt: 1, text: 'copy' });
     kv.storeRemindersConfirmed();

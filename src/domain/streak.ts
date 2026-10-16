@@ -6,7 +6,8 @@
  *   is still in progress: an unfinished today never breaks the streak).
  * - One missed day per week (Monday–Sunday) is a rest day: it keeps the streak alive but does
  *   not add to it. A second missed day in the same week ends the streak.
- * - The current goal applies to all past days (goal history is not kept).
+ * - Each day is judged by the goal of that day (`goalOfDay`, goal history): raising the goal never
+ *   breaks a streak already there, lowering it never adds past days to one.
  */
 
 import { addDays, type DayKey, istanbulWeekday } from './istanbul-day';
@@ -45,17 +46,96 @@ export function goalRatio(totalMs: number, goalMinutes: number): number {
   return Math.min(1, Math.max(0, totalMs / (goalMinutes * MIN_MS)));
 }
 
+/** A change of the daily goal: `minutes` is the goal from the Istanbul day `from` on. */
+export interface GoalChange {
+  from: DayKey;
+  minutes: number;
+}
+
+/** Changes of the daily goal, oldest first, at most one per day. */
+export type GoalHistory = readonly GoalChange[];
+
+/** The goal an Istanbul day is judged by, in minutes. */
+export type GoalOf = (day: DayKey) => number;
+
 /**
- * `totals(day)` returns the study time of an Istanbul day (0 when nothing was recorded).
+ * The goal each day is judged by: the goal set last on or before that day. Today and later days
+ * take `current` (the goal now). Days before the first change take the first goal: study from
+ * before a goal was set counts towards the first one, as it always did. Without a history (a goal
+ * set before the history was kept, never changed since) `current` applies to every day.
+ */
+export function goalOfDay(history: GoalHistory, current: number, today: DayKey): GoalOf {
+  const past = history.filter((c) => c.from < today);
+  return (day) => {
+    if (day >= today || past.length === 0) return current;
+    // The last change on or before `day` (binary search; the list is in day order).
+    let lo = 0;
+    let hi = past.length - 1;
+    let found = 0;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (past[mid].from <= day) {
+        found = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return past[found].minutes;
+  };
+}
+
+/**
+ * The history after the goal is set to `minutes` (`null` = turned off) on `today`; `previous` is
+ * the goal until now. A change replaces one made earlier the same day (today goes by the goal set
+ * last); a change back to the goal in force before it leaves no entry. Turning the goal off changes
+ * nothing (the streak is only hidden; when a goal is set again, the days in between keep the last
+ * goal). A goal from before the history was kept is written down first, from the day before, so
+ * that the days before keep it.
+ */
+export function withGoalChange(
+  history: GoalHistory,
+  previous: number | null,
+  minutes: number | null,
+  today: DayKey,
+): GoalHistory {
+  if (minutes === previous) return history;
+  const known = history.length === 0 && previous !== null ? [{ from: addDays(today, -1), minutes: previous }] : history;
+  if (minutes === null) return known;
+  const kept = known.filter((c) => c.from < today);
+  const last = kept[kept.length - 1];
+  return last !== undefined && last.minutes === minutes ? kept : [...kept, { from: today, minutes }];
+}
+
+/**
+ * A stored history read back: entries that are not a day and a number are dropped, minutes are
+ * kept within the goal limits, and the list is put in day order with one entry per day.
+ */
+export function normalizeGoalHistory(value: unknown): GoalHistory {
+  if (!Array.isArray(value)) return [];
+  const byDay = new Map<DayKey, number>();
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null) continue;
+    const { from, minutes } = item as Record<string, unknown>;
+    if (typeof from !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(from) || addDays(from, 0) !== from) continue;
+    if (typeof minutes !== 'number' || !Number.isFinite(minutes)) continue;
+    byDay.set(from, clampGoalMinutes(minutes));
+  }
+  return [...byDay.keys()].sort().map((from) => ({ from, minutes: byDay.get(from) as number }));
+}
+
+/**
+ * `totals(day)` returns the study time of an Istanbul day (0 when nothing was recorded);
+ * `goalOf(day)` the goal that day is judged by (`goalOfDay`).
  */
 export function computeStreak(
   totals: (day: DayKey) => number,
   today: DayKey,
-  goalMinutes: number,
+  goalOf: GoalOf,
   lookbackDays = STREAK_LOOKBACK_DAYS,
 ): StreakResult {
   const thisWeek = weekStartOf(today);
-  const todayMet = goalMet(totals(today), goalMinutes);
+  const todayMet = goalMet(totals(today), goalOf(today));
   // A rest day is only "used" when it bridges two parts of the streak, i.e. a met day lies
   // before it; a miss at the old end of the streak is just where the streak began.
   const usedRestWeeks = new Set<DayKey>();
@@ -63,7 +143,7 @@ export function computeStreak(
   let current = todayMet ? 1 : 0;
   let day = addDays(today, -1);
   for (let i = 1; i <= lookbackDays; i++, day = addDays(day, -1)) {
-    if (goalMet(totals(day), goalMinutes)) {
+    if (goalMet(totals(day), goalOf(day))) {
       current++;
       for (const w of tentative) usedRestWeeks.add(w);
       tentative = [];

@@ -11,7 +11,7 @@ import {
   studiedBetween,
 } from './daily-totals';
 import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey } from './istanbul-day';
-import { goalMet, weekStartOf } from './streak';
+import { goalMet, type GoalOf, weekStartOf } from './streak';
 
 export interface SelfComparison {
   today: number;
@@ -44,7 +44,7 @@ export interface WeeklySummary {
   bySubject: { subjectId: string; ms: number }[];
   /** Longest single session that started in this week. */
   longest: { subjectId: string; ms: number; startedAt: number; manual: boolean } | null;
-  /** Days of the week on which the goal was met; `null` without a goal. */
+  /** Days of the week on which the goal of that day was met; `null` without a goal. */
   goalDays: number | null;
   activeDays: number;
 }
@@ -53,11 +53,14 @@ export function weekDays(weekStart: DayKey): DayKey[] {
   return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 }
 
-/** `spans` must cover the whole week (running session included as a span). */
+/**
+ * `spans` must cover the whole week (running session included as a span); `goalOf`: the goal of
+ * each day (`goalOfDay`), `null` without a goal.
+ */
 export function weeklySummary(
   spans: SessionSpan[],
   weekStart: DayKey,
-  goalMinutes: number | null,
+  goalOf: GoalOf | null,
 ): WeeklySummary {
   const days = weekDays(weekStart);
   const totals = dailyTotals(spans, days);
@@ -89,7 +92,7 @@ export function weeklySummary(
       .filter((e) => e.ms > 0)
       .sort((a, b) => b.ms - a.ms),
     longest,
-    goalDays: goalMinutes === null ? null : totals.filter((t) => goalMet(t.totalMs, goalMinutes)).length,
+    goalDays: goalOf === null ? null : totals.filter((t) => goalMet(t.totalMs, goalOf(t.day))).length,
     activeDays: totals.filter((t) => t.totalMs > 0).length,
   };
 }

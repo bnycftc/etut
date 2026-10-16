@@ -1505,7 +1505,7 @@ export const tr = {
       title: 'Günlük hedef',
       paragraphs: (minMinutes: number, maxHours: number) => [
         `Günlük hedefi istersen koyarsın: ${minMinutes} dakika ile ${maxHours} saat arasında. Sayaç ekranındaki çubuk bugünkü sürenin hedefe oranını gösterir; elle eklediğin süre de sayılır.`,
-        'Hedefi değiştirirsen yeni hedef geçmiş günlere de uygulanır ve seri buna göre yeniden hesaplanır. Hedefi kapatırsan seri gösterilmez.',
+        'Hedefi değiştirirsen yeni hedef bugünden itibaren geçerli olur; önceki her gün, o gün geçerli olan hedefle sayılır. Böylece hedefini yükseltmek serini bozmaz. Hedefi kapatırsan seri gösterilmez.',
       ],
     },
     streak: {
@@ -1520,7 +1520,7 @@ export const tr = {
     examDate: {
       title: '“Tahmini” sınav tarihi',
       paragraphs: [
-        'ÖSYM ya da MEB sınav takvimini henüz açıklamadıysa geri sayım, önceki yılların düzenine göre tahmin ettiğimiz tarihe göre yapılır; yanında “tahmini” yazar.',
+        'ÖSYM ya da MEB sınav takvimini henüz açıklamadıysa geri sayım, önceki yılların düzenine göre tahmin ettiğimiz tarihe göre yapılır; yanında “tahmini” yazar. Sınav geçince geri sayım kendiliğinden bir sonraki sınava geçer.',
         'Kesin tarihi biliyorsan ya da başka bir oturuma giriyorsan Ayarlar → Sınav tarihi’nden kendin gir; “tahmini” etiketi kalkar. Girdiğin tarihi aynı karttaki düğmeyle geri alabilirsin.',
       ],
     },

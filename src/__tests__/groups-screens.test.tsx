@@ -55,6 +55,7 @@ jest.mock('../storage/kv', () => ({
   loadLastSubject: () => null,
   storeLastSubject: () => {},
   loadDailyGoal: () => null,
+  loadDailyGoalHistory: () => [],
   storeDailyGoal: () => {},
   loadPomodoroConfig: () => ({ workMin: 25, shortBreakMin: 5, longBreakMin: 15, longEvery: 4 }),
   storePomodoroConfig: () => {},

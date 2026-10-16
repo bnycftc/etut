@@ -67,7 +67,7 @@ describe('daily and weekly card', () => {
   });
 
   it('week: Monday to Sunday, active days and goal days', () => {
-    const card = weeklyCard(spans, '2026-10-05', 60, 2);
+    const card = weeklyCard(spans, '2026-10-05', () => 60, 2);
     expect(card).toMatchObject({ period: 'week', from: '2026-10-05', to: '2026-10-11', totalMs: 4 * H });
     expect(card).toMatchObject({ activeDays: 2, goalDays: 2, streakDays: 2, goalPercent: null });
     expect(card.rows[0]).toMatchObject({ subjectId: 'fizik', percent: 50 });

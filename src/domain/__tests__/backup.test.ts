@@ -507,3 +507,89 @@ describe('backup version 2: question counts and weekly subject targets', () => {
     expect(mergeBackup(device, V2, 'replace').settings.subjectWeeklyTargets).toEqual({ matematik: 480, fizik: 90 });
   });
 });
+
+describe('daily goal history (0.4.1, still version 2)', () => {
+  const HISTORY = [
+    { from: '2026-09-01', minutes: 60 },
+    { from: '2026-09-20', minutes: 120 },
+  ];
+  const WITH_HISTORY: BackupData = { ...DATA, settings: { ...DATA.settings, dailyGoalHistory: HISTORY } };
+
+  it('round-trips the history and keeps the version at 2 (0.4.0 refuses a higher one as too new)', () => {
+    const file = buildBackupFile(WITH_HISTORY, PROFILE, EXPORTED, '0.4.1');
+    expect(file.schemaVersion).toBe(2);
+    expect(BACKUP_SCHEMA_VERSION).toBe(2);
+    const back = parsed(serializeBackup(file));
+    expect(back).toEqual(file);
+    expect(back.settings.dailyGoalHistory).toEqual(HISTORY);
+  });
+
+  it('a file without it (0.4.0) loads with no history: the key stays out', () => {
+    const back = parsed(fileText());
+    expect('dailyGoalHistory' in back.settings).toBe(false);
+    expect(parsed(fileText({ settings: { ...DATA.settings, dailyGoalHistory: [] } })).settings).toEqual(DATA.settings);
+  });
+
+  it('puts the changes in day order and keeps the minutes within the goal limits', () => {
+    const settings = {
+      ...DATA.settings,
+      dailyGoalHistory: [
+        { from: '2026-09-20', minutes: 1200 },
+        { from: '2026-09-01', minutes: 5 },
+      ],
+    };
+    expect(parsed(fileText({ settings })).settings.dailyGoalHistory).toEqual([
+      { from: '2026-09-01', minutes: 15 },
+      { from: '2026-09-20', minutes: 960 },
+    ]);
+  });
+
+  it.each([
+    ['not a list', { from: '2026-09-01', minutes: 60 }],
+    ['a day that does not exist', [{ from: '2026-02-30', minutes: 60 }]],
+    ['no minutes', [{ from: '2026-09-01' }]],
+    ['zero minutes', [{ from: '2026-09-01', minutes: 0 }]],
+    ['minutes that are not a whole number', [{ from: '2026-09-01', minutes: 60.5 }]],
+    ['two changes on one day', [{ from: '2026-09-01', minutes: 60 }, { from: '2026-09-01', minutes: 90 }]],
+  ])('rejects: %s', (_name, dailyGoalHistory) => {
+    const result = parseBackup(fileText({ settings: { ...DATA.settings, dailyGoalHistory } }));
+    expect(result.ok ? null : result.error).toBe('invalid');
+  });
+
+  it('replace: exactly the file history (none in a 0.4.0 file)', () => {
+    expect(mergeBackup(DATA, WITH_HISTORY, 'replace').settings.dailyGoalHistory).toEqual(HISTORY);
+    expect('dailyGoalHistory' in mergeBackup(WITH_HISTORY, DATA, 'replace').settings).toBe(false);
+  });
+
+  it('merge: this device keeps its history; the file adds only changes from before its first one', () => {
+    // A new phone whose goal was set on its first day, the old phone's file loaded later.
+    const newPhone: BackupData = {
+      ...DATA,
+      settings: { ...DATA.settings, dailyGoalMinutes: 90, dailyGoalHistory: [{ from: '2026-09-25', minutes: 90 }] },
+    };
+    const merged = mergeBackup(newPhone, WITH_HISTORY, 'merge');
+    expect(merged.settings.dailyGoalMinutes).toBe(90);
+    expect(merged.settings.dailyGoalHistory).toEqual([...HISTORY, { from: '2026-09-25', minutes: 90 }]);
+    // Idempotent.
+    expect(mergeBackup(merged, WITH_HISTORY, 'merge')).toEqual(merged);
+    // Changes in the file from after this device's first one are not taken.
+    const early: BackupData = {
+      ...DATA,
+      settings: { ...DATA.settings, dailyGoalHistory: [{ from: '2026-09-10', minutes: 45 }] },
+    };
+    expect(mergeBackup(early, WITH_HISTORY, 'merge').settings.dailyGoalHistory).toEqual([
+      { from: '2026-09-01', minutes: 60 },
+      { from: '2026-09-10', minutes: 45 },
+    ]);
+  });
+
+  it('merge: a goal here without a history covers every day; no goal and no history here takes the file', () => {
+    expect('dailyGoalHistory' in mergeBackup(DATA, WITH_HISTORY, 'merge').settings).toBe(false);
+    const empty: BackupData = { ...DATA, settings: EMPTY_SETTINGS };
+    const merged = mergeBackup(empty, WITH_HISTORY, 'merge');
+    expect(merged.settings.dailyGoalMinutes).toBe(120);
+    expect(merged.settings.dailyGoalHistory).toEqual(HISTORY);
+    expect(mergeBackup(merged, WITH_HISTORY, 'merge')).toEqual(merged);
+    expect('dailyGoalHistory' in mergeBackup(DATA, DATA, 'merge').settings).toBe(false);
+  });
+});

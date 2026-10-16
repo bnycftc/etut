@@ -47,7 +47,13 @@ jest.mock('../kv', () => {
     storeCustomExamDate: (t: string, d: string | null) =>
       d === null ? store.delete(`date:${t}`) : store.set(`date:${t}`, d),
     loadDailyGoal: () => (store.get('goal') as number | undefined) ?? null,
-    storeDailyGoal: (m: number | null) => (m === null ? store.delete('goal') : store.set('goal', m)),
+    loadDailyGoalHistory: () => (store.get('goalHistory') as unknown[] | undefined) ?? [],
+    restoreDailyGoal: (m: number | null, history: unknown[]) => {
+      if (m === null) store.delete('goal');
+      else store.set('goal', m);
+      if (history.length === 0) store.delete('goalHistory');
+      else store.set('goalHistory', [...history]);
+    },
     loadLastSubject: () => (store.get('last') as string | undefined) ?? null,
     storeLastSubject: (s: string) => store.set('last', s),
     clearLastSubject: () => store.delete('last'),
@@ -240,5 +246,34 @@ describe('backup storage, version 2 data (real SQL)', () => {
     if (!result.ok) throw new Error(result.error);
     writeBackupData(mergeBackup(readBackupData(), result.file, 'replace'));
     expect(readBackupData()).toEqual(V2);
+  });
+});
+
+describe('backup storage, daily goal history (real SQL)', () => {
+  const WITH_HISTORY: BackupData = {
+    ...DATA,
+    settings: {
+      ...DATA.settings,
+      dailyGoalHistory: [
+        { from: '2026-09-01', minutes: 60 },
+        { from: '2026-09-20', minutes: 90 },
+      ],
+    },
+  };
+
+  it('is written and read back exactly, through a file too', () => {
+    writeBackupData(WITH_HISTORY);
+    expect(readBackupData()).toEqual(WITH_HISTORY);
+    const result = parseBackup(serializeBackup(buildBackupFile(readBackupData(), null, T0 + 86_400_000, 'test')));
+    if (!result.ok) throw new Error(result.error);
+    writeBackupData(mergeBackup(readBackupData(), result.file, 'replace'));
+    expect(readBackupData()).toEqual(WITH_HISTORY);
+  });
+
+  it('a file without one (0.4.0) clears the history on the device', () => {
+    writeBackupData(WITH_HISTORY);
+    writeBackupData(DATA);
+    expect(readBackupData()).toEqual(DATA);
+    expect('dailyGoalHistory' in readBackupData().settings).toBe(false);
   });
 });

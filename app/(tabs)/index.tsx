@@ -110,7 +110,7 @@ export default function TimerScreen() {
   const customExamDay = useStored(`examDate|${examType}|${app.dataVersions.settings}`, () =>
     loadCustomExamDate(examType),
   );
-  const examDate = resolveExamDate(examType, customExamDay);
+  const examDate = resolveExamDate(examType, customExamDay, today);
   const daysLeft = examDate === null ? null : examDaysLeft(examDate, today);
   // The render clock ticks once a second; never show a moment before the last "Molayı geç".
   const lastSkipAt = active?.pomodoro?.skips[active.pomodoro.skips.length - 1]?.at ?? 0;
@@ -203,7 +203,7 @@ export default function TimerScreen() {
   };
 
   const setGoal = (minutes: number | null) => {
-    storeDailyGoal(minutes);
+    storeDailyGoal(minutes, today);
     app.notifyDataChanged('settings');
   };
 

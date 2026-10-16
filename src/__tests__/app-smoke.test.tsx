@@ -191,6 +191,8 @@ jest.mock('../storage/kv', () => ({
   loadLastSubject: () => null,
   storeLastSubject: () => {},
   loadDailyGoal: () => memory.dailyGoal,
+  // No history: the goal covers every day (the history itself runs in app-real-storage.test.tsx).
+  loadDailyGoalHistory: () => [],
   storeDailyGoal: (m: number | null) => {
     memory.dailyGoal = m;
   },

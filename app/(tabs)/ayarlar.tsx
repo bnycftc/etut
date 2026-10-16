@@ -20,7 +20,7 @@ import {
 import { EXAM_TYPES, type ExamType, YKS_AREAS } from '@/domain/profile';
 import { effectiveReminderPrefs } from '@/domain/reminders';
 import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '@/domain/streak';
-import { useAppState, useStored } from '@/state/app-state';
+import { useAppState, useNow, useStored } from '@/state/app-state';
 import { backupExportText, shareBackup } from '@/state/backup-export';
 import { useNotificationPermission } from '@/state/notification-permission';
 import {
@@ -84,7 +84,7 @@ export default function SettingsScreen() {
   };
   const goal = useStored(`goal|${dataVersions.settings}`, loadDailyGoal);
   const setGoal = (minutes: number | null) => {
-    storeDailyGoal(minutes);
+    storeDailyGoal(minutes, istanbulDayKey(Date.now()));
     notifyDataChanged('settings');
   };
   const pomodoro = useStored(`pomodoro|${dataVersions.settings}`, loadPomodoroConfig);
@@ -96,7 +96,9 @@ export default function SettingsScreen() {
   const reduceMotion = useReducedMotion();
   const examType = profile?.examType ?? 'DIGER';
   const customDay = useStored(`examDate|${examType}|${dataVersions.settings}`, () => loadCustomExamDate(examType));
-  const examDate = resolveExamDate(examType, customDay);
+  // The built-in date moves on to the next exam once one is over: the day is kept current.
+  const today = istanbulDayKey(useNow(false));
+  const examDate = resolveExamDate(examType, customDay, today);
   // Estimate, official, the student's own or none: the line under the date says which (no year in it).
   const examDateInfo = tr.countdown.settingsInfo(examType, examDateKind(examDate));
   const [dateText, setDateText] = useState('');
@@ -275,7 +277,7 @@ export default function SettingsScreen() {
             <Button
               testID="settings-exam-date-reset"
               kind="secondary"
-              title={tr.countdown.reset(examDateKind(resolveExamDate(examType, null)))}
+              title={tr.countdown.reset(examDateKind(resolveExamDate(examType, null, today)))}
               onPress={() => {
                 storeCustomExamDate(profile.examType, null);
                 notifyDataChanged('settings');

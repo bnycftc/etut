@@ -270,7 +270,7 @@ describe('"Tüm verileri sil" on the real storage', () => {
       },
       T0,
     );
-    kv.storeDailyGoal(60);
+    kv.storeDailyGoal(60, '2026-10-07');
     renderRouter(APP_DIR, { initialUrl: '/' });
     fireEvent.press(screen.getByTestId('subject-fizik'));
     start();
@@ -410,6 +410,50 @@ describe('exam countdown from the stored date', () => {
     act(() => jest.advanceTimersByTime(60_000));
     expect(screen.queryByTestId('countdown')).toBeNull();
     expect(screen.getByTestId('countdown-passed').props.children).toBe('Sınav tarihi geçti. Yeni tarihi Ayarlar’dan gir.');
+  });
+});
+
+describe('built-in exam date after the exam', () => {
+  it('the day after YKS the countdown goes on to next year’s estimate, not "passed"', () => {
+    jest.setSystemTime(Date.parse('2027-06-21T06:00:00Z'));
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.getByTestId('countdown').props.children).toBe('YKS’ye 362 gün');
+    expect(screen.getByText('tahmini')).toBeTruthy();
+    expect(screen.queryByTestId('countdown-passed')).toBeNull();
+  });
+});
+
+describe('daily goal history on the real storage', () => {
+  const day = (id: string, iso: string): CompletedSession => {
+    const startedAt = Date.parse(iso);
+    return { id, subjectId: 'fizik', topicId: null, startedAt, endedAt: startedAt + 70 * MIN, pauses: [], durationMs: 70 * MIN, source: 'timer' };
+  };
+
+  it('raising the goal keeps the streak: past days are judged by the goal they had', async () => {
+    // 70 minutes on Sunday, Monday and Tuesday; the goal was 60 since 1 October.
+    for (const s of [day('sun', '2026-10-04T07:00:00Z'), day('mon', '2026-10-05T07:00:00Z'), day('tue', '2026-10-06T07:00:00Z')]) {
+      saveSession(s, s.endedAt);
+    }
+    kv.storeDailyGoal(60, '2026-10-01');
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.getByTestId('streak').props.children).toBe('Seri: 3 gün');
+
+    fireEvent.press(screen.getByTestId('goal-edit'));
+    fireEvent.press(screen.getByTestId('goal-preset-120'));
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    await settle();
+    expect(kv.loadDailyGoal()).toBe(120);
+    expect(kv.loadDailyGoalHistory()).toEqual([
+      { from: '2026-10-01', minutes: 60 },
+      { from: '2026-10-07', minutes: 120 },
+    ]);
+    expect(screen.getByTestId('streak').props.children).toBe('Seri: 3 gün');
+    // The widget (already on the new goal) counts the same way.
+    expect(mockSurfaces.widget[0].props.goalLine).toContain('2 sa');
+    expect(mockSurfaces.widget[0].props.streakLine).toBe('Seri: 3 gün');
+    // The weekly summary judges Monday and Tuesday by 60 too.
+    act(() => router.push('/haftalik'));
+    expect(screen.getByText('Hedefi tutturduğun gün: 2/7')).toBeTruthy();
   });
 });
 
@@ -654,7 +698,7 @@ describe('timer on the real storage', () => {
   });
 
   it('"Çalışıyordum, ekle ve bitir": the summary and VoiceOver count the added time towards the goal', () => {
-    kv.storeDailyGoal(120);
+    kv.storeDailyGoal(120, '2026-10-07');
     saveSession(
       { id: 'earlier', subjectId: 'kimya', topicId: null, startedAt: T0 - 3 * HOUR, endedAt: T0 - 2 * HOUR, pauses: [], durationMs: HOUR, source: 'timer' },
       T0,
@@ -679,7 +723,7 @@ describe('timer on the real storage', () => {
   });
 
   it('"İlk 10 saati kaydet": the summary judges the goal by the 10 hours saved, not the 12 run', () => {
-    kv.storeDailyGoal(11 * 60);
+    kv.storeDailyGoal(11 * 60, '2026-10-07');
     const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
     renderRouter(APP_DIR, { initialUrl: '/' });
     start();

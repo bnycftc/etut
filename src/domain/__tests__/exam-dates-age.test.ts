@@ -1,10 +1,13 @@
 import {
+  builtInExamDates,
   daysUntil,
+  ESTIMATED_EXAM_DAYS,
   EXAM_DATES,
   examDateKind,
   examDaysLeft,
   formatDayInput,
   isValidCustomExamDay,
+  OFFICIAL_EXAM_DAYS,
   parseDayInput,
   readExamDayInput,
   resolveExamDate,
@@ -12,23 +15,82 @@ import {
 import { istanbulWeekday } from '../istanbul-day';
 import { canDeclareBirthYear, guardRecordAfter, isSoloOnly } from '../profile';
 
+/** The day the tests "are" on when it does not matter (before every built-in date). */
+const TODAY = '2026-10-04';
+
 describe('exam countdown', () => {
   it('says what the shown date is: set by the student, an estimate, an official date or none', () => {
-    expect(examDateKind(resolveExamDate('YKS', null))).toBe('estimated');
-    expect(examDateKind(resolveExamDate('KPSS', null))).toBe('estimated');
-    expect(examDateKind(resolveExamDate('YKS', '2027-06-26'))).toBe('custom');
-    expect(examDateKind(resolveExamDate('DIGER', null))).toBe('none');
-    expect(examDateKind(resolveExamDate('DIGER', '2027-07-01'))).toBe('custom');
+    expect(examDateKind(resolveExamDate('YKS', null, TODAY))).toBe('estimated');
+    expect(examDateKind(resolveExamDate('KPSS', null, TODAY))).toBe('estimated');
+    expect(examDateKind(resolveExamDate('YKS', '2027-06-26', TODAY))).toBe('custom');
+    expect(examDateKind(resolveExamDate('DIGER', null, TODAY))).toBe('none');
+    expect(examDateKind(resolveExamDate('DIGER', '2027-07-01', TODAY))).toBe('custom');
     expect(examDateKind({ day: '2027-06-19', estimated: false, custom: false })).toBe('official');
   });
 
-  it('built-in 2027 dates are marked as estimates', () => {
-    expect(EXAM_DATES.YKS).toEqual({ day: '2027-06-19', estimated: true, days: 2 });
-    expect(istanbulWeekday('2027-06-19')).toBe(5); // Saturday
-    expect(istanbulWeekday('2027-06-13')).toBe(6); // Sunday (LGS)
-    expect(istanbulWeekday(EXAM_DATES.KPSS!.day)).toBe(6); // Sunday (KPSS GY-GK)
-    expect(EXAM_DATES.LGS?.estimated && EXAM_DATES.KPSS?.estimated).toBe(true);
-    expect(EXAM_DATES.DIGER).toBeNull();
+  it('built-in dates: one estimate per exam year up to 2029, in order, on the right weekday', () => {
+    expect(EXAM_DATES.YKS).toEqual([
+      { day: '2027-06-19', estimated: true, days: 2 },
+      { day: '2028-06-17', estimated: true, days: 2 },
+      { day: '2029-06-16', estimated: true, days: 2 },
+    ]);
+    expect(EXAM_DATES.LGS.map((d) => d.day)).toEqual(['2027-06-13', '2028-06-11', '2029-06-10']);
+    // KPSS B group only in even years: 2028, then 2030 (so 2029 counts down to it).
+    expect(EXAM_DATES.KPSS.map((d) => d.day)).toEqual(['2028-09-03', '2030-09-01']);
+    expect(EXAM_DATES.DIGER).toEqual([]);
+    for (const d of EXAM_DATES.YKS) expect(istanbulWeekday(d.day)).toBe(5); // Saturday (TYT)
+    for (const d of [...EXAM_DATES.LGS, ...EXAM_DATES.KPSS]) expect(istanbulWeekday(d.day)).toBe(6); // Sunday
+    // LGS the Sunday before TYT, every year.
+    EXAM_DATES.LGS.forEach((d, i) => expect(daysUntil(EXAM_DATES.YKS[i].day, d.day)).toBe(6));
+    for (const t of ['YKS', 'LGS', 'KPSS'] as const) {
+      expect(EXAM_DATES[t].every((d) => d.estimated)).toBe(true);
+      expect(OFFICIAL_EXAM_DAYS[t]).toEqual([]);
+      expect([...ESTIMATED_EXAM_DAYS[t]].sort()).toEqual(ESTIMATED_EXAM_DAYS[t]);
+    }
+    expect(EXAM_DATES.LGS[0].days).toBeUndefined();
+  });
+
+  it('an official day replaces the estimate of its year only, and is shown as official', () => {
+    const dates = builtInExamDates('YKS', ['2027-06-26']);
+    expect(dates).toEqual([
+      { day: '2027-06-26', estimated: false, days: 2 },
+      { day: '2028-06-17', estimated: true, days: 2 },
+      { day: '2029-06-16', estimated: true, days: 2 },
+    ]);
+    expect(examDateKind(resolveExamDate('YKS', null, TODAY, dates))).toBe('official');
+    // Its length still applies (YKS: two days), then the next year's estimate follows.
+    expect(resolveExamDate('YKS', null, '2027-06-27', dates)?.day).toBe('2027-06-26');
+    expect(resolveExamDate('YKS', null, '2027-06-28', dates)).toEqual({
+      day: '2028-06-17',
+      estimated: true,
+      custom: false,
+      days: 2,
+    });
+    // An official day for a year without an estimate is added in order.
+    expect(builtInExamDates('KPSS', ['2027-09-05']).map((d) => [d.day, d.estimated])).toEqual([
+      ['2027-09-05', false],
+      ['2028-09-03', true],
+      ['2030-09-01', true],
+    ]);
+  });
+
+  it('the countdown moves on to the next year once an exam is over (also for 11th graders)', () => {
+    const shown = (t: 'YKS' | 'LGS' | 'KPSS', today: string) => resolveExamDate(t, null, today)?.day;
+    expect(shown('YKS', '2026-10-16')).toBe('2027-06-19');
+    // Both YKS days (TYT, then AYT/YDT) still count down to "today".
+    expect(shown('YKS', '2027-06-19')).toBe('2027-06-19');
+    expect(shown('YKS', '2027-06-20')).toBe('2027-06-19');
+    expect(shown('YKS', '2027-06-21')).toBe('2028-06-17');
+    expect(examDaysLeft(resolveExamDate('YKS', null, '2027-06-21')!, '2027-06-21')).toBe(362);
+    expect(shown('YKS', '2028-06-19')).toBe('2029-06-16');
+    expect(shown('LGS', '2027-06-13')).toBe('2027-06-13');
+    expect(shown('LGS', '2027-06-14')).toBe('2028-06-11');
+    expect(shown('KPSS', '2028-09-04')).toBe('2030-09-01');
+    // After the last built-in date: that one stays (the home screen says it has passed).
+    expect(shown('YKS', '2029-06-18')).toBe('2029-06-16');
+    expect(examDaysLeft(resolveExamDate('YKS', null, '2029-06-18')!, '2029-06-18')).toBeLessThan(0);
+    // The student's own date stays, also once passed.
+    expect(resolveExamDate('YKS', '2027-06-26', '2027-07-01')?.day).toBe('2027-06-26');
   });
 
   it('counts whole Istanbul days; 0 on the exam day, negative afterwards', () => {
@@ -39,23 +101,29 @@ describe('exam countdown', () => {
   });
 
   it('the countdown says "today" on every exam day: YKS also on its AYT/YDT day', () => {
-    const yks = EXAM_DATES.YKS!;
+    const yks = EXAM_DATES.YKS[0];
     expect(examDaysLeft(yks, '2027-06-18')).toBe(1);
     expect(examDaysLeft(yks, '2027-06-19')).toBe(0);
     expect(examDaysLeft(yks, '2027-06-20')).toBe(0);
     expect(examDaysLeft(yks, '2027-06-21')).toBe(-2);
     // One-day exams (LGS, KPSS, a date without a length) are over the next day.
-    expect(examDaysLeft(EXAM_DATES.LGS!, '2027-06-14')).toBe(-1);
+    expect(examDaysLeft(EXAM_DATES.LGS[0], '2027-06-14')).toBe(-1);
     expect(examDaysLeft({ day: '2027-03-01' }, '2027-03-02')).toBe(-1);
     // A YKS date the student enters keeps the two days.
-    expect(examDaysLeft(resolveExamDate('YKS', '2027-06-26')!, '2027-06-27')).toBe(0);
+    expect(examDaysLeft(resolveExamDate('YKS', '2027-06-26', TODAY)!, '2027-06-27')).toBe(0);
   });
 
   it('a date set by the student overrides the estimate', () => {
-    expect(resolveExamDate('YKS', null)).toEqual({ day: '2027-06-19', estimated: true, custom: false, days: 2 });
-    expect(resolveExamDate('YKS', '2027-06-26')).toEqual({ day: '2027-06-26', estimated: false, custom: true, days: 2 });
-    expect(resolveExamDate('DIGER', null)).toBeNull();
-    expect(resolveExamDate('DIGER', '2027-03-01')?.custom).toBe(true);
+    expect(resolveExamDate('YKS', null, TODAY)).toEqual({ day: '2027-06-19', estimated: true, custom: false, days: 2 });
+    expect(resolveExamDate('YKS', '2027-06-26', TODAY)).toEqual({
+      day: '2027-06-26',
+      estimated: false,
+      custom: true,
+      days: 2,
+    });
+    expect(resolveExamDate('DIGER', null, TODAY)).toBeNull();
+    expect(resolveExamDate('DIGER', '2027-03-01', TODAY)?.custom).toBe(true);
+    expect(resolveExamDate('LGS', '2027-06-20', TODAY)?.days).toBeUndefined();
   });
 
   it('parses GG.AA.YYYY and rejects impossible dates', () => {
