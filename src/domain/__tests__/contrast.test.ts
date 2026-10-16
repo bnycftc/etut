@@ -1,4 +1,4 @@
-import { SUBJECT_COLORS, subjectColor } from '../../ui/subject-colors';
+import { SUBJECT_COLORS, subjectColor, subjectTint } from '../../ui/subject-colors';
 import { BRAND_BLUE, DARK, LIGHT, type Palette } from '../../ui/theme';
 import { AYT_SUBJECTS_BY_AREA } from '../curriculum';
 import { AA_GRAPHIC, AA_TEXT, contrastRatio } from '../contrast';
@@ -94,6 +94,34 @@ describe.each([
   // (white in light, the dark background in dark); its count badge swaps the two.
   it.each(timerSubjects)('subject %s as a chip fill carries its label ≥ 4.5', (id) => {
     expect(contrastRatio(p.onSubject, subjectColor(id, p))).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
+  // The running timer card is the surface tinted with 8 % of the subject colour (`subjectTint`):
+  // clock and subject line, the status ("Çalışıyorsun" / "Moladasın" / pomodoro's muted total),
+  // the finish questions; its outline is the subject colour while counting, else `controlBorder`.
+  const onTint: (keyof Palette)[] = ['text', 'textMuted', 'success', 'warning'];
+  it.each(timerSubjects)('running card of %s: its text ≥ 4.5 and its outline ≥ 3 on the tint', (id) => {
+    const tint = subjectTint(id, p);
+    for (const fg of onTint) expect(contrastRatio(p[fg], tint)).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio(subjectColor(id, p), tint)).toBeGreaterThanOrEqual(AA_GRAPHIC);
+    expect(contrastRatio(p.controlBorder, tint)).toBeGreaterThanOrEqual(AA_GRAPHIC);
+  });
+
+  // The goal ring after Bitir: success fill and seal on the "today" card, next to the empty track.
+  it.each([['success', 'accentSoft'], ['success', 'barMuted']] as [keyof Palette, keyof Palette][])(
+    'goal ring %s on %s ≥ 3',
+    (fg, bg) => {
+      expect(contrastRatio(p[fg], p[bg])).toBeGreaterThanOrEqual(AA_GRAPHIC);
+    },
+  );
+});
+
+describe('subject tint', () => {
+  it('is 8 % of the subject colour over the surface, as one opaque colour', () => {
+    // #7C3AED over #FFFFFF at 0x14/255: 255 + (124 − 255) · 0.0784 = 244.7 → F5, …
+    expect(subjectTint('fizik', LIGHT)).toBe('#F5F0FE');
+    expect(subjectTint('matematik', DARK)).toMatch(/^#[0-9A-F]{6}$/);
+    expect(subjectTint('unknown', LIGHT)).toBe(subjectTint('diger', LIGHT));
   });
 });
 
