@@ -246,12 +246,15 @@ export interface ScheduledNotification {
 /**
  * Turns "what is scheduled" into "what should be": cancel what is not planned (or changed),
  * schedule what is missing (or changed). Notifications of other origins are left alone.
+ * `signature`: what was stored with each one when it was scheduled (the adapter may add how it
+ * scheduled it, e.g. a weekly trigger on the phone's clock); the same function for both sides.
  */
 export function diffNotifications(
   scheduled: ScheduledNotification[],
   planned: PlannedNotification[],
+  signature: (n: PlannedNotification) => string = notificationSignature,
 ): { cancel: string[]; schedule: PlannedNotification[] } {
-  const wanted = new Map(planned.map((n) => [n.id, notificationSignature(n)]));
+  const wanted = new Map(planned.map((n) => [n.id, signature(n)]));
   const byId = new Map<string, (string | null)[]>();
   for (const s of scheduled) {
     if (!s.id.startsWith(NOTIFICATION_ID_PREFIX)) continue;

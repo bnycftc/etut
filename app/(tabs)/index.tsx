@@ -2,16 +2,16 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, Text, Vibration, View } from 'react-native';
 
-import { formatClock } from '@/domain/clock';
+import { clockParts, formatClock } from '@/domain/clock';
 import { topicName, topicOfSubject } from '@/domain/curriculum';
 import { activeSpan, dailyTotals } from '@/domain/daily-totals';
-import { daysUntil, resolveExamDate } from '@/domain/exam-dates';
+import { examDaysLeft, resolveExamDate } from '@/domain/exam-dates';
 import { goalStep, UNDO_FINISH_MS } from '@/domain/finish';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
 import { defaultSubject, subjectsFor } from '@/domain/subjects';
-import { elapsedMs, isPaused, pendingAwayMs } from '@/domain/timer';
+import { elapsedMs, isPaused } from '@/domain/timer';
 import { type FinishOptions, useAppState, useNow, useStored } from '@/state/app-state';
 import { useStudyStats } from '@/state/study-stats';
 import {
@@ -49,7 +49,7 @@ import { InfoLink } from '@/ui/info-link';
 import { subjectColor } from '@/ui/subject-colors';
 import { MAX_FONT_SCALE, space, usePalette } from '@/ui/theme';
 import { QuestionCount } from '@/ui/question-count';
-import { TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
+import { awayAmounts, TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
 import { FirstUseTips } from '@/ui/tips';
 import { TopicPicker } from '@/ui/topic-picker';
 
@@ -111,7 +111,7 @@ export default function TimerScreen() {
     loadCustomExamDate(examType),
   );
   const examDate = resolveExamDate(examType, customExamDay);
-  const daysLeft = examDate === null ? null : daysUntil(examDate.day, today);
+  const daysLeft = examDate === null ? null : examDaysLeft(examDate, today);
   // The render clock ticks once a second; never show a moment before the last "Molayı geç".
   const lastSkipAt = active?.pomodoro?.skips[active.pomodoro.skips.length - 1]?.at ?? 0;
   const shownNow = Math.max(now, lastSkipAt);
@@ -146,9 +146,11 @@ export default function TimerScreen() {
 
   // The "you were away" card appears without any tap: tell screen reader users what happened.
   const awayStart = active?.pendingAway?.start ?? null;
+  const away = active?.pendingAway ? awayAmounts(active) : null;
+  const awayTitle = away === null ? '' : tr.timer.awayTitle(away.away);
+  const awayBody = away?.study ? tr.timer.awayBodyStudy(away.study) : tr.timer.awayBody;
   useEffect(() => {
-    const away = active?.pendingAway;
-    if (away) announce(tr.announce.away(tr.timer.awayTitle(formatAway(away.end - away.start)), tr.timer.awayBody));
+    if (away !== null) announce(tr.announce.away(awayTitle, awayBody));
   }, [awayStart]);
 
   // "Geri al" disappears when its window closes.
@@ -336,12 +338,12 @@ export default function TimerScreen() {
         ) : null}
       </Card>
 
-      {active?.pendingAway && !finishCheck.open ? (
+      {away !== null && !finishCheck.open ? (
         <Card>
           <Label testID="away-title" style={{ color: c.warning, fontWeight: '600' }}>
-            {tr.timer.awayTitle(formatAway(pendingAwayMs(active)))}
+            {awayTitle}
           </Label>
-          <Label variant="muted">{tr.timer.awayBody}</Label>
+          <Label variant="muted">{awayBody}</Label>
           <Button testID="away-credit" title={tr.timer.awayCredit} onPress={app.creditAway} />
           <Button
             testID="away-dismiss"
@@ -430,6 +432,9 @@ export default function TimerScreen() {
           <Text
             testID="timer-clock"
             accessibilityRole="timer"
+            // Pomodoro counts down: say it is the time left. Short, as it is read again on change.
+            // (The stopwatch keeps its digits: Maestro reads them from the label on iOS.)
+            accessibilityLabel={pomodoro !== null ? leftA11y(clockMs) : undefined}
             maxFontSizeMultiplier={MAX_FONT_SCALE.clock}
             style={[styles.clock, { color: running && !onBreak ? c.text : c.textMuted }]}
             numberOfLines={1}
@@ -473,7 +478,8 @@ export default function TimerScreen() {
                 large
                 testID="timer-pause"
                 kind="secondary"
-                title={tr.timer.pause}
+                // Pomodoro: "Mola" is the phase; this button only stops the countdown.
+                title={pomodoro !== null ? tr.pomodoro.pause : tr.timer.pause}
                 onPress={app.pause}
               />
             ) : (
@@ -547,6 +553,11 @@ function pomodoroPhaseLabel(status: PomodoroStatus, longEvery: number): string {
   return tr.pomodoro.work(status.blockInSet, longEvery);
 }
 
+function leftA11y(ms: number): string {
+  const { hours, minutes, seconds } = clockParts(ms);
+  return tr.pomodoro.leftA11y(hours, minutes, seconds);
+}
+
 function CompareRow({ label, value, testID }: { label: string; value: number; testID?: string }) {
   return (
     <ResponsiveRow>
@@ -556,10 +567,6 @@ function CompareRow({ label, value, testID }: { label: string; value: number; te
       <Label testID={testID}>{formatDuration(value)}</Label>
     </ResponsiveRow>
   );
-}
-
-function formatAway(ms: number): string {
-  return ms < 60_000 ? tr.timer.lessThanMinute : formatDuration(ms);
 }
 
 const styles = StyleSheet.create({

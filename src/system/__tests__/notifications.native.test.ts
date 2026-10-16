@@ -31,6 +31,9 @@ const mockOs: {
   /** Listeners for notification taps, and how many were removed. */
   tapListeners: ((response: unknown) => void)[];
   removed: number;
+  /** The tap the system keeps (`getLastNotificationResponse`), and how often it was cleared. */
+  lastResponse: unknown;
+  clears: number;
   scheduled: MockRequest[];
   schedules: number;
   cancels: number;
@@ -43,6 +46,8 @@ const mockOs: {
   channels: [],
   tapListeners: [],
   removed: 0,
+  lastResponse: null,
+  clears: 0,
   scheduled: [],
   schedules: 0,
   cancels: 0,
@@ -63,7 +68,7 @@ function mockStatus(p: MockPermission) {
 }
 
 jest.mock('expo-notifications', () => ({
-  setNotificationHandler: () => {},
+  setNotificationHandler: jest.fn(),
   IosAuthorizationStatus: { PROVISIONAL: 3, EPHEMERAL: 4 },
   AndroidImportance: { DEFAULT: 3 },
   SchedulableTriggerInputTypes: { DATE: 'date', WEEKLY: 'weekly' },
@@ -94,6 +99,11 @@ jest.mock('expo-notifications', () => ({
     mockOs.scheduled = mockOs.scheduled.filter((r) => r.identifier !== id);
   },
   dismissAllNotificationsAsync: async () => {},
+  getLastNotificationResponse: () => mockOs.lastResponse,
+  clearLastNotificationResponse: () => {
+    mockOs.clears += 1;
+    mockOs.lastResponse = null;
+  },
   addNotificationResponseReceivedListener: (listener: (response: unknown) => void) => {
     mockOs.tapListeners.push(listener);
     return {
@@ -127,6 +137,8 @@ beforeEach(() => {
   mockOs.failRequest = false;
   mockOs.tapListeners = [];
   mockOs.removed = 0;
+  mockOs.lastResponse = null;
+  mockOs.clears = 0;
   mockOs.scheduled = [foreign];
   mockOs.schedules = 0;
   mockOs.cancels = 0;
@@ -203,6 +215,65 @@ it('cancelAll removes only ours', async () => {
   await notifications.sync([daily('a', Date.now() + 10 * MIN)], text);
   await notifications.cancelAll();
   expect(mockOs.scheduled.map((r) => r.identifier)).toEqual(['another-origin']);
+});
+
+describe('while the app is open', () => {
+  const handler = () =>
+    (jest.requireMock('expo-notifications').setNotificationHandler as jest.Mock).mock.calls[0][0] as {
+      handleNotification: (n: unknown) => Promise<Record<string, boolean>>;
+    };
+  const delivered = (identifier: string) => ({ request: { identifier, content: { data: {} } }, date: Date.now() });
+
+  it('only the long-session warning is presented (a forgotten timer stays open on screen)', async () => {
+    expect(await handler().handleNotification(delivered('etut:long:s1:1700000000000'))).toEqual({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    });
+    for (const id of ['etut:pomodoro:s1:1', 'etut:daily:weekly:3', 'etut:exam:2026-10-05', 'another-origin']) {
+      expect(await handler().handleNotification(delivered(id))).toEqual({
+        shouldShowBanner: false,
+        shouldShowList: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      });
+    }
+  });
+});
+
+it('a new time zone or DST offset moves the weekly reminders at the next sync, once', async () => {
+  // The phone clock as a fixed offset from UTC (Jest cannot switch the process time zone).
+  let offsetHours = 3;
+  const local = (d: Date) => new Date(d.getTime() + offsetHours * 3_600_000);
+  const spies = [
+    jest.spyOn(Date.prototype, 'getDay').mockImplementation(function (this: Date) {
+      return local(this).getUTCDay();
+    }),
+    jest.spyOn(Date.prototype, 'getHours').mockImplementation(function (this: Date) {
+      return local(this).getUTCHours();
+    }),
+    jest.spyOn(Date.prototype, 'getMinutes').mockImplementation(function (this: Date) {
+      return local(this).getUTCMinutes();
+    }),
+  ];
+  try {
+    // Tuesday 1 January 2030, 20:00 Istanbul.
+    const at = Date.parse('2030-01-01T17:00:00Z');
+    const weekly: PlannedNotification = { id: 'etut:daily:weekly:2', at, kind: 'daily', repeats: 'weekly' };
+    const trigger = () => mockOs.scheduled.find((r) => r.identifier === weekly.id)?.trigger;
+    await notifications.sync([weekly], text);
+    expect(trigger()).toMatchObject({ weekday: 3, hour: 20, minute: 0 });
+    // The phone is set to Germany (UTC+1 in winter): 20:00 in Istanbul is 18:00 there.
+    offsetHours = 1;
+    await notifications.sync([weekly], text);
+    expect(trigger()).toMatchObject({ weekday: 3, hour: 18, minute: 0 });
+    expect(mockOs.schedules).toBe(2);
+    await notifications.sync([weekly], text);
+    expect(mockOs.schedules).toBe(2);
+  } finally {
+    for (const spy of spies) spy.mockRestore();
+  }
 });
 
 describe('requestPermission', () => {
@@ -282,11 +353,40 @@ describe('requestPermission', () => {
 
 describe('onOpen', () => {
   const DEFAULT = 'expo.modules.notifications.actions.DEFAULT';
+  let delivered = 0;
+  /** A tap on a delivered notification, as expo-notifications reports it. */
+  const response = (actionIdentifier: string, data: Record<string, unknown>) => ({
+    actionIdentifier,
+    notification: { date: (delivered += 1), request: { identifier: 'etut:exam:2026-10-05', content: { data } } },
+  });
   const tap = (actionIdentifier: string, data: Record<string, unknown>) => {
-    for (const listener of mockOs.tapListeners) {
-      listener({ actionIdentifier, notification: { request: { content: { data } } } });
-    }
+    const r = response(actionIdentifier, data);
+    mockOs.lastResponse = r;
+    for (const listener of mockOs.tapListeners) listener(r);
   };
+
+  it('a tap that launched the app (before anyone listened) opens its route once, and is cleared', () => {
+    const launch = response(DEFAULT, { url: '/denemeler' });
+    mockOs.lastResponse = launch;
+    const opened: string[] = [];
+    notifications.onOpen((url) => opened.push(url));
+    expect(opened).toEqual(['/denemeler']);
+    expect(mockOs.clears).toBe(1);
+    // The event may still arrive after the listener was added: the same tap is not opened twice.
+    for (const listener of mockOs.tapListeners) listener(launch);
+    expect(opened).toEqual(['/denemeler']);
+    // Subscribing again (dev reload) does not replay it.
+    notifications.onOpen((url) => opened.push(url));
+    expect(opened).toEqual(['/denemeler']);
+  });
+
+  it('a tap while the app runs is cleared too, so it never comes back as a launch tap', () => {
+    const opened: string[] = [];
+    notifications.onOpen((url) => opened.push(url));
+    tap(DEFAULT, { url: '/' });
+    expect(opened).toEqual(['/']);
+    expect(mockOs.lastResponse).toBeNull();
+  });
 
   it('a tap on the notification opens its route; after unsubscribing nothing does', () => {
     const opened: string[] = [];

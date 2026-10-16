@@ -402,7 +402,11 @@ describe('exam countdown from the stored date', () => {
     at(Date.parse('2026-10-07T21:00:30Z'));
     act(() => jest.advanceTimersByTime(60_000));
     expect(screen.getByTestId('countdown').props.children).toBe('Sınav günü bugün. Başarılar!');
+    // YKS takes two days (AYT/YDT the next day): still the exam day.
     at(Date.parse('2026-10-08T21:00:30Z'));
+    act(() => jest.advanceTimersByTime(60_000));
+    expect(screen.getByTestId('countdown').props.children).toBe('Sınav günü bugün. Başarılar!');
+    at(Date.parse('2026-10-09T21:00:30Z'));
     act(() => jest.advanceTimersByTime(60_000));
     expect(screen.queryByTestId('countdown')).toBeNull();
     expect(screen.getByTestId('countdown-passed').props.children).toBe('Sınav tarihi geçti. Yeni tarihi Ayarlar’dan gir.');

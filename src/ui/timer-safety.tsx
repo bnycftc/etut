@@ -17,6 +17,7 @@ import {
   finishSession,
   LONG_SESSION_MS,
   pendingAwayMs,
+  pendingAwayStudyMs,
 } from '../domain/timer';
 import { type FinishOptions, useAppState, useStored } from '../state/app-state';
 import { loadAwayRule, loadKeepAwake, storeAwayRule, storeKeepAwake } from '../storage/kv';
@@ -55,6 +56,16 @@ export function TimerKeepAwake({ running }: { running: boolean }): null {
 
 function formatAway(ms: number): string {
   return ms < 60_000 ? tr.timer.lessThanMinute : formatDuration(ms);
+}
+
+/**
+ * The unanswered absence in words: the time away, and the study time "Çalışıyordum" adds when that
+ * reads differently (pomodoro: the breaks in it were breaks anyway); `null` = the same.
+ */
+export function awayAmounts(session: ActiveSession): { away: string; study: string | null } {
+  const away = formatAway(pendingAwayMs(session));
+  const study = formatAway(pendingAwayStudyMs(session));
+  return { away, study: study === away ? null : study };
 }
 
 /**
@@ -107,15 +118,18 @@ export function useFinishCheck(onFinish: (options?: FinishOptions) => void): {
   useEffect(() => {
     if (step !== null && (active === null || (step === 'away' && pending === null))) setStep(null);
   }, [step, active, pending]);
+  const away = active === null ? null : awayAmounts(active);
   const prompt =
-    shown === null || active === null ? null : (
+    shown === null || active === null || away === null ? null : (
       <View testID="finish-check" style={{ gap: 12 }}>
         {shown === 'away' ? (
           <>
             <Label testID="finish-check-title" style={{ fontWeight: '600' }}>
-              {tr.finishCheck.awayTitle(formatAway(pendingAwayMs(active)))}
+              {tr.finishCheck.awayTitle(away.away)}
             </Label>
-            <Label variant="muted">{tr.finishCheck.awayBody}</Label>
+            <Label variant="muted">
+              {away.study === null ? tr.finishCheck.awayBody : tr.finishCheck.awayBodyStudy(away.study)}
+            </Label>
             <Button testID="finish-away-credit" title={tr.finishCheck.awayCredit} onPress={() => answerAway(true)} />
             <Button
               testID="finish-away-break"

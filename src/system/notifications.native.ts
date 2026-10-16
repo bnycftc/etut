@@ -19,15 +19,19 @@ const ANDROID_CHANNEL = 'hatirlatici';
 /** A notification due sooner than this is not scheduled any more (it would fire at once). */
 const MIN_LEAD_MS = 2_000;
 
-// While the app is open it shows its own UI (pomodoro: vibration), so nothing is presented.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: false,
-    shouldShowList: false,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
+/** "Hâlâ çalışıyor musun?" (`planNotifications`, kind `long_session`). */
+const LONG_SESSION_ID_PREFIX = `${NOTIFICATION_ID_PREFIX}long:`;
+
+/**
+ * While the app is open nothing is presented (pomodoro: the timer screen vibrates), except the
+ * long-session warning: a forgotten timer usually stays open on the timer screen (kept awake).
+ */
+async function foregroundBehavior(n: Notifications.Notification): Promise<Notifications.NotificationBehavior> {
+  const show = n.request.identifier.startsWith(LONG_SESSION_ID_PREFIX);
+  return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: false };
+}
+
+Notifications.setNotificationHandler({ handleNotification: foregroundBehavior });
 
 function toPermission(status: Notifications.NotificationPermissionsStatus): NotificationPermission {
   const ios = status.ios?.status;
@@ -100,6 +104,15 @@ async function cancelOurs(): Promise<void> {
 const repeats = (n: PlannedNotification) => n.kind === 'daily' && n.repeats === 'weekly';
 
 /**
+ * Stored with each notification: the plan's signature, and for a repeating one its trigger on the
+ * phone's clock. A new time zone or DST offset then changes it, so the next sync (any opening of
+ * the app) moves the weekly reminders back to their Istanbul time.
+ */
+function scheduledSignature(n: PlannedNotification): string {
+  return repeats(n) ? `${notificationSignature(n)}|${JSON.stringify(triggerFor(n))}` : notificationSignature(n);
+}
+
+/**
  * A single notification at its moment, or a repeating one every week at the weekday and time of
  * its next delivery on the phone's clock (the same as Istanbul time on a phone set to Turkey).
  */
@@ -133,6 +146,7 @@ async function syncNow(
       signature: typeof r.content.data?.sig === 'string' ? r.content.data.sig : null,
     })),
     planned,
+    scheduledSignature,
   );
   for (const id of cancel) await Notifications.cancelScheduledNotificationAsync(id);
   for (const n of schedule) {
@@ -142,7 +156,7 @@ async function syncNow(
     try {
       await Notifications.scheduleNotificationAsync({
         identifier: n.id,
-        content: { title: t.title, body: t.body, sound: true, data: { sig: notificationSignature(n), url: t.url } },
+        content: { title: t.title, body: t.body, sound: true, data: { sig: scheduledSignature(n), url: t.url } },
         trigger: triggerFor(n),
       });
     } catch {
@@ -150,6 +164,9 @@ async function syncNow(
     }
   }
 }
+
+/** The last tap handled (`onOpen`). */
+let lastOpened: string | null = null;
 
 export const notifications: NotificationsAdapter = {
   supported: true,
@@ -175,12 +192,30 @@ export const notifications: NotificationsAdapter = {
       await Notifications.dismissAllNotificationsAsync();
     }),
   onOpen(listener) {
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+    const open = (response: Notifications.NotificationResponse) => {
+      // The same tap can come both ways (read below and as the event): handle it once.
+      const key = `${response.notification.request.identifier}|${response.notification.date}`;
+      if (key === lastOpened) return;
+      lastOpened = key;
+      // Kept natively after every tap: a later subscription (dev reload) would open it again.
+      try {
+        Notifications.clearLastNotificationResponse();
+      } catch {
+        // Not available: the key above still stops a repeat in this process.
+      }
       const url = response.notification.request.content.data?.url;
       if (response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER && typeof url === 'string') {
         listener(url);
       }
-    });
+    };
+    const subscription = Notifications.addNotificationResponseReceivedListener(open);
+    // A tap that launched the app was emitted before anyone listened: read it once.
+    try {
+      const launch = Notifications.getLastNotificationResponse();
+      if (launch) open(launch);
+    } catch {
+      // Not available on this platform.
+    }
     return () => subscription.remove();
   },
 };

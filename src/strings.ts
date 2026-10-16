@@ -388,6 +388,8 @@ export const tr = {
     paused: 'Moladasın',
     awayTitle: (duration: string) => `${duration} uygulamanın dışındaydın.`,
     awayBody: 'Bu süre mola sayıldı.',
+    /** Pomodoro: only the part that fell in work blocks costs study time (the breaks were breaks). */
+    awayBodyStudy: (study: string) => `Çalışma bloklarına denk gelen ${study} mola sayıldı.`,
     awayCredit: 'Çalışıyordum, süreye ekle',
     awayDismiss: 'Tamam, mola kalsın',
     lessThanMinute: '1 dakikadan az',
@@ -499,6 +501,14 @@ export const tr = {
     shortBreak: 'Kısa mola',
     longBreak: 'Uzun mola',
     paused: 'Duraklatıldı',
+    /** The pause button in pomodoro mode ("Mola" there is the phase). */
+    pause: 'Duraklat',
+    /** Screen-reader name of the countdown: `24 dakika 12 saniye kaldı` (short: read on every change). */
+    leftA11y: (hours: number, minutes: number, seconds: number) => {
+      const parts = [hours > 0 ? `${hours} saat` : '', minutes > 0 ? `${minutes} dakika` : ''].filter((p) => p !== '');
+      if (seconds > 0 || parts.length === 0) parts.push(`${seconds} saniye`);
+      return `${parts.join(' ')} kaldı`;
+    },
     studied: (clock: string) => `Toplam çalışma: ${clock}`,
     skip: 'Molayı geç',
     breakNote: 'Mola süresi çalışma süresine sayılmaz.',
@@ -548,6 +558,15 @@ export const tr = {
     /** Short label above a bar: `2:05` (hours) or `45 dk`. */
     barValue: (hours: number, minutes: number) =>
       hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}` : `${minutes} dk`,
+    /** A day's timer sessions, folded away by default (the place to delete one). */
+    sessionsShow: 'Sayaç kayıtları',
+    sessionsHide: 'Kayıtları gizle',
+    /** `Fizik · 14:30–16:05` (Istanbul time) */
+    sessionLine: (title: string, from: string, to: string) => `${title} · ${from}–${to}`,
+    deleteConfirm:
+      'Bu sayaç kaydı silinsin mi? Süresi günlük toplamdan, seriden ve raporlardan düşer; geri alınamaz.',
+    /** Screen-reader name of a record's "Sil": which record. */
+    deleteA11y: (line: string) => `${line} kaydını sil`,
   },
 
   exams: {
@@ -682,7 +701,7 @@ export const tr = {
     open: 'Hatırlatıcılar',
     summaryOff: 'Bildirim izni verilmedi; hatırlatıcılar gelmez.',
     summaryOn: (count: number) => (count === 0 ? 'Açık hatırlatıcı yok.' : `${count} hatırlatıcı açık.`),
-    info: 'Hatırlatıcılar bu cihazda kurulur; hiçbir sunucuya bir şey gönderilmez. Uygulama açıkken bildirim gösterilmez.',
+    info: 'Hatırlatıcılar bu cihazda kurulur; hiçbir sunucuya bir şey gönderilmez. Uygulama açıkken yalnız uzun oturum uyarısı gösterilir.',
     permissionMissing: 'Hatırlatıcıların gelmesi için bildirim izni gerekiyor.',
     permissionAsk: 'Bildirim izni iste',
     permissionDenied:
@@ -1191,7 +1210,7 @@ export const tr = {
     steps: [
       {
         title: 'Ders seç, Başla’ya dokun',
-        body: 'Sayaç açıkken ekran kendiliğinden kapanmaz; iPhone’da sayaç kilit ekranında da görünür. Bitir’e dokununca kısa bir özet çıkar; yanlışlıkla dokunduysan hemen “Geri al”.',
+        body: 'Sayaç ekranı açıkken telefon kendiliğinden kilitlenmez (Ayarlar’dan kapatabilirsin); iPhone’da sayaç kilit ekranında da görünür. Bitir’e dokununca kısa bir özet çıkar; yanlışlıkla dokunduysan hemen “Geri al”.',
       },
       {
         title: 'Uygulamadan çıkarsan',
@@ -1273,10 +1292,12 @@ export const tr = {
   finishCheck: {
     awayTitle: (duration: string) => `Bitirmeden önce: ${duration} uygulamanın dışındaydın.`,
     awayBody: 'Bu süre çalışma mıydı?',
+    awayBodyStudy: (study: string) => `Çalışma bloklarına denk gelen ${study} çalışma mıydı?`,
     awayCredit: 'Çalışıyordum, ekle ve bitir',
     awayBreak: 'Molaydı, öyle bitir',
     longTitle: (duration: string) => `Bu oturum ${duration} sürmüş görünüyor.`,
-    longBody: 'Hepsinde çalıştın mı? Sayaç açık kaldıysa yalnız ilk 10 saati kaydedebilirsin.',
+    longBody:
+      'Hepsinde çalıştın mı? Sayaç açık kaldıysa yalnız ilk 10 saati kaydedebilirsin. Yanlış bir kaydı sonra Geçmiş’ten silebilirsin.',
     longAll: 'Evet, hepsini kaydet',
     longCap: 'İlk 10 saati kaydet',
     cancel: 'Vazgeç, sayaç sürsün',

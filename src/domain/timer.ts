@@ -4,9 +4,12 @@
  * killed or restarted.
  *
  * Background rule (iOS cannot tell "screen locked" from "switched to another app"):
- * - Leaving the app for at most BACKGROUND_TOLERANCE_MS changes nothing.
- * - Leaving it longer turns the whole away interval into an automatic break ("away" pause).
- *   The student is then offered a one-tap "I was studying" that credits the interval back.
+ * - An absence that costs at most BACKGROUND_TOLERANCE_MS of study time changes nothing. Time in a
+ *   pomodoro break costs nothing, so coming back a few seconds after a break ended (e.g. from the
+ *   "Mola bitti" notification) is not asked about either.
+ * - A costlier absence turns the whole away interval into an automatic break ("away" pause).
+ *   The student is then offered a one-tap "I was studying" that credits the interval back
+ *   (`pendingAwayStudyMs`: the study time that adds).
  * - The timer keeps running after the student returns.
  * - If the app dies without a background event, the gap after the last foreground heartbeat
  *   (`lastSeenAt`) is handled the same way on the next launch.
@@ -267,15 +270,12 @@ export function onAppForeground(session: ActiveSession, now: number, rule: AwayR
   const awayStart = session.backgroundedAt;
   if (awayStart === null) return session;
   const cleared: ActiveSession = { ...session, backgroundedAt: null, lastSeenAt: seenAt(session, now) };
-  // A clock that went backwards is treated as "no time away".
-  if (now - awayStart <= BACKGROUND_TOLERANCE_MS) return cleared;
   // The student chose that time away counts as study: no break, nothing to ask.
   if (rule === 'count') return cleared;
-  // Pomodoro: being away only during a break loses no study time, so there is nothing to ask.
-  if (session.pomodoro !== null) {
-    const breaks = pomodoroBreaks(session, now).map((b): Pause => ({ ...b, kind: 'break' }));
-    if (intervalsTotal(workIntervals(awayStart, breaks, now)) === 0) return cleared;
-  }
+  // The study time the absence would cost: pomodoro breaks in it cost nothing (stopwatch: all of
+  // it). Up to the tolerance nothing is asked. A clock that went backwards costs nothing.
+  const breaks = pomodoroBreaks(session, now).map((b): Pause => ({ ...b, kind: 'break' }));
+  if (intervalsTotal(workIntervals(awayStart, breaks, now)) <= BACKGROUND_TOLERANCE_MS) return cleared;
   return {
     ...cleared,
     pauses: [...cleared.pauses, { start: awayStart, end: now, kind: 'away' }],
@@ -293,8 +293,11 @@ export function onAppForeground(session: ActiveSession, now: number, rule: AwayR
  * student stays away longer than the tolerance (what `onAppForeground` then turns into a break).
  * `null` = nothing will be taken: in the foreground, manually paused, or rule 'count'.
  * Stopwatch and pomodoro work block: the background moment. Pomodoro break: the end of the break
- * (back before it, nothing is asked). Unless the student answers "Çalışıyordum", the study time
- * kept is the study time at this moment, for any return later than the tolerance:
+ * (back before it, nothing is asked). A return that costs at most the tolerance keeps everything
+ * (`elapsedMs(onAppForeground(s, later), later) === elapsedMs(s, later)`); this is always so up to
+ * the tolerance after this moment, where the system surfaces may therefore freeze at the earliest.
+ * After any costlier return, unless the student answers "Çalışıyordum", the study time kept is the
+ * study time at this moment:
  * `elapsedMs(onAppForeground(s, later), later) === elapsedMs(s, provisionalAwayAt(s, 'ask'))`.
  */
 export function provisionalAwayAt(session: ActiveSession, rule: AwayRule): number | null {
@@ -331,6 +334,16 @@ export function pendingAwayMs(session: ActiveSession): number {
   const away = session.pendingAway;
   if (away === null) return 0;
   return session.pauses.reduce((sum, p) => (isPendingAway(p, away) ? sum + ((p.end ?? p.start) - p.start) : sum), 0);
+}
+
+/**
+ * Study time that "Çalışıyordum" adds back: the unanswered absences minus the pomodoro breaks in
+ * them (stopwatch: the same as `pendingAwayMs`). The number the prompt shows.
+ */
+export function pendingAwayStudyMs(session: ActiveSession): number {
+  const away = session.pendingAway;
+  if (away === null) return 0;
+  return elapsedMs(creditAway(session), away.end) - elapsedMs(session, away.end);
 }
 
 /** "Çalışıyordum, süreye ekle": remove the automatic breaks so the time away counts as study. */
