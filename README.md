@@ -21,7 +21,8 @@ npm ci
 | Komut | Ne yapar |
 |---|---|
 | `npx tsc --noEmit` | Tip denetimi |
-| `npx jest` | `src/` altındaki tüm Jest testleri: alan (domain) kuralları, ekran duman testleri (`src/__tests__`), durum, depolama, lisans listesi |
+| `npx jest` | `src/` altındaki tüm Jest testleri: alan (domain) kuralları, ekran duman testleri (`src/__tests__`), durum, depolama, lisans listesi. İki proje: `unit` (hepsi) ve `react-compiler` (app-smoke ve app-real-storage React Compiler'la bir daha); tek proje için `--selectProjects unit` |
+| `npm run lint` | ESLint, yalnız eslint-plugin-react-hooks (hook kuralları + React Compiler denetimleri), hepsi uyarı |
 | `npx expo-doctor` | Bağımlılık ve yapılandırma denetimi |
 | `npx expo export --platform ios` | iOS JS paketini `dist/` altına üretir (yerel derleme olmadan doğrulama) |
 | `npm run web` | Web önizlemesi, sabit port 8081 (`http://localhost:8081`; `npx expo start --web` de çalışır) |
@@ -96,11 +97,13 @@ supabase/               Arka uç: migrations/ (SQL, RLS, RPC), tests/ (pgTAP), t
 infra/                  Üretim sunucusu runbook'u ve betikleri (İlkbyte VPS, yalnız dosya)
 index.ts / index.web.ts Giriş noktası (web: SQLite worker'ını ısıtıp expo-router'ı başlatır)
 scripts/test-web.mjs    Web duman testi (npm run test:web)
+scripts/jest-react-compiler.js Jest'in react-compiler projesinin dönüştürücüsü (uygulama kodu React Compiler'la)
+eslint.config.js        Yalnız eslint-plugin-react-hooks, hepsi uyarı (npm run lint)
 scripts/gen-icons.mjs   Simge ve açılış ekranı (SVG -> PNG, simge alfa kanalsız)
 scripts/gen-licenses.mjs Lisans listesi üretici; scripts/native-licenses/ yerel kütüphane metinleri, scripts/package-licenses/ LICENSE dosyasız yayımlanan npm paketlerinin depo metni (upstream, birebir; eksik metin betiği hatayla bitirir)
 e2e/                    Maestro akışları (iOS simülatörü, e2e-ios.yml)
 ci/ExportOptions.plist  TestFlight ihracat ayarları
-.github/workflows/      ci.yml, testflight.yml, e2e-ios.yml, store-screenshots.yml, asc-*.yml (App Store Connect)
+.github/workflows/      ci.yml, backend.yml, testflight.yml, e2e-ios.yml, store-screenshots.yml, asc-*.yml (App Store Connect)
 ```
 
 ## iOS sistem yüzeyleri (kilit ekranı, Dynamic Island, widget, yerel bildirim)
@@ -212,23 +215,33 @@ Hepsi cihazda kalır: push yok, sunucu yok, token yok (hukuk/03 K-16). Gösteril
   JS çalışma ortamında koşar: yalnız props, environment ve `@expo/ui/swift-ui` görünür; dosyadaki
   sabitler, `strings.ts`, yardımcılar görünmez. Babel'ın yardımcı işlev ürettiği söz dizimini
   (nesne/dizi yayma, `for…of`, sınıf) kullanmayın. Metinler props'la hazır gelir (`surface-props.ts`).
+  `src/system/__tests__/widget-free-identifiers.test.ts` düzenleri iOS paketi gibi dönüştürür ve
+  dışarıdan ad (dosya sabiti, içe aktarma, Babel yardımcısı) kullanan `'widget'` işlevinde düşer.
 
 ## Yayın hattı
 
 ### `ci.yml` (her push ve PR)
-ubuntu-latest, üç iş:
-- `check`: `npm ci` → `npx tsc --noEmit` → `npx jest --ci` → `npx expo-doctor` →
-  `npx expo export --platform ios --source-maps` (cihazın çalıştırdığı paket: Jest'in uygulamadığı
-  React Compiler ve `'widget'` düzenlerinin expo-widgets dönüşümü burada derlenir) →
+ubuntu-latest, iki iş:
+- `check`: `npm ci` → `npx tsc --noEmit` → `npm run lint` (yalnız react-hooks kuralları, uyarı;
+  işi hiç düşürmez) → `npx jest --ci` (iki proje: `unit` ve React Compiler açık `react-compiler`,
+  `scripts/jest-react-compiler.js`) → `npx expo-doctor` →
+  `npx expo export --platform ios --source-maps` (cihazın çalıştırdığı paket: React Compiler bütün
+  ekranlara, `'widget'` düzenlerine expo-widgets dönüşümü burada uygulanır; Jest ikisini kısmen görür) →
   `node scripts/gen-licenses.mjs dist` ile `src/legal/licenses.ts` yeniden üretilir; fark varsa iş
   düşer (`npm run gen:licenses` çalıştırıp dosyayı commit'leyin).
 - `web`: `npx playwright install --with-deps chromium` → `npm run test:web`; düşerse
   `test-results/web` (ekran görüntüleri, geliştirme sunucusu logu) 7 günlük artifact olur.
-- `backend`: pgTAP (PGlite ve yerel Supabase yığını) + supabase-js uçtan uca.
 
-### `e2e-ios.yml` (yalnız elle: `workflow_dispatch`)
+### `backend.yml` (arka uca dokunan push/PR, haftalık, elle)
+pgTAP (PGlite ve yerel Supabase yığını) + supabase-js uçtan uca. Yalnız `supabase/`,
+`scripts/test-db*`, `scripts/test-backend.mjs`, `src/sync/`, `src/domain/outbox.ts`,
+`src/domain/groups.ts`, `package-lock.json` ya da iş akışının kendisi değişince; ayrıca her
+pazartesi 04:00 UTC'de `main` üzerinde. Supabase CLI sürümü sabit (`SUPABASE_CLI`; bilerek yükseltin).
+
+### `e2e-ios.yml` (her gece 03:00 UTC `main` + elle: `workflow_dispatch`)
 İnsan test edici olmadan iOS simülatöründe uçtan uca test. Gizli değer gerekmez.
-**Push ile tetiklenmez:** macOS koşucu dakikaları pahalı olduğundan yalnız Actions →
+**Push ile tetiklenmez:** bir çalıştırma ~1 saat sürer. Her gece 03:00 UTC'de (06:00 TSİ) `main`
+üzerinde kendiliğinden koşar (Live Activity ve widget'ın düzenli otomatik denetimi); ayrıca Actions →
 "E2E iOS (simulator)" → "Run workflow" ile elle çalıştırılır (ör. iOS'a dokunan bir değişiklikten
 ya da TestFlight'a göndermeden önce).
 1. macOS 26 koşucusu, Xcode denetimi, Node + Java 17, `npm ci`.

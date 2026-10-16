@@ -30,14 +30,24 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # eslint.config.js: eslint-plugin-react-hooks only (rules of hooks and the React Compiler's
+      # checks), every rule a warning. Reported in the log, never fails the job.
+      - name: Lint (react-hooks, warnings only)
+        continue-on-error: true
+        run: npm run lint
+
+      # Two Jest projects (package.json): "unit" runs the tests with jest-expo's transform,
+      # "react-compiler" runs app-smoke and app-real-storage again with the React Compiler applied
+      # to the app's code, as in the bundles (scripts/jest-react-compiler.js).
       - name: Unit tests
         run: npx jest --ci
 
       - name: Expo doctor
         run: npx --yes expo-doctor
 
-      # The bundle the device runs: Jest does not apply the React Compiler (app.json) or the
-      # expo-widgets transform of the 'widget' layouts, the export does.
+      # The bundle the device runs: the React Compiler (app.json) over all screens and the
+      # expo-widgets transform of the 'widget' layouts, which Jest sees only in part (the
+      # "react-compiler" project, src/system/__tests__/widget-free-identifiers.test.ts).
       - name: Export the iOS bundle
         run: npx expo export --platform ios --source-maps --output-dir dist
 
@@ -81,36 +91,3 @@ jobs:
           path: test-results/web
           if-no-files-found: ignore
           retention-days: 7
-
-  backend:
-    # The SQL rules and the supabase-js path against the real local stack (Docker on the runner):
-    # catches what PGlite cannot (GoTrue, PostgREST, the real auth schema).
-    name: Backend (pgTAP + supabase-js, local stack)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: pgTAP on PGlite
-        run: npm run test:db:pglite
-
-      - name: Start the local Supabase stack
-        run: npx --yes supabase start
-
-      - name: pgTAP on the stack
-        run: npx --yes supabase test db
-
-      - name: supabase-js end-to-end (fails instead of skipping)
-        run: node scripts/test-backend.mjs --strict
-
-      - name: Stop the stack
-        if: always()
-        run: npx --yes supabase stop --no-backup

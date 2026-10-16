@@ -32,9 +32,12 @@ try {
   skip('Docker çalışmıyor.');
 }
 
+// CI pins the CLI version (SUPABASE_CLI=supabase@x.y.z, .github/workflows/backend.yml).
+const cli = process.env.SUPABASE_CLI ?? 'supabase';
+
 let status;
 try {
-  status = JSON.parse(execSync('npx supabase status -o json', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 60_000 }));
+  status = JSON.parse(execSync(`npx ${cli} status -o json`, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 60_000 }));
 } catch {
   skip('yerel Supabase yığını çalışmıyor (npx supabase start).');
 }

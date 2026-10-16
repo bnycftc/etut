@@ -1,0 +1,76 @@
+name: Backend
+
+# The SQL rules and the supabase-js path against the real local stack (Docker on the runner):
+# catches what PGlite cannot (GoTrue, PostgREST, the real auth schema). The groups backend stays
+# behind GROUPS_ENABLED=false, so this runs only when a push or PR touches it, plus once a week
+# against main (runner image and Docker changes) and on demand (Actions → "Backend" → Run workflow).
+
+on:
+  push:
+    paths:
+      - "supabase/**"
+      - "scripts/test-db*"
+      - "scripts/test-backend.mjs"
+      - "src/sync/**"
+      - "src/domain/outbox.ts"
+      - "src/domain/groups.ts"
+      - "package-lock.json"
+      - ".github/workflows/backend.yml"
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "scripts/test-db*"
+      - "scripts/test-backend.mjs"
+      - "src/sync/**"
+      - "src/domain/outbox.ts"
+      - "src/domain/groups.ts"
+      - "package-lock.json"
+      - ".github/workflows/backend.yml"
+  schedule:
+    # Mondays 04:00 UTC (07:00 Istanbul).
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Supabase CLI for npx (it also fixes the Docker images of the stack). Bump deliberately and run
+  # this workflow; scripts/test-backend.mjs reads the same variable for `supabase status`.
+  SUPABASE_CLI: supabase@2.121.0
+
+jobs:
+  backend:
+    name: Backend (pgTAP + supabase-js, local stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: pgTAP on PGlite
+        run: npm run test:db:pglite
+
+      - name: Start the local Supabase stack
+        run: npx --yes "$SUPABASE_CLI" start
+
+      - name: pgTAP on the stack
+        run: npx --yes "$SUPABASE_CLI" test db
+
+      - name: supabase-js end-to-end (fails instead of skipping)
+        run: node scripts/test-backend.mjs --strict
+
+      - name: Stop the stack
+        if: always()
+        run: npx --yes "$SUPABASE_CLI" stop --no-backup

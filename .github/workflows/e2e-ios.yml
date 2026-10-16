@@ -6,11 +6,15 @@ name: E2E iOS (simulator)
 # Turkish (tr_TR) with the Europe/Istanbul time zone, and driven by the Maestro flows in e2e/.
 # Screenshots, the Maestro report and logs are uploaded as an artifact on every run.
 # Needs no secrets. Adapted from testflight.yml (same runner, Xcode check and project discovery).
-# Manual only (Actions → "E2E iOS (simulator)" → Run workflow): macOS runner minutes are expensive,
-# so a push never starts it.
+# Every night on main, and by hand (Actions → "E2E iOS (simulator)" → Run workflow). A run takes
+# about an hour, so a push never starts it; the nightly run is the regular automatic check of the
+# Live Activity and the widget on iOS.
 
 on:
   workflow_dispatch:
+  schedule:
+    # 03:00 UTC (06:00 Istanbul); scheduled runs use the default branch, main.
+    - cron: "0 3 * * *"
 
 concurrency:
   group: e2e-ios-${{ github.ref }}

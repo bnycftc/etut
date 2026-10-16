@@ -6,7 +6,8 @@
  * The layouts themselves (`ios/timer-activity.tsx`, `ios/today-widget.tsx`) are replaced here:
  * babel-preset-expo's widgets plugin turns their `'widget'` functions into source strings for
  * the extension's own runtime, so Jest cannot run them. They are checked on a device (E2E
- * screenshots, `m-canli-sayac`) and through their props (`surface-props.test.ts`).
+ * screenshots, `m-canli-sayac`), through their props (`surface-props.test.ts`) and for names the
+ * extension runtime lacks (`widget-free-identifiers.test.ts`).
  */
 
 import type { TimerActivityProps, TodayWidgetProps } from '../surface-props';
