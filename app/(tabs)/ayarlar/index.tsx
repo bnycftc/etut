@@ -2,7 +2,7 @@ import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GROUPS_ENABLED } from '@/config/features';
@@ -48,6 +48,10 @@ import { useReducedMotion } from '@/ui/motion';
 import { usePalette } from '@/ui/theme';
 import { TimerSettingsCard } from '@/ui/timer-safety';
 
+/** "Tüm verileri sil" asks with the system alert; react-native-web has none (the web preview keeps a dialog). */
+const SYSTEM_ALERT = Platform.OS !== 'web';
+type BackupNote = { message: string } | { error: string };
+
 const DEFAULT_GOAL_MINUTES = 120;
 const GOAL_STEP_MINUTES = 15;
 
@@ -69,7 +73,7 @@ export default function SettingsScreen() {
   const [deleteError, setDeleteError] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
-  const [backupNote, setBackupNote] = useState<{ message: string } | { error: string } | null>(null);
+  const [backupNote, setBackupNote] = useState<BackupNote | null>(null);
   // `null` = no unsaved choice: the chips show the profile (which a backup restore can change).
   const [draft, setDraft] = useState<{ exam: ExamType; area: YksArea | null } | null>(null);
   const [examSaved, setExamSaved] = useState(false);
@@ -145,7 +149,8 @@ export default function SettingsScreen() {
       } catch (e) {
         const gone = isAccountGone(e) || !(await groupApi().hasSession().catch(() => true));
         if (!gone) {
-          setDeleteError(true);
+          if (SYSTEM_ALERT) askAfterServerFailed();
+          else setDeleteError(true);
           return;
         }
       } finally {
@@ -156,12 +161,13 @@ export default function SettingsScreen() {
     resetAll();
   };
 
-  // "Önce yedek al": the export of the Yedek screen. Nothing is deleted and the dialog stays open,
-  // so deleting is still a choice of its own.
-  const backupFirst = async () => {
-    if (backingUp) return;
+  // "Önce yedek al": the export of the Yedek screen. Nothing is deleted and the question comes
+  // back (the dialog stays open), so deleting is still a choice of its own.
+  const backupFirst = async (): Promise<BackupNote | null> => {
+    if (backingUp) return null;
     setBackingUp(true);
     setBackupNote(null);
+    let note: BackupNote;
     try {
       const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '';
       const result = await shareBackup(createBackup(appVersion));
@@ -169,12 +175,37 @@ export default function SettingsScreen() {
       const shown =
         result.kind === 'check_failed' ? { error: tr.settings.deleteAllBackupCheckFailed } : backupExportText(result);
       // Closing the share sheet without saving also counts as shared: say so above "Evet, hepsini sil".
-      setBackupNote('message' in shown ? { message: tr.settings.deleteAllBackupDone(shown.message) } : shown);
+      note = 'message' in shown ? { message: tr.settings.deleteAllBackupDone(shown.message) } : shown;
     } catch {
-      setBackupNote({ error: tr.backup.failed });
+      note = { error: tr.backup.failed };
     } finally {
       setBackingUp(false);
     }
+    setBackupNote(note);
+    return note;
+  };
+
+  // On the device the question is the system alert, its delete button marked destructive. The
+  // backup's result is the alert's last paragraph when it comes back.
+  const askDeleteAll = (note: BackupNote | null) => {
+    const body: string[] = [tr.settings.deleteAllConfirm, tr.settings.deleteAllAgeNote];
+    if (note !== null) body.push('error' in note ? note.error : note.message);
+    Alert.alert(tr.settings.deleteAll, body.join('\n\n'), [
+      {
+        text: tr.settings.deleteAllBackupFirst,
+        onPress: () => void backupFirst().then((shown) => askDeleteAll(shown)),
+      },
+      { text: tr.common.cancel, style: 'cancel' },
+      { text: tr.settings.deleteAllYes, style: 'destructive', onPress: () => void deleteAll() },
+    ]);
+  };
+  // Offline or the server is down: retry, or delete the device data on its own (KVKK m.7).
+  const askAfterServerFailed = () => {
+    Alert.alert(tr.settings.deleteAll, tr.settings.deleteAllServerFailed, [
+      { text: tr.common.cancel, style: 'cancel' },
+      { text: tr.settings.deleteAllYes, onPress: () => void deleteAll() },
+      { text: tr.settings.deleteAllLocalOnly, style: 'destructive', onPress: () => resetAll() },
+    ]);
   };
   // The dialog is drawn under the status bar and the home indicator.
   const insets = useSafeAreaInsets();
@@ -393,13 +424,18 @@ export default function SettingsScreen() {
           testID="settings-delete-all"
           title={tr.settings.deleteAll}
           onPress={() => {
+            if (SYSTEM_ALERT) {
+              askDeleteAll(null);
+              return;
+            }
             setBackupNote(null);
             setConfirming(true);
           }}
         />
       </Card>
 
-      {/* The button sits at the bottom of a long screen: confirm in a centred dialog so the
+      {/* Web preview only (react-native-web has no Alert); the device asks with the system alert.
+          The button sits at the bottom of a long screen: confirm in a centred dialog so the
           destructive choice is always on screen, never hidden behind the tab bar. At large text
           sizes only the text scrolls: Vazgeç and "Evet, hepsini sil" stay visible below it. */}
       <Modal

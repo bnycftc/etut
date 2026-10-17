@@ -6,6 +6,7 @@
 
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
+import { Alert } from 'react-native';
 
 import type { Profile } from '../domain/profile';
 import type { ActiveSession } from '../domain/timer';
@@ -176,6 +177,27 @@ jest.mock('../storage/db', () => ({
 }));
 
 const APP_DIR = './app';
+
+/**
+ * On the device "Tüm verileri sil" asks with the system alert (`Alert.alert`): a spy stands in for
+ * it and its buttons are pressed by their text.
+ */
+const systemAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+beforeEach(() => systemAlert.mockClear());
+function lastAlert() {
+  const call = systemAlert.mock.calls.at(-1);
+  if (call === undefined) throw new Error('no system alert');
+  return { title: call[0], message: call[1], buttons: call[2] ?? [] };
+}
+function alertButton(text: string) {
+  const button = lastAlert().buttons.find((b) => b.text === text);
+  if (button?.onPress === undefined) throw new Error(`no alert button "${text}"`);
+  return button.onPress;
+}
+function pressAlert(text: string) {
+  const onPress = alertButton(text);
+  act(() => onPress());
+}
 let server: FakeServer;
 
 function profile(birthYear: number): Profile {
@@ -393,11 +415,11 @@ describe('group module ON', () => {
     const { ApiError } = jest.requireActual('../sync/api');
     server.failNext = new ApiError('network');
     fireEvent.press(screen.getByTestId('settings-delete-all'));
-    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    pressAlert('Evet, hepsini sil');
     await flush();
     expect(memory.profile).not.toBeNull();
-    expect(screen.getByText(/silinemedi/)).toBeTruthy();
-    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    expect(lastAlert().message).toMatch(/silinemedi/);
+    pressAlert('Evet, hepsini sil');
     await flush();
     expect(server.calls.filter((c) => c === 'deleteMyAccount')).toHaveLength(2);
     expect(memory.profile).toBeNull();
@@ -412,7 +434,7 @@ describe('group module ON', () => {
     const { ApiError } = jest.requireActual('../sync/api');
     server.failNext = new ApiError('not_authenticated');
     fireEvent.press(screen.getByTestId('settings-delete-all'));
-    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    pressAlert('Evet, hepsini sil');
     await flush();
     expect(server.calls).toContain('deleteMyAccount');
     expect(memory.profile).toBeNull();
@@ -426,10 +448,10 @@ describe('group module ON', () => {
     const { ApiError } = jest.requireActual('../sync/api');
     server.failNext = new ApiError('network');
     fireEvent.press(screen.getByTestId('settings-delete-all'));
-    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    pressAlert('Evet, hepsini sil');
     await flush();
     expect(memory.profile).not.toBeNull();
-    fireEvent.press(screen.getByTestId('settings-delete-local-only'));
+    pressAlert('Yalnız bu cihazdan sil');
     await flush();
     expect(memory.profile).toBeNull();
     expect(server.calls.filter((c) => c === 'deleteMyAccount')).toHaveLength(1);
@@ -700,7 +722,7 @@ describe('group module OFF', () => {
     await flush();
     expect(screen.queryByTestId('settings-parent-mode')).toBeNull();
     fireEvent.press(screen.getByTestId('settings-delete-all'));
-    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    pressAlert('Evet, hepsini sil');
     await flush();
     expect(server.calls).toEqual([]);
     expect(memory.profile).toBeNull();

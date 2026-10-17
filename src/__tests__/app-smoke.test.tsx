@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import {
   AccessibilityInfo,
+  Alert,
   Animated,
   AppState,
   type AppStateStatus,
@@ -504,6 +505,27 @@ jest.mock('../storage/db', () => ({
 }));
 
 const APP_DIR = './app';
+
+/**
+ * On the device "Tüm verileri sil" asks with the system alert (`Alert.alert`): a spy stands in for
+ * it and its buttons are pressed by their text.
+ */
+const systemAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+beforeEach(() => systemAlert.mockClear());
+function lastAlert() {
+  const call = systemAlert.mock.calls.at(-1);
+  if (call === undefined) throw new Error('no system alert');
+  return { title: call[0], message: call[1], buttons: call[2] ?? [] };
+}
+function alertButton(text: string) {
+  const button = lastAlert().buttons.find((b) => b.text === text);
+  if (button?.onPress === undefined) throw new Error(`no alert button "${text}"`);
+  return button.onPress;
+}
+function pressAlert(text: string) {
+  const onPress = alertButton(text);
+  act(() => onPress());
+}
 
 beforeEach(() => {
   memory.profile = null;
@@ -2027,7 +2049,7 @@ describe('K-17: age declaration after deleting all data', () => {
     expect(memory.youngestBirthYear).toBe(year - 12);
     act(() => router.push('/ayarlar'));
     fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    pressAlert('Evet, hepsini sil');
     expect(memory.profile).toBeNull();
     expect(memory.youngestBirthYear).toBe(year - 12);
 
@@ -2066,7 +2088,7 @@ describe('K-17: age declaration after deleting all data', () => {
     const deleteAll = () => {
       act(() => router.push('/ayarlar'));
       fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
-      fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+      pressAlert('Evet, hepsini sil');
     };
     const declare = (birthYear: number) => {
       fireEvent.press(screen.getByText(String(birthYear)));
@@ -2138,7 +2160,7 @@ describe('other screens render', () => {
   it('settings: delete all data returns to onboarding', () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
   fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
-  fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+  pressAlert('Evet, hepsini sil');
     expect(memory.profile).toBeNull();
     expect(screen.getByText('Doğum yılın')).toBeTruthy();
   });
@@ -2158,22 +2180,23 @@ describe('other screens render', () => {
     ];
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
     fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
+    const backupFirst = alertButton('Önce yedek al');
     await act(async () => {
-      fireEvent.press(screen.getByRole('button', { name: 'Önce yedek al' }));
+      backupFirst();
     });
     expect(memory.shared).toHaveLength(1);
     expect(memory.shared[0].name).toMatch(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/);
     expect(JSON.parse(memory.shared[0].content)).toMatchObject({ format: 'etut-yedek', sessions: [{ id: 'a' }] });
     expect(memory.lastBackupAt).not.toBeNull();
-    // The share sheet does not tell whether the file was saved: the note says so.
-    expect(screen.getByTestId('settings-delete-all-backup-note').props.children).toBe(
-      'Yedek dosyası hazırlandı. Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez.',
+    // The share sheet does not tell whether the file was saved: the question comes back and says so.
+    expect(systemAlert).toHaveBeenCalledTimes(2);
+    expect(lastAlert().message).toMatch(
+      /\n\nYedek dosyası hazırlandı\. Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez\.$/,
     );
-    // Nothing deleted, the dialog still open.
+    // Nothing deleted, the question still open.
     expect(memory.profile).not.toBeNull();
     expect(memory.sessions).toHaveLength(1);
-    expect(screen.getByTestId('settings-delete-all-dialog')).toBeTruthy();
-    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    pressAlert('Evet, hepsini sil');
     expect(memory.profile).toBeNull();
   });
 });
@@ -2341,31 +2364,25 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
       expect(contains(scroll, id)).toBe(false);
     }
     expect(directions(screen.getByTestId('tips-skip'))[0]).toBe('column');
-    // A tap outside the card is one more way out (not for VoiceOver, which stays on the card).
-    fireEvent.press(screen.getByTestId('tips-backdrop', { includeHiddenElements: true }));
+    // Swiping the sheet down is one more way out (the route goes; no button pressed).
+    act(() => router.back());
     expect(screen.queryByTestId('tips-card')).toBeNull();
     expect(memory.tipsSeen).toBe(true);
   });
 
-  it('"Tüm verileri sil": only the text and "Önce yedek al" scroll; Vazgeç, then the delete button, stay below it', () => {
-    textSize(3);
+  it('"Tüm verileri sil" is the system alert: "Önce yedek al", Vazgeç, then the destructive delete', () => {
     memory.profile = ADULT_SAYISAL;
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
     fireEvent.press(screen.getByTestId('settings-delete-all'));
-    const dialog = screen.getByTestId('settings-delete-all-dialog');
-    const scroll = screen.getByTestId('settings-delete-all-scroll');
-    expect(contains(scroll, 'settings-delete-all-backup')).toBe(true);
-    for (const id of ['settings-delete-all-cancel', 'settings-delete-all-confirm']) {
-      expect(contains(dialog, id)).toBe(true);
-      expect(contains(scroll, id)).toBe(false);
-    }
-    const order = dialog
-      .findAll((n) => typeof n.type === 'string' && typeof n.props.testID === 'string')
-      .map((n) => n.props.testID);
-    expect(order.indexOf('settings-delete-all-cancel')).toBeLessThan(order.indexOf('settings-delete-all-confirm'));
-    // A tap outside the dialog cancels (not for VoiceOver, which stays on the dialog).
-    fireEvent.press(screen.getByTestId('settings-delete-all-backdrop', { includeHiddenElements: true }));
-    expect(screen.queryByTestId('settings-delete-all-dialog')).toBeNull();
+    // The system alert scales with the text size by itself; its delete button is marked destructive.
+    const { title, message, buttons } = lastAlert();
+    expect(title).toBe('Tüm verileri sil');
+    expect(message).toMatch(/^Çalışma kayıtların.*geri alınamaz\.\n\n15 yaş altı beyanı/);
+    expect(buttons.map((b) => [b.text, b.style])).toEqual([
+      ['Önce yedek al', undefined],
+      ['Vazgeç', 'cancel'],
+      ['Evet, hepsini sil', 'destructive'],
+    ]);
     expect(memory.profile).not.toBeNull();
   });
 
@@ -3064,7 +3081,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     expect(memory.widget[0].props).toMatchObject({ title: 'Bugün', countingFrom: null, goalLine: 'Hedef 1 sa 0 dk' });
     expect(memory.widget[0].props.streakLine).toMatch(/^Seri: \d+ gün$/);
     fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    pressAlert('Evet, hepsini sil');
     await settle();
     expect(memory.widget).toHaveLength(1);
     expect(memory.widget[0].props).toMatchObject({ total: '0 dk', goalLine: null, streakLine: null });
@@ -3179,7 +3196,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     await settle();
     expect(memory.planned.some((n) => n.kind === 'daily')).toBe(true);
     fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    pressAlert('Evet, hepsini sil');
     await settle();
     expect(memory.remindersConfirmed).toBe(false);
     expect(memory.planned).toEqual([]);
@@ -4229,13 +4246,15 @@ describe('accessibility names on key screens', () => {
     // The note under "Önce yedek al" in the delete dialog.
     act(() => router.push('/ayarlar'));
     fireEvent.press(screen.getByTestId('settings-delete-all'));
+    const backupFirst = alertButton('Önce yedek al');
     await act(async () => {
-      fireEvent.press(screen.getByTestId('settings-delete-all-backup'));
+      backupFirst();
     });
     // The fixture's two-section TYT exams do not fit the TYT tables, so the note also says they would
-    // be skipped on restore; what is checked here is that the note is read out.
-    expect(announce).toHaveBeenLastCalledWith(
-      expect.stringMatching(/^Yedek dosyası hazırlandı\..*Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez\.$/),
+    // be skipped on restore; what is checked here is that it reaches the system alert, which
+    // VoiceOver reads by itself.
+    expect(lastAlert().message).toMatch(
+      /Yedek dosyası hazırlandı\..*Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez\.$/,
     );
     announce.mockRestore();
   });

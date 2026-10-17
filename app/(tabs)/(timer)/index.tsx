@@ -8,7 +8,6 @@ import { topicOfSubject } from '@/domain/curriculum';
 import { activeSpan, dailyTotals } from '@/domain/daily-totals';
 import { examDaysLeft, resolveExamDate } from '@/domain/exam-dates';
 import { goalStep, topicMarkToRestore, UNDO_FINISH_MS } from '@/domain/finish';
-import { istanbulDayKey } from '@/domain/istanbul-day';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
@@ -23,7 +22,6 @@ import {
   loadLastSubject,
   loadPomodoroConfig,
   loadTimerMode,
-  storeDailyGoal,
   storeTimerMode,
   type TimerMode,
 } from '@/storage/kv';
@@ -47,7 +45,6 @@ import { BackupNudge } from '@/ui/backup-reminder';
 import { announce, hapticSuccess, hapticTap } from '@/ui/feedback';
 import { SavedMark } from '@/ui/finish-moment';
 import { formatDuration, topicLabel } from '@/ui/format';
-import { GoalSheet } from '@/ui/goal-sheet';
 import { Icon } from '@/ui/icon';
 import { InfoLink } from '@/ui/info-link';
 import { easeNextLayout, useReducedMotion } from '@/ui/motion';
@@ -111,7 +108,6 @@ export default function TimerScreen() {
   const [pickedTopic, setTopicId] = useState<string | null>(null);
   const topicId = topicOfSubject(examType, yksArea, subjectId, pickedTopic);
   const [finished, setFinished] = useState<Finished | null>(null);
-  const [goalOpen, setGoalOpen] = useState(false);
   // Stored, not screen state: a restored backup brings its own timer mode.
   const mode = useStored(`timerMode|${app.dataVersions.settings}`, loadTimerMode);
   const setSubjectId = (id: string) => {
@@ -251,12 +247,6 @@ export default function TimerScreen() {
     }
   };
 
-  const setGoal = (minutes: number | null) => {
-    // The day of the tap, not of the render clock (it ticks once a minute while idle).
-    storeDailyGoal(minutes, istanbulDayKey(Date.now()));
-    app.notifyDataChanged('settings');
-  };
-
   const goalStreak = goal !== null && streak !== null ? { goal, streak } : null;
   const step = finished !== null && goal !== null ? goalStep(finished.todayAfterMs, finished.sessionTodayMs, goal) : null;
   // The summary of the session that reached the goal: the day's one celebration (K-14).
@@ -269,7 +259,7 @@ export default function TimerScreen() {
       : goalStreak.streak.todayMet
         ? tr.goal.met
         : tr.goal.progress(formatDuration(goalStreak.goal * 60_000), goalPercent);
-  const openGoal = () => setGoalOpen(true);
+  const openGoal = () => router.push('/hedef');
   // No badge before the first day that meets the goal: never a "0" (and no loss to read into it).
   const streakDays = goalStreak !== null && goalStreak.streak.current > 0 ? goalStreak.streak.current : null;
 
@@ -328,7 +318,6 @@ export default function TimerScreen() {
     <Screen testID="timer-screen">
       <TimerKeepAwake running={running} />
       <FirstUseTips />
-      <GoalSheet visible={goalOpen} goal={goal} onChange={setGoal} onClose={() => setGoalOpen(false)} />
 
       {/* Today, the one hero of the screen: one big number and one ring under a muted countdown
           line and the streak badge. Idle the number is today's total; right after Bitir it is the
