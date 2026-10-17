@@ -361,7 +361,11 @@ async function runScenario(page, baseUrl) {
   // colour: a selected chip has the primary colour, the same as the selected "Çalışmaya devam say"
   // chip (whose explanation text below proves it is the selected one).
   const background = (id) => byId(id).evaluate((el) => getComputedStyle(el).backgroundColor);
-  check(await byId('settings-timer').getByText('Sayaç çalışırken').isVisible(), 'timer settings card title is missing');
+  // The section title stands above the card in capitals; its accessible name is the title as written.
+  check(
+    await byId('settings-timer').getByRole('heading', { name: 'Sayaç çalışırken' }).isVisible(),
+    'timer settings section title is missing',
+  );
   check(
     (await text('settings-away-info')).includes('3 saate kadar çalışma sayılır'),
     '"Çalışmaya devam say" (3 hours) must be the default away rule',
@@ -439,7 +443,8 @@ async function runScenario(page, baseUrl) {
   await visible('settings-reminders');
   await byId('settings-reminders').click();
   await visible('reminder-daily-toggle');
-  check((await text('reminder-daily-toggle')) === 'Kapalı', 'daily reminder must be off by default');
+  // A switch (react-native-web: a checkbox input with role=switch inside the testID element).
+  check(!(await byId('reminder-daily-toggle').getByRole('switch').isChecked()), 'daily reminder must be off by default');
   check(
     await byId('reminders-screen').getByText('Bu cihazda hatırlatıcı yok.').isVisible(),
     'web must say reminders are unsupported',

@@ -40,7 +40,21 @@ import { loadGroupsAccount, loadParentAccount } from '@/storage/groups-kv';
 import { tr } from '@/strings';
 import { groupApi, isAccountGone } from '@/sync/api';
 import { LastBackupLabel } from '@/ui/backup-reminder';
-import { Button, Card, Chip, ChipRow, Field, Label, Row, Screen, Stepper, Tag } from '@/ui/components';
+import {
+  Button,
+  Card,
+  Chip,
+  ChipRow,
+  Disclosure,
+  Field,
+  Label,
+  ListRow,
+  Row,
+  Screen,
+  Section,
+  Stepper,
+  Tag,
+} from '@/ui/components';
 import { useContactMail } from '@/ui/contact-mail';
 import { formatDay, formatDuration } from '@/ui/format';
 import { openGuide } from '@/ui/info-link';
@@ -182,222 +196,236 @@ export default function SettingsScreen() {
   return (
     <Screen testID="settings-screen">
       {profile !== null ? (
-        <Card>
-          <Label variant="heading">{tr.settings.profile}</Label>
-          <Row>
-            <Label variant="muted" style={{ flex: 1 }}>
-              {tr.settings.exam}
-            </Label>
-            <Label testID="settings-exam-current">
-              {tr.examType(profile.examType)}
-              {profile.yksArea ? ` · ${tr.yksArea(profile.yksArea)}` : ''}
-            </Label>
-          </Row>
-          {/* K-20: neither the birth year nor an age group is shown anywhere. */}
-          <Label variant="heading">{tr.settings.examChangeTitle}</Label>
-          <Label variant="small">{tr.settings.examChangeInfo}</Label>
-          <ChipRow>
-            {EXAM_TYPES.map((t) => (
-              <Chip
-                key={t}
-                testID={`settings-exam-type-${t}`}
-                title={tr.examType(t)}
-                selected={t === draftExam}
-                onPress={() => {
-                  setDraftExam(t);
-                  setExamSaved(false);
-                }}
-              />
-            ))}
-          </ChipRow>
-          {draftExam === 'YKS' ? (
-            <>
-              <Label variant="muted">{tr.settings.examChangeArea}</Label>
-              <ChipRow>
-                {YKS_AREAS.map((a) => (
-                  <Chip
-                    key={a}
-                    testID={`settings-yks-area-${a}`}
-                    title={tr.yksArea(a)}
-                    selected={a === draftArea}
-                    onPress={() => {
-                      setDraftArea(a);
-                      setExamSaved(false);
-                    }}
-                  />
-                ))}
-              </ChipRow>
-            </>
-          ) : null}
-          <Button
-            testID="settings-exam-save"
-            kind="secondary"
-            title={tr.settings.examChangeSave}
-            disabled={!examChanged || (draftExam === 'YKS' && draftArea === null)}
-            onPress={saveExam}
-          />
-          {examSaved ? (
-            <Label testID="settings-exam-saved" variant="small" live>
-              {tr.settings.examChangeSaved}
-            </Label>
-          ) : null}
-          {/* K-17: the declared age can not be edited; say so instead of offering a control. */}
-          <Label variant="small">{tr.settings.ageFixed}</Label>
-        </Card>
+        <Section title={tr.settings.profile}>
+          <Card>
+            <Row>
+              <Label variant="muted" style={{ flex: 1 }}>
+                {tr.settings.exam}
+              </Label>
+              <Label testID="settings-exam-current">
+                {tr.examType(profile.examType)}
+                {profile.yksArea ? ` · ${tr.yksArea(profile.yksArea)}` : ''}
+              </Label>
+            </Row>
+            {/* K-20: neither the birth year nor an age group is shown anywhere. */}
+            <Label variant="heading">{tr.settings.examChangeTitle}</Label>
+            <Label variant="small">{tr.settings.examChangeInfo}</Label>
+            <ChipRow>
+              {EXAM_TYPES.map((t) => (
+                <Chip
+                  key={t}
+                  testID={`settings-exam-type-${t}`}
+                  title={tr.examType(t)}
+                  selected={t === draftExam}
+                  onPress={() => {
+                    setDraftExam(t);
+                    setExamSaved(false);
+                  }}
+                />
+              ))}
+            </ChipRow>
+            {draftExam === 'YKS' ? (
+              <>
+                <Label variant="muted">{tr.settings.examChangeArea}</Label>
+                <ChipRow>
+                  {YKS_AREAS.map((a) => (
+                    <Chip
+                      key={a}
+                      testID={`settings-yks-area-${a}`}
+                      title={tr.yksArea(a)}
+                      selected={a === draftArea}
+                      onPress={() => {
+                        setDraftArea(a);
+                        setExamSaved(false);
+                      }}
+                    />
+                  ))}
+                </ChipRow>
+              </>
+            ) : null}
+            <Button
+              testID="settings-exam-save"
+              kind="secondary"
+              title={tr.settings.examChangeSave}
+              disabled={!examChanged || (draftExam === 'YKS' && draftArea === null)}
+              onPress={saveExam}
+            />
+            {examSaved ? (
+              <Label testID="settings-exam-saved" variant="small" live>
+                {tr.settings.examChangeSaved}
+              </Label>
+            ) : null}
+            {/* K-17: the declared age can not be edited; say so instead of offering a control. */}
+            <Label variant="small">{tr.settings.ageFixed}</Label>
+          </Card>
+        </Section>
       ) : null}
 
       {profile !== null ? (
-        <Card>
-          <Label variant="heading">{tr.countdown.settingsTitle}</Label>
-          <Row>
-            <Label testID="settings-exam-date" style={{ flex: 1 }}>
-              {examDate === null ? tr.countdown.none : formatDay(examDate.day)}
-            </Label>
-            {examDate?.estimated ? <Tag title={tr.countdown.estimated} /> : null}
-            {examDate?.custom ? <Tag title={tr.countdown.custom} /> : null}
-          </Row>
-          {examDateInfo !== null ? (
-            <Label variant="small" testID="settings-exam-date-info">
-              {examDateInfo}
-            </Label>
-          ) : null}
-          <Row>
-            <Field
-              testID="settings-exam-date-input"
-              label={tr.countdown.input}
-              value={dateText}
-              onChange={(text) => changeDate(text)}
-              onBlur={() => changeDate(dateText, true)}
-              maxLength={10}
-              numeric={false}
-              placeholder={examDate === null ? tr.countdown.placeholder : formatDayInput(examDate.day)}
-            />
-          </Row>
-          {dateError ? (
-            <Label variant="small" live={dateAttempt} style={{ color: c.danger }}>
-              {tr.countdown.invalid}
-            </Label>
-          ) : null}
-          {examDate?.custom ? (
-            <Button
-              testID="settings-exam-date-reset"
-              kind="secondary"
-              title={tr.countdown.reset(examDateKind(resolveExamDate(examType, null, today)))}
-              onPress={() => {
-                storeCustomExamDate(profile.examType, null);
-                notifyDataChanged('settings');
-              }}
-            />
-          ) : null}
-        </Card>
+        <Section title={tr.countdown.settingsTitle}>
+          <Card>
+            <Row>
+              <Label testID="settings-exam-date" style={{ flex: 1 }}>
+                {examDate === null ? tr.countdown.none : formatDay(examDate.day)}
+              </Label>
+              {examDate?.estimated ? <Tag title={tr.countdown.estimated} /> : null}
+              {examDate?.custom ? <Tag title={tr.countdown.custom} /> : null}
+            </Row>
+            {examDateInfo !== null ? (
+              <Label variant="small" testID="settings-exam-date-info">
+                {examDateInfo}
+              </Label>
+            ) : null}
+            <Row>
+              <Field
+                testID="settings-exam-date-input"
+                label={tr.countdown.input}
+                value={dateText}
+                onChange={(text) => changeDate(text)}
+                onBlur={() => changeDate(dateText, true)}
+                maxLength={10}
+                numeric={false}
+                placeholder={examDate === null ? tr.countdown.placeholder : formatDayInput(examDate.day)}
+              />
+            </Row>
+            {dateError ? (
+              <Label variant="small" live={dateAttempt} style={{ color: c.danger }}>
+                {tr.countdown.invalid}
+              </Label>
+            ) : null}
+            {examDate?.custom ? (
+              <Button
+                testID="settings-exam-date-reset"
+                kind="secondary"
+                title={tr.countdown.reset(examDateKind(resolveExamDate(examType, null, today)))}
+                onPress={() => {
+                  storeCustomExamDate(profile.examType, null);
+                  notifyDataChanged('settings');
+                }}
+              />
+            ) : null}
+          </Card>
+        </Section>
       ) : null}
 
-      <Card>
-        <Label variant="heading">{tr.goal.title}</Label>
-        <Label variant="small">{tr.goal.info}</Label>
-        {goal === null ? (
-          <Button
-            testID="settings-goal-on"
-            kind="secondary"
-            title={tr.goal.turnOn}
-            onPress={() => setGoal(DEFAULT_GOAL_MINUTES)}
-          />
-        ) : (
-          <>
-            <Stepper
-              testID="settings-goal"
-              label={tr.goal.title}
-              value={formatDuration(goal * 60_000)}
-              onMinus={() => setGoal(goal - GOAL_STEP_MINUTES)}
-              onPlus={() => setGoal(goal + GOAL_STEP_MINUTES)}
-              minusDisabled={goal <= GOAL_MIN_MINUTES}
-              plusDisabled={goal >= GOAL_MAX_MINUTES}
-            />
+      <Section title={tr.goal.title}>
+        <Card>
+          <Label variant="small">{tr.goal.info}</Label>
+          {goal === null ? (
             <Button
-              testID="settings-goal-off"
+              testID="settings-goal-on"
               kind="secondary"
-              title={tr.goal.turnOff}
-              onPress={() => setGoal(null)}
+              title={tr.goal.turnOn}
+              onPress={() => setGoal(DEFAULT_GOAL_MINUTES)}
             />
-          </>
-        )}
-      </Card>
+          ) : (
+            <>
+              <Stepper
+                testID="settings-goal"
+                label={tr.goal.title}
+                value={formatDuration(goal * 60_000)}
+                onMinus={() => setGoal(goal - GOAL_STEP_MINUTES)}
+                onPlus={() => setGoal(goal + GOAL_STEP_MINUTES)}
+                minusDisabled={goal <= GOAL_MIN_MINUTES}
+                plusDisabled={goal >= GOAL_MAX_MINUTES}
+              />
+              <Button
+                testID="settings-goal-off"
+                kind="secondary"
+                title={tr.goal.turnOff}
+                onPress={() => setGoal(null)}
+              />
+            </>
+          )}
+        </Card>
+      </Section>
 
-      <Card>
-        <Label variant="heading">{tr.pomodoro.settingsTitle}</Label>
-        <Label variant="small">{tr.pomodoro.breakNote}</Label>
-        <Label variant="muted">{tr.pomodoro.presets}</Label>
-        <ChipRow>
-          {POMODORO_PRESETS.map((preset) => (
-            <Chip
-              key={`${preset.workMin}-${preset.shortBreakMin}`}
-              testID={`settings-pomodoro-preset-${preset.workMin}-${preset.shortBreakMin}`}
-              title={tr.pomodoro.preset(preset.workMin, preset.shortBreakMin)}
-              accessibilityLabel={tr.pomodoro.presetA11y(preset.workMin, preset.shortBreakMin)}
-              selected={samePomodoroConfig(pomodoro, preset)}
-              onPress={() => setPomodoro(preset)}
+      <Section title={tr.pomodoro.settingsTitle}>
+        <Card>
+          <Label variant="small">{tr.pomodoro.breakNote}</Label>
+          <Label variant="muted">{tr.pomodoro.presets}</Label>
+          <ChipRow>
+            {POMODORO_PRESETS.map((preset) => (
+              <Chip
+                key={`${preset.workMin}-${preset.shortBreakMin}`}
+                testID={`settings-pomodoro-preset-${preset.workMin}-${preset.shortBreakMin}`}
+                title={tr.pomodoro.preset(preset.workMin, preset.shortBreakMin)}
+                accessibilityLabel={tr.pomodoro.presetA11y(preset.workMin, preset.shortBreakMin)}
+                selected={samePomodoroConfig(pomodoro, preset)}
+                onPress={() => setPomodoro(preset)}
+              />
+            ))}
+          </ChipRow>
+          {/* The single durations: closed while a preset is in use, open on a config of one's own. */}
+          <Disclosure
+            testID="settings-pomodoro-details"
+            title={tr.pomodoro.details}
+            initiallyOpen={!POMODORO_PRESETS.some((preset) => samePomodoroConfig(pomodoro, preset))}>
+            {POMODORO_FIELDS.map(({ key, label, step, format }) => (
+              <Stepper
+                key={key}
+                testID={`settings-pomodoro-${key}`}
+                label={label}
+                value={format(pomodoro[key])}
+                onMinus={() => setPomodoro({ ...pomodoro, [key]: pomodoro[key] - step })}
+                onPlus={() => setPomodoro({ ...pomodoro, [key]: pomodoro[key] + step })}
+                minusDisabled={pomodoro[key] <= POMODORO_LIMITS[key].min}
+                plusDisabled={pomodoro[key] >= POMODORO_LIMITS[key].max}
+              />
+            ))}
+            <Button
+              testID="settings-pomodoro-reset"
+              kind="secondary"
+              title={tr.pomodoro.reset}
+              onPress={() => setPomodoro(DEFAULT_POMODORO)}
             />
-          ))}
-        </ChipRow>
-        {POMODORO_FIELDS.map(({ key, label, step, format }) => (
-          <Stepper
-            key={key}
-            testID={`settings-pomodoro-${key}`}
-            label={label}
-            value={format(pomodoro[key])}
-            onMinus={() => setPomodoro({ ...pomodoro, [key]: pomodoro[key] - step })}
-            onPlus={() => setPomodoro({ ...pomodoro, [key]: pomodoro[key] + step })}
-            minusDisabled={pomodoro[key] <= POMODORO_LIMITS[key].min}
-            plusDisabled={pomodoro[key] >= POMODORO_LIMITS[key].max}
-          />
-        ))}
-        <Button
-          testID="settings-pomodoro-reset"
-          kind="secondary"
-          title={tr.pomodoro.reset}
-          onPress={() => setPomodoro(DEFAULT_POMODORO)}
-        />
-      </Card>
+          </Disclosure>
+        </Card>
+      </Section>
 
       <TimerSettingsCard />
 
-      <Card>
-        <Label variant="heading">{tr.reminders.title}</Label>
-        <Label testID="settings-reminders-summary" variant="small">
+      {/* Rows that open another screen sit on the background (no card), like iOS Settings. */}
+      <Section title={tr.reminders.title}>
+        <ListRow
+          icon="reminders"
+          testID="settings-reminders"
+          title={tr.reminders.open}
+          onPress={() => router.push('/hatirlaticilar')}
+        />
+        <Label testID="settings-reminders-summary" variant="small" style={styles.rowNote}>
           {permission === 'granted'
             ? tr.reminders.summaryOn(enabledReminders)
             : permission === 'unsupported'
               ? tr.reminders.unsupported
               : tr.reminders.summaryOff}
         </Label>
-        <Button
-          testID="settings-reminders"
-          kind="secondary"
-          title={tr.reminders.open}
-          onPress={() => router.push('/hatirlaticilar')}
-        />
-      </Card>
+      </Section>
 
-      <Card>
-        <Label variant="heading">{tr.settings.dataTitle}</Label>
-        <Label variant="muted">{GROUPS_ENABLED ? tr.settings.dataInfoGroups : tr.settings.dataInfo}</Label>
-        <LastBackupLabel testID="settings-last-backup" />
-        <Button
+      <Section title={tr.settings.dataTitle}>
+        <Card>
+          <Label variant="muted">{GROUPS_ENABLED ? tr.settings.dataInfoGroups : tr.settings.dataInfo}</Label>
+          <LastBackupLabel testID="settings-last-backup" />
+        </Card>
+        <ListRow
+          icon="backup"
           testID="settings-open-backup"
-          kind="secondary"
           title={tr.backup.title}
           onPress={() => router.push('/yedek')}
         />
-        <Button
-          kind="danger"
-          testID="settings-delete-all"
-          title={tr.settings.deleteAll}
-          onPress={() => {
-            setBackupNote(null);
-            setConfirming(true);
-          }}
-        />
-      </Card>
+        {/* Tonal red: it only opens the question; the full red fill is "Evet, hepsini sil". */}
+        <View style={styles.sectionAction}>
+          <Button
+            kind="dangerSoft"
+            testID="settings-delete-all"
+            title={tr.settings.deleteAll}
+            onPress={() => {
+              setBackupNote(null);
+              setConfirming(true);
+            }}
+          />
+        </View>
+      </Section>
 
       {/* The button sits at the bottom of a long screen: confirm in a centred dialog so the
           destructive choice is always on screen, never hidden behind the tab bar. At large text
@@ -482,32 +510,30 @@ export default function SettingsScreen() {
       </Modal>
 
       {GROUPS_ENABLED && profile !== null && !profile.soloOnly ? (
-        <Card>
-          <Label variant="heading">{tr.privacy.title}</Label>
-          <Button
+        <Section title={tr.privacy.title}>
+          <ListRow
+            icon="privacy"
             testID="settings-privacy"
-            kind="secondary"
             title={tr.privacy.settingsEntry}
             onPress={() => router.push('/gizlilik')}
           />
-        </Card>
+        </Section>
       ) : null}
 
       {parentMode ? (
-        <Card>
-          <Label variant="heading">{tr.parent.entry}</Label>
-          <Label variant="small">{tr.parent.entryInfo}</Label>
-          <Button testID="settings-parent-mode" kind="secondary" title={tr.parent.entry} onPress={() => router.push('/veli')} />
-        </Card>
+        <Section title={tr.parent.entry}>
+          <ListRow icon="parent" testID="settings-parent-mode" title={tr.parent.entry} onPress={() => router.push('/veli')} />
+          <Label variant="small" style={styles.rowNote}>
+            {tr.parent.entryInfo}
+          </Label>
+        </Section>
       ) : null}
 
-      <Card>
-        <Label variant="heading">{tr.help.title}</Label>
-        <Label variant="small">{tr.help.info}</Label>
-        <Button testID="settings-open-guide" kind="secondary" title={tr.help.guide} onPress={() => openGuide()} />
-        <Button
+      <Section title={tr.help.title}>
+        <ListRow icon="guide" testID="settings-open-guide" title={tr.help.guide} onPress={() => openGuide()} />
+        <ListRow
+          icon="tips"
           testID="settings-show-tips"
-          kind="secondary"
           title={tr.help.showTips}
           onPress={() => {
             // The timer tab opens the tips again when it is shown (src/ui/tips.tsx).
@@ -515,46 +541,52 @@ export default function SettingsScreen() {
             router.navigate('/');
           }}
         />
-      </Card>
+        <Label variant="small" style={styles.rowNote}>
+          {tr.help.info}
+        </Label>
+      </Section>
 
-      <Card>
-        <Label variant="heading">{tr.contact.feedbackTitle}</Label>
-        <Label variant="small">{feedbackMail.email === null ? tr.contact.soonInfo : tr.contact.feedbackInfo}</Label>
-        <Button
-          testID="settings-feedback"
-          kind="secondary"
-          title={feedbackMail.email === null ? tr.contact.feedbackSoon : tr.contact.feedback}
-          disabled={feedbackMail.email === null}
-          onPress={feedbackMail.open}
-        />
-        {feedbackMail.failed && feedbackMail.email !== null ? (
-          <Label testID="settings-feedback-failed" variant="small">
-            {tr.contact.failed(feedbackMail.email)}
-          </Label>
-        ) : null}
-      </Card>
+      {/* An action (writes an e-mail), so a button, not a row. */}
+      <Section title={tr.contact.feedbackTitle}>
+        <Card>
+          <Label variant="small">{feedbackMail.email === null ? tr.contact.soonInfo : tr.contact.feedbackInfo}</Label>
+          <Button
+            testID="settings-feedback"
+            kind="secondary"
+            title={feedbackMail.email === null ? tr.contact.feedbackSoon : tr.contact.feedback}
+            disabled={feedbackMail.email === null}
+            onPress={feedbackMail.open}
+          />
+          {feedbackMail.failed && feedbackMail.email !== null ? (
+            <Label testID="settings-feedback-failed" variant="small">
+              {tr.contact.failed(feedbackMail.email)}
+            </Label>
+          ) : null}
+        </Card>
+      </Section>
 
-      <Card>
-        <Label variant="heading">{tr.settings.about}</Label>
-        <Row>
-          <Label variant="muted" style={{ flex: 1 }}>
-            {tr.settings.version}
-          </Label>
-          <Label>{version}</Label>
-        </Row>
-        <Row>
-          <Label variant="muted" style={{ flex: 1 }}>
-            {tr.settings.build}
-          </Label>
-          <Label>{build}</Label>
-        </Row>
-        <Button
+      <Section title={tr.settings.about}>
+        <Card>
+          <Row>
+            <Label variant="muted" style={{ flex: 1 }}>
+              {tr.settings.version}
+            </Label>
+            <Label>{version}</Label>
+          </Row>
+          <Row>
+            <Label variant="muted" style={{ flex: 1 }}>
+              {tr.settings.build}
+            </Label>
+            <Label>{build}</Label>
+          </Row>
+        </Card>
+        <ListRow
+          icon="info"
           testID="settings-open-about"
-          kind="secondary"
           title={tr.settings.openAbout}
           onPress={() => router.push('/hakkinda')}
         />
-      </Card>
+      </Section>
     </Screen>
   );
 }
@@ -576,4 +608,8 @@ const styles = StyleSheet.create({
   // Sized to its text, and shrinks (then scrolls) when the dialog reaches the screen height.
   dialogText: { flexGrow: 0, flexShrink: 1 },
   dialogTextContent: { gap: 12 },
+  // A note under a row lines up with the row's title (after its 22 pt icon and 12 pt gap).
+  rowNote: { paddingLeft: 34 },
+  // An action button under the rows of its section, a little apart from them.
+  sectionAction: { marginTop: 8 },
 });

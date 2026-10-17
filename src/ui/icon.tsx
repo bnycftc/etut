@@ -28,6 +28,17 @@ const ICONS = {
   chevronLeft: { ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' },
   info: { ios: 'info.circle', android: 'info', web: 'info' },
   report: { ios: 'list.clipboard', android: 'assignment', web: 'assignment' },
+  chevronDown: { ios: 'chevron.down', android: 'expand_more', web: 'expand_more' },
+  // Ayarlar and Hakkında rows.
+  reminders: { ios: 'bell', android: 'notifications', web: 'notifications' },
+  backup: { ios: 'arrow.down.doc', android: 'download', web: 'download' },
+  guide: { ios: 'questionmark.circle', android: 'help', web: 'help' },
+  tips: { ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' },
+  document: { ios: 'doc.text', android: 'description', web: 'description' },
+  privacy: { ios: 'hand.raised', android: 'pan_tool', web: 'pan_tool' },
+  terms: { ios: 'scroll', android: 'receipt_long', web: 'receipt_long' },
+  licenses: { ios: 'books.vertical', android: 'menu_book', web: 'menu_book' },
+  parent: { ios: 'person.2', android: 'family_restroom', web: 'family_restroom' },
 } as const satisfies Record<string, SymbolViewProps['name']>;
 
 export type IconName = keyof typeof ICONS;

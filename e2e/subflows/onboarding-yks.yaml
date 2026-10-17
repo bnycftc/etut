@@ -6,6 +6,15 @@ appId: com.bnycftc.etut
     visible:
       id: onboarding-screen
     timeout: 60000
+# The brand band at the top and the fixed Başla bar at the bottom leave less of the year list on
+# the first screen: scroll to the year first (a no-op when it is already visible).
+# Centred: Maestro counts a chip under the fixed Başla bar as visible (it only checks the screen edges).
+- scrollUntilVisible:
+    element:
+      id: "birth-year-${new Date().getFullYear() - Number(AGE)}"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
 - tapOn:
     id: "birth-year-${new Date().getFullYear() - Number(AGE)}"
     retryTapIfNoChange: true
@@ -13,6 +22,7 @@ appId: com.bnycftc.etut
     element:
       id: exam-type-YKS
     direction: DOWN
+    centerElement: true
     timeout: 20000
 - tapOn:
     id: exam-type-YKS
@@ -23,6 +33,7 @@ appId: com.bnycftc.etut
     element:
       id: yks-area-sayisal
     direction: DOWN
+    centerElement: true
     timeout: 20000
 - tapOn:
     id: yks-area-sayisal

@@ -1918,6 +1918,12 @@ describe('pomodoro mode', () => {
 
   it('settings change the pomodoro lengths within limits', () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    // A preset is in use (the default 25/5): the single lengths are closed under "Ayrıntı".
+    expect(screen.queryByTestId('settings-pomodoro-workMin-plus')).toBeNull();
+    const details = screen.getByTestId('settings-pomodoro-details');
+    expect(details.props.accessibilityState).toEqual({ expanded: false });
+    fireEvent.press(details);
+    expect(screen.getByTestId('settings-pomodoro-details').props.accessibilityState).toEqual({ expanded: true });
     fireEvent.press(screen.getByTestId('settings-pomodoro-workMin-plus'));
     expect(memory.pomodoroConfig.workMin).toBe(30);
     fireEvent.press(screen.getByTestId('settings-pomodoro-longEvery-minus'));
@@ -1934,6 +1940,7 @@ describe('pomodoro mode', () => {
     expect([selected('25-5'), selected('50-10'), selected('90-15')]).toEqual([false, true, false]);
     fireEvent.press(screen.getByTestId('settings-pomodoro-preset-90-15'));
     expect(memory.pomodoroConfig).toEqual({ workMin: 90, shortBreakMin: 15, longBreakMin: 30, longEvery: 2 });
+    fireEvent.press(screen.getByTestId('settings-pomodoro-details'));
     fireEvent.press(screen.getByTestId('settings-pomodoro-workMin-minus'));
     expect(memory.pomodoroConfig.workMin).toBe(85);
     expect([selected('25-5'), selected('50-10'), selected('90-15')]).toEqual([false, false, false]);
@@ -3081,8 +3088,8 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     expect(screen.getByTestId('reminders-permission-missing')).toBeTruthy();
     // Neutral wording: asking is not granting.
     expect(screen.getByRole('button', { name: 'Bildirim izni iste' })).toBeTruthy();
-    expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.checked).toBe(false);
-    fireEvent.press(screen.getByTestId('reminder-daily-toggle'));
+    expect(screen.getByTestId('reminder-daily-toggle').props.value).toBe(false);
+    fireEvent(screen.getByTestId('reminder-daily-toggle'), 'valueChange', true);
     await settle();
     // The explanation lists what will be on: only the requested daily reminder, the others stay off.
     expect(screen.getByTestId('notification-permission-item-daily').props.children).toBe(
@@ -3100,15 +3107,15 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     fireEvent.press(screen.getByTestId('notification-permission-allow'));
     await settle();
     expect(memory.permissionRequests).toBe(1);
-    expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.checked).toBe(true);
+    expect(screen.getByTestId('reminder-daily-toggle').props.value).toBe(true);
     expect(screen.getByTestId('reminder-daily-time').props.children).toBe('20:00');
     fireEvent.press(screen.getByTestId('reminder-daily-hour-plus'));
     fireEvent.press(screen.getByTestId('reminder-daily-minute-minus'));
     expect(screen.getByTestId('reminder-daily-time').props.children).toBe('20:45');
     await settle();
     expect(memory.planned.some((n) => n.kind === 'daily')).toBe(true);
-    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.checked).toBe(false);
-    expect(screen.getByTestId('reminder-pomodoro-toggle').props.accessibilityState.checked).toBe(false);
+    expect(screen.getByTestId('reminder-long-toggle').props.value).toBe(false);
+    expect(screen.getByTestId('reminder-pomodoro-toggle').props.value).toBe(false);
   });
 
   it('a refused permission keeps the app working and the reminders silent', async () => {
@@ -3156,16 +3163,16 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     act(() => router.push('/hatirlaticilar'));
     await settle();
     // Shown as they are: off. Turning one on explains first, even with the permission granted.
-    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.checked).toBe(false);
-    fireEvent.press(screen.getByTestId('reminder-long-toggle'));
+    expect(screen.getByTestId('reminder-long-toggle').props.value).toBe(false);
+    fireEvent(screen.getByTestId('reminder-long-toggle'), 'valueChange', true);
     await settle();
     expect(screen.getByTestId('notification-permission-item-longSession')).toBeTruthy();
     fireEvent.press(screen.getByTestId('notification-permission-allow'));
     await settle();
     expect(memory.remindersConfirmed).toBe(true);
-    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.checked).toBe(true);
+    expect(screen.getByTestId('reminder-long-toggle').props.value).toBe(true);
     // Only that one: the pomodoro reminder stays off until it is turned on by itself.
-    expect(screen.getByTestId('reminder-pomodoro-toggle').props.accessibilityState.checked).toBe(false);
+    expect(screen.getByTestId('reminder-pomodoro-toggle').props.value).toBe(false);
     const kinds = memory.planned.map((n) => n.kind);
     expect(kinds).toContain('long_session');
     expect(kinds).not.toContain('pomodoro');
@@ -4006,7 +4013,9 @@ describe('ders karnesi, soru sayısı, ders hedefi, aylık görünüm', () => {
     ];
     memory.netTargets = { 'TYT:matematik': 30 };
     renderRouter(APP_DIR, { initialUrl: '/karne/matematik' });
-    expect(screen.getByText('Kesik çizgi: hedef net.')).toBeTruthy();
+    expect(screen.queryByText('Kesik çizgi: hedef net.')).toBeNull();
+    expect(screen.getByTestId('report-net-TYT-matematik-target').props.children).toBe('Hedef 30');
+    expect(screen.getByTestId('report-net-TYT-matematik').props.accessibilityLabel).toContain('hedef 30 net');
     fireEvent.press(screen.getByTestId('report-subject-diger'));
     expect(screen.getByTestId('report-exams-empty').props.children).toBe('Bu dersin deneme formunda ayrı bir testi yok.');
   });
@@ -4277,12 +4286,11 @@ describe('accessibility names on key screens', () => {
   it('reminder toggles are switches named by their reminder', () => {
     memory.reminderPrefs = { daily: { enabled: true, hour: 20, minute: 0 }, longSession: { enabled: false, hours: 3 } };
     renderRouter(APP_DIR, { initialUrl: '/hatirlaticilar' });
+    // The system switch (VoiceOver: "<name>, anahtar, açık/kapalı"); its state is the switch itself.
     const daily = screen.getByRole('switch', { name: 'Günlük çalışma hatırlatıcısı' });
     expect(daily.props.testID).toBe('reminder-daily-toggle');
-    expect(daily.props.accessibilityState).toEqual({ checked: true });
-    expect(screen.getByRole('switch', { name: 'Uzun oturum uyarısı' }).props.accessibilityState).toEqual({ checked: false });
-    // The visible text stays "Açık" / "Kapalı".
-    expect(textOf(daily)).toBe('Açık');
+    expect(daily.props.value).toBe(true);
+    expect(screen.getByRole('switch', { name: 'Uzun oturum uyarısı' }).props.value).toBe(false);
   });
 
   it('topic marks name their topic, with the paper where TYT and AYT share a name', () => {
@@ -4519,5 +4527,64 @@ describe('App Store rating dialog (X-7)', () => {
     await flush();
     expect(memory.active).not.toBeNull();
     expect(mockReview.requests).toBe(0);
+  });
+});
+
+describe('Halka screens: settings rows, weekly tiles, onboarding brand', () => {
+  const RN = jest.requireActual<typeof import('react-native')>('react-native');
+  const studied = (id: string, subjectId: string, startIso: string, minutes: number): CompletedSession => ({
+    id,
+    subjectId,
+    topicId: null,
+    startedAt: Date.parse(startIso),
+    endedAt: Date.parse(startIso) + minutes * 60_000,
+    pauses: [],
+    durationMs: minutes * 60_000,
+    source: 'timer',
+  });
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // Wednesday 12:00 Istanbul
+  });
+
+  it('settings: section titles stand above their cards; screens open from rows, deleting is a tonal button', () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    // Titles are headers outside the cards, written in capitals and read as written.
+    for (const title of ['Profil', 'Günlük hedef', 'Pomodoro', 'Sayaç çalışırken', 'Hatırlatıcılar', 'Veriler', 'Yardım']) {
+      expect(screen.getByRole('header', { name: title })).toBeTruthy();
+    }
+    expect(screen.getByText('SAYAÇ ÇALIŞIRKEN')).toBeTruthy();
+    // Rows that open a screen are buttons named by their title (with a chevron), not tonal buttons.
+    for (const id of ['settings-reminders', 'settings-open-backup', 'settings-open-guide', 'settings-show-tips', 'settings-open-about']) {
+      const row = screen.getByTestId(id);
+      expect(row.props.accessibilityRole).toBe('button');
+      expect(RN.StyleSheet.flatten(row.props.style)?.backgroundColor).toBeUndefined();
+    }
+    expect(RN.StyleSheet.flatten(screen.getByTestId('settings-delete-all').props.style).backgroundColor).toBe(LIGHT.dangerSoft);
+  });
+
+  it('weekly: the four tiles are each read as "name: value"', () => {
+    memory.profile = ADULT_SAYISAL;
+    memory.sessions = [
+      studied('a', 'matematik', '2026-10-05T07:00:00Z', 60),
+      studied('b', 'fizik', '2026-10-06T07:00:00Z', 120),
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    expect(screen.getByLabelText('Toplam: 3 sa 0 dk')).toBeTruthy();
+    expect(screen.getByLabelText('Çalıştığın gün: 2/7')).toBeTruthy();
+    expect(screen.getByLabelText('Çalıştığın günlerde ortalama: 1 sa 30 dk')).toBeTruthy();
+    expect(screen.getByLabelText('En çok: 6 Ekim 2026 · 2 sa 0 dk')).toBeTruthy();
+  });
+
+  it('onboarding: the ring brand band on top, Başla fixed under the scrolling page, nothing pre-selected (K-15)', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    const page = screen.getByTestId('onboarding-screen');
+    expect(within(page).getByTestId('onboarding-brand')).toBeTruthy();
+    expect(within(page).getByRole('header', { name: 'Etüt’e hoş geldin' })).toBeTruthy();
+    expect(within(page).queryByTestId('onboarding-start')).toBeNull();
+    expect(screen.getByTestId('onboarding-start').props.accessibilityState.disabled).toBe(true);
+    expect(screen.getAllByRole('button').filter((b) => b.props.accessibilityState?.selected === true)).toEqual([]);
   });
 });

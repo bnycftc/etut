@@ -128,6 +128,68 @@ describe.each([
   });
 });
 
+// The screens drawn on these tokens in 0.4.2 wave 2: settings rows, charts and the month
+// calendar, empty states, the onboarding brand band and the share card.
+describe.each([
+  ['light', LIGHT],
+  ['dark', DARK],
+])('%s theme: rows, charts, empty states, onboarding and share card', (_name, p: Palette) => {
+  const text: [keyof Palette, keyof Palette][] = [
+    // Section titles above their cards, row titles and the notes under rows, on the screen; the
+    // weekly stat tiles (the screen colour inset in the card).
+    ['textMuted', 'background'],
+    ['text', 'background'],
+    // Net chart on its card: values, dates, axis and the "Hedef 30" label; a value or the label
+    // drawn over the soft target band.
+    ['text', 'surface'],
+    ['textMuted', 'surface'],
+    ['accent', 'surface'],
+    ['text', 'accentSoft'],
+    ['accent', 'accentSoft'],
+    // Empty state: its symbol on the soft circle. Onboarding band and the share card's tint: title,
+    // intro, period and footer.
+    ['textMuted', 'accentSoft'],
+  ];
+  it.each(text)('text %s on %s ≥ 4.5', (fg, bg) => {
+    expect(contrastRatio(p[fg], p[bg])).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
+  const graphics: [keyof Palette, keyof Palette][] = [
+    // Net chart: the 3 pt line on the card and across the target band; points (and their 3 pt
+    // card-coloured ring) on the card, as is the month calendar's 2 pt ring around today (2 pt of
+    // card away from the day's shade).
+    ['bar', 'surface'],
+    ['bar', 'accentSoft'],
+    ['accent', 'surface'],
+    // Bar charts: today / this week against the other bars.
+    ['accent', 'barSoft'],
+    // A settings switch when on, and its thumb.
+    ['primary', 'surface'],
+    ['primary', 'background'],
+    ['onPrimary', 'primary'],
+    // The three-quarter ring of the onboarding band and the share card's goal ring.
+    ['accent', 'accentSoft'],
+    ['success', 'accentSoft'],
+    // Share card: the "Diğer dersler" bar on its panel (the subjects' own bars are checked above).
+    ['textMuted', 'surface'],
+  ];
+  it.each(graphics)('graphic %s on %s ≥ 3', (fg, bg) => {
+    expect(contrastRatio(p[fg], p[bg])).toBeGreaterThanOrEqual(AA_GRAPHIC);
+  });
+
+  // Decorative on purpose (the value is written above every bar; the circle and band only frame
+  // what is written): still visible on the card.
+  it.each([
+    ['barSoft', 'surface'],
+    ['accentSoft', 'surface'],
+  ] as [keyof Palette, keyof Palette][])('decorative %s on %s ≥ 1.1', (fg, bg) => {
+    expect(contrastRatio(p[fg], p[bg])).toBeGreaterThanOrEqual(1.1);
+  });
+  it('the other days of a bar chart (barSoft) stand off the card ≥ 1.5', () => {
+    expect(contrastRatio(p.barSoft, p.surface)).toBeGreaterThanOrEqual(1.5);
+  });
+});
+
 describe('subject tint', () => {
   it('is 8 % of the subject colour over the surface, as one opaque colour', () => {
     // #7C3AED over #FFFFFF at 0x14/255: 255 + (124 − 255) · 0.0784 = 244.7 → F5, …

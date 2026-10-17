@@ -10,9 +10,15 @@ import { space, usePalette } from './theme';
 /** Day numbers stay inside their square at every text size; the label carries the rest. */
 const CELL_FONT_SCALE = 1.3;
 
+/** Today's ring: 2 pt of `accent` around the day, 2 pt of the card between ring and shade. */
+const TODAY_RING = 2;
+const TODAY_GAP = 2;
+const CELL_RADIUS = 8;
+
 /**
- * Monday-first month grid, each day shaded by its study time (`heat-colors.ts`). Every day is its
- * own accessibility element ("7 Ekim 2026: 2 sa 10 dk"); the shade legend is one element.
+ * Monday-first month grid, each day shaded by its study time (`heat-colors.ts`, five levels).
+ * Today is ringed in the brand blue. Every day is its own accessibility element
+ * ("7 Ekim 2026: 2 sa 10 dk"); the shade legend is one element.
  */
 export function MonthCalendar({ view, today, testID }: { view: MonthView; today: string; testID?: string }) {
   const c = usePalette();
@@ -42,19 +48,14 @@ export function MonthCalendar({ view, today, testID }: { view: MonthView; today:
                 testID={`monthly-day-${cell.day}`}
                 accessible
                 accessibilityLabel={label}
-                style={[
-                  styles.cell,
-                  styles.filled,
-                  {
-                    backgroundColor: cell.future ? 'transparent' : colors.fill,
-                    borderColor: cell.day === today ? c.text : 'transparent',
-                  },
-                ]}>
-                <Text
-                  style={[styles.date, { color: cell.future ? c.textMuted : colors.text }]}
-                  maxFontSizeMultiplier={CELL_FONT_SCALE}>
-                  {cell.date}
-                </Text>
+                style={[styles.cell, styles.ring, { borderColor: cell.day === today ? c.accent : 'transparent' }]}>
+                <View style={[styles.filled, { backgroundColor: cell.future ? 'transparent' : colors.fill }]}>
+                  <Text
+                    style={[styles.date, { color: cell.future ? c.textMuted : colors.text }]}
+                    maxFontSizeMultiplier={CELL_FONT_SCALE}>
+                    {cell.date}
+                  </Text>
+                </View>
               </View>
             );
           })}
@@ -90,7 +91,14 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: space.xs },
   weekday: { flex: 1, textAlign: 'center', fontSize: 12 },
   cell: { flex: 1, aspectRatio: 1 },
-  filled: { borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  // The ring is drawn on every day (transparent but today), so all days keep the same size.
+  ring: { borderRadius: CELL_RADIUS, borderWidth: TODAY_RING, padding: TODAY_GAP },
+  filled: {
+    flex: 1,
+    borderRadius: CELL_RADIUS - TODAY_RING - TODAY_GAP,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   date: { fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },
   legendRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.md, rowGap: space.xs },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },

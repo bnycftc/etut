@@ -67,6 +67,10 @@ export interface WeeklySummary {
   /** Days of the week on which the goal of that day was met; `null` without a goal. */
   goalDays: number | null;
   activeDays: number;
+  /** The day with the most study time (the earliest of equal days); `null` in an empty week. */
+  bestDay: { day: DayKey; ms: number } | null;
+  /** Average over the days with study (rounded ms); 0 in an empty week. */
+  averageActiveDayMs: number;
 }
 
 export function weekDays(weekStart: DayKey): DayKey[] {
@@ -102,10 +106,14 @@ export function weeklySummary(
       longest = { subjectId: s.subjectId, ms, startedAt: s.startedAt, manual: s.source === 'manual' };
     }
   }
+  const totalMs = totals.reduce((sum, t) => sum + t.totalMs, 0);
+  const active = totals.filter((t) => t.totalMs > 0);
+  let bestDay: WeeklySummary['bestDay'] = null;
+  for (const t of active) if (bestDay === null || t.totalMs > bestDay.ms) bestDay = { day: t.day, ms: t.totalMs };
   return {
     weekStart,
     days: totals,
-    totalMs: totals.reduce((sum, t) => sum + t.totalMs, 0),
+    totalMs,
     manualMs: manual.reduce((sum, t) => sum + t.totalMs, 0),
     bySubject: Object.entries(bySubjectMap)
       .map(([subjectId, ms]) => ({ subjectId, ms }))
@@ -113,6 +121,8 @@ export function weeklySummary(
       .sort((a, b) => b.ms - a.ms),
     longest,
     goalDays: goalOf === null ? null : totals.filter((t) => goalMet(t.totalMs, goalOf(t.day))).length,
-    activeDays: totals.filter((t) => t.totalMs > 0).length,
+    activeDays: active.length,
+    bestDay,
+    averageActiveDayMs: active.length === 0 ? 0 : Math.round(totalMs / active.length),
   };
 }

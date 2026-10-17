@@ -23,7 +23,7 @@ import { pickTextFile, type ShareResult, shareTextFile } from '@/storage/file-io
 import { loadReplaceUndo, storeReplaceUndo } from '@/storage/kv';
 import { tr } from '@/strings';
 import { LastBackupLabel } from '@/ui/backup-reminder';
-import { Button, Card, Chip, ChipRow, Label, Screen } from '@/ui/components';
+import { Button, Card, Chip, ChipRow, Label, Screen, Section } from '@/ui/components';
 import { formatDay } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
 
@@ -327,24 +327,25 @@ export default function BackupScreen() {
         </Card>
       ) : null}
 
-      <Card>
-        <Label variant="heading">{tr.backup.csvTitle}</Label>
-        <Label variant="muted">{tr.backup.csvInfo}</Label>
-        <Button
-          testID="csv-sessions"
-          kind="secondary"
-          title={tr.backup.csvSessions}
-          disabled={busy}
-          onPress={() => exportCsv('sessions')}
-        />
-        <Button
-          testID="csv-exams"
-          kind="secondary"
-          title={tr.backup.csvExams}
-          disabled={busy}
-          onPress={() => exportCsv('exams')}
-        />
-      </Card>
+      <Section title={tr.backup.csvTitle}>
+        <Card>
+          <Label variant="muted">{tr.backup.csvInfo}</Label>
+          <Button
+            testID="csv-sessions"
+            kind="secondary"
+            title={tr.backup.csvSessions}
+            disabled={busy}
+            onPress={() => exportCsv('sessions')}
+          />
+          <Button
+            testID="csv-exams"
+            kind="secondary"
+            title={tr.backup.csvExams}
+            disabled={busy}
+            onPress={() => exportCsv('exams')}
+          />
+        </Card>
+      </Section>
     </Screen>
   );
 }

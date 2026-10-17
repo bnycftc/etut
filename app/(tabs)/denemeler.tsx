@@ -270,7 +270,6 @@ export default function ExamsScreen() {
                 {sectionPoints.some((p) => p.scope === 'brans') ? (
                   <Label variant="small">{tr.exams.chartBransLegend}</Label>
                 ) : null}
-                {target !== null ? <Label variant="small">{tr.exams.chartTargetLegend}</Label> : null}
               </>
             )}
 

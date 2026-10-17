@@ -23,10 +23,12 @@ tags:
     id: timer-saved
 - tapOn:
     id: tab-settings
+# Centred: a row under the tab bar counts as visible to Maestro (it only checks the screen edges).
 - scrollUntilVisible:
     element:
       id: settings-open-backup
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: settings-open-backup
 - extendedWaitUntil:

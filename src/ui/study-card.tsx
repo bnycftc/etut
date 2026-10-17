@@ -4,7 +4,9 @@ import { StyleSheet, Text, type TextStyle, View } from 'react-native';
 import type { StudyCard } from '../domain/share-card';
 import { tr } from '../strings';
 import { formatDay, formatDuration } from './format';
-import { DARK, LIGHT, type Palette } from './theme';
+import { Ring } from './ring';
+import { subjectColor } from './subject-colors';
+import { DARK, LIGHT, type Palette, ROUNDED_FONT } from './theme';
 
 export type CardScheme = 'light' | 'dark';
 
@@ -12,9 +14,44 @@ export type CardScheme = 'light' | 'dark';
 export const CARD_EXPORT = { width: 1080, height: 1920 } as const;
 
 /**
- * The shareable 9:16 study card. Study numbers only (no name, age, school, exam type) and the
- * "Etüt" brand. Text does not follow the system font size: this is an image with a fixed layout
- * (the preview has a spoken summary for screen readers instead).
+ * The total (in 1/360 of the card width): its numbers 56 pt, its units ("sa", "dk") smaller,
+ * all on one line; scaled down together only if a total would not fit the panel.
+ */
+const TOTAL_SIZE = 56;
+const TOTAL_UNIT_SIZE = 24;
+/** Width of the total's panel text (card 360 − 2 × 28 padding − 2 × 20 panel padding). */
+const TOTAL_WIDTH = 264;
+/** A rounded heavy digit is about this share of its font size wide; a unit letter or space less. */
+const DIGIT_WIDTH = 0.6;
+const UNIT_WIDTH = 0.55;
+
+/** `2 sa 30 dk` → numbers and units apart (`['2', ' sa ', '30', ' dk']`), with their scale. */
+export function totalParts(total: string): { parts: { text: string; number: boolean }[]; scale: number } {
+  const parts = total
+    .split(/(\d+)/)
+    .filter((text) => text !== '')
+    .map((text) => ({ text, number: /^\d+$/.test(text) }));
+  const width = parts.reduce(
+    (sum, part) =>
+      sum + part.text.length * (part.number ? DIGIT_WIDTH * TOTAL_SIZE : UNIT_WIDTH * TOTAL_UNIT_SIZE),
+    0,
+  );
+  return { parts, scale: Math.min(1, TOTAL_WIDTH / width) };
+}
+
+/** Share of the daily goal (day card) or of goal days in the week (week card), 0…1; `null` without a goal. */
+function goalShare(card: StudyCard): number | null {
+  if (card.goalPercent !== null) return card.goalPercent / 100;
+  if (card.goalDays !== null) return card.goalDays / 7;
+  return null;
+}
+
+/**
+ * The shareable 9:16 study card. Study numbers only (no name, age, school, exam type, no link
+ * or code; K-09) and the "Etüt" brand. Halka style: the soft brand tint around white panels, the
+ * total as the one rounded hero number, each subject's bar in its own colour and, with a goal,
+ * the ring of the app icon filled to it in the corner. Text does not follow the system font
+ * size: this is an image with a fixed layout (the preview has a spoken summary instead).
  */
 export const StudyCardView = forwardRef<View, { card: StudyCard; scheme: CardScheme; width: number }>(
   function StudyCardView({ card, scheme, width }, ref) {
@@ -34,12 +71,16 @@ export const StudyCardView = forwardRef<View, { card: StudyCard; scheme: CardSch
     if (card.goalPercent !== null) stats.push(tr.share.goalDay(card.goalPercent));
     if (card.goalDays !== null) stats.push(tr.share.goalWeek(card.goalDays));
     if (card.activeDays !== null) stats.push(tr.share.activeDays(card.activeDays));
+    const total = formatDuration(card.totalMs);
+    const totalLine = totalParts(total);
+    const totalSize = TOTAL_SIZE * totalLine.scale;
+    const goal = goalShare(card);
 
     return (
       <View
         ref={ref}
         collapsable={false}
-        style={[styles.card, { width, height: (width * 16) / 9, padding: 28 * u, backgroundColor: p.background }]}>
+        style={[styles.card, { width, height: (width * 16) / 9, padding: 28 * u, backgroundColor: p.accentSoft }]}>
         <View style={[styles.row, { gap: 10 * u }]}>
           <LogoMark size={40 * u} palette={p} />
           <Text allowFontScaling={false} style={t(26, p.text, '700')}>
@@ -56,32 +97,35 @@ export const StudyCardView = forwardRef<View, { card: StudyCard; scheme: CardSch
           </Text>
         </View>
 
-        <View
-          style={[
-            styles.panel,
-            { marginTop: 20 * u, padding: 20 * u, borderRadius: 18 * u, backgroundColor: p.surface, borderColor: p.border },
-          ]}>
+        <View style={{ marginTop: 20 * u, padding: 20 * u, borderRadius: 20 * u, backgroundColor: p.surface }}>
           <Text allowFontScaling={false} style={t(14, p.textMuted)}>
             {tr.share.total}
           </Text>
-          <Text allowFontScaling={false} style={t(46, p.accent, '700')} numberOfLines={1}>
-            {formatDuration(card.totalMs)}
+          <Text
+            allowFontScaling={false}
+            style={[t(totalSize, p.accent, '800'), styles.total, { lineHeight: totalSize * u * 1.15 }]}
+            numberOfLines={1}>
+            {totalLine.parts.map((part, i) =>
+              part.number ? (
+                part.text
+              ) : (
+                <Text key={i} style={{ fontSize: TOTAL_UNIT_SIZE * totalLine.scale * u, fontWeight: '700' }}>
+                  {part.text}
+                </Text>
+              ),
+            )}
           </Text>
         </View>
 
         <View
-          style={[
-            styles.panel,
-            {
-              marginTop: 14 * u,
-              padding: 20 * u,
-              borderRadius: 18 * u,
-              gap: 12 * u,
-              backgroundColor: p.surface,
-              borderColor: p.border,
-              flex: 1,
-            },
-          ]}>
+          style={{
+            marginTop: 14 * u,
+            padding: 20 * u,
+            borderRadius: 20 * u,
+            gap: 12 * u,
+            backgroundColor: p.surface,
+            flex: 1,
+          }}>
           <Text allowFontScaling={false} style={t(14, p.textMuted)}>
             {tr.share.subjects}
           </Text>
@@ -100,16 +144,16 @@ export const StudyCardView = forwardRef<View, { card: StudyCard; scheme: CardSch
                   {formatDuration(r.ms)} · %{r.percent}
                 </Text>
               </View>
-              <View style={{ height: 8 * u, borderRadius: 4 * u, backgroundColor: p.barMuted, overflow: 'hidden' }}>
-                <View
-                  style={{
-                    width: `${Math.max(2, r.percent)}%`,
-                    height: '100%',
-                    borderRadius: 4 * u,
-                    backgroundColor: p.accent,
-                  }}
-                />
-              </View>
+              {/* The subject's own colour on the panel (≥ 3:1); the rest of the subjects muted. */}
+              <View
+                testID={`share-card-bar-${r.subjectId ?? 'rest'}`}
+                style={{
+                  width: `${Math.max(2, r.percent)}%`,
+                  height: 10 * u,
+                  borderRadius: 5 * u,
+                  backgroundColor: r.subjectId === null ? p.textMuted : subjectColor(r.subjectId, p),
+                }}
+              />
             </View>
           ))}
         </View>
@@ -123,8 +167,6 @@ export const StudyCardView = forwardRef<View, { card: StudyCard; scheme: CardSch
                   paddingHorizontal: 12 * u,
                   paddingVertical: 6 * u,
                   borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: p.controlBorder,
                   backgroundColor: p.surface,
                 }}>
                 <Text allowFontScaling={false} style={t(13, p.text, '600')}>
@@ -135,9 +177,21 @@ export const StudyCardView = forwardRef<View, { card: StudyCard; scheme: CardSch
           </View>
         ) : null}
 
-        <Text allowFontScaling={false} style={[t(13, p.textMuted), { marginTop: 18 * u, textAlign: 'center' }]}>
-          {tr.share.footer}
-        </Text>
+        <View style={[styles.row, { marginTop: 18 * u, gap: 12 * u, minHeight: 36 * u }]}>
+          <Text allowFontScaling={false} style={[t(13, p.textMuted), { flex: 1 }]}>
+            {tr.share.footer}
+          </Text>
+          {goal !== null ? (
+            <Ring
+              testID="share-card-goal-ring"
+              ratio={goal}
+              color={goal >= 1 ? p.success : p.accent}
+              track={p.barSoft}
+              size={36 * u}
+              thickness={6 * u}
+            />
+          ) : null}
+        </View>
       </View>
     );
   },
@@ -172,5 +226,5 @@ export function LogoMark({ size, palette }: { size: number; palette: Palette }) 
 const styles = StyleSheet.create({
   card: { overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center' },
-  panel: { borderWidth: StyleSheet.hairlineWidth },
+  total: { fontFamily: ROUNDED_FONT, fontVariant: ['tabular-nums'], letterSpacing: -0.5 },
 });

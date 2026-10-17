@@ -1,5 +1,5 @@
-import { type ReactNode, useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, type TextStyle, View } from 'react-native';
+import { type ReactNode, useEffect, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, type TextStyle, View } from 'react-native';
 
 import { tr } from '../strings';
 import { announce } from './feedback';
@@ -239,6 +239,80 @@ export function ListRow({
       <Text style={[styles.body, { color: c.text, flex: 1 }]}>{title}</Text>
       <Icon name="chevron" color={c.textMuted} size={16} />
     </Pressable>
+  );
+}
+
+/**
+ * An on/off setting as an iOS row: the name on the left, the system switch on the right
+ * (VoiceOver: "<name>, anahtar, açık/kapalı"), an optional explanation under them. At
+ * accessibility text sizes the name wraps; the switch keeps its own size.
+ */
+export function SwitchRow({
+  label,
+  info,
+  value,
+  onChange,
+  testID,
+}: {
+  label: string;
+  info?: string;
+  value: boolean;
+  onChange: (on: boolean) => void;
+  /** On the switch itself (the control to tap and to read the state of). */
+  testID?: string;
+}) {
+  const c = usePalette();
+  return (
+    <View style={{ gap: space.xs }}>
+      <View style={styles.row}>
+        <Text style={[styles.body, { color: c.text, flex: 1, fontWeight: '600' }]}>{label}</Text>
+        <Switch
+          testID={testID}
+          accessibilityLabel={label}
+          value={value}
+          onValueChange={onChange}
+          // On: the filled brand blue of primary buttons (≥ 3:1 on the card); off: the system grey.
+          trackColor={{ true: c.primary }}
+          // The web preview's switch has its own teal thumb otherwise.
+          {...(Platform.OS === 'web' ? { activeThumbColor: c.onPrimary } : null)}
+        />
+      </View>
+      {info ? <Label variant="small">{info}</Label> : null}
+    </View>
+  );
+}
+
+/**
+ * A closed group under a row that opens it ("Ayrıntı ›"), like iOS's disclosure group: for
+ * settings most students never change. Announced as a button with its expanded state.
+ */
+export function Disclosure({
+  title,
+  children,
+  initiallyOpen = false,
+  testID,
+}: {
+  title: string;
+  children: ReactNode;
+  initiallyOpen?: boolean;
+  testID?: string;
+}) {
+  const c = usePalette();
+  const [open, setOpen] = useState(initiallyOpen);
+  return (
+    <>
+      <Pressable
+        testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen(!open)}
+        style={({ pressed }) => [styles.listRow, { opacity: pressed ? 0.6 : 1 }]}>
+        <Text style={[styles.body, { color: c.accent, flex: 1, fontWeight: '600' }]}>{title}</Text>
+        <Icon name={open ? 'chevronDown' : 'chevron'} color={c.accent} size={16} />
+      </Pressable>
+      {open ? children : null}
+    </>
   );
 }
 
@@ -592,7 +666,14 @@ export function Stepper({
   );
 }
 
-/** Icon, title, short explanation and an optional action, for screens without data yet. */
+/** Size of the soft brand circle of an empty state, and of the symbol in it. */
+const EMPTY_CIRCLE = 72;
+const EMPTY_ICON = 44;
+
+/**
+ * For screens without data yet: the screen's symbol in a soft brand circle (the ring motif of
+ * the icon), a title, one honest line of what will appear, and an optional tonal action.
+ */
 export function EmptyState({
   icon,
   title,
@@ -612,21 +693,25 @@ export function EmptyState({
   const c = usePalette();
   return (
     <Card testID={testID}>
-      {icon || title ? (
-        <View style={styles.row}>
-          {icon ? <Icon name={icon} color={c.accent} size={28} /> : null}
-          {title ? (
-            <Label variant="heading" style={{ flex: 1 }}>
-              {title}
-            </Label>
-          ) : null}
-        </View>
-      ) : null}
-      <Label variant="muted">{body}</Label>
+      <View style={styles.empty}>
+        {icon ? (
+          <View
+            testID={testID ? `${testID}-icon` : undefined}
+            style={[styles.emptyCircle, { backgroundColor: c.accentSoft }]}>
+            <Icon name={icon} color={c.accent} size={EMPTY_ICON} />
+          </View>
+        ) : null}
+        {title ? (
+          <Label variant="heading" style={styles.emptyText}>
+            {title}
+          </Label>
+        ) : null}
+        <Label variant="muted" style={styles.emptyText}>
+          {body}
+        </Label>
+      </View>
       {action && onAction ? (
-        <Row>
-          <Button testID={testID ? `${testID}-action` : undefined} kind="secondary" title={action} onPress={onAction} />
-        </Row>
+        <Button testID={testID ? `${testID}-action` : undefined} kind="secondary" title={action} onPress={onAction} />
       ) : null}
     </Card>
   );
@@ -644,11 +729,14 @@ export interface Bar {
 
 /**
  * Plain vertical bar chart built from Views (no chart library). Screen readers get the values
- * as one summary instead of every bar and label separately.
+ * as one summary instead of every bar and label separately. With a highlighted bar (today, this
+ * week) that one is the brand blue and the others soft (`barSoft`); without one every bar is
+ * `bar`. An empty day is a short `barMuted` stub. Each bar has its value written above it.
  */
 export function BarChart({ bars, height = 140 }: { bars: Bar[]; height?: number }) {
   const c = usePalette();
   const max = Math.max(...bars.map((b) => b.value), 0);
+  const others = bars.some((b) => b.highlight) ? c.barSoft : c.bar;
   const summary = tr.a11y.chart(bars.map((b) => tr.a11y.chartItem(b.label, b.a11yValue ?? b.valueLabel)).join(', '));
   return (
     <View
@@ -668,7 +756,7 @@ export function BarChart({ bars, height = 140 }: { bars: Bar[]; height?: number 
                 height: h,
                 width: '70%',
                 borderRadius: 4,
-                backgroundColor: b.value > 0 ? (b.highlight ? c.accent : c.bar) : c.barMuted,
+                backgroundColor: b.value > 0 ? (b.highlight ? c.accent : others) : c.barMuted,
               }}
             />
             <Text
@@ -751,6 +839,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  empty: { alignItems: 'center', gap: space.sm },
+  emptyCircle: {
+    width: EMPTY_CIRCLE,
+    height: EMPTY_CIRCLE,
+    borderRadius: EMPTY_CIRCLE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: space.xs,
+  },
+  emptyText: { textAlign: 'center' },
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: space.xs },
   barColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: space.xs },
   barValue: { fontSize: 11 },

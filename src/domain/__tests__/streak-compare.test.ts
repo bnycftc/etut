@@ -357,6 +357,15 @@ describe('weeklySummary', () => {
     expect(w.longest).toEqual({ subjectId: 'fizik', ms: min(120), startedAt: at('2026-10-05T06:00:00Z'), manual: false });
     expect(w.goalDays).toBe(2);
     expect(w.activeDays).toBe(3);
+    // Monday and Tuesday both hold 2 hours: the earlier one is the best day.
+    expect(w.bestDay).toEqual({ day: '2026-10-05', ms: min(120) });
+    expect(w.averageActiveDayMs).toBe(min(110));
     expect(weeklySummary(spans, '2026-10-05', null).goalDays).toBeNull();
+  });
+
+  it('an empty week has no best day and a zero average', () => {
+    const w = weeklySummary([], '2026-10-05', null);
+    expect(w.bestDay).toBeNull();
+    expect(w.averageActiveDayMs).toBe(0);
   });
 });

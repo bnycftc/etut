@@ -10,6 +10,15 @@ tags:
       id: onboarding-screen
     timeout: 60000
 # An 8th grader (13): LGS, under 15 (no groups tab; the exam form is the same for every age).
+# The brand band at the top and the fixed Başla bar at the bottom leave less of the year list on
+# the first screen: scroll to the year first (a no-op when it is already visible).
+# Centred: Maestro counts a chip under the fixed Başla bar as visible (it only checks the screen edges).
+- scrollUntilVisible:
+    element:
+      id: "birth-year-${new Date().getFullYear() - 13}"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
 - tapOn:
     id: "birth-year-${new Date().getFullYear() - 13}"
     retryTapIfNoChange: true
@@ -17,6 +26,7 @@ tags:
     element:
       id: exam-type-LGS
     direction: DOWN
+    centerElement: true
     timeout: 20000
 - tapOn:
     id: exam-type-LGS

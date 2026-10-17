@@ -24,10 +24,12 @@ tags:
 - tapOn:
     id: tab-settings
 # Settings grew (exam date, goal, pomodoro); the delete button is at the bottom.
+# Centred: a row under the tab bar counts as visible to Maestro (it only checks the screen edges).
 - scrollUntilVisible:
     element:
       id: settings-delete-all
     direction: DOWN
+    centerElement: true
     timeout: 20000
 - takeScreenshot: g-sil-01-ayarlar
 - tapOn:

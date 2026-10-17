@@ -595,6 +595,16 @@ export const tr = {
     streak: 'Seri',
     goalDays: (n: number) => `Hedefi tutturduğun gün: ${n}/7`,
     activeDays: (n: number) => `Çalıştığın gün: ${n}/7`,
+    /** The 2 × 2 tiles at the top of the week; each is read as one "label: value" (`activeDays` for the days). */
+    tileDays: 'Çalıştığın gün',
+    tileDaysValue: (n: number) => `${n}/7`,
+    tileAverage: 'Ortalama',
+    tileAverageA11y: (duration: string) => `Çalıştığın günlerde ortalama: ${duration}`,
+    tileBest: 'En çok',
+    tileBestA11y: (day: string, duration: string) => `En çok: ${day} · ${duration}`,
+    tileA11y: (label: string, value: string) => `${label}: ${value}`,
+    /** An empty week's average and best day. */
+    tileNone: '–',
     manual: (duration: string) => `Elle eklenen: ${duration}`,
     percent: (p: number) => `%${p}`,
   },
@@ -632,6 +642,8 @@ export const tr = {
     preset: (work: number, short: number) => `${work}/${short}`,
     presetA11y: (work: number, short: number) => `${work} dakika çalışma, ${short} dakika mola`,
     reset: 'Varsayılana dön',
+    /** Opens the durations under the presets (a closed group, like iOS's disclosure). */
+    details: 'Ayrıntı',
   },
 
   topicPicker: {
@@ -747,7 +759,10 @@ export const tr = {
     chartSingle: (last: string) => `Son deneme: ${last} net. Bir deneme daha ekleyince eğilim görünür.`,
     chartChange: (last: string, change: string) => `Son deneme: ${last} net · öncekinden ${change}`,
     chartBransLegend: 'Dolu nokta genel, içi boş nokta branş denemesi.',
-    chartTargetLegend: 'Kesik çizgi: hedef net.',
+    /** The target band in a net chart, written at its right end. */
+    chartTarget: (net: string) => `Hedef ${net}`,
+    /** The target in the chart's spoken summary. */
+    chartTargetA11y: (net: string) => `hedef ${net} net`,
     /** Confirmation on the list right after "Kaydet" in the new-exam form. */
     saved: (net: string) => `${net} net kaydedildi`,
     savedAnalysisHint: 'Kitapçık elindeyse şimdi analize başla; değilse sonra bu sekmeden de başlayabilirsin.',
@@ -846,7 +861,8 @@ export const tr = {
    */
   reminders: {
     title: 'Hatırlatıcılar',
-    open: 'Hatırlatıcılar',
+    /** The row under the "Hatırlatıcılar" section title in Ayarlar. */
+    open: 'Hatırlatıcıları ayarla',
     summaryOff: 'Bildirim izni verilmedi; hatırlatıcılar gelmez.',
     summaryOn: (count: number) => (count === 0 ? 'Açık hatırlatıcı yok.' : `${count} hatırlatıcı açık.`),
     info: 'Hatırlatıcılar bu cihazda kurulur; hiçbir sunucuya bir şey gönderilmez. Uygulama açıkken yalnız uzun oturum uyarısı gösterilir.',
@@ -856,8 +872,6 @@ export const tr = {
       'Bildirim izni kapalı. Telefonun Ayarlar uygulamasından Etüt’ün bildirimlerini açabilirsin.',
     openSettings: 'Ayarları aç',
     unsupported: 'Bu cihazda hatırlatıcı yok.',
-    on: 'Açık',
-    off: 'Kapalı',
     longSession: 'Uzun oturum uyarısı',
     longSessionInfo: (hours: number) =>
       `Sayaç ${hours} saat boyunca duraklatılmadan açık kalırsa “Hâlâ çalışıyor musun?” diye sorar. Pomodoro molaları sayacı duraklatmaz.`,
