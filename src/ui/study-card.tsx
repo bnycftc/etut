@@ -143,11 +143,26 @@ export const StudyCardView = forwardRef<View, { card: StudyCard; scheme: CardSch
   },
 );
 
-/** The app mark: a timer arc (three quarters) around an "E". Same idea as the app icon. */
+/**
+ * The app mark, mapped to the app icon (scripts/gen-icons.mjs): a timer arc of three quarters with
+ * its gap at the top left (12 to 9 o'clock), the stopwatch crown above it, an "E" inside.
+ */
 export function LogoMark({ size, palette }: { size: number; palette: Palette }) {
   const ring = size * 0.14;
+  // The icon's crown (128 × 62 above a 684 ring, 28 apart), at this size.
+  const crown = { width: size * 0.19, height: Math.max(3, size * 0.09), gap: size * 0.04 };
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          position: 'absolute',
+          top: -(crown.gap + crown.height),
+          width: crown.width,
+          height: crown.height,
+          borderRadius: crown.height / 2,
+          backgroundColor: palette.accent,
+        }}
+      />
       <View
         style={{
           position: 'absolute',
@@ -157,7 +172,8 @@ export function LogoMark({ size, palette }: { size: number; palette: Palette }) 
           borderWidth: ring,
           borderColor: palette.accent,
           borderTopColor: palette.barMuted,
-          transform: [{ rotate: '45deg' }],
+          // The muted top quarter turned to the top left, where the icon's arc is open.
+          transform: [{ rotate: '-45deg' }],
         }}
       />
       <Text

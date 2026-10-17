@@ -101,7 +101,7 @@ index.ts / index.web.ts Giriş noktası (web: SQLite worker'ını ısıtıp expo
 scripts/test-web.mjs    Web duman testi (npm run test:web)
 scripts/jest-react-compiler.js Jest'in react-compiler projesinin dönüştürücüsü (uygulama kodu React Compiler'la)
 eslint.config.js        Yalnız eslint-plugin-react-hooks, hepsi uyarı (npm run lint)
-scripts/gen-icons.mjs   Simge ve açılış ekranı (SVG -> PNG, simge alfa kanalsız)
+scripts/gen-icons.mjs   Simge (iOS açık/koyu/renklendirilmiş görünümler) ve açılış ekranı (SVG -> PNG, simgeler alfa kanalsız)
 scripts/gen-licenses.mjs Lisans listesi üretici; scripts/native-licenses/ yerel kütüphane metinleri, scripts/package-licenses/ LICENSE dosyasız yayımlanan npm paketlerinin depo metni (upstream, birebir; eksik metin betiği hatayla bitirir)
 e2e/                    Maestro akışları (iOS simülatörü, e2e-ios.yml)
 ci/ExportOptions.plist  TestFlight ihracat ayarları

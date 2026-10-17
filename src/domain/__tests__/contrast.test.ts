@@ -162,6 +162,10 @@ describe('brand blue outside the app meets WCAG AA', () => {
     expect(contrastRatio(color.light, '#FFFFFF')).toBeGreaterThanOrEqual(AA_GRAPHIC);
   });
 
+  it('dark app icon: the mark (dark accent) on the dark background ≥ 3', () => {
+    expect(contrastRatio(DARK.accent, DARK.background)).toBeGreaterThanOrEqual(AA_GRAPHIC);
+  });
+
   it.each([
     ['light', BRAND_BLUE.light, LIGHT.background],
     ['dark', BRAND_BLUE.dark, DARK.background],
