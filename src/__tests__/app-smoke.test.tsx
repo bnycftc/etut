@@ -2800,6 +2800,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
   }
 
   it('the Live Activity starts with the timer, follows pause/resume and ends with "Bitir"', async () => {
+    memory.dailyGoal = 120;
     renderRouter(APP_DIR, { initialUrl: '/' });
     fireEvent.press(screen.getByText('Fizik'));
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
@@ -2813,6 +2814,14 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
       from: memory.active?.startedAt,
     });
     expect(memory.liveActivityRecord?.sessionId).toBe(memory.active?.id);
+    // The goal ring counts with the clock towards the 2 h goal; nothing saved today yet.
+    const started = memory.active?.startedAt ?? 0;
+    expect(memory.liveActivities[0]).toMatchObject({
+      icon: 'stopwatch.fill',
+      goalRatio: 0,
+      goalFrom: started,
+      goalTo: started + 2 * 3_600_000,
+    });
 
     fireEvent.press(screen.getByRole('button', { name: 'Mola' }));
     await settle();

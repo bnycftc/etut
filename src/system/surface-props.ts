@@ -16,10 +16,11 @@ import { type ActiveSession, BACKGROUND_TOLERANCE_MS } from '../domain/timer';
 import type { WidgetEntry } from '../domain/widget-summary';
 import { tr } from '../strings';
 import { formatDuration } from '../ui/format';
+import { SUBJECT_COLORS } from '../ui/subject-colors';
 import type { NotificationText } from './types';
 
 /** SF Symbols used by the Live Activity. */
-export type ActivityIcon = 'book.fill' | 'cup.and.saucer.fill' | 'pause.fill';
+export type ActivityIcon = 'stopwatch.fill' | 'cup.and.saucer.fill' | 'pause.fill';
 
 export interface TimerActivityProps {
   /** Subject, and topic when one was chosen. */
@@ -27,6 +28,17 @@ export interface TimerActivityProps {
   status: string;
   /** SF Symbol shown next to the title and in the compact Dynamic Island. */
   icon: ActivityIcon;
+  /**
+   * The icon in the subject's colour (`subject-colors.ts`): `iconColor` on a light Lock Screen,
+   * `iconColorDark` on a dark one and in the Dynamic Island (always black).
+   */
+  iconColor: string;
+  iconColorDark: string;
+  /** Today's share of the daily goal at the update, 0…1 (the ring); `null` without a goal. */
+  goalRatio: number | null;
+  /** While study time counts towards the unmet goal, the ring fills by itself from `goalFrom` to `goalTo`. */
+  goalFrom: number | null;
+  goalTo: number | null;
   from: number;
   to: number;
   countsDown: boolean;
@@ -85,10 +97,26 @@ function clockTime(ms: number): string {
 }
 
 function phaseIcon(phase: PomodoroPhase | null): ActivityIcon {
-  return phase === 'short_break' || phase === 'long_break' ? 'cup.and.saucer.fill' : 'book.fill';
+  return phase === 'short_break' || phase === 'long_break' ? 'cup.and.saucer.fill' : 'stopwatch.fill';
 }
 
-export function timerActivityProps(session: ActiveSession, view: LiveTimerView): TimerActivityProps {
+/** The daily goal ring, from the widget's entry for now (`widgetTimeline`); the widget draws the same. */
+function goalRing(today: WidgetEntry | null): Pick<TimerActivityProps, 'goalRatio' | 'goalFrom' | 'goalTo'> {
+  if (today === null || today.goalMinutes === null) return { goalRatio: null, goalFrom: null, goalTo: null };
+  const live = today.counting && today.goalReachedAt !== null;
+  return {
+    goalRatio: today.goalRatio,
+    goalFrom: live ? today.at - today.todayMs : null,
+    goalTo: live ? today.goalReachedAt : null,
+  };
+}
+
+/** `today`: the widget timeline's entry for now; `null` (no data yet) shows no goal ring. */
+export function timerActivityProps(
+  session: ActiveSession,
+  view: LiveTimerView,
+  today: WidgetEntry | null = null,
+): TimerActivityProps {
   const topic = topicName(session.topicId);
   const title = topic ? `${tr.subject(session.subjectId)} · ${topic}` : tr.subject(session.subjectId);
   const longEvery = session.pomodoro?.config.longEvery ?? 4;
@@ -107,10 +135,14 @@ export function timerActivityProps(session: ActiveSession, view: LiveTimerView):
         : phaseLabel(view.phase, view.blockInSet ?? 1, longEvery);
   const span = clock.to - clock.from;
   const shownAt = clock.pausedAt ?? clock.from;
+  const colors = SUBJECT_COLORS[session.subjectId] ?? SUBJECT_COLORS.diger;
   return {
     title,
     status,
     icon: view.paused ? 'pause.fill' : phaseIcon(view.phase),
+    iconColor: colors.light,
+    iconColorDark: colors.dark,
+    ...goalRing(today),
     from: clock.from,
     to: clock.to,
     countsDown: clock.countsDown,

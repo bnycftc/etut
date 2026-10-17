@@ -120,7 +120,7 @@ const recordKey = (record: LiveActivityRecord) => `${record.sessionId}|${record.
  * Starts, updates, refreshes or ends the Live Activity. ActivityKit starts one only while the app
  * is in the foreground; updating and ending also work while it goes to the background.
  */
-async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
+async function syncLiveActivity(active: ActiveSession | null, data: SurfaceData | null): Promise<void> {
   if (!liveActivity.supported) return;
   const now = Date.now();
   const record = loadLiveActivityRecord();
@@ -148,7 +148,9 @@ async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
   }
   if (active === null || action === 'none' || action === 'end') return;
   const view = liveTimerView(active, now, provisionalAwayAt(active, loadAwayRule()));
-  const props = timerActivityProps(active, view);
+  // The goal ring: the widget timeline's entry for now (same numbers as the widget).
+  const today = data === null ? null : timeline(active, data, now)[0];
+  const props = timerActivityProps(active, view, today);
   const key = JSON.stringify([active.id, props, view.staleAt]);
   if (action === 'update') {
     if (key === lastLiveKey) return;
@@ -167,22 +169,25 @@ async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
 
 let lastWidgetKey: string | null = null;
 
+function timeline(active: ActiveSession | null, data: SurfaceData, now: number) {
+  return widgetTimeline({
+    now,
+    savedTotal: data.savedTotal,
+    active,
+    goalMinutes: data.goalMinutes,
+    goalHistory: data.goalHistory,
+    exam: data.exam,
+    awayAt: active === null ? null : provisionalAwayAt(active, loadAwayRule()),
+  });
+}
+
 function syncWidget(active: ActiveSession | null, data: SurfaceData | null): void {
   if (!homeWidget.supported) return;
   const now = Date.now();
-  const awayAt = active === null ? null : provisionalAwayAt(active, loadAwayRule());
   const entries =
     data === null
       ? [{ at: now, props: emptyWidgetProps() }]
-      : widgetTimeline({
-          now,
-          savedTotal: data.savedTotal,
-          active,
-          goalMinutes: data.goalMinutes,
-          goalHistory: data.goalHistory,
-          exam: data.exam,
-          awayAt,
-        }).map((e) => ({ at: e.at, props: todayWidgetProps(e) }));
+      : timeline(active, data, now).map((e) => ({ at: e.at, props: todayWidgetProps(e) }));
   // The first entry always starts "now"; only a different picture needs a reload.
   const key = JSON.stringify(entries.map((e, i) => [i === 0 ? 0 : e.at, e.props]));
   if (key === lastWidgetKey) return;
@@ -282,8 +287,8 @@ export function SystemSync(): null {
   }, [openUrl, profile, navigation]);
 
   useEffect(() => {
-    runLiveActivity(() => syncLiveActivity(session));
-  }, [session, foreground, phaseEnds]);
+    runLiveActivity(() => syncLiveActivity(session, data));
+  }, [session, data, foreground, phaseEnds]);
 
   useEffect(() => {
     syncWidget(session, data);
