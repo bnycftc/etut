@@ -12,6 +12,9 @@ export function Screen({ children, testID }: { children: ReactNode; testID?: str
     <ScrollView
       testID={testID}
       style={{ flex: 1, backgroundColor: c.background }}
+      // iOS: under a transparent large-title header and the tab bar the content starts below
+      // the bars and scrolls under them; the large title collapses only with this.
+      contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.screen}
       keyboardShouldPersistTaps="handled">
       {children}

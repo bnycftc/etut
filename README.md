@@ -60,12 +60,14 @@ Web verisini sıfırlamak için uygulamadaki "Tüm verileri sil" ya da tarayıc�
 app/                    Ekranlar (expo-router)
   _layout.tsx           Kök yığın; profil yoksa yalnız onboarding açılır
   onboarding.tsx        İlk açılış: doğum yılı, sınav türü, YKS alanı
-  (tabs)/index.tsx      Sayaç (ana ekran, ilk sekme)
-  (tabs)/denemeler.tsx  Deneme listesi ve net grafiği
-  (tabs)/gruplar.tsx    Grup ana ekranı; yalnız bayrak açıkken ve 15+ profillerde sekme olarak görünür
+  (tabs)/_layout.tsx    Yerel sekmeler (NativeTabs); web önizleme `_layout.web.tsx` (JS sekmeleri, testID'li).
+                        Her sekme kendi yığınıyla bir klasör (`_layout.tsx` = büyük başlık, src/ui/tab-stack.tsx)
+  (tabs)/(timer)/index.tsx  Sayaç (ana ekran, ilk sekme)
+  (tabs)/denemeler/index.tsx  Deneme listesi ve net grafiği
+  (tabs)/gruplar/index.tsx  Grup ana ekranı; yalnız bayrak açıkken ve 15+ profillerde sekme olarak görünür
   grup/[id].tsx         Grup: şu an çalışanlar, sıralama, hazır tepkiler, bildir/engelle, kurucu araçları
   veli.tsx              Veli modu (velinin kendi cihazında, yetişkin profille)
-  (tabs)/ayarlar.tsx    Sınav/alan değiştirme, günlük hedef, pomodoro, sınav tarihi (düğmesiz: yazılınca ya da alandan
+  (tabs)/ayarlar/index.tsx  Sınav/alan değiştirme, günlük hedef, pomodoro, sınav tarihi (düğmesiz: yazılınca ya da alandan
                         çıkınca kaydedilir), yedek, tüm verileri sil ("Önce yedek al" ile), hakkında
   gecmis.tsx            Günlük toplamlar, ders dağılımı, son 7 gün ("elle" kısmı)
   haftalik.tsx          Haftalık özet (toplam, ders dağılımı, en uzun oturum, seri)
