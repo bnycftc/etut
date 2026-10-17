@@ -15,6 +15,10 @@ tags:
       id: open-share
     direction: DOWN
     timeout: 20000
+    centerElement: true
+# The large title collapses while the list scrolls; let it settle before the tap.
+- waitForAnimationToEnd:
+    timeout: 3000
 - tapOn:
     id: open-share
 - extendedWaitUntil:
@@ -66,6 +70,10 @@ tags:
       id: open-share
     direction: DOWN
     timeout: 20000
+    centerElement: true
+# The large title collapses while the list scrolls; let it settle before the tap.
+- waitForAnimationToEnd:
+    timeout: 3000
 - tapOn:
     id: open-share
 - extendedWaitUntil:
