@@ -9,6 +9,10 @@
  * assets/icon.png is 1024×1024 without an alpha channel (App Store requirement): the RGBA output
  * of resvg is written as an RGB PNG. The splash colours come from src/ui/palette.ts (the brand blue
  * and the backgrounds; Node strips its types, and says once that it reads it as a module).
+ *
+ * iOS 18+ icon appearances (app.json `ios.icon`): icon-dark.png is the mark in the dark accent on
+ * the dark background, icon-tinted.png a white mark on black. The system tints that one by its
+ * luminance, and Expo flattens the tinted (and light) variant onto white, so it must be opaque.
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -28,6 +32,8 @@ const LIGHT_BG = LIGHT.background;
 const LIGHT_ACCENT = BRAND_BLUE.light;
 const DARK_BG = DARK.background;
 const DARK_ACCENT = BRAND_BLUE.dark;
+/** The dark icon: the app's dark text accent on its dark background (the Halka dark theme). */
+const DARK_ICON_FG = DARK.accent;
 
 /** `#RRGGBB` at `alpha` as an SVG colour (the faint track of the timer arc). */
 function rgba(hex, alpha) {
@@ -60,11 +66,21 @@ function mark({ fg, track }) {
 const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2F7BF5"/>
-      <stop offset="1" stop-color="#1446B8"/>
+      <stop offset="0" stop-color="#4C6EF5"/>
+      <stop offset="1" stop-color="#2A3FA8"/>
     </linearGradient>
   </defs>
   <rect width="1024" height="1024" fill="url(#bg)"/>
+  ${mark({ fg: '#FFFFFF', track: 'rgba(255,255,255,0.24)' })}
+</svg>`;
+
+const ICON_DARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="${DARK_BG}"/>
+  ${mark({ fg: DARK_ICON_FG, track: rgba(DARK_ICON_FG, 0.22) })}
+</svg>`;
+
+const ICON_TINTED_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#000000"/>
   ${mark({ fg: '#FFFFFF', track: 'rgba(255,255,255,0.24)' })}
 </svg>`;
 
@@ -128,6 +144,8 @@ function writePng(file, svg, width, alpha) {
 }
 
 writePng(path.join(ASSETS, 'icon.png'), ICON_SVG, 1024, false);
+writePng(path.join(ASSETS, 'icon-dark.png'), ICON_DARK_SVG, 1024, false);
+writePng(path.join(ASSETS, 'icon-tinted.png'), ICON_TINTED_SVG, 1024, false);
 writePng(path.join(ASSETS, 'favicon.png'), ICON_SVG, 48, false);
 writePng(path.join(ASSETS, 'splash-icon.png'), splashSvg(LIGHT_ACCENT, LIGHT_TRACK), 512, true);
 writePng(path.join(ASSETS, 'splash-icon-dark.png'), splashSvg(DARK_ACCENT, DARK_TRACK), 512, true);
@@ -136,6 +154,8 @@ if (process.argv.includes('--preview')) {
   const out = path.join(ROOT, 'test-results', 'icons');
   mkdirSync(out, { recursive: true });
   for (const size of [60, 120, 180]) writePng(path.join(out, `icon-${size}.png`), ICON_SVG, size, false);
+  writePng(path.join(out, 'icon-dark-180.png'), ICON_DARK_SVG, 180, false);
+  writePng(path.join(out, 'icon-tinted-180.png'), ICON_TINTED_SVG, 180, false);
   // Splash marks on their backgrounds, as the system shows them.
   for (const [name, bg, accent, track] of [
     ['splash-light', LIGHT_BG, LIGHT_ACCENT, LIGHT_TRACK],

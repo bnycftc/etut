@@ -217,6 +217,17 @@ describe('brand blue outside the app meets WCAG AA', () => {
     expect(contrastRatio(BRAND_BLUE.dark, bg)).toBeGreaterThanOrEqual(AA_GRAPHIC);
   });
 
+  // The Live Activity's icon is the subject's colour: the dark one in the Dynamic Island (black)
+  // and on a dark Lock Screen, the light one on a light Lock Screen.
+  it.each(Object.entries(SUBJECT_COLORS))('Live Activity icon of %s on black and white ≥ 3', (_id, color) => {
+    expect(contrastRatio(color.dark, '#000000')).toBeGreaterThanOrEqual(AA_GRAPHIC);
+    expect(contrastRatio(color.light, '#FFFFFF')).toBeGreaterThanOrEqual(AA_GRAPHIC);
+  });
+
+  it('dark app icon: the mark (dark accent) on the dark background ≥ 3', () => {
+    expect(contrastRatio(DARK.accent, DARK.background)).toBeGreaterThanOrEqual(AA_GRAPHIC);
+  });
+
   it.each([
     ['light', BRAND_BLUE.light, LIGHT.background],
     ['dark', BRAND_BLUE.dark, DARK.background],

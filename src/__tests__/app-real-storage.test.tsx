@@ -14,7 +14,7 @@
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
-import { AccessibilityInfo, AppState, type AppStateStatus } from 'react-native';
+import { AccessibilityInfo, Alert, AppState, type AppStateStatus } from 'react-native';
 
 import { UNDO_FINISH_MS } from '../domain/finish';
 import type { Profile } from '../domain/profile';
@@ -192,6 +192,27 @@ const { mockOpened } = jest.requireMock('expo-sqlite') as {
 const mainKv = () => mockKvFiles.get('ExpoSQLiteStorage')!;
 
 const APP_DIR = './app';
+
+/**
+ * On the device "Tüm verileri sil" asks with the system alert (`Alert.alert`): a spy stands in for
+ * it and its buttons are pressed by their text.
+ */
+const systemAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+beforeEach(() => systemAlert.mockClear());
+function lastAlert() {
+  const call = systemAlert.mock.calls.at(-1);
+  if (call === undefined) throw new Error('no system alert');
+  return { title: call[0], message: call[1], buttons: call[2] ?? [] };
+}
+function alertButton(text: string) {
+  const button = lastAlert().buttons.find((b) => b.text === text);
+  if (button?.onPress === undefined) throw new Error(`no alert button "${text}"`);
+  return button.onPress;
+}
+function pressAlert(text: string) {
+  const onPress = alertButton(text);
+  act(() => onPress());
+}
 // The first render loads every route of the app.
 jest.setTimeout(60_000);
 const MIN = 60_000;
@@ -281,7 +302,7 @@ describe('"Tüm verileri sil" on the real storage', () => {
 
     act(() => router.push('/ayarlar'));
     fireEvent.press(screen.getByTestId('settings-delete-all'));
-    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    pressAlert('Evet, hepsini sil');
     await settle();
 
     expect(screen.getByTestId('onboarding-start')).toBeTruthy();

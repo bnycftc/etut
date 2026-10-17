@@ -41,6 +41,19 @@ describe('brand blue outside the app', () => {
     expect(splash[1].dark.backgroundColor).toBe(DARK.background);
   });
 
+  it('iOS 18+ icon appearances: light, dark and tinted from scripts/gen-icons.mjs', () => {
+    const app = JSON.parse(read('app.json')) as { expo: { icon: string; ios: { icon: Record<string, string> } } };
+    expect(app.expo.ios.icon).toEqual({
+      light: app.expo.icon,
+      dark: './assets/icon-dark.png',
+      tinted: './assets/icon-tinted.png',
+    });
+    const icons = read('scripts/gen-icons.mjs');
+    // The dark icon is the dark theme's accent on its background.
+    expect(icons).toContain('const DARK_ICON_FG = DARK.accent;');
+    expect(icons).toContain('fill="${DARK_BG}"');
+  });
+
   it('the brand blue is the accent of light and the chart blue of dark', () => {
     expect(BRAND_BLUE).toEqual({ light: LIGHT.accent, dark: DARK.bar });
   });

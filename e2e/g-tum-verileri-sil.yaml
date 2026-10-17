@@ -34,24 +34,19 @@ tags:
 - takeScreenshot: g-sil-01-ayarlar
 - tapOn:
     id: settings-delete-all
-# The confirm button appears below the warning text; centre it so the tap cannot land on the tab bar.
-- scrollUntilVisible:
-    element:
-      id: settings-delete-all-confirm
-    direction: DOWN
+# The question is the system alert ("Evet, hepsini sil" is its destructive button): its buttons
+# have no id, they are tapped by their text.
+- extendedWaitUntil:
+    visible: "Evet, hepsini sil"
     timeout: 10000
-    visibilityPercentage: 100
-    centerElement: true
 - takeScreenshot: g-sil-02-onay
-# A backup is offered first: "Önce yedek al" opens the system share sheet above the dialog and
-# deletes nothing.
-- tapOn:
-    id: settings-delete-all-backup
+# A backup is offered first: "Önce yedek al" opens the system share sheet and deletes nothing.
+- tapOn: "Önce yedek al"
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: g-sil-02b-yedek-paylasim
 # Close the share sheet by dragging it down. No tap on the dimmed area as in i-yedek: if the sheet
-# is already gone, that tap would land on the delete dialog's backdrop and close the dialog.
+# is already gone, that tap would land on the settings screen.
 - swipe:
     start: 50%, 55%
     end: 50%, 98%
@@ -59,24 +54,18 @@ tags:
     timeout: 5000
 - runFlow:
     when:
-      notVisible:
-        id: settings-delete-all-backup-note
+      notVisible: "(?s).*kontrol edemez.*"
     commands:
       - swipe:
           start: 50%, 55%
           end: 50%, 98%
           duration: 400
-# The dialog is still open and says the file was handed over (not the error text).
+# The question comes back and its last paragraph says the file was handed over (not the error text).
 - extendedWaitUntil:
-    visible:
-      id: settings-delete-all-backup-note
-      text: ".*kontrol edemez.*"
+    visible: "(?s).*kontrol edemez.*"
     timeout: 20000
-- assertVisible:
-    id: settings-delete-all-dialog
 - takeScreenshot: g-sil-02c-yedek-notu
-- tapOn:
-    id: settings-delete-all-confirm
+- tapOn: "Evet, hepsini sil"
 - extendedWaitUntil:
     visible:
       id: onboarding-screen

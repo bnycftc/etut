@@ -22,10 +22,26 @@
  * none at all (`undefined`, not `null`). With them, the status has its own line under the clock
  * (up to two lines: "Uygulamadan çıktın · 10 sn sonra mola sayılır" until stale). On the iOS
  * simulator the stale layout was never drawn (E2E run 37): that status is what it shows.
+ *
+ * The icon is drawn in the subject's colour (`iconColor` / `iconColorDark`), the progress in the one
+ * brand blue. The banner's goal ring fills by itself while study time counts towards the goal
+ * (`goalFrom`…`goalTo`), otherwise it shows `goalRatio`; it is left out once stale (a break or the
+ * time away would have stopped it, which nothing can draw without the app). Fields an older
+ * activity does not carry are checked with `typeof`, as the away fields are.
  */
 
-import { HStack, Image, ProgressView, Spacer, Text, VStack } from '@expo/ui/swift-ui';
-import { font, foregroundStyle, frame, lineLimit, monospacedDigit, padding } from '@expo/ui/swift-ui/modifiers';
+import { Gauge, HStack, Image, ProgressView, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import {
+  font,
+  foregroundStyle,
+  frame,
+  gaugeStyle,
+  lineLimit,
+  monospacedDigit,
+  padding,
+  progressViewStyle,
+  tint,
+} from '@expo/ui/swift-ui/modifiers';
 import type { LiveActivityEnvironment } from 'expo-widgets';
 
 import type { TimerActivityProps } from '../surface-props';
@@ -54,6 +70,16 @@ export const TimerActivity = (props: TimerActivityProps, environment: LiveActivi
       : undefined;
   const countsDown = showNext ? true : props.countsDown;
   const accent = environment.isLuminanceReduced === true ? '#FFFFFF' : '#5C7CFA';
+  const subjectKnown = typeof props.iconColor === 'string' && typeof props.iconColorDark === 'string';
+  // The Dynamic Island is always black; the banner follows the Lock Screen's scheme.
+  const islandTint =
+    environment.isLuminanceReduced === true || !subjectKnown ? accent : props.iconColorDark;
+  const bannerTint =
+    environment.isLuminanceReduced === true || !subjectKnown
+      ? accent
+      : environment.colorScheme === 'dark'
+        ? props.iconColorDark
+        : props.iconColor;
   const secondary = foregroundStyle({ type: 'hierarchical', style: 'secondary' });
 
   const clock = (size: number, maxWidth: number) => (
@@ -75,27 +101,47 @@ export const TimerActivity = (props: TimerActivityProps, environment: LiveActivi
     <ProgressView timerInterval={{ lower: lower, upper: upper }} countsDown={false} />
   );
 
+  const goalLive = typeof props.goalFrom === 'number' && typeof props.goalTo === 'number';
+  const ring =
+    environment.isStale === true || typeof props.goalRatio !== 'number' ? null : goalLive ? (
+      <ProgressView
+        timerInterval={{ lower: new Date(props.goalFrom ?? props.from), upper: new Date(props.goalTo ?? props.to) }}
+        countsDown={false}
+        modifiers={[progressViewStyle('circular'), tint(accent), frame({ width: 44, height: 44 })]}
+      />
+    ) : (
+      <Gauge value={props.goalRatio} modifiers={[gaugeStyle('circularCapacity'), tint(accent)]} />
+    );
+
   return {
     banner: (
       <VStack alignment="leading" spacing={6} modifiers={[padding({ all: 16 })]}>
         <HStack spacing={8}>
-          <Image systemName={icon} size={15} color={accent} />
+          <Image systemName={icon} size={15} color={bannerTint} />
           <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{props.title}</Text>
           <Spacer />
           {awayKnown ? null : <Text modifiers={[font({ size: 13 }), secondary, lineLimit(1)]}>{status}</Text>}
         </HStack>
-        {clock(40, 0)}
+        {ring === null ? (
+          clock(40, 0)
+        ) : (
+          <HStack spacing={12}>
+            {clock(40, 0)}
+            <Spacer />
+            {ring}
+          </HStack>
+        )}
         {awayKnown ? <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(2)]}>{status}</Text> : null}
         {progress}
         {away ? <Text modifiers={[font({ size: 12 }), secondary, lineLimit(1)]}>{props.awayHint}</Text> : null}
       </VStack>
     ),
-    compactLeading: <Image systemName={icon} size={14} color={accent} />,
+    compactLeading: <Image systemName={icon} size={14} color={islandTint} />,
     compactTrailing: clock(15, 64),
-    minimal: <Image systemName={icon} size={13} color={accent} />,
+    minimal: <Image systemName={icon} size={13} color={islandTint} />,
     expandedLeading: (
       <VStack alignment="leading" spacing={2} modifiers={[padding({ leading: 4 })]}>
-        <Image systemName={icon} size={16} color={accent} />
+        <Image systemName={icon} size={16} color={islandTint} />
         <Text modifiers={[font({ size: 13 }), lineLimit(1)]}>{props.title}</Text>
       </VStack>
     ),

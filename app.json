@@ -8,6 +8,11 @@
     "scheme": "etut",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "icon": {
+        "light": "./assets/icon.png",
+        "dark": "./assets/icon-dark.png",
+        "tinted": "./assets/icon-tinted.png"
+      },
       "bundleIdentifier": "com.bnycftc.etut",
       "appleTeamId": "26322AY3MH",
       "buildNumber": "1",
