@@ -88,10 +88,16 @@ tags:
 - tapOn:
     id: settings-open-about
     retryTapIfNoChange: true
+# The Halka cards are taller: the data-controller card now starts below the first screen.
 - extendedWaitUntil:
     visible:
-      id: about-controller
+      id: about-version
     timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: about-controller
+    direction: DOWN
+    timeout: 15000
 - assertVisible:
     id: about-controller
     text: "\\[DOLDURULACAK\\]"
