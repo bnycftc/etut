@@ -1,0 +1,22 @@
+# Uygulamayı kapatıp aç (veri korunur), sayaç sekmesine dön. NOTIF: allow | unset.
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+---
+- stopApp
+- launchApp:
+    clearState: false
+    permissions:
+      notifications: ${NOTIF}
+- extendedWaitUntil:
+    visible:
+      id: tab-timer
+    timeout: 90000
+    optional: true
+- tapOn:
+    id: tab-timer
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-screen
+    timeout: 30000
+    optional: true

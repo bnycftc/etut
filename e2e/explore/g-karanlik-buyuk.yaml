@@ -1,0 +1,466 @@
+# Görsel geçiş: karanlık mod + erişilebilirlik büyük yazı (simctl ile ayarlanır). Ana ekranlar.
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+env:
+  P: g
+  NOTIF: allow
+  AGE: '17'
+  AREA: sayisal
+---
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+- extendedWaitUntil:
+    visible:
+      id: onboarding-screen
+    timeout: 120000
+    optional: true
+- takeScreenshot: g-01-onboarding-ust
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-02-onboarding-orta
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    timeout: 30000
+    optional: true
+- takeScreenshot: g-03-onboarding-alt
+- scrollUntilVisible:
+    element:
+      id: birth-year-${new Date().getFullYear() - 17}
+    direction: UP
+    centerElement: true
+    timeout: 30000
+    optional: true
+- tapOn:
+    id: birth-year-${new Date().getFullYear() - 17}
+    retryTapIfNoChange: true
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: exam-type-YKS
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: exam-type-YKS
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: yks-area-sayisal
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: yks-area-sayisal
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+      enabled: true
+    timeout: 30000
+    optional: true
+- tapOn:
+    id: onboarding-start
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: tips-(next|skip)
+    timeout: 60000
+    optional: true
+- takeScreenshot: g-04-ipucu
+- tapOn:
+    id: tips-skip
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-screen
+    timeout: 30000
+    optional: true
+- takeScreenshot: g-05-sayac-ust
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-06-sayac-orta
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-07-sayac-alt
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-07b-sayac-en-alt
+- scrollUntilVisible:
+    element:
+      id: subject-matematik
+    direction: UP
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: subject-matematik
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: timer-start
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: timer-start
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: 0:(0[5-9]|[1-5][0-9])
+    timeout: 45000
+    optional: true
+- takeScreenshot: g-08-sayac-calisiyor
+- scrollUntilVisible:
+    element:
+      id: timer-finish
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- takeScreenshot: g-08b-sayac-calisiyor-alt
+- tapOn:
+    id: timer-finish
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-saved
+    timeout: 30000
+    optional: true
+- takeScreenshot: g-09-sayac-ozet
+- scrollUntilVisible:
+    element:
+      id: goal-(set|edit)
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: goal-(set|edit)
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-10-hedef-sayfasi
+- tapOn:
+    id: goal-preset-120
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: goal-sheet-done
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- takeScreenshot: g-10b-hedef-sayfasi-alt
+- tapOn:
+    id: goal-sheet-done
+    optional: true
+- tapOn:
+    id: open-history
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-11-gecmis
+- runFlow:
+    file: subflows/geri.yaml
+- scrollUntilVisible:
+    element:
+      id: open-weekly
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: open-weekly
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-12-haftalik
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-12b-haftalik-orta
+- scrollUntilVisible:
+    element:
+      id: monthly-grid
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- takeScreenshot: g-12c-aylik
+- runFlow:
+    file: subflows/geri.yaml
+- scrollUntilVisible:
+    element:
+      id: open-share
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: open-share
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-13-paylas
+- scrollUntilVisible:
+    element:
+      id: share-card-share
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- takeScreenshot: g-13b-paylas-alt
+- runFlow:
+    file: subflows/geri.yaml
+- scrollUntilVisible:
+    element:
+      id: open-report
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: open-report
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-14-karne
+- runFlow:
+    file: subflows/geri.yaml
+- tapOn:
+    id: tab-exams
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-20-denemeler
+- tapOn:
+    id: exams-add
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exam-kind-TYT
+    timeout: 30000
+    optional: true
+- tapOn:
+    id: exam-kind-TYT
+    optional: true
+- takeScreenshot: g-21-deneme-form-ust
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-correct-turkce
+      V: '30'
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-wrong-turkce
+      V: '8'
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-correct-tarih
+      V: '9'
+- takeScreenshot: g-22-deneme-form-hata
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-correct-tarih
+      V: '4'
+- scrollUntilVisible:
+    element:
+      id: exam-save
+    direction: DOWN
+    timeout: 30000
+    optional: true
+- takeScreenshot: g-23-deneme-form-alt
+- tapOn:
+    id: exam-save
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exams-saved-title
+    timeout: 30000
+    optional: true
+- takeScreenshot: g-24-deneme-kaydedildi
+- scrollUntilVisible:
+    element:
+      id: exam-item-0
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- takeScreenshot: g-25-deneme-liste
+- tapOn:
+    id: exam-item-0
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-26-deneme-ayrinti
+- runFlow:
+    file: subflows/geri.yaml
+- tapOn:
+    id: tab-groups
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-30-gruplar-ust
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-31-gruplar-orta
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-32-gruplar-alt
+- tapOn:
+    id: tab-settings
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-40-ayarlar-1
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-41-ayarlar-2
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-42-ayarlar-3
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-43-ayarlar-4
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-44-ayarlar-5
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-45-ayarlar-6
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-46-ayarlar-7
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-47-ayarlar-8
+- scrollUntilVisible:
+    element:
+      id: settings-open-about
+    direction: DOWN
+    timeout: 30000
+    optional: true
+- takeScreenshot: g-48-ayarlar-son
+- tapOn:
+    id: settings-open-about
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-50-hakkinda
+- swipe:
+    start: 50%, 80%
+    end: 50%, 25%
+    duration: 400
+    optional: true
+- takeScreenshot: g-51-hakkinda-orta
+- runFlow:
+    file: subflows/geri.yaml
+- tapOn:
+    id: tab-settings
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: settings-reminders
+    direction: DOWN
+    timeout: 30000
+    optional: true
+- tapOn:
+    id: settings-reminders
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-52-hatirlaticilar
+- runFlow:
+    file: subflows/geri.yaml
+- tapOn:
+    id: tab-settings
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: settings-open-backup
+    direction: DOWN
+    timeout: 30000
+    optional: true
+- tapOn:
+    id: settings-open-backup
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-53-yedek
+- runFlow:
+    file: subflows/geri.yaml
+- tapOn:
+    id: tab-settings
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: settings-delete-all
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+    optional: true
+- tapOn:
+    id: settings-delete-all
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: g-54-sil-sorusu

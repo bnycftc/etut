@@ -1,0 +1,9 @@
+# Bekle: SEC saniye (Maestro'da sleep yok; hiç olmayan bir id beklenir).
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+---
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: ${Number(SEC) * 1000}
+    optional: true

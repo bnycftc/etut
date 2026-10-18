@@ -1,0 +1,41 @@
+# Deneme formunda bir sayı alanını doldur. F: alan id (exam-correct-turkce), V: değer.
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+---
+- runFlow:
+    when:
+      notVisible:
+        id: ${F}
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: ${F}
+        direction: UP
+        timeout: 8000
+        optional: true
+- scrollUntilVisible:
+    element:
+      id: ${F}
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: ${F}
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exam-keyboard-bar
+    timeout: 20000
+    optional: true
+- eraseText:
+    charactersToErase: 4
+    optional: true
+- inputText:
+    text: ${V}
+    optional: true
+- tapOn:
+    id: exam-keyboard-done
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000

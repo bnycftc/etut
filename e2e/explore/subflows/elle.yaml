@@ -1,0 +1,103 @@
+# Elle süre ekle: önce geçersiz (süre boş), sonra bugün 00:05'ten H saat M dakika.
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+---
+- tapOn:
+    id: tab-timer
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: open-manual
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: open-manual
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: manual-subject-${SUBJ}
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-40-elle-ekle
+- tapOn:
+    id: manual-subject-${SUBJ}
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: manual-add
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: manual-add
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-41-elle-bos-hata
+- scrollUntilVisible:
+    element:
+      id: manual-start-hour
+    direction: UP
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: manual-start-hour
+    optional: true
+- inputText:
+    text: '00'
+    optional: true
+- tapOn:
+    id: manual-start-minute
+    optional: true
+- inputText:
+    text: '05'
+    optional: true
+- tapOn:
+    id: manual-duration-hours
+    optional: true
+- inputText:
+    text: ${H}
+    optional: true
+- tapOn:
+    id: manual-duration-minutes
+    optional: true
+- inputText:
+    text: ${M}
+    optional: true
+- takeScreenshot: ${P}-42-elle-klavye-acik
+- tapOn:
+    text: Süre
+    index: 0
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- scrollUntilVisible:
+    element:
+      id: manual-add
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- takeScreenshot: ${P}-43-elle-dolu
+- tapOn:
+    id: manual-add
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: manual-added
+    timeout: 20000
+    optional: true
+- takeScreenshot: ${P}-44-elle-eklendi
+- scrollUntilVisible:
+    element:
+      id: manual-delete-.*
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- takeScreenshot: ${P}-45-elle-liste

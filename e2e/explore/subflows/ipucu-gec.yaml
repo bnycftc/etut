@@ -1,0 +1,17 @@
+# İpuçlarını "Geç" ile kapat.
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+---
+- extendedWaitUntil:
+    visible:
+      id: tips-skip
+    timeout: 60000
+    optional: true
+- tapOn:
+    id: tips-skip
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 30000
+    optional: true
