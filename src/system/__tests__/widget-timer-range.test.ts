@@ -178,6 +178,13 @@ describe('today widget: every date range it draws is valid', () => {
     expect(dateProblems(layout({}, environment(family)))).toEqual([]);
   });
 
+  it('without props it reads like an empty day (same texts as emptyWidgetProps)', () => {
+    const empty = emptyWidgetProps();
+    const tree = JSON.stringify(layout({}, environment('systemMedium')));
+    expect(tree).toContain(JSON.stringify(empty.title));
+    expect(tree).toContain(JSON.stringify(empty.total));
+  });
+
   it.each(FAMILIES)('after "Tüm verileri sil" (%s)', (family) => {
     expect(dateProblems(layout(asStored(emptyWidgetProps()), environment(family)))).toEqual([]);
   });

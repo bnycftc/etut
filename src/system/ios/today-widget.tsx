@@ -34,10 +34,15 @@ export const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironm
   // A missing field counts as `null`, and so does a time that is not a finite number. The
   // placeholder has no props at all and the stored timeline has no null fields (home-widget.ios.ts);
   // `new Date(undefined)` would reach SwiftUI as a NaN date, on which `Text(timerInterval:)` traps
-  // (the extension crashes). Everything below may then check `!== null`.
+  // (the extension crashes). Everything below may then check `!== null`. Without props (the
+  // placeholder, the gallery before the app first ran) the widget reads like an empty day,
+  // the same texts as `emptyWidgetProps()`.
   const time = (value: number | null | undefined) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
   const line = (value: string | null | undefined) => (typeof value === 'string' ? value : null);
   props = Object.assign({}, props, {
+    title: line(props.title) ?? 'Bugün',
+    total: line(props.total) ?? '0 dk',
+    goalRatio: time(props.goalRatio) ?? 0,
     countingFrom: time(props.countingFrom),
     runningNote: line(props.runningNote),
     goalLine: line(props.goalLine),
