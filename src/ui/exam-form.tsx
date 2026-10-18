@@ -20,6 +20,7 @@ import {
   isEmptyExam,
   net,
   type SectionScore,
+  sectionNetsAddUp,
   sectionsFor,
   totalNet,
   validateScore,
@@ -266,8 +267,8 @@ export function ExamForm({
               />
             ))}
           </ChipRow>
-          <Row>
-            <Label variant="small" testID="exam-net-rule">
+          <Row wrap>
+            <Label variant="small" testID="exam-net-rule" style={{ flexShrink: 1 }}>
               {tr.exams.netRule(wrongsPerCorrect(kind))}
             </Label>
             <InfoLink testID="exam-net-info" section="net" term={tr.infoLink.net} />
@@ -422,6 +423,12 @@ export function ExamForm({
             <Button testID="exam-save" title={tr.common.save} disabled={saving} onPress={save} />
           </View>
         </View>
+        {/* LGS thirds: the rounded section nets above can miss the total by 0,01 (as on the detail screen). */}
+        {!hasErrors && !sectionNetsAddUp(scores, kind) ? (
+          <Label variant="small" testID="exam-rounding">
+            {tr.exams.roundingNote}
+          </Label>
+        ) : null}
       </SafeAreaView>
 
       {keyboardHeight > 0 ? (

@@ -73,6 +73,10 @@ tags:
       id: timer-saved
       text: "Kaydedildi: 1 dk"
     timeout: 10000
+# The summary is at the top of the screen and Bitir further down: right after Bitir the screen is
+# scrolled back, so "Geri al" is in view without any scroll here (V-01).
+- assertVisible:
+    id: finish-undo
 # After Bitir the saved time is the card's big number; today's total is on the muted line under it.
 - assertVisible:
     id: today-total

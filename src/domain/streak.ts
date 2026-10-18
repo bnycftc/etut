@@ -8,6 +8,8 @@
  *   not add to it. A second missed day in the same week ends the streak.
  * - Each day is judged by the goal of that day (`goalOfDay`, goal history): raising the goal never
  *   breaks a streak already there, lowering it never adds past days to one.
+ * - Today: a raise made after today's goal was met starts tomorrow (a met day stays met); a raise
+ *   before that, and any lowering, applies today (`withGoalChange`).
  */
 
 import { addDays, type DayKey, istanbulWeekday } from './istanbul-day';
@@ -60,14 +62,19 @@ export type GoalOf = (day: DayKey) => number;
 
 /**
  * The goal each day is judged by: the goal set last on or before that day. Today and later days
- * take `current` (the goal now). Days before the first change take the first goal: study from
- * before a goal was set counts towards the first one, as it always did. Without a history (a goal
- * set before the history was kept, never changed since) `current` applies to every day.
+ * take `current` (the goal now), except while a raise waits for tomorrow (an entry after today):
+ * today then keeps the goal in force before it. Days before the first change take the first goal:
+ * study from before a goal was set counts towards the first one, as it always did. Without a
+ * history (a goal set before the history was kept, never changed since) `current` applies to
+ * every day.
  */
 export function goalOfDay(history: GoalHistory, current: number, today: DayKey): GoalOf {
   const past = history.filter((c) => c.from < today);
+  const pending = history.some((c) => c.from > today);
+  const todayGoal = pending ? (history.filter((c) => c.from <= today).pop()?.minutes ?? current) : current;
   return (day) => {
-    if (day >= today || past.length === 0) return current;
+    if (day === today) return todayGoal;
+    if (day > today || past.length === 0) return current;
     // The last change on or before `day` (binary search; the list is in day order).
     let lo = 0;
     let hi = past.length - 1;
@@ -85,26 +92,40 @@ export function goalOfDay(history: GoalHistory, current: number, today: DayKey):
   };
 }
 
+/** The goal that starts tomorrow (a raise after today's goal was met), if there is one. */
+export function goalFromTomorrow(history: GoalHistory, today: DayKey): number | null {
+  return history.find((c) => c.from > today)?.minutes ?? null;
+}
+
 /**
  * The history after the goal is set to `minutes` (`null` = turned off) on `today`; `previous` is
- * the goal until now. A change replaces one made earlier the same day (today goes by the goal set
- * last); a change back to the goal in force before it leaves no entry. Turning the goal off changes
- * nothing (the streak is only hidden; when a goal is set again, the days in between keep the last
- * goal). A goal from before the history was kept is written down first, from the day before, so
- * that the days before keep it.
+ * the goal until now, `todayMs` today's study time so far. A raise after today's goal (the one in
+ * force today) was met starts tomorrow: today keeps its goal, so a met day stays met. A raise
+ * before that and any lowering apply today. A change replaces one made earlier the same day (and
+ * one waiting for tomorrow); a change back to the goal in force before it leaves no entry. Turning
+ * the goal off changes nothing (the streak is only hidden; when a goal is set again, the days in
+ * between keep the last goal). A goal from before the history was kept is written down first, from
+ * the day before, so that the days before keep it.
  */
 export function withGoalChange(
   history: GoalHistory,
   previous: number | null,
   minutes: number | null,
   today: DayKey,
+  todayMs = 0,
 ): GoalHistory {
   if (minutes === previous) return history;
+  const todayGoal = previous === null ? null : goalOfDay(history, previous, today)(today);
   const known = history.length === 0 && previous !== null ? [{ from: addDays(today, -1), minutes: previous }] : history;
   if (minutes === null) return known;
   const kept = known.filter((c) => c.from < today);
   const last = kept[kept.length - 1];
-  return last !== undefined && last.minutes === minutes ? kept : [...kept, { from: today, minutes }];
+  const keep = (goal: number): GoalChange[] =>
+    last !== undefined && last.minutes === goal ? [] : [{ from: today, minutes: goal }];
+  if (todayGoal !== null && minutes > todayGoal && goalMet(todayMs, todayGoal)) {
+    return [...kept, ...keep(todayGoal), { from: addDays(today, 1), minutes }];
+  }
+  return [...kept, ...keep(minutes)];
 }
 
 /**

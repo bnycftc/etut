@@ -1,22 +1,49 @@
-import { type ReactNode, useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, type TextStyle, View } from 'react-native';
+import { type ReactNode, type Ref, useEffect, useId, useState } from 'react';
+import {
+  InputAccessoryView,
+  Keyboard,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  type TextStyle,
+  View,
+} from 'react-native';
 
 import { tr } from '../strings';
 import { announce } from './feedback';
 import { Icon, type IconName } from './icon';
 import { MAX_FONT_SCALE, space, typography, useLargeText, usePalette } from './theme';
 
-export function Screen({ children, testID }: { children: ReactNode; testID?: string }) {
+export function Screen({
+  children,
+  testID,
+  ref,
+}: {
+  children: ReactNode;
+  testID?: string;
+  /** The scroll view, for a screen that brings new content at the top into view. */
+  ref?: Ref<ScrollView>;
+}) {
   const c = usePalette();
   return (
     <ScrollView
+      ref={ref}
       testID={testID}
       style={{ flex: 1, backgroundColor: c.background }}
       // iOS: under a transparent large-title header and the tab bar the content starts below
       // the bars and scrolls under them; the large title collapses only with this.
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled">
+      keyboardShouldPersistTaps="handled"
+      // iOS: the content can scroll above the open keyboard (a field's "Ekle" is not hidden under it).
+      automaticallyAdjustKeyboardInsets
+      // iOS: under the transparent bar the top of the content is at a negative offset (minus the
+      // bar's height); without this a `scrollTo` there would be cut to 0, under the bar.
+      scrollToOverflowEnabled>
       {children}
     </ScrollView>
   );
@@ -477,11 +504,30 @@ export function ChipRow({ children }: { children: ReactNode }) {
   return <View style={styles.chipRow}>{children}</View>;
 }
 
-/** With `accessibilityLabel` the row is one screen-reader element read as that sentence. */
-export function Row({ children, accessibilityLabel }: { children: ReactNode; accessibilityLabel?: string }) {
+/**
+ * Style of the text in a `Row wrap` that takes the rest of the line ("Sınav" before its value).
+ * Unlike `flex: 1` it keeps its natural width, so at large text sizes the next item moves to a new
+ * line instead of squeezing this one until its words break in the middle ("Sına/v").
+ */
+export const fillText = { flexGrow: 1, flexShrink: 1 } as const;
+
+/**
+ * With `accessibilityLabel` the row is one screen-reader element read as that sentence. With
+ * `wrap` an item that no longer fits (large text) goes to the next line; give the text that should
+ * take the rest of the line `fillText`, never `flex: 1`.
+ */
+export function Row({
+  children,
+  accessibilityLabel,
+  wrap = false,
+}: {
+  children: ReactNode;
+  accessibilityLabel?: string;
+  wrap?: boolean;
+}) {
   return (
     <View
-      style={styles.row}
+      style={wrap ? styles.wrapRow : styles.row}
       accessible={accessibilityLabel === undefined ? undefined : true}
       accessibilityLabel={accessibilityLabel}>
       {children}
@@ -549,6 +595,9 @@ export function Field({
   accessibilityLabel?: string;
 }) {
   const c = usePalette();
+  // The iOS number pad has no return key: a "Bitti" bar above it closes the keyboard.
+  const accessoryId = useId();
+  const ios = Platform.OS === 'ios';
   return (
     <View style={{ flex: 1, gap: 4 }}>
       <Text style={[styles.small, { color: c.textMuted }]} importantForAccessibility="no" accessibilityElementsHidden>
@@ -560,6 +609,7 @@ export function Field({
         value={value}
         onChangeText={onChange}
         onBlur={onBlur}
+        inputAccessoryViewID={ios ? accessoryId : undefined}
         keyboardType={numeric ? 'number-pad' : 'numbers-and-punctuation'}
         inputMode={numeric ? 'numeric' : 'text'}
         maxLength={maxLength}
@@ -567,6 +617,19 @@ export function Field({
         placeholderTextColor={c.textMuted}
         style={[styles.input, { color: c.text, borderColor: c.controlBorder, backgroundColor: c.background }]}
       />
+      {ios ? (
+        <InputAccessoryView nativeID={accessoryId}>
+          <View style={[styles.keyboardBar, { backgroundColor: c.surface, borderColor: c.border }]}>
+            <Button
+              compact
+              testID={testID ? `${testID}-done` : undefined}
+              title={tr.common.keyboardDone}
+              accessibilityLabel={tr.common.keyboardDoneA11y(accessibilityLabel)}
+              onPress={() => Keyboard.dismiss()}
+            />
+          </View>
+        </InputAccessoryView>
+      ) : null}
     </View>
   );
 }
@@ -818,6 +881,7 @@ const styles = StyleSheet.create({
   badge: { borderRadius: 999, paddingHorizontal: 6, minWidth: 22, alignItems: 'center' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   row: { flexDirection: 'row', gap: space.md, alignItems: 'center' },
+  wrapRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.md, rowGap: space.xs, alignItems: 'center' },
   stack: { flexDirection: 'column', gap: space.sm, alignItems: 'stretch' },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 44 },
   headerButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: space.lg, minHeight: 44 },
@@ -834,6 +898,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 18,
+  },
+  keyboardBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   stepButton: {
     width: 40,

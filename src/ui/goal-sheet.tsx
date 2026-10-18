@@ -40,13 +40,17 @@ export function GoalPresets({
  * Daily goal picker on the timer screen (`app/hedef.tsx`, a system form sheet): presets, a 15 min
  * fine tune and "turn off". Every change is saved at once (like Settings); the same goal is edited
  * in Settings too. Only the choices scroll: "Tamam" stays at the bottom of the sheet.
+ * `startsTomorrow`: the goal shown was raised after today's goal was met and starts tomorrow
+ * (`goalFromTomorrow`).
  */
 export function GoalSheet({
   goal,
+  startsTomorrow = false,
   onChange,
   onClose,
 }: {
   goal: number | null;
+  startsTomorrow?: boolean;
   onChange: (minutes: number | null) => void;
   onClose: () => void;
 }) {
@@ -67,6 +71,11 @@ export function GoalSheet({
             minusDisabled={goal <= GOAL_MIN_MINUTES}
             plusDisabled={goal >= GOAL_MAX_MINUTES}
           />
+        ) : null}
+        {goal !== null && startsTomorrow ? (
+          <Label variant="small" testID="goal-starts-tomorrow">
+            {tr.goal.startsTomorrow}
+          </Label>
         ) : null}
       </ScrollView>
       <ResponsiveRow>

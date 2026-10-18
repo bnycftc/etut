@@ -27,13 +27,13 @@
  * than a number that would be a day off.
  */
 
-import { activeSpan, dailyTotals, type SessionSpan } from './daily-totals';
+import { activeSpan, dailyTotals, type SessionSpan, spanStudyMs } from './daily-totals';
 import { examDaysLeft } from './exam-dates';
-import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey, splitByIstanbulDay } from './istanbul-day';
+import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey } from './istanbul-day';
 import { pomodoroStatus, upcomingPhaseChanges } from './pomodoro';
 import type { ExamType } from './profile';
 import { computeStreak, type GoalHistory, goalMet, type GoalOf, goalOfDay, goalRatio } from './streak';
-import { type ActiveSession, isPaused, workIntervals } from './timer';
+import { type ActiveSession, isPaused } from './timer';
 
 /** Midnights ahead covered by the timeline (the widget shows a fresh day even if the app stays closed). */
 const MIDNIGHTS_AHEAD = 2;
@@ -115,20 +115,18 @@ function withAway(input: WidgetTimelineInput): WidgetTimelineInput {
   return { ...input, active: { ...active, pauses: [...active.pauses, { start: awayAt, end: null, kind: 'away' }] } };
 }
 
-/** Study time per day of the running session if it ran unchanged until `at`. */
+/**
+ * Study time of the running session if it ran unchanged until `at`, on the day it started (it
+ * counts whole towards that day, also after midnight).
+ */
 function runningByDay(active: ActiveSession, at: number): Map<DayKey, number> {
-  const span: SessionSpan = activeSpan(active, at);
-  const out = new Map<DayKey, number>();
-  for (const interval of workIntervals(span.startedAt, span.pauses, span.endedAt)) {
-    for (const part of splitByIstanbulDay(interval)) {
-      out.set(part.day, (out.get(part.day) ?? 0) + part.ms);
-    }
-  }
-  return out;
+  return new Map([[istanbulDayKey(active.startedAt), spanStudyMs(activeSpan(active, at))]]);
 }
 
+/** Today's total grows at `at`: the session runs in a work phase and started on that day. */
 function isCounting(active: ActiveSession | null, at: number): boolean {
   if (active === null || isPaused(active) || at < active.startedAt) return false;
+  if (istanbulDayKey(active.startedAt) !== istanbulDayKey(at)) return false;
   const status = pomodoroStatus(active, at);
   return status === null || status.phase === 'work';
 }
@@ -171,7 +169,7 @@ export function widgetTimeline(timelineInput: WidgetTimelineInput): WidgetEntry[
   const inputAt = (at: number) => (at < awayFrom ? timelineInput : input);
   const points = new Set<number>([now]);
   const today = istanbulDayKey(now);
-  // Every day of the timeline is today or later and goes by the goal now; past days by their own.
+  // Every day goes by its own goal: a raise made after today's goal was met starts tomorrow.
   const goalOf = goalMinutes === null ? null : goalOfDay(input.goalHistory ?? [], goalMinutes, today);
   // A running session goes on counting in the timeline; only an idle one settles (see SETTLED_MIDNIGHT).
   const idle = active === null || isPaused(active);
@@ -194,7 +192,6 @@ export function widgetTimeline(timelineInput: WidgetTimelineInput): WidgetEntry[
   const times = [...points].filter((t) => t >= now && t <= horizon).sort((a, b) => a - b);
 
   // The goal is reached inside a counting stretch: add that moment as its own entry.
-  const goalMs = goalMinutes === null ? null : goalMinutes * 60_000;
   const entries: WidgetEntry[] = [];
   for (let i = 0; i < times.length; i++) {
     // The last entry stays in effect for good.
@@ -202,6 +199,7 @@ export function widgetTimeline(timelineInput: WidgetTimelineInput): WidgetEntry[
     const known = next <= firstUncovered;
     const entry = entryAt(inputAt(times[i]), times[i], known, goalOf);
     const end = i + 1 < times.length ? times[i + 1] : times[i] + DAY_MS;
+    const goalMs = entry.goalMinutes === null ? null : entry.goalMinutes * 60_000;
     if (goalMs !== null && entry.counting && !entry.goalMet) {
       const reachAt = entry.at + (goalMs - entry.todayMs);
       entry.goalReachedAt = reachAt;

@@ -93,18 +93,21 @@ export function loadDailyGoalHistory(): GoalHistory {
 
 function writeDailyGoal(minutes: number | null, history: GoalHistory): void {
   // The history first: if the app stops in between, the old goal stays in force for today (today
-  // goes by the goal key) and the days before keep theirs; the other way round, a first change
-  // could judge every past day by the new goal.
+  // goes by the goal key, or by the history while a raise waits for tomorrow) and the days before
+  // keep theirs; the other way round, a first change could judge every past day by the new goal.
   if (history.length === 0) Storage.removeItemSync(KEYS.dailyGoalHistory);
   else Storage.setItemSync(KEYS.dailyGoalHistory, JSON.stringify(history));
   if (minutes === null) Storage.removeItemSync(KEYS.dailyGoal);
   else Storage.setItemSync(KEYS.dailyGoal, JSON.stringify(minutes));
 }
 
-/** The student sets the goal (`null` = off) on the Istanbul day `today`; the history notes the change. */
-export function storeDailyGoal(minutes: number | null, today: DayKey): void {
+/**
+ * The student sets the goal (`null` = off) on the Istanbul day `today`, having studied `todayMs`
+ * today so far; the history notes the change (a raise after today's goal was met starts tomorrow).
+ */
+export function storeDailyGoal(minutes: number | null, today: DayKey, todayMs = 0): void {
   const next = minutes === null ? null : clampGoalMinutes(minutes);
-  writeDailyGoal(next, withGoalChange(loadDailyGoalHistory(), loadDailyGoal(), next, today));
+  writeDailyGoal(next, withGoalChange(loadDailyGoalHistory(), loadDailyGoal(), next, today, todayMs));
 }
 
 /** Puts back a goal with its history exactly (backup restore). */

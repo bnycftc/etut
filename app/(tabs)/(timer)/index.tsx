@@ -1,13 +1,15 @@
 import { router } from 'expo-router';
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
+import { Fragment, use, useEffect, useRef, useState } from 'react';
+import { HeaderHeightContext } from 'expo-router/react-navigation';
+import { AppState, Platform, Pressable, type ScrollView, StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { clockParts, formatClock } from '@/domain/clock';
 import { comparisonLine, type ComparisonLine } from '@/domain/compare';
 import { topicOfSubject } from '@/domain/curriculum';
 import { activeSpan, dailyTotals } from '@/domain/daily-totals';
 import { examDaysLeft, resolveExamDate } from '@/domain/exam-dates';
-import { goalStep, topicMarkToRestore, UNDO_FINISH_MS } from '@/domain/finish';
+import { goalStep, showsGoalStep, topicMarkToRestore, UNDO_FINISH_MS } from '@/domain/finish';
+import { istanbulDayKey } from '@/domain/istanbul-day';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
@@ -44,7 +46,7 @@ import {
 import { BackupNudge } from '@/ui/backup-reminder';
 import { announce, hapticSuccess, hapticTap } from '@/ui/feedback';
 import { SavedMark } from '@/ui/finish-moment';
-import { formatDuration, topicLabel } from '@/ui/format';
+import { formatDuration, formatStudyTime, topicLabel } from '@/ui/format';
 import { Icon } from '@/ui/icon';
 import { InfoLink } from '@/ui/info-link';
 import { easeNextLayout, useReducedMotion } from '@/ui/motion';
@@ -76,8 +78,10 @@ interface Finished {
   durationMs: number;
   /** Today's total including the session as saved. */
   todayAfterMs: number;
-  /** The part of the saved session that fell on today (a session can cross midnight). */
+  /** The part of the saved session counted today: all of it, or 0 when it started yesterday. */
   sessionTodayMs: number;
+  /** It started before midnight and went to that day ("Dünün çalışmasına eklendi."). */
+  addedToYesterday: boolean;
   at: number;
   undoable: boolean;
   /**
@@ -108,6 +112,12 @@ export default function TimerScreen() {
   const [pickedTopic, setTopicId] = useState<string | null>(null);
   const topicId = topicOfSubject(examType, yksArea, subjectId, pickedTopic);
   const [finished, setFinished] = useState<Finished | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  // iOS: the content starts under the transparent large-title bar (`Screen`'s automatic insets), so
+  // the top of the screen is at minus the bar's height, not at 0 (that would leave the summary's
+  // first lines under the bar). Elsewhere the header is not over the content.
+  const headerHeight = use(HeaderHeightContext) ?? 0;
+  const topOffset = Platform.OS === 'ios' ? -headerHeight : 0;
   // Stored, not screen state: a restored backup brings its own timer mode.
   const mode = useStored(`timerMode|${app.dataVersions.settings}`, loadTimerMode);
   const setSubjectId = (id: string) => {
@@ -120,7 +130,7 @@ export default function TimerScreen() {
   };
   const pomodoroConfig = useStored(`pomodoro|${app.dataVersions.settings}`, loadPomodoroConfig);
 
-  const { today, todayTotal, todayManual, todayQuestions, comparison, goal, streak, studyDays, recentSubjects } =
+  const { today, todayTotal, todayManual, todayQuestions, comparison, todayGoal, streak, studyDays, recentSubjects } =
     useStudyStats(now);
   const large = useLargeText();
   const compare = comparisonLine(comparison);
@@ -190,7 +200,9 @@ export default function TimerScreen() {
       const todayAfterMs = Math.max(0, todayTotal - runningTodayMs) + sessionTodayMs;
       const duration = done.durationMs < 60_000 ? tr.timer.lessThanMinute : formatDuration(done.durationMs);
       const saved = tr.timer.saved(duration);
-      const reached = goal !== null && goalStep(todayAfterMs, sessionTodayMs, goal).reached;
+      const addedToYesterday = istanbulDayKey(done.startedAt) < today;
+      const reached =
+        todayGoal !== null && !addedToYesterday && goalStep(todayAfterMs, sessionTodayMs, todayGoal).reached;
       // Running card out, summary in: one eased layout change instead of a jump.
       easeNextLayout(reduceMotion);
       setFinished({
@@ -202,13 +214,17 @@ export default function TimerScreen() {
         durationMs: done.durationMs,
         todayAfterMs,
         sessionTodayMs,
+        addedToYesterday,
         at: Date.now(),
         undoable: done.durationMs > 0 && !isSyncActive(),
       });
+      // The summary ("Kaydedildi", "Geri al", the goal) is at the top of the screen and Bitir further
+      // down, where the student may have scrolled to: bring the summary into view (V-01).
+      scrollRef.current?.scrollTo({ y: topOffset, animated: !reduceMotion });
       setSubjectId(done.subjectId);
       noteFinishForWidgetTip(done.durationMs);
       hapticSuccess();
-      announce(tr.finish.announce(saved, formatDuration(todayAfterMs), reached));
+      announce(tr.finish.announce(saved, formatStudyTime(todayAfterMs), reached));
     }
   };
   const finishCheck = useFinishCheck(finish);
@@ -247,8 +263,13 @@ export default function TimerScreen() {
     }
   };
 
-  const goalStreak = goal !== null && streak !== null ? { goal, streak } : null;
-  const step = finished !== null && goal !== null ? goalStep(finished.todayAfterMs, finished.sessionTodayMs, goal) : null;
+  // Today is judged by its own goal: the old one after a raise that starts tomorrow (V-03).
+  const goalStreak = todayGoal !== null && streak !== null ? { goal: todayGoal, streak } : null;
+  // A session that went to yesterday moved nothing of today's goal: no "%40 → %40".
+  const step =
+    finished !== null && todayGoal !== null && !finished.addedToYesterday
+      ? goalStep(finished.todayAfterMs, finished.sessionTodayMs, todayGoal)
+      : null;
   // The summary of the session that reached the goal: the day's one celebration (K-14).
   const stepReached = step?.reached === true;
   const goalShare = goalStreak === null ? 0 : goalRatio(todayTotal, goalStreak.goal);
@@ -315,7 +336,7 @@ export default function TimerScreen() {
     );
 
   return (
-    <Screen testID="timer-screen">
+    <Screen testID="timer-screen" ref={scrollRef}>
       <TimerKeepAwake running={running} />
       <FirstUseTips />
 
@@ -369,7 +390,7 @@ export default function TimerScreen() {
                 <View testID="finish-today" style={styles.todayLine}>
                   <Label variant="muted">{tr.timer.today}</Label>
                   <Label variant="muted" testID="today-total">
-                    {formatDuration(todayTotal)}
+                    {formatStudyTime(todayTotal)}
                   </Label>
                   {todayQuestions > 0 ? (
                     <Label variant="muted" testID="today-questions">
@@ -387,8 +408,13 @@ export default function TimerScreen() {
               {(topicLabel(finished.topicId)
                 ? tr.finish.studiedTopic(tr.subject(finished.subjectId), topicLabel(finished.topicId) ?? '')
                 : tr.finish.studied(tr.subject(finished.subjectId))) +
-                (step !== null && !step.reached ? ` · ${tr.finish.goalStep(step.beforePercent, step.afterPercent)}` : '')}
+                (step !== null && showsGoalStep(step) ? ` · ${tr.finish.goalStep(step.beforePercent, step.afterPercent)}` : '')}
             </Label>
+            {finished.addedToYesterday ? (
+              <Label variant="small" testID="finish-yesterday">
+                {tr.finish.addedToYesterday}
+              </Label>
+            ) : null}
             {finishedTopicId !== null ? (
               <View style={{ gap: space.xs }}>
                 <Label variant="small">{tr.finish.topicMark}</Label>
@@ -443,7 +469,7 @@ export default function TimerScreen() {
                 <Label variant="muted">{tr.timer.today}</Label>
                 <View style={styles.totalLine}>
                   <Label variant="display" testID="today-total">
-                    {formatDuration(todayTotal)}
+                    {formatStudyTime(todayTotal)}
                   </Label>
                   {todayQuestions > 0 ? (
                     <Label variant="muted" testID="today-questions">
@@ -735,7 +761,7 @@ function CompareLine({ line }: { line: ComparisonLine }) {
       {parts.map((p, i) => (
         <Fragment key={p.testID}>
           {i > 0 ? ' · ' : ''}
-          {p.label} <Text testID={p.testID}>{formatDuration(p.ms)}</Text>
+          {p.label} <Text testID={p.testID}>{formatStudyTime(p.ms)}</Text>
         </Fragment>
       ))}
     </Label>

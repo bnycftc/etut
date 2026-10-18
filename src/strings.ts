@@ -11,6 +11,7 @@ import type { ParentNoticeKind, ReactionKind, ReportReason } from './domain/grou
 import type { ManualEntryError } from './domain/manual-entry';
 import type { ExamKind, ScoreError, YksArea } from './domain/net';
 import type { ExamType } from './domain/profile';
+import { possessive } from './domain/tr-suffix';
 
 /** Shown wherever a data controller field has no value (every build except the release one). */
 export const DATA_CONTROLLER_PLACEHOLDER = '[DOLDURULACAK]';
@@ -411,6 +412,18 @@ export const tr = {
     cancel: 'Vazgeç',
     save: 'Kaydet',
     delete: 'Sil',
+    /** The bar above the number pad (it has no return key). */
+    keyboardDone: 'Bitti',
+    /** Its screen-reader name: which box it closes the keyboard of (`Klavyeyi kapat: Süre, Saat`). */
+    keyboardDoneA11y: (field: string) => `Klavyeyi kapat: ${field}`,
+  },
+
+  /** Root error screen (app/_layout.tsx ErrorBoundary): nothing is deleted, nothing is sent. */
+  crash: {
+    title: 'Bir şey ters gitti',
+    body: 'Bu ekran açılırken bir hata oldu. Kayıtların cihazında duruyor; hiçbiri silinmedi.',
+    retry: 'Yeniden dene',
+    contact: (address: string) => `Sorun sürerse bize yaz: ${address}`,
   },
 
   tabs: {
@@ -490,11 +503,16 @@ export const tr = {
     /** `Az önce bitti: 11:15–12:00` */
     justFinishedSpan: (start: string, end: string) => `Az önce bitti: ${start}–${end}`,
     changeTime: 'Saati değiştir',
+    /** Under "Az önce bitti" when the span was moved back so it does not overlap a record (IOS-06). */
+    movedBefore: 'Başka bir kaydınla çakışmasın diye o kayıttan önceye yerleştirildi.',
+    /** Under the overlap error: the way out. */
+    overlapHint: 'Süreyi kısalt ya da başka bir saat seç.',
     add: 'Ekle',
     added: (duration: string) => `Eklendi: ${duration} (elle)`,
     limits:
       'Yalnız son 7 gün (bugün dahil) için; tek kayıt en fazla 10 saat; gelecekteki ya da başka kayıtla çakışan zaman eklenemez.',
-    placeholders: { startHour: '14', startMinute: '00', durationHours: '0', durationMinutes: '45' },
+    /** Examples, not values: "ör." keeps an empty box from looking filled in (IOS-07). */
+    placeholders: { startHour: 'ör. 14', startMinute: 'ör. 30', durationHours: 'ör. 1', durationMinutes: 'ör. 45' },
     errors: {
       invalid: 'Başlangıç saatini ve süreyi kontrol et.',
       too_old: 'Yalnız son 7 gün için süre eklenebilir.',
@@ -531,6 +549,8 @@ export const tr = {
     turnOff: 'Hedefi kapat',
     turnOn: 'Hedef koy',
     info: 'Hedefini tutturduğun ardışık günler seriyi oluşturur. Haftada 1 gün hedefin altında kalırsan seri bozulmaz; o gün dinlenme günü sayılır.',
+    /** Under the goal setting after a raise made once today's goal was met (`goalFromTomorrow`). */
+    startsTomorrow: 'Bugünkü hedefin tuttu, yeni hedef yarın başlar.',
   },
 
   countdown: {
@@ -681,9 +701,17 @@ export const tr = {
     days: 'Günler',
     manualLine: (duration: string) => `Elle eklenen: ${duration}`,
     todayLabel: 'Bugün',
-    /** Short label above a bar: `2:05` (hours) or `45 dk`. */
+    /**
+     * Short label above a bar: `2,1 sa` (hours, one decimal, rounded down so 1:59 is not `2 sa`; never
+     * `2:05`, which reads as a clock) or `45 dk`. A bar with time is never `0 dk`: under a minute it is
+     * `<1 dk` (V-11; empty bars have no label).
+     */
     barValue: (hours: number, minutes: number) =>
-      hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}` : `${minutes} dk`,
+      hours > 0
+        ? `${(Math.floor((hours * 60 + minutes) / 6) / 10).toString().replace('.', ',')} sa`
+        : minutes > 0
+          ? `${minutes} dk`
+          : '<1 dk',
     /** A day's timer sessions, folded away by default (the place to delete one). */
     sessionsShow: 'Sayaç kayıtları',
     sessionsHide: 'Kayıtları gizle',
@@ -730,7 +758,7 @@ export const tr = {
     sectionA11y: (section: string, correct: number, wrong: number, net: string) =>
       `${section}: ${correct} doğru, ${wrong} yanlış, ${net} net`,
     /** Shown under the totals when the rounded section nets do not add up to the total (LGS). */
-    roundingNote: 'Toplam net, yuvarlanmamış ders netlerinden hesaplanır; ders netlerinin toplamından 0,01 farklı olabilir.',
+    roundingNote: 'Toplam net, yuvarlanmamış ders netlerinden hesaplanır; bu yüzden ders netlerinin toplamıyla arasında küçük bir fark olabilir.',
     fixErrors: 'Hatalı alanları düzelt.',
     /** "Kaydet" on a form with no correct or wrong answer anywhere (it would be a 0-net exam). */
     emptyExam: 'Kaydetmek için en az bir derse doğru ya da yanlış sayısı gir.',
@@ -1372,9 +1400,9 @@ export const tr = {
     noStudy: 'Bu dönemde kayıtlı çalışma yok.',
     otherSubjects: 'Diğer dersler',
     streak: (days: number) => `Seri: ${days} gün`,
-    goalDay: (percent: number) => (percent >= 100 ? 'Günlük hedef tamam' : `Günlük hedefin %${percent}’i`),
-    goalWeek: (days: number) => `Hedef tutan gün: ${days}/7`,
-    activeDays: (days: number) => `Çalışılan gün: ${days}/7`,
+    goalDay: (percent: number) => (percent >= 100 ? 'Günlük hedef tamam' : `Günlük hedefin %${percent}${possessive(percent)}`),
+    goalWeek: (days: number) => `Hedefi tutturduğun gün: ${days}/7`,
+    activeDays: (days: number) => `Çalıştığın gün: ${days}/7`,
     footer: 'Etüt · çalışma takibi',
     /** Screen reader text for the card preview. */
     a11y: (period: string, total: string) => `${period}: toplam ${total}`,
@@ -1472,6 +1500,8 @@ export const tr = {
     topicMark: 'Konuyu işaretle (isteğe bağlı)',
     announce: (saved: string, today: string, goalReached: boolean) =>
       `${saved}. Bugün toplam ${today}.${goalReached ? ` ${finishGoalReached}.` : ''}`,
+    /** The session started before midnight: it counts whole towards that day. */
+    addedToYesterday: 'Dünün çalışmasına eklendi.',
   },
 
   /** Daily goal sheet on the timer screen and the optional onboarding step. */

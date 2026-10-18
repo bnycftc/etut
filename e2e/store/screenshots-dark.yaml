@@ -1,0 +1,32 @@
+# App Store koyu mod görüntüsü: "Yedekle ve geri yükle" ekranı ("Hesap yok, veriler telefonunda"
+# karesi). Yalnız .github/workflows/store-screenshots.yml çalıştırır, e2e/store/screenshots.yaml
+# geçtikten ve simülatör `xcrun simctl ui <udid> appearance dark` ile koyu moda alındıktan sonra:
+# uygulama durumu (onboarding, demo verisi) o akıştan kalır, burada silinmez.
+# Görüntü "koyu-" adını taşır; iş onu ham parçalarla birlikte toplar.
+appId: com.bnycftc.etut
+tags:
+  - store
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: today-total
+    timeout: 30000
+- tapOn:
+    id: tab-settings
+# As in screenshots.yaml: scroll past the button, so it does not sit under the tab bar.
+- scrollUntilVisible:
+    element:
+      id: settings-delete-all
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: settings-open-backup
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: backup-import
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: koyu-yedek

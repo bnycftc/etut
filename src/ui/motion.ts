@@ -17,12 +17,14 @@ export function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(lastKnown);
   useEffect(() => {
     let mounted = true;
-    const startedWith = lastKnown;
     AccessibilityInfo.isReduceMotionEnabled()
       .then((value) => {
         lastKnown = value;
-        // Only a change from the value the view started with needs a re-render.
-        if (mounted && value !== startedWith) setReduced(value);
+        // The same value as the view started with re-renders nothing (React bails out). No copy of
+        // `lastKnown` taken before the call: the React Compiler read such a copy as `lastKnown`
+        // itself, after the line above, so the answer never reached a view mounted before it (the
+        // timer screen at launch kept animating with Reduce Motion on).
+        if (mounted) setReduced(value);
       })
       .catch(() => {});
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (value: boolean) => {

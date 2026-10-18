@@ -152,8 +152,8 @@ describe('pomodoro schedule (25/5, long 15 every 4)', () => {
     const s = startSession('p2', 'kimya', start, { pomodoro: DEFAULT_POMODORO });
     const now = start + min(40); // 00:30 next day
     const totals = dailyTotals([activeSpan(s, now)], ['2026-10-04', '2026-10-05']);
-    // 23:50–00:15 work (10 + 15), 00:15–00:20 break, 00:20–00:30 work (10).
-    expect(totals.map((t) => t.totalMs)).toEqual([min(10), min(25)]);
+    // 23:50–00:15 work (25), 00:15–00:20 break, 00:20–00:30 work (10): all on the day it started.
+    expect(totals.map((t) => t.totalMs)).toEqual([min(35), 0]);
   });
 });
 

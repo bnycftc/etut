@@ -19,6 +19,7 @@ import {
   weekStartOf,
 } from '../domain/streak';
 import { subjectsByRecency } from '../domain/subjects';
+import type { ActiveSession } from '../domain/timer';
 import { loadDailyGoal, loadDailyGoalHistory } from '../storage/kv';
 import { sessionsOverlapping } from '../storage/sessions';
 import { useAppState, useStored } from './app-state';
@@ -30,8 +31,10 @@ export interface StudyStats {
   /** Questions of today's sessions, if the student gave any (`questions.ts`); 0 = none given. */
   todayQuestions: number;
   comparison: SelfComparison;
-  /** Daily goal in minutes; `null` = none. */
+  /** Daily goal in minutes (the one set last); `null` = none. */
   goal: number | null;
+  /** The goal today is judged by (`goalOf(today)`): the old one after a raise that starts tomorrow. */
+  todayGoal: number | null;
   /** The goal each day is judged by (`goalOfDay`); `null` without a goal. */
   goalOf: GoalOf | null;
   streak: StreakResult | null;
@@ -75,6 +78,7 @@ export function useStudyStats(now: number): StudyStats {
   const goal = useStored(`goal|${dataVersions.settings}`, loadDailyGoal);
   const goalHistory = useStored(`goalHistory|${dataVersions.settings}`, loadDailyGoalHistory);
   const goalOf = goal === null ? null : goalOfDay(goalHistory, goal, today);
+  const todayGoal = goalOf === null ? null : goalOf(today);
 
   const spans: SessionSpan[] = [...stored.recent];
   const running = active === null ? null : activeSpan(active, now);
@@ -84,13 +88,13 @@ export function useStudyStats(now: number): StudyStats {
     spans.filter((s) => s.source === 'manual'),
     [today],
   )[0].totalMs;
-  // A running session that crossed one or more midnights also counts towards those days.
+  // A running session that started before midnight counts towards the day it started on.
   const runningPast = running === null ? null : pastDayTotals([running], today);
   // The streak walks 400 days back. While the clock ticks only today's total changes, and the
   // streak depends on it only through "goal met today": recompute when that (or the data) changes.
-  const todayMet = goal !== null && goalMet(todayTotal, goal);
+  const todayMet = todayGoal !== null && goalMet(todayTotal, todayGoal);
   const runningPastKey = runningPast === null ? '' : JSON.stringify([...runningPast]);
-  const streakKey = `${today}|${goal}|${todayMet}|${runningPastKey}`;
+  const streakKey = `${today}|${goal}|${todayGoal}|${todayMet}|${runningPastKey}`;
   const streakCache = useRef<{ stored: unknown; history: unknown; key: string; value: StreakResult | null } | null>(
     null,
   );
@@ -124,9 +128,21 @@ export function useStudyStats(now: number): StudyStats {
     todayQuestions: stored.todayQuestions,
     comparison: compareWithPast(spans, now),
     goal,
+    todayGoal,
     goalOf,
     streak,
     studyDays,
     recentSubjects: stored.recentSubjects,
   };
+}
+
+/**
+ * Today's study time at `now` (saved sessions that started today and the running one), read at a
+ * tap: the goal setting needs it to know whether today's goal is already met (`withGoalChange`).
+ */
+export function studiedToday(active: ActiveSession | null, now: number): number {
+  const today = istanbulDayKey(now);
+  const spans: SessionSpan[] = sessionsOverlapping(dayStartMs(today), dayStartMs(today) + DAY_MS);
+  if (active !== null) spans.push(activeSpan(active, now));
+  return dailyTotals(spans, [today])[0].totalMs;
 }

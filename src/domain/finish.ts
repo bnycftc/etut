@@ -42,7 +42,7 @@ export interface GoalStep {
 
 /**
  * Goal progress the session added. `todayAfterMs` is today's total including the session,
- * `sessionTodayMs` the part of the session that fell on today (a session can cross midnight).
+ * `sessionTodayMs` the part of the session counted today (0 for one that started yesterday).
  */
 export function goalStep(todayAfterMs: number, sessionTodayMs: number, goalMinutes: number): GoalStep {
   const beforeMs = Math.max(0, todayAfterMs - sessionTodayMs);
@@ -53,4 +53,12 @@ export function goalStep(todayAfterMs: number, sessionTodayMs: number, goalMinut
     afterPercent: Math.floor(after * 100),
     reached: before < 1 && after >= 1,
   };
+}
+
+/**
+ * Whether the summary shows "Hedef: %40 → %55". Not once the goal is reached (that has its own
+ * line) and not when the whole percent did not move: a short session left "%0 → %0" (V-13).
+ */
+export function showsGoalStep(step: GoalStep): boolean {
+  return !step.reached && step.afterPercent > step.beforePercent;
 }

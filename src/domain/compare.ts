@@ -13,6 +13,7 @@ import {
 import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey } from './istanbul-day';
 import { goalMet, type GoalOf, weekStartOf } from './streak';
 
+/** Each number counts the sessions that started in its stretch (`studiedBetween`), up to its end. */
 export interface SelfComparison {
   today: number;
   /** Yesterday from 00:00 up to the same clock time as now. */

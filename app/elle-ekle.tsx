@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { topicOfSubject } from '@/domain/curriculum';
-import { addDays, istanbulDayKey, istanbulTimeOfDay } from '@/domain/istanbul-day';
+import { addDays, DAY_MS, dayStartMs, istanbulDayKey, istanbulTimeOfDay } from '@/domain/istanbul-day';
 import {
   buildManualSession,
   durationFields,
@@ -75,13 +75,38 @@ export default function ManualEntryScreen() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const recent = useStored(String(dataVersions.sessions), () => recentManualSessions(RECENT_LIMIT));
+  // Sessions an "Az önce bitti" entry could run into: the days it may start on, up to the end of today.
+  const nearby = useStored(`${dataVersions.sessions}|${today}`, () =>
+    sessionsOverlapping(dayStartMs(earliestManualDay(now)), dayStartMs(today) + DAY_MS),
+  );
+  const nearbyTaken: TimeSpan[] =
+    active === null ? nearby : [...nearby, { startedAt: active.startedAt, endedAt: now }];
+  // Shown below "Ne zaman?"; Ekle works the span out again at the moment of the tap.
+  const shownStart =
+    justFinished && durationMs !== null && durationMs > 0 ? justFinishedStart(now, durationMs, nearbyTaken) : null;
+  // It ends before now: another record (usually the timer session just saved) is in the way.
+  const shownMoved = shownStart !== null && durationMs !== null && shownStart + durationMs < now - (now % MANUAL_MIN_MS);
 
   const add = () => {
     setAttempt((n) => n + 1);
     setMessage(null);
     const now = Date.now();
+    // Read again at the tap: the span shown above can be up to a minute old.
+    const taken = (): TimeSpan[] => {
+      const spans = sessionsOverlapping(dayStartMs(earliestManualDay(now)), now);
+      return active === null ? spans : [...spans, { startedAt: active.startedAt, endedAt: now }];
+    };
     const startMs =
-      durationMs === null ? null : justFinished ? justFinishedStart(now, durationMs) : parseStartTime(day, startH, startM);
+      durationMs === null
+        ? null
+        : justFinished
+          ? justFinishedStart(now, durationMs, taken())
+          : parseStartTime(day, startH, startM);
+    if (durationMs !== null && justFinished && startMs === null) {
+      // No free span of this length in the last days: the hint below says what to change.
+      setError('overlap');
+      return;
+    }
     if (startMs === null || durationMs === null) {
       setError('invalid');
       return;
@@ -198,10 +223,15 @@ export default function ManualEntryScreen() {
         {justFinished ? (
           <>
             <Label testID="manual-just-finished">
-              {durationMs !== null && durationMs > 0
-                ? tr.manual.justFinishedSpan(clockLabel(justFinishedStart(now, durationMs)), clockLabel(now))
+              {shownStart !== null && durationMs !== null
+                ? tr.manual.justFinishedSpan(clockLabel(shownStart), clockLabel(shownStart + durationMs))
                 : tr.manual.justFinished}
             </Label>
+            {shownMoved ? (
+              <Label variant="small" testID="manual-moved-before">
+                {tr.manual.movedBefore}
+              </Label>
+            ) : null}
             <Button
               testID="manual-change-time"
               kind="secondary"
@@ -264,6 +294,11 @@ export default function ManualEntryScreen() {
       {error !== null ? (
         <Label testID="manual-error" live={attempt} style={{ color: c.danger }}>
           {tr.manual.errors[error]}
+        </Label>
+      ) : null}
+      {error === 'overlap' ? (
+        <Label testID="manual-overlap-hint" variant="small">
+          {tr.manual.overlapHint}
         </Label>
       ) : null}
       {message !== null ? <Label testID="manual-added" live={attempt}>{message}</Label> : null}

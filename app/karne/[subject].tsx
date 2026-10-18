@@ -43,7 +43,7 @@ import {
   Screen,
   Stepper,
 } from '@/ui/components';
-import { formatDuration, topicLabel } from '@/ui/format';
+import { formatDuration, formatStudyTime, topicLabel } from '@/ui/format';
 import { NetChart } from '@/ui/net-chart';
 import { subjectColor } from '@/ui/subject-colors';
 import { space, usePalette } from '@/ui/theme';
@@ -158,9 +158,9 @@ export default function ReportCardScreen() {
           <Dot color={subjectColor(subjectId, c)} size={12} />
           <Label variant="heading">{tr.report.timeTitle}</Label>
         </Row>
-        <TimeRow label={tr.report.today} value={formatDuration(todayMs)} testID="report-today" />
-        <TimeRow label={tr.report.week} value={formatDuration(weekMs)} testID="report-week" />
-        <TimeRow label={tr.report.total} value={formatDuration(totalMs)} testID="report-total" />
+        <TimeRow label={tr.report.today} value={formatStudyTime(todayMs)} testID="report-today" />
+        <TimeRow label={tr.report.week} value={formatStudyTime(weekMs)} testID="report-week" />
+        <TimeRow label={tr.report.total} value={formatStudyTime(totalMs)} testID="report-total" />
         {data.allTime.questions > 0 ? (
           <Label variant="small" testID="report-questions">
             {tr.report.questions(questionsToday, questionsWeek, data.allTime.questions)}
@@ -183,10 +183,10 @@ export default function ReportCardScreen() {
           <>
             <ProgressBar ratio={progress.ratio} label={tr.subjectTargets.barLabel(subjectName)} />
             <Label variant="muted" testID="report-target-progress">
-              {tr.subjectTargets.progress(formatDuration(weekMs), formatDuration(progress.targetMs), progress.percent)}
+              {tr.subjectTargets.progress(formatStudyTime(weekMs), formatDuration(progress.targetMs), progress.percent)}
             </Label>
             <Label variant="small">
-              {progress.reached ? tr.subjectTargets.reached : tr.subjectTargets.left(formatDuration(progress.leftMs))}
+              {progress.reached ? tr.subjectTargets.reached : tr.subjectTargets.left(formatStudyTime(progress.leftMs))}
             </Label>
           </>
         ) : null}
@@ -206,7 +206,7 @@ export default function ReportCardScreen() {
                 label: shortDay(w.weekStart),
                 value: w.ms,
                 valueLabel: w.ms === 0 ? '' : tr.history.barValue(hours, minutes),
-                a11yValue: formatDuration(w.ms),
+                a11yValue: formatStudyTime(w.ms),
                 highlight: w.weekStart === weekStart,
               };
             })}
@@ -234,7 +234,7 @@ export default function ReportCardScreen() {
                   <ResponsiveRow key={t.id}>
                     <Label style={{ flexShrink: 1, flexGrow: 1 }}>{topicLabel(t.id) ?? t.name}</Label>
                     <Label variant="small">
-                      {(data.topicMs[t.id] ?? 0) > 0 ? formatDuration(data.topicMs[t.id] ?? 0) : tr.report.noTime}
+                      {(data.topicMs[t.id] ?? 0) > 0 ? formatStudyTime(data.topicMs[t.id] ?? 0) : tr.report.noTime}
                     </Label>
                   </ResponsiveRow>
                 ))}
@@ -317,7 +317,7 @@ export default function ReportCardScreen() {
               {i + 1}. {topicLabel(m.topicId) ?? tr.analysis.unknownTopic}
             </Label>
             <Label variant="small">
-              {tr.report.missedRow(m.wrong, m.blank, m.ms > 0 ? formatDuration(m.ms) : tr.report.noTime)}
+              {tr.report.missedRow(m.wrong, m.blank, m.ms > 0 ? formatStudyTime(m.ms) : tr.report.noTime)}
             </Label>
           </View>
         ))}
