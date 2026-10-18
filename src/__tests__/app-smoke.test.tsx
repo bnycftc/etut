@@ -7,7 +7,15 @@ import { act, fireEvent, screen } from '@testing-library/react-native';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
-import { AccessibilityInfo, AppState, type AppStateStatus, Keyboard, Vibration } from 'react-native';
+import {
+  AccessibilityInfo,
+  AppState,
+  type AppStateStatus,
+  Dimensions,
+  Keyboard,
+  ScrollView,
+  Vibration,
+} from 'react-native';
 
 import { UNDO_FINISH_MS } from '../domain/finish';
 
@@ -608,6 +616,56 @@ describe('the moment after Bitir', () => {
     announce.mockRestore();
   });
 
+  // The jest preset reports fontScale 2 (accessibility sizes: Geri al stacks under Kaydedildi).
+  it.each([1, 2])(
+    'text size %d: Bitir scrolls back to the summary at the top, so Kaydedildi and Geri al are in view (V-01)',
+    (fontScale) => {
+      const dimensions = jest
+        .spyOn(Dimensions, 'get')
+        .mockReturnValue({ width: 393, height: 852, scale: 3, fontScale });
+      const scrollTo = jest.mocked(ScrollView.prototype.scrollTo);
+      try {
+        memory.dailyGoal = 30;
+        renderRouter(APP_DIR, { initialUrl: '/' });
+        fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+        jump(31 * 60_000);
+        scrollTo.mockClear();
+        fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+        expect(screen.getByTestId('finish-undo')).toBeTruthy();
+        expect(screen.getByTestId('finish-goal-reached')).toBeTruthy();
+        expect(scrollTo).toHaveBeenCalledTimes(1);
+        expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: true });
+        // The timer screen's own scroll view (the summary sits at the top of its first card).
+        const scrolled = scrollTo.mock.contexts[0] as { props: { testID?: string } };
+        expect(scrolled.props.testID).toBe('timer-screen');
+        // Başla clears the summary; nothing scrolls.
+        fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+        expect(scrollTo).toHaveBeenCalledTimes(1);
+      } finally {
+        dimensions.mockRestore();
+      }
+    },
+  );
+
+  it('with Reduce Motion the jump back to the summary is not animated', async () => {
+    // The preset's jest.fn: put its implementation back afterwards (mockRestore would clear it).
+    const reduced = jest.mocked(AccessibilityInfo.isReduceMotionEnabled);
+    const original = reduced.getMockImplementation();
+    reduced.mockResolvedValue(true);
+    const scrollTo = jest.mocked(ScrollView.prototype.scrollTo);
+    try {
+      renderRouter(APP_DIR, { initialUrl: '/' });
+      await act(async () => {});
+      fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+      jump(2 * 60_000);
+      scrollTo.mockClear();
+      fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+      expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+    } finally {
+      if (original) reduced.mockImplementation(original);
+    }
+  });
+
   it('a session that reaches the goal says so', () => {
     memory.dailyGoal = 30;
     renderRouter(APP_DIR, { initialUrl: '/' });
@@ -690,6 +748,43 @@ describe('the moment after Bitir', () => {
       expect(memory.widgetTip).toBe('waiting');
     } finally {
       widget.homeWidget.supported = true;
+    }
+  });
+});
+
+describe('root error screen (V-15)', () => {
+  it('a render error shows plain text and "Tekrar dene"; nothing is deleted and retry opens the app', () => {
+    memory.profile = ADULT_SAYISAL;
+    memory.sessions = [
+      { id: 's1', subjectId: 'fizik', topicId: null, startedAt: 1, endedAt: 60_001, pauses: [], durationMs: 60_000, source: 'timer' },
+    ];
+    const kv = jest.requireMock('../storage/kv') as { loadProfile: () => Profile | null };
+    let broken = true;
+    const load = jest.spyOn(kv, 'loadProfile').mockImplementation(() => {
+      if (broken) throw new Error('bozuk satır');
+      return memory.profile;
+    });
+    // React reports the caught error on the console; that is expected here.
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      renderRouter(APP_DIR, { initialUrl: '/' });
+      expect(screen.getByTestId('error-screen')).toBeTruthy();
+      expect(screen.getByText('Bir şey ters gitti')).toBeTruthy();
+      expect(screen.getByText('Bu ekran açılırken bir hata oldu. Kayıtların cihazında duruyor; hiçbiri silinmedi.')).toBeTruthy();
+      // No error details on screen.
+      expect(screen.queryByText(/bozuk satır/)).toBeNull();
+      // The contact address is still the placeholder in tests: no line for it.
+      expect(screen.queryByTestId('error-contact')).toBeNull();
+      expect(memory.profile).toEqual(ADULT_SAYISAL);
+      expect(memory.sessions).toHaveLength(1);
+      broken = false;
+      fireEvent.press(screen.getByRole('button', { name: 'Tekrar dene' }));
+      expect(screen.queryByTestId('error-screen')).toBeNull();
+      expect(screen.getByTestId('timer-screen')).toBeTruthy();
+      expect(memory.sessions).toHaveLength(1);
+    } finally {
+      load.mockRestore();
+      consoleError.mockRestore();
     }
   });
 });
@@ -1534,6 +1629,41 @@ describe('mock exam entry, editing and charts', () => {
     fireEvent.changeText(screen.getByTestId('exam-wrong-turkce'), '3');
     expect(screen.getByTestId('exam-net-turkce').props.children).toBe('14');
     expect(screen.queryByTestId('exam-correct-tarih')).toBeNull();
+  });
+
+  it('LGS form: the 0,01 rounding difference is explained under the total (V-06)', () => {
+    memory.profile = { ...ADULT_SAYISAL, examType: 'LGS', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/deneme/yeni' });
+    // 9,67 + 4,33 + 6,67 + 5,67 + 9,67 + 10,33 = 46,34 on the rows; the total is 46,33.
+    const fill = (id: string, correct: number, wrong: number) => {
+      fireEvent.changeText(screen.getByTestId(`exam-correct-${id}`), String(correct));
+      fireEvent.changeText(screen.getByTestId(`exam-wrong-${id}`), String(wrong));
+    };
+    fill('turkce', 10, 1);
+    expect(screen.queryByTestId('exam-rounding')).toBeNull();
+    fill('inkilap', 5, 2);
+    fill('din', 7, 1);
+    fill('yabanci_dil', 6, 1);
+    fill('matematik', 10, 1);
+    fill('fen', 11, 2);
+    const rows = ['turkce', 'inkilap', 'din', 'yabanci_dil', 'matematik', 'fen'].map(
+      (id) => screen.getByTestId(`exam-net-${id}`).props.children as string,
+    );
+    expect(rows).toEqual(['9,67', '4,33', '6,67', '5,67', '9,67', '10,33']);
+    expect(screen.getByTestId('exam-total-net').props.children).toBe('46,33');
+    expect(screen.getByTestId('exam-rounding').props.children).toBe(
+      'Toplam net, yuvarlanmamış ders netlerinden hesaplanır; bu yüzden 0,01 fark çıkabilir.',
+    );
+    // Not while a row has an error (the total shows "–").
+    fireEvent.changeText(screen.getByTestId('exam-wrong-fen'), '20');
+    expect(screen.queryByTestId('exam-rounding')).toBeNull();
+  });
+
+  it('YKS form: quarters always add up, no rounding note', () => {
+    renderRouter(APP_DIR, { initialUrl: '/deneme/yeni' });
+    fireEvent.changeText(screen.getByTestId('exam-correct-turkce'), '30');
+    fireEvent.changeText(screen.getByTestId('exam-wrong-turkce'), '5');
+    expect(screen.queryByTestId('exam-rounding')).toBeNull();
   });
 
   it('"Diğer" exam type: no form, no add button', () => {

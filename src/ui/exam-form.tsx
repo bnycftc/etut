@@ -20,6 +20,7 @@ import {
   isEmptyExam,
   net,
   type SectionScore,
+  sectionNetsAddUp,
   sectionsFor,
   totalNet,
   validateScore,
@@ -429,6 +430,12 @@ export function ExamForm({
             <Button testID="exam-save" title={tr.common.save} disabled={saving} onPress={save} />
           </View>
         </View>
+        {/* LGS thirds: the rounded section nets above can miss the total by 0,01 (as on the detail screen). */}
+        {!hasErrors && !sectionNetsAddUp(scores, kind) ? (
+          <Label variant="small" testID="exam-rounding">
+            {tr.exams.roundingNote}
+          </Label>
+        ) : null}
       </SafeAreaView>
 
       {keyboardHeight > 0 ? (

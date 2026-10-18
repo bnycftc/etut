@@ -73,6 +73,10 @@ tags:
       id: timer-saved
       text: "Kaydedildi: 1 dk"
     timeout: 10000
+# The summary is at the top of the screen and Bitir further down: right after Bitir the screen is
+# scrolled back, so "Geri al" is in view without any scroll here (V-01).
+- assertVisible:
+    id: finish-undo
 - assertVisible:
     id: today-total
     text: "[1-9][0-9]* dk"
