@@ -1,0 +1,287 @@
+# Sayaç günü: ders seç, başlat, mola, devam, arka plan, 1 dk, bitir; kapat-aç sürerken; pomodoro.
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+---
+- tapOn:
+    id: tab-timer
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-10-sayac-bos
+- assertVisible:
+    id: today-total
+    text: 0 dk
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: subject-${SUBJ}
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: subject-${SUBJ}
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: mode-stopwatch
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: mode-stopwatch
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: timer-start
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- takeScreenshot: ${P}-11-ders-secildi
+- tapOn:
+    id: timer-start
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: 0:(0[3-9]|[1-5][0-9])
+    timeout: 45000
+    optional: true
+- assertVisible:
+    id: timer-status
+    text: Çalışıyorsun
+    optional: true
+- takeScreenshot: ${P}-12-calisiyor
+- tapOn:
+    id: timer-pause
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-status
+      text: Moladasın
+    timeout: 20000
+    optional: true
+- takeScreenshot: ${P}-13-mola
+- runFlow:
+    file: bekle.yaml
+    env:
+      SEC: '6'
+- takeScreenshot: ${P}-13b-mola-6sn-sonra
+- tapOn:
+    id: timer-resume
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-status
+      text: Çalışıyorsun
+    timeout: 20000
+    optional: true
+- pressKey: Home
+- runFlow:
+    file: bekle.yaml
+    env:
+      SEC: '12'
+- takeScreenshot: ${P}-14-ana-ekran-canli-etkinlik
+- launchApp:
+    stopApp: false
+    permissions:
+      notifications: ${NOTIF}
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-15-arka-plandan-donus
+- runFlow:
+    when:
+      visible:
+        id: away-credit
+    commands:
+    - takeScreenshot: ${P}-15b-uzakta-karti
+    - tapOn:
+        id: away-credit
+        optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: 1:[0-5][0-9]
+    timeout: 120000
+    optional: true
+- takeScreenshot: ${P}-16-bir-dakika
+- tapOn:
+    id: timer-finish
+    retryTapIfNoChange: true
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: finish-check
+    commands:
+    - takeScreenshot: ${P}-16b-bitir-sorusu
+    - tapOn:
+        id: finish-away-credit
+        optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-saved
+    timeout: 30000
+    optional: true
+- assertVisible:
+    id: timer-saved
+    text: 'Kaydedildi: [12] dk'
+    optional: true
+- assertVisible:
+    id: today-total
+    text: '[1-9][0-9]* dk'
+    optional: true
+- takeScreenshot: ${P}-17-kaydedildi
+- scrollUntilVisible:
+    element:
+      id: finish-questions
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- takeScreenshot: ${P}-17b-ozet-alt
+- scrollUntilVisible:
+    element:
+      id: subject-${SUBJ2}
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: subject-${SUBJ2}
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: timer-start
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: timer-start
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: 0:(0[5-9]|[1-5][0-9])
+    timeout: 45000
+    optional: true
+- stopApp
+- runFlow:
+    file: bekle.yaml
+    env:
+      SEC: '5'
+- launchApp:
+    clearState: false
+    permissions:
+      notifications: ${NOTIF}
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+    timeout: 90000
+    optional: true
+- takeScreenshot: ${P}-18-kapat-ac-sayac-suruyor
+- assertVisible:
+    id: timer-status
+    text: Çalışıyorsun
+    optional: true
+- tapOn:
+    id: timer-finish
+    retryTapIfNoChange: true
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: finish-check
+    commands:
+    - takeScreenshot: ${P}-18b-bitir-sorusu
+    - tapOn:
+        id: finish-away-credit
+        optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-saved
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-19-ikinci-kayit
+- tapOn:
+    id: finish-undo
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-19b-geri-alindi
+- scrollUntilVisible:
+    element:
+      id: mode-pomodoro
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: mode-pomodoro
+    optional: true
+- takeScreenshot: ${P}-20-pomodoro-secili
+- scrollUntilVisible:
+    element:
+      id: timer-start
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: timer-start
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: pomodoro-phase
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-21-pomodoro-calisiyor
+- tapOn:
+    id: timer-pause
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-22-pomodoro-duraklat
+- tapOn:
+    id: timer-resume
+    optional: true
+- tapOn:
+    id: timer-finish
+    retryTapIfNoChange: true
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: finish-check
+    commands:
+    - takeScreenshot: ${P}-22b-bitir-sorusu
+    - tapOn:
+        id: finish-away-credit
+        optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-23-pomodoro-bitti
+- scrollUntilVisible:
+    element:
+      id: mode-stopwatch
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: mode-stopwatch
+    optional: true

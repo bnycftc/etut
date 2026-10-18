@@ -1,0 +1,324 @@
+# P3 Mert, 24, KPSS: yetişkin; Gruplar tanıtımı var, veli bölümü yok (keşif; her adım isteğe bağlı).
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+env:
+  P: p3
+  NOTIF: allow
+  AGE: '24'
+  EXAM: KPSS
+  AREA: sayisal
+  ALT: DIGER
+  YEDEK: '0'
+---
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+- extendedWaitUntil:
+    visible:
+      id: onboarding-screen
+    timeout: 120000
+    optional: true
+- takeScreenshot: p3-01-onboarding-bos
+- scrollUntilVisible:
+    element:
+      id: birth-year-${new Date().getFullYear() - 24}
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: birth-year-${new Date().getFullYear() - 24}
+    retryTapIfNoChange: true
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: exam-type-KPSS
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: exam-type-KPSS
+    retryTapIfNoChange: true
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: onboarding-goal-240
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: onboarding-goal-240
+    optional: true
+- tapOn:
+    id: onboarding-goal-240
+    optional: true
+- takeScreenshot: p3-02-onboarding-hedef-iki-kez
+- tapOn:
+    id: onboarding-goal-240
+    optional: true
+- takeScreenshot: p3-03-onboarding-dolu
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+      enabled: true
+    timeout: 30000
+    optional: true
+- tapOn:
+    id: onboarding-start
+    retryTapIfNoChange: true
+    optional: true
+- runFlow:
+    file: subflows/ipucu-gec.yaml
+- takeScreenshot: p3-04-sayac-ilk
+- assertVisible:
+    id: tab-groups
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: goal-progress
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- takeScreenshot: p3-05-onboarding-hedefi-sayacta
+- runFlow:
+    file: subflows/sayac.yaml
+    env:
+      SUBJ: matematik
+      SUBJ2: tarih
+- runFlow:
+    file: subflows/hedef.yaml
+    env:
+      PRESET: '360'
+- runFlow:
+    file: subflows/elle.yaml
+    env:
+      SUBJ: turkce
+      H: '1'
+      M: '30'
+- runFlow:
+    file: subflows/geri.yaml
+- tapOn:
+    id: tab-exams
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exams-screen
+    timeout: 30000
+    optional: true
+- takeScreenshot: p3-100-denemeler-bos
+- tapOn:
+    id: exams-add
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exam-form
+    timeout: 30000
+    optional: true
+- takeScreenshot: p3-101-kpss-form
+- assertVisible:
+    id: exam-net-rule
+    text: Net = Doğru − Yanlış ÷ 4
+    optional: true
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-correct-turkce
+      V: '25'
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-wrong-turkce
+      V: '4'
+- assertVisible:
+    id: exam-net-turkce
+    text: '24'
+    optional: true
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-correct-matematik
+      V: '20'
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-wrong-matematik
+      V: '8'
+- assertVisible:
+    id: exam-net-matematik
+    text: '18'
+    optional: true
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-correct-guncel
+      V: '7'
+- takeScreenshot: p3-102-kpss-fazla-soru
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-correct-guncel
+      V: '4'
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-wrong-guncel
+      V: '2'
+- assertVisible:
+    id: exam-net-guncel
+    text: 3,5
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: exam-total-net
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- assertVisible:
+    id: exam-total-net
+    text: 45,5
+    optional: true
+- takeScreenshot: p3-103-kpss-toplam
+- tapOn:
+    id: exam-save
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exams-saved-title
+    timeout: 30000
+    optional: true
+- takeScreenshot: p3-104-kpss-kaydedildi
+- tapOn:
+    id: exams-saved-analysis
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: p3-105-kpss-analiz
+- runFlow:
+    when:
+      notVisible:
+        id: exams-screen
+    commands:
+    - tapOn:
+        text: Geri|Back
+        index: 0
+        optional: true
+- scrollUntilVisible:
+    element:
+      id: exam-item-0
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- takeScreenshot: p3-106-kpss-liste
+- tapOn:
+    id: exam-item-0
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exam-detail-total
+    timeout: 30000
+    optional: true
+- takeScreenshot: p3-107-kpss-ayrinti
+- scrollUntilVisible:
+    element:
+      text: Sil
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    text: Sil
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- scrollUntilVisible:
+    element:
+      text: Sil
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    text: Sil
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exams-screen
+    timeout: 30000
+    optional: true
+- takeScreenshot: p3-108-kpss-silindi
+- scrollUntilVisible:
+    element:
+      id: exams-empty
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- takeScreenshot: p3-109-kpss-bos-durum-geri
+- runFlow:
+    file: subflows/istatistik.yaml
+    env:
+      SUBJ: matematik
+- runFlow:
+    file: subflows/paylas.yaml
+- runFlow:
+    file: subflows/gruplar.yaml
+- scrollUntilVisible:
+    element:
+      id: groups-teaser-parent
+    direction: UP
+    timeout: 10000
+    optional: true
+- assertNotVisible:
+    id: groups-teaser-parent
+    optional: true
+- runFlow:
+    file: subflows/ayarlar.yaml
+- runFlow:
+    file: subflows/sil.yaml
+- scrollUntilVisible:
+    element:
+      id: birth-year-${new Date().getFullYear() - 24}
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: birth-year-${new Date().getFullYear() - 24}
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: exam-type-KPSS
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: exam-type-KPSS
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: onboarding-start
+    retryTapIfNoChange: true
+    optional: true
+- runFlow:
+    file: subflows/ipucu-gec.yaml
+- takeScreenshot: p3-99-yeniden-kurulum

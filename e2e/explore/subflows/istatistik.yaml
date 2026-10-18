@@ -1,0 +1,185 @@
+# İstatistik ekranları: Geçmiş, Haftalık + aylık, Konular, Karne. Env: P, SUBJ, NOTIF.
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+---
+- tapOn:
+    id: tab-timer
+    optional: true
+- tapOn:
+    id: open-history
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      text: .*
+    timeout: 5000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: ${P}-50-gecmis
+- scrollUntilVisible:
+    element:
+      id: history-delete-.*
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: history-delete-.*
+    index: 0
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-51-gecmis-sil-sorusu
+- tapOn:
+    id: history-delete-no-.*
+    index: 0
+    optional: true
+- runFlow:
+    file: geri.yaml
+- scrollUntilVisible:
+    element:
+      id: open-weekly
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: open-weekly
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: weekly-total
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-52-haftalik
+- scrollUntilVisible:
+    element:
+      id: weekly-longest
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- takeScreenshot: ${P}-52b-haftalik-alt
+- scrollUntilVisible:
+    element:
+      id: monthly-grid
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- takeScreenshot: ${P}-53-aylik
+- tapOn:
+    id: monthly-prev
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-53b-aylik-onceki
+- tapOn:
+    id: monthly-next
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: weekly-prev
+    direction: UP
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: weekly-prev
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-54-haftalik-onceki
+- tapOn:
+    id: weekly-next
+    optional: true
+- runFlow:
+    file: geri.yaml
+- scrollUntilVisible:
+    element:
+      id: open-topics
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: open-topics
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: topics-(screen|unsupported)
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-55-konular
+- tapOn:
+    id: topics-subject-${SUBJ}
+    optional: true
+- tapOn:
+    id: topic-done-.*
+    index: 0
+    optional: true
+- tapOn:
+    id: topic-review-.*
+    index: 1
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-56-konular-isaretli
+- scrollUntilVisible:
+    element:
+      id: topics-open-report
+    direction: UP
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: topics-open-report
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: ${P}-57-karne-konulardan
+- runFlow:
+    file: geri.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: timer-screen
+    file: geri.yaml
+- scrollUntilVisible:
+    element:
+      id: open-report
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: open-report
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: report-screen
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-58-karne
+- scrollUntilVisible:
+    element:
+      id: report-exams
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- takeScreenshot: ${P}-58b-karne-orta
+- scrollUntilVisible:
+    element:
+      id: report-topics
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- takeScreenshot: ${P}-58c-karne-alt
+- runFlow:
+    file: geri.yaml
