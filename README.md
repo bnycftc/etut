@@ -340,20 +340,20 @@ değiştirmeyin (akışlar ve `scripts/test-web.mjs` bunlara bağlı).
 ### `testflight.yml` (elle `workflow_dispatch` veya `v*` etiketi)
 App Store Connect yüklenen her derlemeyi dış teste ya da App Review'a gönderebildiği için iki kapı var:
 - **Kapı işi** (`gate`, ubuntu; macOS dakikası harcanmadan): `v*` etiketi `app.json` → `expo.version`
-  ile aynı olmalı (`v0.4.0` ↔ `0.4.0`); `internal_only` işaretli değilse yalnız `main` ya da `main`
-  üzerindeki bir commit'e konmuş `v*` etiketi derlenir (`git merge-base --is-ancestor`); `npm ci`,
+  ile aynı olmalı (`v0.4.0` ↔ `0.4.0`); `internal_only` işaretli değilse yalnız `main`, `main`
+  üzerindeki bir commit'e konmuş `v*` etiketi (`git merge-base --is-ancestor`) ya da incelemedeki
+  sürümün `release/<sürüm>` dalı (`<sürüm>` = `app.json` → `expo.version`) derlenir; `npm ci`,
   `npx tsc --noEmit`, `npx jest --ci` geçmeli. macOS işi (`needs: gate`) ancak bundan sonra başlar.
-- **Veri sorumlusu kapısı:** `DATA_CONTROLLER_NAME`, `DATA_CONTROLLER_ADDRESS`,
-  `DATA_CONTROLLER_CONTACT` gizli değerlerinden biri boşsa derleme yüklenmez. Gerçek ad, posta adresi
-  ve e-posta bu herkese açık depoda yoktur: arşiv adımı onları `EXPO_PUBLIC_DATA_CONTROLLER_*` olarak
+- **Veri sorumlusu kapısı:** `DATA_CONTROLLER_NAME`, `DATA_CONTROLLER_CONTACT` gizli değerlerinden
+  biri boşsa derleme yüklenmez. Gerçek ad ve e-posta bu herkese açık depoda yoktur: arşiv adımı onları `EXPO_PUBLIC_DATA_CONTROLLER_*` olarak
   JS paketine gömer. `src/strings.ts` her zaman `[DOLDURULACAK]` yer tutucusunu içerir; kapıyı geçmek
   için oraya gerçek değer **yazmayın** (bny kararı, 11 Ekim 2026).
 
 Tek istisna, elle başlatılan ve `internal_only` işaretli çalıştırmadır
 (`gh workflow run testflight.yml -R bnycftc/etut --ref <dal> -f internal_only=true`): gizli değerler
-olmadan (uygulama yer tutucuyu gösterir) ve `main` dışındaki bir daldan da derler. Böyle bir derleme
+olmadan (uygulama yer tutucuyu gösterir) ve `main` / `release/<sürüm>` dışındaki bir daldan da derler. Böyle bir derleme
 **yalnız iç TestFlight** içindir, dış test grubuna ya da App Review'a gönderilmez (çalıştırma özetinde
-derleme numarası yazar). İncelemeye yalnız gizli değerlerle, `main`'den derlenmiş sürüm gider.
+derleme numarası yazar). İncelemeye yalnız gizli değerlerle, `main`'den ya da `release/<sürüm>` dalından derlenmiş sürüm gider.
 macOS 26 koşucusu:
 1. Veri sorumlusu gizli değerlerini denetler (yukarıda); Xcode sürümünü yazdırır (SDK 57 için 26.4
    altıysa uyarı verir).
@@ -431,7 +431,6 @@ derleme bağlamaz, fiyat ya da erişilebilirliğe dokunmaz.
 | `DIST_CERT_P12_BASE64` | önerilir | Apple Distribution sertifikası .p12 dosyasının base64'ü |
 | `DIST_CERT_PASSWORD` | p12 varsa | .p12 parolası |
 | `DATA_CONTROLLER_NAME` | evet (`internal_only` dışında) | Veri sorumlusunun adı; Hakkında ve yasal metinlerde görünür, `asc-metadata.yml` telif satırına da yazar |
-| `DATA_CONTROLLER_ADDRESS` | evet (`internal_only` dışında) | Yazılı KVKK başvurusu için posta adresi |
 | `DATA_CONTROLLER_CONTACT` | evet (`internal_only` dışında) | Destek ve KVKK başvurusu e-postası (Hakkında'daki İletişim ve Ayarlar'daki Geri bildirim düğmesi) |
 
 API anahtarı **Admin** rolünde olmalı. CarPlay Medya projesinde aynı takım için bulut tarafından
@@ -522,8 +521,9 @@ ağ isteği atmaz (`test:web` bunu denetler):
   sınav türü yok).
 
 Yasal metinler (`src/strings.ts` → `legalDocs`) şu anki sunucusuz davranışa göre yazıldı. Veri
-sorumlusunun adı, posta adresi ve e-postası bu herkese açık depoda **yoktur** (bny kararı, 11 Ekim
+sorumlusunun adı ve e-postası bu herkese açık depoda **yoktur** (bny kararı, 11 Ekim
 2026): `DATA_CONTROLLER` sabiti `EXPO_PUBLIC_DATA_CONTROLLER_*` değişkenlerini okur, yoksa
-`[DOLDURULACAK]` gösterir. TestFlight derlemesi değerleri `DATA_CONTROLLER_NAME` / `_ADDRESS` /
+`[DOLDURULACAK]` gösterir. TestFlight derlemesi değerleri `DATA_CONTROLLER_NAME` /
 `_CONTACT` gizli değerlerinden alır (yukarıda `testflight.yml`); testler, E2E ve web yer tutucuyu
-gösterir. Gerçek değerleri `src/strings.ts`'e yazmayın.
+gösterir. Gerçek değerleri `src/strings.ts`'e yazmayın. Posta adresi uygulamanın hiçbir yerinde
+yoktur; iletişim ve KVKK başvurusu yalnız e-postayla (bny kararı, 18 Ekim 2026).

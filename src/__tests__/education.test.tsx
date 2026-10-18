@@ -46,7 +46,6 @@ jest.mock('../strings', () => {
     ...actual,
     DATA_CONTROLLER: {
       name: controller.name,
-      address: controller.address,
       get contact() {
         return mockContact.email ?? controller.contact;
       },
@@ -489,20 +488,19 @@ describe('contact', () => {
     expect(disabled('settings-feedback')).toBeTruthy();
   });
 
-  it('with the address filled in, Ayarlar points the letter route to Hakkında (no postal address below it)', () => {
+  it('with the e-mail filled in, Ayarlar and Hakkında offer e-mail only (no postal address, no letter route)', () => {
     mockContact.email = 'destek@ornek.com';
     const settings = renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
     expect(disabled('settings-feedback')).toBeFalsy();
     expect(screen.getByText('Geri bildirim gönder')).toBeTruthy();
-    expect(screen.getByText(/İstemezsen Hakkında’daki adrese mektupla yazabilirsin\./)).toBeTruthy();
-    expect(screen.queryByText(/aşağıdaki adrese/)).toBeNull();
-    expect(screen.queryByTestId('about-address')).toBeNull();
+    expect(screen.getByText(/Ayrıntılar “Aydınlatma metni”nde\./)).toBeTruthy();
+    expect(screen.queryByText(/mektup/)).toBeNull();
     settings.unmount();
 
-    // Hakkında keeps "aşağıdaki adrese": the data controller card with the address is below it.
     renderRouter(APP_DIR, { initialUrl: '/hakkinda' });
     expect(disabled('about-contact')).toBeFalsy();
-    expect(screen.getByText(/İstemezsen aşağıdaki adrese mektupla yazabilirsin\./)).toBeTruthy();
-    expect(screen.getByTestId('about-address')).toBeTruthy();
+    expect(screen.getByText(/Ayrıntılar “Aydınlatma metni”nde\./)).toBeTruthy();
+    expect(screen.queryByText(/mektup/)).toBeNull();
+    expect(screen.queryByText('Adres')).toBeNull();
   });
 });
