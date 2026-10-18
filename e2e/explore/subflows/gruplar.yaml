@@ -41,6 +41,17 @@ appId: com.bnycftc.etut
     direction: DOWN
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: groups-teaser-not-open
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: groups-teaser-not-open
+        direction: UP
+        timeout: 20000
+        optional: true
 - swipe:
     start: 50%, 80%
     end: 50%, 25%

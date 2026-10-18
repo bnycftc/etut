@@ -29,6 +29,17 @@ env:
     direction: DOWN
     timeout: 30000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: onboarding-start
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: onboarding-start
+        direction: UP
+        timeout: 30000
+        optional: true
 - takeScreenshot: g-03-onboarding-alt
 - scrollUntilVisible:
     element:
@@ -37,6 +48,18 @@ env:
     centerElement: true
     timeout: 30000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: birth-year-${new Date().getFullYear() - 17}
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: birth-year-${new Date().getFullYear() - 17}
+        direction: DOWN
+        centerElement: true
+        timeout: 30000
+        optional: true
 - tapOn:
     id: birth-year-${new Date().getFullYear() - 17}
     retryTapIfNoChange: true
@@ -48,6 +71,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: exam-type-YKS
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: exam-type-YKS
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: exam-type-YKS
     optional: true
@@ -58,6 +93,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: yks-area-sayisal
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: yks-area-sayisal
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: yks-area-sayisal
     optional: true
@@ -67,6 +114,17 @@ env:
     direction: DOWN
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: onboarding-start
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: onboarding-start
+        direction: UP
+        timeout: 20000
+        optional: true
 - extendedWaitUntil:
     visible:
       id: onboarding-start
@@ -117,9 +175,23 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: subject-matematik
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: subject-matematik
+        direction: DOWN
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: subject-matematik
     optional: true
+- runFlow:
+    file: subflows/ust.yaml
 - scrollUntilVisible:
     element:
       id: timer-start
@@ -127,6 +199,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: timer-start
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: timer-start
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: timer-start
     retryTapIfNoChange: true
@@ -145,6 +229,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: timer-finish
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: timer-finish
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - takeScreenshot: g-08b-sayac-calisiyor-alt
 - tapOn:
     id: timer-finish
@@ -163,6 +259,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: goal-(set|edit)
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: goal-(set|edit)
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: goal-(set|edit)
     optional: true
@@ -178,6 +286,17 @@ env:
     direction: DOWN
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: goal-sheet-done
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: goal-sheet-done
+        direction: UP
+        timeout: 15000
+        optional: true
 - takeScreenshot: g-10b-hedef-sayfasi-alt
 - tapOn:
     id: goal-sheet-done
@@ -197,6 +316,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: open-weekly
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: open-weekly
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: open-weekly
     optional: true
@@ -215,6 +346,17 @@ env:
     direction: DOWN
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: monthly-grid
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: monthly-grid
+        direction: UP
+        timeout: 20000
+        optional: true
 - takeScreenshot: g-12c-aylik
 - runFlow:
     file: subflows/geri.yaml
@@ -225,6 +367,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: open-share
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: open-share
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: open-share
     optional: true
@@ -237,6 +391,17 @@ env:
     direction: DOWN
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: share-card-share
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: share-card-share
+        direction: UP
+        timeout: 20000
+        optional: true
 - takeScreenshot: g-13b-paylas-alt
 - runFlow:
     file: subflows/geri.yaml
@@ -247,6 +412,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: open-report
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: open-report
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: open-report
     optional: true
@@ -300,6 +477,17 @@ env:
     direction: DOWN
     timeout: 30000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: exam-save
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: exam-save
+        direction: UP
+        timeout: 30000
+        optional: true
 - takeScreenshot: g-23-deneme-form-alt
 - tapOn:
     id: exam-save
@@ -318,6 +506,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: exam-item-0
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: exam-item-0
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - takeScreenshot: g-25-deneme-liste
 - tapOn:
     id: exam-item-0
@@ -399,6 +599,17 @@ env:
     direction: DOWN
     timeout: 30000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: settings-open-about
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: settings-open-about
+        direction: UP
+        timeout: 30000
+        optional: true
 - takeScreenshot: g-48-ayarlar-son
 - tapOn:
     id: settings-open-about
@@ -423,6 +634,17 @@ env:
     direction: DOWN
     timeout: 30000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: settings-reminders
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: settings-reminders
+        direction: UP
+        timeout: 30000
+        optional: true
 - tapOn:
     id: settings-reminders
     optional: true
@@ -440,6 +662,17 @@ env:
     direction: DOWN
     timeout: 30000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: settings-open-backup
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: settings-open-backup
+        direction: UP
+        timeout: 30000
+        optional: true
 - tapOn:
     id: settings-open-backup
     optional: true
@@ -458,6 +691,18 @@ env:
     centerElement: true
     timeout: 30000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: settings-delete-all
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: settings-delete-all
+        direction: UP
+        centerElement: true
+        timeout: 30000
+        optional: true
 - tapOn:
     id: settings-delete-all
     optional: true

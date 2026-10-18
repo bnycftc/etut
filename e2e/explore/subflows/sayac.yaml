@@ -15,6 +15,8 @@ appId: com.bnycftc.etut
     id: today-total
     text: 0 dk
     optional: true
+- runFlow:
+    file: ust.yaml
 - scrollUntilVisible:
     element:
       id: subject-${SUBJ}
@@ -22,9 +24,23 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: subject-${SUBJ}
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: subject-${SUBJ}
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - tapOn:
     id: subject-${SUBJ}
     optional: true
+- runFlow:
+    file: ust.yaml
 - scrollUntilVisible:
     element:
       id: mode-stopwatch
@@ -32,9 +48,23 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: mode-stopwatch
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: mode-stopwatch
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - tapOn:
     id: mode-stopwatch
     optional: true
+- runFlow:
+    file: ust.yaml
 - scrollUntilVisible:
     element:
       id: timer-start
@@ -42,6 +72,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: timer-start
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: timer-start
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - takeScreenshot: ${P}-11-ders-secildi
 - tapOn:
     id: timer-start
@@ -150,7 +192,21 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 10000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: finish-questions
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: finish-questions
+        direction: UP
+        centerElement: true
+        timeout: 10000
+        optional: true
 - takeScreenshot: ${P}-17b-ozet-alt
+- runFlow:
+    file: ust.yaml
 - scrollUntilVisible:
     element:
       id: subject-${SUBJ2}
@@ -158,9 +214,23 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: subject-${SUBJ2}
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: subject-${SUBJ2}
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - tapOn:
     id: subject-${SUBJ2}
     optional: true
+- runFlow:
+    file: ust.yaml
 - scrollUntilVisible:
     element:
       id: timer-start
@@ -168,6 +238,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: timer-start
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: timer-start
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - tapOn:
     id: timer-start
     retryTapIfNoChange: true
@@ -222,6 +304,8 @@ appId: com.bnycftc.etut
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: ${P}-19b-geri-alindi
+- runFlow:
+    file: ust.yaml
 - scrollUntilVisible:
     element:
       id: mode-pomodoro
@@ -229,10 +313,24 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: mode-pomodoro
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: mode-pomodoro
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - tapOn:
     id: mode-pomodoro
     optional: true
 - takeScreenshot: ${P}-20-pomodoro-secili
+- runFlow:
+    file: ust.yaml
 - scrollUntilVisible:
     element:
       id: timer-start
@@ -240,6 +338,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: timer-start
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: timer-start
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - tapOn:
     id: timer-start
     retryTapIfNoChange: true
@@ -275,6 +385,8 @@ appId: com.bnycftc.etut
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: ${P}-23-pomodoro-bitti
+- runFlow:
+    file: ust.yaml
 - scrollUntilVisible:
     element:
       id: mode-stopwatch
@@ -282,6 +394,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: mode-stopwatch
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: mode-stopwatch
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - tapOn:
     id: mode-stopwatch
     optional: true

@@ -1,0 +1,16 @@
+# Sayfanın en üstüne kaydır (iki aşağı doğru sürükleme).
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+---
+- swipe:
+    start: 50%, 30%
+    end: 50%, 85%
+    duration: 300
+    optional: true
+- swipe:
+    start: 50%, 30%
+    end: 50%, 85%
+    duration: 300
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000

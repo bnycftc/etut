@@ -27,6 +27,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: birth-year-${new Date().getFullYear() - 24}
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: birth-year-${new Date().getFullYear() - 24}
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: birth-year-${new Date().getFullYear() - 24}
     retryTapIfNoChange: true
@@ -38,6 +50,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: exam-type-KPSS
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: exam-type-KPSS
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: exam-type-KPSS
     retryTapIfNoChange: true
@@ -49,6 +73,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: onboarding-goal-240
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: onboarding-goal-240
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: onboarding-goal-240
     optional: true
@@ -66,6 +102,17 @@ env:
     direction: DOWN
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: onboarding-start
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: onboarding-start
+        direction: UP
+        timeout: 20000
+        optional: true
 - extendedWaitUntil:
     visible:
       id: onboarding-start
@@ -89,6 +136,18 @@ env:
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: goal-progress
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: goal-progress
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - takeScreenshot: p3-05-onboarding-hedefi-sayacta
 - runFlow:
     file: subflows/sayac.yaml
@@ -184,6 +243,17 @@ env:
     direction: DOWN
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: exam-total-net
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: exam-total-net
+        direction: UP
+        timeout: 20000
+        optional: true
 - assertVisible:
     id: exam-total-net
     text: 45,5
@@ -221,6 +291,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: exam-item-0
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: exam-item-0
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - takeScreenshot: p3-106-kpss-liste
 - tapOn:
     id: exam-item-0
@@ -239,6 +321,18 @@ env:
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        text: Sil
+    commands:
+    - scrollUntilVisible:
+        element:
+          text: Sil
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - tapOn:
     text: Sil
     optional: true
@@ -251,6 +345,18 @@ env:
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        text: Sil
+    commands:
+    - scrollUntilVisible:
+        element:
+          text: Sil
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - tapOn:
     text: Sil
     optional: true
@@ -267,6 +373,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: exams-empty
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: exams-empty
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - takeScreenshot: p3-109-kpss-bos-durum-geri
 - runFlow:
     file: subflows/istatistik.yaml
@@ -282,6 +400,17 @@ env:
     direction: UP
     timeout: 10000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: groups-teaser-parent
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: groups-teaser-parent
+        direction: DOWN
+        timeout: 10000
+        optional: true
 - assertNotVisible:
     id: groups-teaser-parent
     optional: true
@@ -296,6 +425,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: birth-year-${new Date().getFullYear() - 24}
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: birth-year-${new Date().getFullYear() - 24}
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: birth-year-${new Date().getFullYear() - 24}
     optional: true
@@ -306,6 +447,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: exam-type-KPSS
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: exam-type-KPSS
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: exam-type-KPSS
     optional: true
@@ -315,6 +468,17 @@ env:
     direction: DOWN
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: onboarding-start
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: onboarding-start
+        direction: UP
+        timeout: 20000
+        optional: true
 - tapOn:
     id: onboarding-start
     retryTapIfNoChange: true
