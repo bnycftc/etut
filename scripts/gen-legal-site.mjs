@@ -6,8 +6,7 @@
 //
 // The data controller is read from the same EXPO_PUBLIC_ variables as the app build; nothing
 // personal is stored in this public repository. Without them the pages show the placeholder.
-// The postal address is never put on the web (bny, 11 Oct 2026): those sentences point to the
-// in-app Hakkında screen instead. [AVUKAT TEYİDİ] whether that is enough for the web copy.
+// There is no postal address in the texts (bny, 18 Oct 2026: contact is by e-mail only).
 // Writes <out-dir>/index.html, aydinlatma.html, gizlilik.html, kullanim.html.
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -76,19 +75,6 @@ ${body}
 `;
 }
 
-const ADDRESS = '@@ETUT_ADDRESS@@';
-process.env.EXPO_PUBLIC_DATA_CONTROLLER_ADDRESS = ADDRESS;
-const WEB_ADDRESS = [
-  [`Adres: ${ADDRESS}.`, 'Posta adresi uygulamada Hakkında ekranında yazar; istersen e-postayla da bildiririz.'],
-  [`${ADDRESS} adresine`, 'uygulamada Hakkında ekranında yazan posta adresine'],
-  [` · ${ADDRESS}`, ''],
-];
-const webText = (text) => {
-  const out = WEB_ADDRESS.reduce((t, [from, to]) => t.split(from).join(to), text);
-  if (out.includes(ADDRESS)) throw new Error(`address left in: ${text}`);
-  return out;
-};
-
 const { tr, LEGAL_DOC_IDS, LEGAL_UPDATED, DATA_CONTROLLER } = loadStrings();
 const files = { aydinlatma: 'aydinlatma.html', gizlilik: 'gizlilik.html', kullanim: 'kullanim.html' };
 const nav = [`<a href="index.html">Etüt</a>`, ...LEGAL_DOC_IDS.map((id) => `<a href="${files[id]}">${escape(tr.legal[id].title)}</a>`)].join('');
@@ -97,7 +83,7 @@ mkdirSync(outDir, { recursive: true });
 for (const id of LEGAL_DOC_IDS) {
   const doc = tr.legal[id];
   const body = doc.sections
-    .map((s) => `<h2>${escape(s.heading)}</h2>\n${s.paragraphs.map((p) => `<p>${escape(webText(p))}</p>`).join('\n')}`)
+    .map((s) => `<h2>${escape(s.heading)}</h2>\n${s.paragraphs.map((p) => `<p>${escape(p)}</p>`).join('\n')}`)
     .join('\n');
   writeFileSync(path.join(outDir, files[id]), page({ title: doc.title, updated: tr.about.updated(LEGAL_UPDATED), body, nav }));
 }

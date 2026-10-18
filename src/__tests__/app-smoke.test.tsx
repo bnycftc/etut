@@ -2475,7 +2475,7 @@ describe('about and legal texts', () => {
     fireEvent.press(screen.getByTestId('onboarding-privacy'));
     expect(screen.getByTestId('legal-aydinlatma')).toBeTruthy();
     expect(screen.getAllByText('Aydınlatma metni').length).toBeGreaterThan(0);
-    expect(screen.getByText('Son güncelleme: 16 Ekim 2026')).toBeTruthy();
+    expect(screen.getByText('Son güncelleme: 18 Ekim 2026')).toBeTruthy();
     expect(memory.profile).toBeNull();
   });
 

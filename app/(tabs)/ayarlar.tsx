@@ -241,8 +241,6 @@ export default function SettingsScreen() {
               {tr.settings.examChangeSaved}
             </Label>
           ) : null}
-          {/* K-17: the declared age can not be edited; say so instead of offering a control. */}
-          <Label variant="small">{tr.settings.ageFixed}</Label>
         </Card>
       ) : null}
 
@@ -519,7 +517,7 @@ export default function SettingsScreen() {
 
       <Card>
         <Label variant="heading">{tr.contact.feedbackTitle}</Label>
-        <Label variant="small">{feedbackMail.email === null ? tr.contact.soonInfo : tr.contact.feedbackInfo}</Label>
+        <Label variant="small">{feedbackMail.email === null ? tr.contact.soonInfo : tr.contact.info}</Label>
         <Button
           testID="settings-feedback"
           kind="secondary"
