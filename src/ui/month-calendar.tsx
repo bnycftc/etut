@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { MonthView } from '../domain/month-calendar';
 import { tr } from '../strings';
 import { Label } from './components';
-import { formatDay, formatDuration } from './format';
+import { formatDay, formatStudyTime } from './format';
 import { heatColor } from './heat-colors';
 import { space, usePalette } from './theme';
 
@@ -33,7 +33,7 @@ export function MonthCalendar({ view, today, testID }: { view: MonthView; today:
             const label = cell.future
               ? tr.monthly.cellFuture(date)
               : cell.ms > 0
-                ? tr.monthly.cell(date, formatDuration(cell.ms))
+                ? tr.monthly.cell(date, formatStudyTime(cell.ms))
                 : tr.monthly.cellNone(date);
             const colors = heatColor(cell.level, c);
             // Days still to come and days before the first use are neutral (no "no study" shade).

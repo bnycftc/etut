@@ -116,6 +116,54 @@ describe('form parsing', () => {
 });
 
 describe('"az önce bitti"', () => {
+  // IOS-06: a timer session saved a few minutes ago used to sit inside the default span, and Ekle
+  // was refused ("Bu saatlerde başka bir çalışma kaydın var.").
+  const span = (fromIso: string, toIso: string) => ({ startedAt: at(fromIso), endedAt: at(toIso) });
+
+  it('ends where the latest session that is in the way starts, so the default is accepted', () => {
+    const now = at('2026-10-04T16:33:20Z'); // 19:33:20 Istanbul
+    // Timer session 19:20:10–19:30:40, saved three minutes ago.
+    const timer = span('2026-10-04T16:20:10Z', '2026-10-04T16:30:40Z');
+    const start = justFinishedStart(now, min(60), [timer]);
+    expect(start).toBe(at('2026-10-04T15:20:00Z')); // 18:20–19:20, on whole minutes
+    const input = { subjectId: 'matematik', topicId: null, startMs: start ?? Number.NaN, durationMs: min(60) };
+    expect(validateManualEntry(input, [timer], now)).toBeNull();
+    // Without the session in the way it still ends now.
+    expect(justFinishedStart(now, min(60), [])).toBe(at('2026-10-04T15:33:00Z'));
+  });
+
+  it('a session that ended before the span, or touches its start, is not in the way', () => {
+    const now = at('2026-10-04T16:00:00Z'); // 19:00
+    expect(justFinishedStart(now, min(30), [span('2026-10-04T14:00:00Z', '2026-10-04T15:30:00Z')])).toBe(
+      at('2026-10-04T15:30:00Z'),
+    );
+  });
+
+  it('skips back over several sessions and gaps too short for the entry', () => {
+    const now = at('2026-10-04T16:00:00Z'); // 19:00
+    const sessions = [
+      span('2026-10-04T15:40:00Z', '2026-10-04T15:55:00Z'), // 18:40–18:55
+      span('2026-10-04T15:00:00Z', '2026-10-04T15:30:00Z'), // 18:00–18:30 (10-minute gap after it)
+    ];
+    // 18:55–19:00 (5 min) and 18:30–18:40 (10 min) are too short for 15: 17:45–18:00.
+    expect(justFinishedStart(now, min(15), sessions)).toBe(at('2026-10-04T14:45:00Z'));
+    expect(justFinishedStart(now, min(5), sessions)).toBe(at('2026-10-04T15:55:00Z')); // 18:55–19:00 fits 5
+    expect(justFinishedStart(now, min(10), sessions)).toBe(at('2026-10-04T15:30:00Z')); // 18:30–18:40
+    expect(justFinishedStart(now, min(20), sessions)).toBe(at('2026-10-04T14:40:00Z')); // 17:40–18:00
+  });
+
+  it('the running session counts up to now: the entry ends before it started', () => {
+    const now = at('2026-10-04T16:00:00Z');
+    const running = { startedAt: at('2026-10-04T15:45:30Z'), endedAt: now }; // since 18:45:30
+    expect(justFinishedStart(now, min(45), [running])).toBe(at('2026-10-04T15:00:00Z')); // 18:00–18:45
+  });
+
+  it('null when no free span starts within the last 7 days', () => {
+    const now = at('2026-10-04T16:00:00Z');
+    const allWeek = { startedAt: at('2026-09-20T00:00:00Z'), endedAt: now };
+    expect(justFinishedStart(now, min(30), [allWeek])).toBeNull();
+  });
+
   it('ends at the start of the current minute, so the entry is valid right away', () => {
     const now = NOW + 42_500; // 18:00:42.5 Istanbul
     const start = justFinishedStart(now, min(45));
@@ -126,7 +174,7 @@ describe('"az önce bitti"', () => {
 
   it('just after Istanbul midnight the entry starts on the day before', () => {
     const now = at('2026-10-04T21:10:00Z'); // 5 Oct 00:10 Istanbul
-    const start = justFinishedStart(now, min(30));
+    const start = justFinishedStart(now, min(30)) ?? Number.NaN;
     expect(start).toBe(parseStartTime('2026-10-04', '23', '40'));
     const s = buildManualSession('m3', { subjectId: 'fizik', topicId: null, startMs: start, durationMs: min(30) });
     expect(dailyTotals([s], ['2026-10-04', '2026-10-05']).map((t) => t.totalMs)).toEqual([min(30), 0]);

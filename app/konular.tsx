@@ -11,7 +11,7 @@ import { topicTotals } from '@/storage/sessions';
 import { loadTopicStatuses, setTopicStatus } from '@/storage/topics';
 import { tr } from '@/strings';
 import { Button, Card, Chip, ChipRow, EmptyState, Label, ProgressBar, Row, Screen } from '@/ui/components';
-import { formatDuration } from '@/ui/format';
+import { formatStudyTime } from '@/ui/format';
 
 /** Topic tracking: time per topic, "bitti / tekrar lazım" and progress per subject. */
 export default function TopicsScreen() {
@@ -106,7 +106,7 @@ export default function TopicsScreen() {
                 <View key={t.id} style={{ gap: 6, paddingVertical: 4 }}>
                   <Row>
                     <Label style={{ flex: 1 }}>{t.name}</Label>
-                    <Label variant="small">{ms > 0 ? formatDuration(ms) : tr.topics.noTime}</Label>
+                    <Label variant="small">{ms > 0 ? formatStudyTime(ms) : tr.topics.noTime}</Label>
                   </Row>
                   <ChipRow>
                     <Chip

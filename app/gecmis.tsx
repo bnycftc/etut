@@ -20,8 +20,8 @@ import { useAppState, useNow, useStored } from '@/state/app-state';
 import { deleteTimerSession, sessionsOverlapping } from '@/storage/sessions';
 import { tr } from '@/strings';
 import { syncManualDeleted } from '@/sync/session-sync';
-import { BarChart, Button, Card, Dot, EmptyState, Label, Row, Screen, Tag } from '@/ui/components';
-import { formatDay, formatDuration } from '@/ui/format';
+import { BarChart, Button, Card, Dot, EmptyState, fillText, Label, Row, Screen, Tag } from '@/ui/components';
+import { formatDay, formatDuration, formatStudyTime } from '@/ui/format';
 import { InfoLink } from '@/ui/info-link';
 import { subjectColor } from '@/ui/subject-colors';
 import { space, usePalette } from '@/ui/theme';
@@ -81,7 +81,7 @@ export default function HistoryScreen() {
               label: t.day === today ? tr.history.todayLabel : tr.weekdayShort(istanbulWeekday(t.day)),
               value: t.totalMs,
               valueLabel: t.totalMs === 0 ? '' : tr.history.barValue(hours, minutes),
-              a11yValue: formatDuration(t.totalMs),
+              a11yValue: formatStudyTime(t.totalMs),
               highlight: t.day === today,
             };
           })}
@@ -101,11 +101,11 @@ export default function HistoryScreen() {
       ) : null}
       {listed.map((t) => (
         <Card key={t.day}>
-          <Row>
-            <Label variant="heading" style={{ flex: 1 }}>
+          <Row wrap>
+            <Label variant="heading" style={fillText}>
               {t.day === today ? tr.history.todayLabel : formatDay(t.day)}
             </Label>
-            <Label variant="heading">{formatDuration(t.totalMs)}</Label>
+            <Label variant="heading">{formatStudyTime(t.totalMs)}</Label>
           </Row>
           {(questions.byDay[t.day] ?? 0) > 0 ? (
             <Label variant="small" testID={`history-questions-${t.day}`}>
@@ -113,9 +113,9 @@ export default function HistoryScreen() {
             </Label>
           ) : null}
           {(manualByDay.get(t.day) ?? 0) > 0 ? (
-            <Row>
+            <Row wrap>
               <Tag title={tr.manualTag} />
-              <Label variant="small">{tr.history.manualLine(formatDuration(manualByDay.get(t.day) ?? 0))}</Label>
+              <Label variant="small" style={{ flexShrink: 1 }}>{tr.history.manualLine(formatDuration(manualByDay.get(t.day) ?? 0))}</Label>
               {t.day === firstManualDay ? (
                 <InfoLink testID="history-manual-info" section="elle" term={tr.infoLink.manual} />
               ) : null}
@@ -123,12 +123,12 @@ export default function HistoryScreen() {
           ) : null}
           <View style={{ gap: 4 }}>
             {subjectBreakdown(t).map((s) => (
-              <Row key={s.subjectId}>
+              <Row key={s.subjectId} wrap>
                 <Dot color={subjectColor(s.subjectId, c)} />
-                <Label variant="muted" style={{ flex: 1 }}>
+                <Label variant="muted" style={fillText}>
                   {tr.subject(s.subjectId)}
                 </Label>
-                <Label variant="muted">{formatDuration(s.ms)}</Label>
+                <Label variant="muted">{formatStudyTime(s.ms)}</Label>
               </Row>
             ))}
           </View>
@@ -149,10 +149,10 @@ export default function HistoryScreen() {
                 const line = sessionLine(s);
                 return (
                   <View key={s.id} testID={`history-session-${s.id}`} style={{ gap: space.xs }}>
-                    <Row>
+                    <Row wrap>
                       <Dot color={subjectColor(s.subjectId, c)} />
-                      <Label style={{ flex: 1 }}>{line}</Label>
-                      <Label>{formatDuration(s.durationMs)}</Label>
+                      <Label style={fillText}>{line}</Label>
+                      <Label>{formatStudyTime(s.durationMs)}</Label>
                     </Row>
                     {confirmingId === s.id ? (
                       <>

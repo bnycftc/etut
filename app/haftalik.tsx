@@ -17,17 +17,31 @@ import { useStudyStats } from '@/state/study-stats';
 import { firstSessionStartedAt, sessionsOverlapping } from '@/storage/sessions';
 import { loadSubjectTargets } from '@/storage/subject-targets';
 import { tr } from '@/strings';
-import { BarChart, Button, Card, Dot, EmptyState, Label, ProgressBar, ResponsiveRow, Row, Screen, Tag } from '@/ui/components';
-import { formatDay, formatDuration } from '@/ui/format';
+import {
+  BarChart,
+  Button,
+  Card,
+  Dot,
+  EmptyState,
+  fillText,
+  Label,
+  ProgressBar,
+  ResponsiveRow,
+  Row,
+  Screen,
+  Tag,
+} from '@/ui/components';
+import { formatDay, formatDuration, formatStudyTime } from '@/ui/format';
 import { Icon } from '@/ui/icon';
 import { MonthCalendar } from '@/ui/month-calendar';
 import { subjectColor } from '@/ui/subject-colors';
-import { space, usePalette } from '@/ui/theme';
+import { space, useLargeText, usePalette } from '@/ui/theme';
 
 /** Weekly summary (Monday–Sunday, Istanbul): own numbers only, no comparison with others. */
 export default function WeeklyScreen() {
   const { active, dataVersions, profile } = useAppState();
   const c = usePalette();
+  const large = useLargeText();
   const now = useNow(active !== null && !isPaused(active), 30_000);
   const stats = useStudyStats(now);
   const thisWeek = weekStartOf(stats.today);
@@ -89,10 +103,10 @@ export default function WeeklyScreen() {
             {tr.weekly.total}
           </Label>
           <Label testID="weekly-total" variant="heading">
-            {formatDuration(week.totalMs)}
+            {formatStudyTime(week.totalMs)}
           </Label>
         </Row>
-        <Label variant="muted">{tr.weekly.previousWeek(formatDuration(previous.totalMs))}</Label>
+        <Label variant="muted">{tr.weekly.previousWeek(formatStudyTime(previous.totalMs))}</Label>
         <Label variant="muted">{tr.weekly.activeDays(week.activeDays)}</Label>
         {week.goalDays !== null ? <Label variant="muted">{tr.weekly.goalDays(week.goalDays)}</Label> : null}
         {week.manualMs > 0 ? (
@@ -109,7 +123,7 @@ export default function WeeklyScreen() {
               label: tr.weekdayShort(istanbulWeekday(d.day)),
               value: d.totalMs,
               valueLabel: d.totalMs === 0 ? '' : tr.history.barValue(hours, minutes),
-              a11yValue: formatDuration(d.totalMs),
+              a11yValue: formatStudyTime(d.totalMs),
               highlight: d.day === stats.today,
             };
           })}
@@ -166,21 +180,28 @@ export default function WeeklyScreen() {
           {week.bySubject.map((s, i) => {
             const percent = percents[i];
             const count = questions.bySubject[s.subjectId] ?? 0;
+            const share = (
+              <>
+                <Label variant="muted">{tr.weekly.percent(percent)}</Label>
+                <Label>{formatStudyTime(s.ms)}</Label>
+              </>
+            );
             return (
               <Pressable
                 key={s.subjectId}
                 testID={`weekly-subject-${s.subjectId}`}
                 accessibilityRole="button"
-                accessibilityLabel={tr.report.rowA11y(tr.subject(s.subjectId), formatDuration(s.ms), percent)}
+                accessibilityLabel={tr.report.rowA11y(tr.subject(s.subjectId), formatStudyTime(s.ms), percent)}
                 onPress={() => openReport(s.subjectId)}
                 style={({ pressed }) => [styles.subjectRow, { opacity: pressed ? 0.6 : 1 }]}>
                 <Dot color={subjectColor(s.subjectId, c)} />
                 <View style={styles.grow}>
                   <Label>{tr.subject(s.subjectId)}</Label>
                   {count > 0 ? <Label variant="small">{tr.questions.count(count)}</Label> : null}
+                  {/* Large text: the share goes under the name, which keeps the whole line (IOS-04 "Mat/ema/tik"). */}
+                  {large ? <Row wrap>{share}</Row> : null}
                 </View>
-                <Label variant="muted">{tr.weekly.percent(percent)}</Label>
-                <Label>{formatDuration(s.ms)}</Label>
+                {large ? null : share}
                 <Icon name="chevron" color={c.textMuted} size={16} />
               </Pressable>
             );
@@ -193,12 +214,12 @@ export default function WeeklyScreen() {
         {targetRows.length === 0 ? <Label variant="muted">{tr.subjectTargets.hint}</Label> : null}
         {targetRows.map(({ subjectId, progress }) => (
           <View key={subjectId} style={{ gap: space.xs }}>
-            <Row>
+            <Row wrap>
               <Dot color={subjectColor(subjectId, c)} />
-              <Label style={styles.grow}>{tr.subject(subjectId)}</Label>
-              <Label variant="muted" testID={`weekly-target-${subjectId}`}>
+              <Label style={fillText}>{tr.subject(subjectId)}</Label>
+              <Label variant="muted" testID={`weekly-target-${subjectId}`} style={{ flexShrink: 1 }}>
                 {tr.subjectTargets.progress(
-                  formatDuration(weekMsOf(subjectId)),
+                  formatStudyTime(weekMsOf(subjectId)),
                   formatDuration(progress.targetMs),
                   progress.percent,
                 )}
@@ -212,12 +233,12 @@ export default function WeeklyScreen() {
       {week.longest !== null ? (
         <Card>
           <Label variant="heading">{tr.weekly.longest}</Label>
-          <Row>
-            <View style={{ flex: 1 }}>
+          <Row wrap>
+            <View style={fillText}>
               <Label>{tr.subject(week.longest.subjectId)}</Label>
               <Label variant="small">{formatDay(istanbulDayKey(week.longest.startedAt))}</Label>
             </View>
-            <Label testID="weekly-longest">{formatDuration(week.longest.ms)}</Label>
+            <Label testID="weekly-longest">{formatStudyTime(week.longest.ms)}</Label>
             {week.longest.manual ? <Tag title={tr.manualTag} /> : null}
           </Row>
         </Card>
@@ -257,15 +278,15 @@ export default function WeeklyScreen() {
           </Label>
         ) : (
           <View style={{ gap: 2 }}>
-            <Label testID="monthly-total">{tr.monthly.total(formatDuration(monthly.totalMs))}</Label>
+            <Label testID="monthly-total">{tr.monthly.total(formatStudyTime(monthly.totalMs))}</Label>
             <Label variant="muted">{tr.monthly.studyDays(monthly.studyDays, monthly.elapsedDays)}</Label>
             <Label variant="muted">{tr.monthly.restDays(monthly.restDays)}</Label>
             {monthly.bestDay !== null ? (
               <Label variant="muted" testID="monthly-best">
-                {tr.monthly.best(formatDay(monthly.bestDay.day), formatDuration(monthly.bestDay.ms))}
+                {tr.monthly.best(formatDay(monthly.bestDay.day), formatStudyTime(monthly.bestDay.ms))}
               </Label>
             ) : null}
-            <Label variant="muted">{tr.monthly.average(formatDuration(monthly.averageStudyDayMs))}</Label>
+            <Label variant="muted">{tr.monthly.average(formatStudyTime(monthly.averageStudyDayMs))}</Label>
           </View>
         )}
         <MonthCalendar testID="monthly-grid" view={monthly} today={stats.today} />

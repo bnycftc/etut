@@ -1,4 +1,4 @@
-import { canUndoFinish, goalStep, topicMarkToRestore, UNDO_FINISH_MS } from '../finish';
+import { canUndoFinish, goalStep, showsGoalStep, topicMarkToRestore, UNDO_FINISH_MS } from '../finish';
 
 describe('undo window after Bitir', () => {
   it('is open right after finishing and closes after UNDO_FINISH_MS', () => {
@@ -40,5 +40,27 @@ describe('topic mark set in the summary, then "Geri al"', () => {
 
   it('clears a mark the topic did not have before', () => {
     expect(topicMarkToRestore(null, 9_000)).toEqual({ status: null, at: 9_000 });
+  });
+});
+
+describe('the "Hedef: %a → %b" line (V-13)', () => {
+  const MIN = 60_000;
+
+  it('is shown when the whole percent moved', () => {
+    expect(showsGoalStep(goalStep(90 * MIN, 30 * MIN, 120))).toBe(true);
+    // 0.8 % → 1.6 % of 4 hours: still "%0 → %1".
+    expect(showsGoalStep(goalStep(4 * MIN, 2 * MIN, 240))).toBe(true);
+  });
+
+  it('is hidden when nothing visible changed: a 2-minute session on a 4-hour goal is "%0 → %0"', () => {
+    const step = goalStep(2 * MIN, 2 * MIN, 240);
+    expect(step).toEqual({ beforePercent: 0, afterPercent: 0, reached: false });
+    expect(showsGoalStep(step)).toBe(false);
+    // Already over the goal: 100 → 100.
+    expect(showsGoalStep(goalStep(200 * MIN, 30 * MIN, 120))).toBe(false);
+  });
+
+  it('is hidden once the goal is reached (the "tebrikler" line says it)', () => {
+    expect(showsGoalStep(goalStep(130 * MIN, 30 * MIN, 120))).toBe(false);
   });
 });

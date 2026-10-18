@@ -103,11 +103,26 @@ export function parseStartTime(day: DayKey, hours: string, minutes: string): num
 }
 
 /**
- * "Az önce bitti", the form's default for today: the entry ends at the start of the current
- * minute (never after now) and starts `durationMs` before that.
+ * "Az önce bitti", the form's default for today: the latest span of `durationMs` that ends by the
+ * start of the current minute (never after now) and overlaps no other session. `existing` holds the
+ * sessions of the last days plus the running one as `{ startedAt, endedAt: now }`. Right after a
+ * timer session the entry ends where that session started, instead of overlapping it and being
+ * refused (IOS-06). Returns the start, on a whole minute; `null` when no such span starts within
+ * the last `MANUAL_DAYS` days.
  */
-export function justFinishedStart(now: number, durationMs: number): number {
-  return now - (now % MIN_MS) - durationMs;
+export function justFinishedStart(now: number, durationMs: number, existing: readonly TimeSpan[] = []): number | null {
+  const earliest = dayStartMs(earliestManualDay(now));
+  let end = now - (now % MIN_MS);
+  for (;;) {
+    const span = { startedAt: end - durationMs, endedAt: end };
+    if (span.startedAt < earliest) return null;
+    const hits = existing.filter((e) => overlaps(span, e));
+    if (hits.length === 0) return span.startedAt;
+    // Every end after the earliest overlapping start still overlaps that session: jump before it.
+    // `end` only goes down (an overlapping session starts before it), so this stops.
+    const first = Math.min(...hits.map((e) => e.startedAt));
+    end = first - (first % MIN_MS);
+  }
 }
 
 /** The hours and minutes field texts of a whole-minute duration (a duration chip fills them). */
