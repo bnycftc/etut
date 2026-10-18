@@ -24,6 +24,12 @@ const ICONS = {
   share: { ios: 'square.and.arrow.up', android: 'ios_share', web: 'ios_share' },
   chevron: { ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' },
   report: { ios: 'list.clipboard', android: 'assignment', web: 'assignment' },
+  // Groups "Yakında" screen (src/ui/groups-teaser.tsx).
+  invite: { ios: 'key', android: 'key', web: 'key' },
+  live: { ios: 'clock', android: 'schedule', web: 'schedule' },
+  cheers: { ios: 'hands.clap', android: 'celebration', web: 'celebration' },
+  home: { ios: 'house', android: 'home', web: 'home' },
+  privacy: { ios: 'lock.shield', android: 'shield', web: 'shield' },
 } as const satisfies Record<string, SymbolViewProps['name']>;
 
 export type IconName = keyof typeof ICONS;

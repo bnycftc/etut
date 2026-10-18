@@ -2,7 +2,6 @@ import { router } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 import type { ColorValue } from 'react-native';
 
-import { GROUPS_ENABLED } from '@/config/features';
 import { useAppState } from '@/state/app-state';
 import { tr } from '@/strings';
 import { HeaderButton } from '@/ui/components';
@@ -62,9 +61,8 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="gruplar"
           options={{
-            // No tab at all while the module is off (no server yet): a tab that only says "coming
-            // soon" is incomplete content for App Review (2.1). The screen itself then redirects.
-            href: GROUPS_ENABLED ? undefined : null,
+            // While the module is off (no server yet) the tab shows the "Yakında" preview
+            // (bny, 2026-10-18; it replaced the 2026-10-11 "no tab" decision).
             title: tr.tabs.groups,
             tabBarButtonTestID: 'tab-groups',
             tabBarIcon: tabIcon('groups', 'groupsFill'),

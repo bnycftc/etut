@@ -76,7 +76,28 @@ tags:
     id: tips-card
 - assertVisible:
     id: today-total
-# The group module is off (no server yet): no Groups tab, even for a 15+ profile.
-- assertNotVisible:
+# The group module is off (no server yet): a 15+ profile has the Groups tab, which only shows
+# the "Yakında" preview (no account, no network).
+- assertVisible:
     id: tab-groups
 - takeScreenshot: a-ilk-acilis-03-sayac
+- tapOn:
+    id: tab-groups
+- extendedWaitUntil:
+    visible:
+      text: "Sessiz etüt odası"
+    timeout: 15000
+- assertNotVisible:
+    id: groups-nickname
+- takeScreenshot: a-ilk-acilis-04-gruplar-yakinda
+- scrollUntilVisible:
+    element:
+      text: "Henüz açık değil"
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: tab-timer
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 15000

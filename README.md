@@ -62,7 +62,7 @@ app/                    Ekranlar (expo-router)
   onboarding.tsx        İlk açılış: doğum yılı, sınav türü, YKS alanı
   (tabs)/index.tsx      Sayaç (ana ekran, ilk sekme)
   (tabs)/denemeler.tsx  Deneme listesi ve net grafiği
-  (tabs)/gruplar.tsx    Grup ana ekranı; yalnız bayrak açıkken ve 15+ profillerde sekme olarak görünür
+  (tabs)/gruplar.tsx    Grup ana ekranı; sekme yalnız 15+ profillerde, bayrak kapalıyken "Yakında" ön izlemesi
   grup/[id].tsx         Grup: şu an çalışanlar, sıralama, hazır tepkiler, bildir/engelle, kurucu araçları
   veli.tsx              Veli modu (velinin kendi cihazında, yetişkin profille)
   (tabs)/ayarlar.tsx    Sınav/alan değiştirme, günlük hedef, pomodoro, sınav tarihi (düğmesiz: yazılınca ya da alandan
@@ -483,7 +483,8 @@ tanımlanması önerilir. Aynı gizli değerler CarPlay Medya deposundakilerle a
 Kişisel veri KVKK gereği Türkiye'deki kendi barındırdığımız Supabase'te tutulacak
 (`docs/hukuk/kvkk/00-aktarim-cozumu.md`); sunucu henüz yok. Bu yüzden `src/config/features.ts`
 içinde `GROUPS_ENABLED = false`: uygulama hiçbir ağ isteği yapmaz, supabase-js yüklenmez, Gruplar
-sekmesi hiç görünmez (yalnız "yakında" diyen bir sekme App Store 2.1 açısından ret riski). Bayrak açılınca:
+sekmesi 15+ profillerde yalnız "Yakında" ön izlemesini gösterir (`src/ui/groups-teaser.tsx`; ağ, hesap,
+veri yok; 15 altında sekme hiç yok). Bayrak açılınca:
 
 - Gruplar sekmesinde takma adla anonim hesap açılır (sunucuya yalnız yaş **bandı** gider: 15–17 /
   18+; doğum yılı gitmez; 15 altı hiç hesap açamaz, sunucu da reddeder). Sonradan Apple/Google
