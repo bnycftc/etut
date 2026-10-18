@@ -39,6 +39,11 @@ const ICONS = {
   terms: { ios: 'scroll', android: 'receipt_long', web: 'receipt_long' },
   licenses: { ios: 'books.vertical', android: 'menu_book', web: 'menu_book' },
   parent: { ios: 'person.2', android: 'family_restroom', web: 'family_restroom' },
+  // Groups "Yakında" screen (src/ui/groups-teaser.tsx).
+  invite: { ios: 'key', android: 'key', web: 'key' },
+  live: { ios: 'clock', android: 'schedule', web: 'schedule' },
+  cheers: { ios: 'hands.clap', android: 'celebration', web: 'celebration' },
+  home: { ios: 'house', android: 'home', web: 'home' },
 } as const satisfies Record<string, SymbolViewProps['name']>;
 
 export type IconName = keyof typeof ICONS;

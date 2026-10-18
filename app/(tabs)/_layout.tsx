@@ -1,6 +1,5 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
-import { GROUPS_ENABLED } from '@/config/features';
 import { useAppState } from '@/state/app-state';
 import { tr } from '@/strings';
 import { usePalette } from '@/ui/theme';
@@ -15,9 +14,9 @@ export default function TabsLayout() {
   const c = usePalette();
   // K-01/K-02: the personal timer is always the first tab; groups are optional and hidden
   // entirely for solo-only (under 15) profiles (K-16). Native tabs have no `Protected`: a hidden
-  // tab cannot be navigated to at all. While the module is off (no server yet) there is no tab:
-  // one that only says "coming soon" is incomplete content for App Review (2.1).
-  const showGroups = GROUPS_ENABLED && profile !== null && !profile.soloOnly;
+  // tab cannot be navigated to at all. While the module is off (no server yet) the tab shows the
+  // "Yakında" preview (bny, 2026-10-18; it replaced the 2026-10-11 "no tab" decision).
+  const showGroups = profile !== null && !profile.soloOnly;
   return (
     // Both icon states coloured: with `tintColor` alone the two would render in different modes.
     <NativeTabs tintColor={c.accent} iconColor={{ default: c.textMuted, selected: c.accent }}>

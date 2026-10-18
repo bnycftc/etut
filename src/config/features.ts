@@ -4,9 +4,9 @@
 
 /**
  * Group module backed by the self-hosted server (src/sync, supabase/). Off until the server in
- * Turkey exists (hukuk/kvkk/00). While false the app makes no network request at all, there is no
- * Groups tab (bny, 2026-10-11: a "coming soon" tab risks App Review 2.1) and the supabase client
- * is never even loaded.
+ * Turkey exists (hukuk/kvkk/00). While false the app makes no network request at all, the Groups
+ * tab of a 15+ profile only shows the "Yakında" preview (src/ui/groups-teaser.tsx; bny, 2026-10-18,
+ * replacing the 2026-10-11 "no tab" decision) and the supabase client is never even loaded.
  */
 export const GROUPS_ENABLED: boolean = false;
 

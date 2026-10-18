@@ -967,6 +967,51 @@ export const tr = {
     dismissHint: 'Bu kart bir daha görünmez; adımlar “Nasıl çalışır”da da var.',
   },
 
+  /**
+   * "Yakında": the Groups tab of a 15+ profile while GROUPS_ENABLED is off (src/ui/groups-teaser.tsx).
+   * What the module will do, never when: no date, no pressure, no "sosyal ağ / topluluk / arkadaş"
+   * (K-09, K-13). About data only what is decided: Türkiye, and its own notice and consent later.
+   */
+  groupsTeaser: {
+    badge: 'Yakında',
+    title: 'Sessiz etüt odası',
+    lead: 'Tanıdığın birkaç kişiyle aynı odada çalışıyormuş gibi: herkes kendi masasında, kimse kimseyi bölmeden.',
+    features: {
+      invite: {
+        title: 'Davet koduyla küçük gruplar',
+        body: 'Zaten tanıdığın kişilerle, yalnız davet koduyla kurulan en fazla 30 kişilik gruplar. Arama, liste ya da yabancı yok.',
+      },
+      live: {
+        title: 'Şu an kim çalışıyor',
+        body: 'Grubunda kimin şu an çalıştığını ve ne zamandır masada olduğunu görürsün. İstediğinde görünmez çalışırsın.',
+      },
+      weekly: {
+        title: 'Haftalık grup özeti',
+        body: 'Grubunda bu hafta ne kadar çalışıldığını sade bir özette görürsün.',
+      },
+      cheers: {
+        title: 'Hazır tezahüratlar',
+        body: 'Mesaj yazılmaz: tek dokunuşla “Hadi!” ya da “Başarılar” gönderirsin. Yalnız alan görür; istersen kapatırsın.',
+      },
+    },
+    /** 15–17 only (the parent link is K-22, for 15–17). */
+    parent: {
+      kicker: 'Veliler için',
+      title: 'Rahatsız etmeden bak',
+      body: 'Yemek hazır olunca çağırmadan önce bir bak: velin, seni ders ortasında bölmemek için yalnız şu an ne durumda olduğunu görür.',
+      sees: ['Çalışıyor, molada ya da şu an çalışmıyor; ne zamandan beri', 'Bugünkü toplam çalışma süren'],
+      notSees: 'Konum, ekran ya da ayrıntılı geçmiş yok.',
+      control:
+        'Bunu sen açarsın; velinin ne gördüğünü sen de aynen görürsün ve istediğin an kapatırsın. Velin, senin ekranındaki veli koduyla bağlanır.',
+    },
+    teen: 'Gruplara 15–17 yaşta velinin onayıyla, veli koduyla katılırsın.',
+    data: 'Grup bilgileri Türkiye’deki sunucumuzda tutulacak. Gruplar açıldığında ayrıca bilgilendirip onayını isteyeceğiz.',
+    lgs: 'Gruplar YKS, KPSS ve diğer sınavlar için olacak. LGS profilinde sayaç ve denemeler gruplar olmadan tam çalışır.',
+    notOpenTitle: 'Henüz açık değil',
+    notOpenBody:
+      'Bu sayfa yalnız bir ön izleme: şu an hiçbir bilgin toplanmıyor ve bir yere gönderilmiyor. Sayaç, denemeler ve tüm kişisel araçların gruplar olmadan da tam çalışır.',
+  },
+
   groups: {
     body: 'Davetle kurulan küçük çalışma grupları üzerinde çalışıyoruz. Sayaç ve denemeler gruplardan bağımsız çalışır.',
     // Group module (GROUPS_ENABLED). Wording: "çalışma grubu", never "sosyal ağ / topluluk" (K-13).

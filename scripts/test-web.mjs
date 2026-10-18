@@ -8,8 +8,8 @@
  *
  * Checks: page is cross-origin isolated, no console errors / uncaught exceptions, no network
  * request outside the dev server; onboarding (+ short notice) → first-use tips → timer (start,
- * pause, resume, finish, summary and "Geri al"; Sayısal subjects only) → no groups tab, the
- * groups route opens the timer → reload keeps the profile → share card (1080x1920 PNG) → mock exam with the right
+ * pause, resume, finish, summary and "Geri al"; Sayısal subjects only) → the groups tab shows only the
+ * "Yakında" preview → reload keeps the profile → share card (1080x1920 PNG) → mock exam with the right
  * net (area papers only) and the save confirmation → reload keeps the exam → area change → "Sayaç çalışırken" settings
  * (kept across a reload) → backup + CSV download → about / legal / licenses → reminders screen
  * renders → "delete all data" offers a backup first (deletes nothing), then returns to
@@ -207,8 +207,8 @@ async function runScenario(page, baseUrl) {
   // 2. Timer: start, runs, pause, resume, finish.
   log('step: timer');
   await visible('timer-start');
-  // The group module is off (no server yet): no Groups tab at all, not a "coming soon" one.
-  check((await byId('tab-groups').count()) === 0, 'no groups tab while the group module is off');
+  // The group module is off (no server yet): a 15+ profile has the Groups tab with the "Yakında" preview (2b).
+  check((await byId('tab-groups').count()) === 1, 'a 15+ profile has the groups tab');
   await screenshot('timer-idle');
   // Sayısal: no literature and no foreign language among the subjects. The card shows the recent
   // six and folds the rest behind "Tüm dersler": open the whole list first, so a folded subject
@@ -268,13 +268,18 @@ async function runScenario(page, baseUrl) {
   await page.goBack();
   await visible('timer-start');
 
-  // 2b. The group module is off (src/config/features.ts): there is no groups tab, a link to it
-  //     opens the timer, and no request ever leaves the dev server (checked in main()).
-  log('step: groups route (module off)');
-  await page.goto(baseUrl + 'gruplar');
-  await visible('timer-start', FIRST_SCREEN_TIMEOUT_MS);
+  // 2b. The group module is off (src/config/features.ts): the groups tab shows only the "Yakında"
+  //     preview, and no request ever leaves the dev server (checked in main()).
+  log('step: groups preview (module off)');
+  await byId('tab-groups').click();
+  await visible('groups-teaser');
   check((await byId('groups-intro').count()) === 0, 'the group module must stay off');
-  check((await byId('tab-groups').count()) === 0, 'no groups tab while the group module is off');
+  check((await byId('groups-nickname').count()) === 0, 'no group account form while the module is off');
+  await screenshot('groups-teaser');
+  await page.goto(baseUrl + 'gruplar');
+  await visible('groups-teaser', FIRST_SCREEN_TIMEOUT_MS);
+  await byId('tab-timer').click();
+  await visible('timer-start');
 
   // 3. Reload: the profile comes back from the kv-store (no onboarding).
   log('step: reload keeps profile');

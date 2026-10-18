@@ -585,6 +585,9 @@ it('completing onboarding opens the timer; an under-15 profile has no groups tab
   expect(memory.dailyGoal).toBeNull();
   expect(screen.getByText('Ders seç')).toBeTruthy();
   expect(screen.queryByText('Gruplar')).toBeNull();
+  // Native tabs: the groups tab item (an `RNSTabsScreenIOS` in tests) is hidden, if there at all (K-16).
+  const groupsTab = screen.root.findAll((n) => String(n.type) === 'RNSTabsScreenIOS' && n.props.tabBarItemTestID === 'tab-groups');
+  expect(groupsTab.filter((n) => n.props.hidden !== true)).toEqual([]);
 });
 
 it('onboarding: a daily goal can be picked (optional) and Başla says what is missing', () => {
@@ -851,7 +854,7 @@ describe('the running card', () => {
   });
 });
 
-it('with the group module off a 15+ profile sees no Groups tab; start, pause, finish saves a session', () => {
+it('with the group module off a 15+ profile sees the Groups tab (preview only); start, pause, finish saves a session', () => {
   memory.profile = {
     birthYear: 2000,
     examType: 'YKS',
@@ -860,7 +863,9 @@ it('with the group module off a 15+ profile sees no Groups tab; start, pause, fi
     createdAt: 0,
   };
   renderRouter(APP_DIR, { initialUrl: '/' });
-  expect(screen.queryByText('Gruplar')).toBeNull();
+  // Native tabs: each tab item is an `RNSTabsScreenIOS` in tests.
+  const groupsTab = screen.root.findAll((n) => String(n.type) === 'RNSTabsScreenIOS' && n.props.tabBarItemTestID === 'tab-groups');
+  expect(groupsTab.map((n) => n.props.hidden)).toEqual([false]);
   fireEvent.press(screen.getByText('Fizik'));
   fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
   expect(memory.active?.subjectId).toBe('fizik');
@@ -4193,6 +4198,20 @@ describe('accessibility names on key screens', () => {
     // The same name twice on one screen ("Bitti", "Saat") leaves a VoiceOver user guessing.
     const names = found.map(nameOf);
     expect(names.filter((name, i) => names.indexOf(name) !== i)).toEqual([]);
+  });
+
+  it.each([
+    ['an adult', 2000],
+    ['a 15–17 student (with the parent part)', 2009],
+  ])('/gruplar, the "Yakında" preview for %s: nothing to press, every heading its own', (_who, birthYear) => {
+    memory.profile = { ...ADULT_SAYISAL, birthYear };
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    const teaser = screen.getByTestId('groups-teaser');
+    const own = (node: Node) => typeof node.type === 'string' && (isInput(node) || ACTIONABLE.has(roleOf(node) as string));
+    expect(teaser.findAll(own).map(idOf)).toEqual([]);
+    const headings = teaser.findAll((node) => typeof node.type === 'string' && roleOf(node) === 'header').map(nameOf);
+    expect(headings.length).toBeGreaterThanOrEqual(birthYear === 2009 ? 7 : 6);
+    expect(headings.filter((name, i) => headings.indexOf(name) !== i)).toEqual([]);
   });
 
   // States the resting screens above do not show: several entries with their own "Sil" (one being

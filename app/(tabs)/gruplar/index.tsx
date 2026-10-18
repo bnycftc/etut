@@ -29,15 +29,19 @@ import {
 import { endGroupsAccount } from '@/sync/session-sync';
 import { Button, Card, Chip, ChipRow, Label, Row, Screen, Tag, TextField } from '@/ui/components';
 import { errorText, Message, minutesLeft, ToggleRow } from '@/ui/group-ui';
+import { GroupsTeaser } from '@/ui/groups-teaser';
 import { usePalette } from '@/ui/theme';
 
 /**
- * Shown solely to 15+ profiles while the group module is on (see (tabs)/_layout.tsx). With the
- * module off there is no tab, and a link here goes back to the timer, so no group code and no
- * network request can run (src/config/features.ts).
+ * Shown solely to 15+ profiles (see (tabs)/_layout.tsx). With the module off the tab shows the
+ * "Yakında" preview instead, which runs no group code and no network request
+ * (src/config/features.ts, src/ui/groups-teaser.tsx).
  */
 export default function GroupsScreen() {
-  if (!GROUPS_ENABLED) return <Redirect href="/" />;
+  const { profile } = useAppState();
+  // K-16: never for an under-15 profile, even through a link.
+  if (profile === null || profile.soloOnly) return <Redirect href="/" />;
+  if (!GROUPS_ENABLED) return <GroupsTeaser profile={profile} />;
   return <GroupsHome />;
 }
 

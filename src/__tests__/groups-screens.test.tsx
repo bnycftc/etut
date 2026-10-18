@@ -1,7 +1,8 @@
 /**
  * Group screens with the flag ON, against the in-memory fake server (src/sync/testing). Storage
  * is replaced by in-memory fakes like in app-smoke.test.tsx. A second block checks that with the
- * flag OFF the tab stays "Yakında" and nothing reaches the network.
+ * flag OFF the tab shows only the "Yakında" preview to 15+ (none under 15) and nothing reaches
+ * the network.
  */
 
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
@@ -694,25 +695,69 @@ function studentMe(over: Partial<import('../sync/api').Me>): import('../sync/api
   };
 }
 
+/** Native tabs render each tab item as `RNSTabsScreenIOS` in tests: is the one with this testID shown? */
+function tabShown(testID: string): boolean {
+  const items = screen.root.findAll((n) => String(n.type) === 'RNSTabsScreenIOS' && n.props.tabBarItemTestID === testID);
+  return items.length === 1 && items[0].props.hidden !== true;
+}
+
 describe('group module OFF', () => {
-  it('has no Groups tab, a link to it opens the timer, and nothing touches the server API', async () => {
+  it('a 15+ profile has a Groups tab with the "Yakında" preview only; nothing touches the server API', async () => {
     flags.enabled = false;
     memory.groupsAccount = true; // even with a stale account flag
     const fetchSpy = jest.fn();
     const originalFetch = global.fetch;
     global.fetch = fetchSpy as unknown as typeof fetch;
     try {
-      // A 15+ profile, so only the module flag hides the tab (no "coming soon" tab: App Review 2.1).
       renderRouter(APP_DIR, { initialUrl: '/gruplar' });
       await flush();
-      expect(screen.queryByText('Gruplar')).toBeNull();
-      expect(screen.getByTestId('timer-screen')).toBeTruthy();
+      expect(tabShown('tab-groups')).toBe(true);
+      expect(screen.getByTestId('groups-teaser')).toBeTruthy();
+      expect(screen.getByText('Yakında')).toBeTruthy();
+      expect(screen.getByText('Sessiz etüt odası')).toBeTruthy();
+      expect(screen.getByText('Henüz açık değil')).toBeTruthy();
+      // An adult: no parent part, no 15–17 line; no account form of the real module.
+      expect(screen.queryByTestId('groups-teaser-parent')).toBeNull();
+      expect(screen.queryByText(/15–17 yaşta/)).toBeNull();
+      expect(screen.queryByTestId('groups-teaser-lgs')).toBeNull();
       expect(screen.queryByTestId('groups-intro')).toBeNull();
+      expect(screen.queryByTestId('groups-nickname')).toBeNull();
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(server.calls).toEqual([]);
     } finally {
       global.fetch = originalFetch;
     }
+  });
+
+  it('a 15–17 profile also sees the parent part ("Rahatsız etmeden bak") and the parent-code line', async () => {
+    flags.enabled = false;
+    memory.profile = profile(teenYear);
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    expect(screen.getByTestId('groups-teaser')).toBeTruthy();
+    expect(screen.getByTestId('groups-teaser-parent')).toBeTruthy();
+    expect(screen.getByText('Rahatsız etmeden bak')).toBeTruthy();
+    expect(screen.getByText('Gruplara 15–17 yaşta velinin onayıyla, veli koduyla katılırsın.')).toBeTruthy();
+    expect(server.calls).toEqual([]);
+  });
+
+  it('an LGS profile is told groups are for the other exams', async () => {
+    flags.enabled = false;
+    memory.profile = { ...profile(adultYear), examType: 'LGS', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    expect(screen.getByTestId('groups-teaser-lgs')).toBeTruthy();
+  });
+
+  it('an under-15 profile has no Groups tab and a link to it opens the timer (K-16)', async () => {
+    flags.enabled = false;
+    memory.profile = { ...profile(new Date().getUTCFullYear() - 12), examType: 'LGS', yksArea: null, soloOnly: true };
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    expect(tabShown('tab-groups')).toBe(false);
+    expect(screen.queryByTestId('groups-teaser')).toBeNull();
+    expect(screen.getByTestId('timer-screen')).toBeTruthy();
+    expect(server.calls).toEqual([]);
   });
 
   it('settings show no parent mode and "delete all" stays local', async () => {
