@@ -31,6 +31,21 @@ export const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironm
   const accent = !fullColor ? '#FFFFFF' : dark ? '#4C8DFF' : '#1F6FEB';
   const background = containerBackground(accessory ? 'transparent' : dark ? '#161B22' : '#FFFFFF', 'widget');
   const secondary = foregroundStyle({ type: 'hierarchical', style: 'secondary' });
+  // A missing field counts as `null`, and so does a time that is not a finite number. The
+  // placeholder has no props at all and the stored timeline has no null fields (home-widget.ios.ts);
+  // `new Date(undefined)` would reach SwiftUI as a NaN date, on which `Text(timerInterval:)` traps
+  // (the extension crashes). Everything below may then check `!== null`.
+  const time = (value: number | null | undefined) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+  const line = (value: string | null | undefined) => (typeof value === 'string' ? value : null);
+  props = Object.assign({}, props, {
+    countingFrom: time(props.countingFrom),
+    runningNote: line(props.runningNote),
+    goalLine: line(props.goalLine),
+    goalFrom: time(props.goalFrom),
+    goalTo: time(props.goalTo),
+    streakLine: line(props.streakLine),
+    countdownLine: line(props.countdownLine),
+  });
   const countingFrom = props.countingFrom;
 
   const total = (size: number) =>
