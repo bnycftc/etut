@@ -5,6 +5,8 @@ appId: com.bnycftc.etut
 - tapOn:
     id: tab-timer
     optional: true
+- runFlow:
+    file: ust.yaml
 - scrollUntilVisible:
     element:
       id: goal-(set|edit)
@@ -12,6 +14,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: goal-(set|edit)
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: goal-(set|edit)
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - takeScreenshot: ${P}-30-hedef-oncesi
 - tapOn:
     id: goal-(set|edit)
@@ -51,4 +65,16 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 10000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: goal-progress
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: goal-progress
+        direction: UP
+        centerElement: true
+        timeout: 10000
+        optional: true
 - takeScreenshot: ${P}-33-hedef-ilerleme

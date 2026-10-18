@@ -12,6 +12,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 30000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: settings-delete-all
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: settings-delete-all
+        direction: UP
+        centerElement: true
+        timeout: 30000
+        optional: true
 - takeScreenshot: ${P}-95-sil-dugmesi
 - tapOn:
     id: settings-delete-all
@@ -51,6 +63,19 @@ appId: com.bnycftc.etut
         visibilityPercentage: 100
         timeout: 10000
         optional: true
+    - runFlow:
+        when:
+          notVisible:
+            id: settings-delete-all-confirm
+        commands:
+        - scrollUntilVisible:
+            element:
+              id: settings-delete-all-confirm
+            direction: UP
+            centerElement: true
+            visibilityPercentage: 100
+            timeout: 10000
+            optional: true
     - tapOn:
         id: settings-delete-all-confirm
         optional: true

@@ -2,6 +2,8 @@
 # GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
 appId: com.bnycftc.etut
 ---
+- runFlow:
+    file: modal-kapat.yaml
 - tapOn:
     text: Geri|Back
     index: 0

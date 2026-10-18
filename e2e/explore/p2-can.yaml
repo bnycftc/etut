@@ -27,6 +27,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: birth-year-${new Date().getFullYear() - 13}
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: birth-year-${new Date().getFullYear() - 13}
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: birth-year-${new Date().getFullYear() - 13}
     retryTapIfNoChange: true
@@ -54,6 +66,17 @@ env:
     direction: DOWN
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: onboarding-start
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: onboarding-start
+        direction: UP
+        timeout: 20000
+        optional: true
 - takeScreenshot: p2-03-onboarding-alt
 - extendedWaitUntil:
     visible:
@@ -216,7 +239,7 @@ env:
     file: subflows/alan.yaml
     env:
       F: exam-correct-fen
-      V: '20'
+      V: '19'
 - runFlow:
     file: subflows/alan.yaml
     env:
@@ -225,7 +248,7 @@ env:
 - takeScreenshot: p2-103-lgs-fen-net
 - assertVisible:
     id: exam-net-fen
-    text: 19,67
+    text: 18,67
     optional: true
 - scrollUntilVisible:
     element:
@@ -236,7 +259,7 @@ env:
 - takeScreenshot: p2-104-lgs-toplam
 - assertVisible:
     id: exam-total-net
-    text: '51'
+    text: '50'
     optional: true
 - tapOn:
     id: exam-save
@@ -255,6 +278,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: exam-item-0
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: exam-item-0
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - takeScreenshot: p2-106-lgs-liste
 - tapOn:
     id: exam-item-0
@@ -295,7 +330,7 @@ env:
     optional: true
 - assertVisible:
     id: exam-total-net
-    text: '53'
+    text: '52'
     optional: true
 - takeScreenshot: p2-108-lgs-duzenle
 - tapOn:
@@ -315,6 +350,18 @@ env:
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        text: Sil
+    commands:
+    - scrollUntilVisible:
+        element:
+          text: Sil
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - tapOn:
     text: Sil
     optional: true
@@ -341,6 +388,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: open-weekly
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: open-weekly
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - assertNotVisible:
     id: open-share
     optional: true
@@ -356,6 +415,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: birth-year-${new Date().getFullYear() - 20}
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: birth-year-${new Date().getFullYear() - 20}
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: birth-year-${new Date().getFullYear() - 20}
     optional: true
@@ -375,6 +446,17 @@ env:
     direction: DOWN
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: onboarding-start
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: onboarding-start
+        direction: UP
+        timeout: 20000
+        optional: true
 - tapOn:
     id: onboarding-start
     optional: true
@@ -391,6 +473,18 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: birth-year-${new Date().getFullYear() - 13}
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: birth-year-${new Date().getFullYear() - 13}
+        direction: DOWN
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: birth-year-${new Date().getFullYear() - 13}
     optional: true
@@ -400,6 +494,17 @@ env:
     direction: DOWN
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: onboarding-start
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: onboarding-start
+        direction: UP
+        timeout: 20000
+        optional: true
 - tapOn:
     id: onboarding-start
     retryTapIfNoChange: true

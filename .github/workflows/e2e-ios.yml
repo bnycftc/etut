@@ -235,6 +235,13 @@ jobs:
             run_maestro 2
             status=$?
           fi
+          # The CI simulator can drop the driver mid-flow (DeviceUnreachableException): run once more.
+          if grep -q 'DeviceUnreachableException' "$RESULTS"/report-*.xml 2>/dev/null && [ ! -f "$RESULTS/report-3.xml" ]; then
+            echo "::warning::Device became unreachable; running the flow once more"
+            pkill -f 'xcodebuild test-without-building' || true
+            run_maestro 3
+            status=$?
+          fi
           echo "maestro exit status: $status"
           exit 0
 
