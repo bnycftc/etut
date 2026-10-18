@@ -8,7 +8,7 @@ import { activeSpan, type SessionSpan } from '@/domain/daily-totals';
 import { addDays, DAY_MS, dayStartMs, istanbulDayKey, istanbulWeekday } from '@/domain/istanbul-day';
 import { addMonths, monthStartOf, monthView } from '@/domain/month-calendar';
 import { questionTotals } from '@/domain/questions';
-import { canShareCard } from '@/domain/share-card';
+import { canShareCard, wholePercents } from '@/domain/share-card';
 import { weekStartOf } from '@/domain/streak';
 import { subjectTargetProgress } from '@/domain/subject-targets';
 import { isPaused } from '@/domain/timer';
@@ -61,6 +61,9 @@ export default function WeeklyScreen() {
   const monthSpans: SessionSpan[] = [...monthStored];
   if (active !== null && monthOffset === 0) monthSpans.push(activeSpan(active, now));
   const monthly = monthView(monthSpans, month, stats.today);
+
+  // One rounding (largest remainder) like the share card, so the rows add up to %100.
+  const percents = wholePercents(week.bySubject.map((s) => s.ms));
 
   const openReport = (subjectId: string) =>
     router.push({ pathname: '/karne/[subject]', params: { subject: subjectId } });
@@ -159,8 +162,8 @@ export default function WeeklyScreen() {
       {week.bySubject.length > 0 ? (
         <Card>
           <Label variant="heading">{tr.weekly.subjects}</Label>
-          {week.bySubject.map((s) => {
-            const percent = Math.round((s.ms * 100) / week.totalMs);
+          {week.bySubject.map((s, i) => {
+            const percent = percents[i];
             const count = questions.bySubject[s.subjectId] ?? 0;
             return (
               <Pressable
