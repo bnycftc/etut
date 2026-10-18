@@ -810,6 +810,11 @@ describe('the moment after Bitir', () => {
     jump(40_000);
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
     expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 1 dakikadan az');
+    // Words, not a number: the smaller hero size, so they do not take three lines beside the ring
+    // or break inside "dakikadan" (IOS-05). No text in the 40 pt size then.
+    const saved = within(screen.getByTestId('timer-saved')).getByText('1 dakikadan az');
+    expect(StyleSheet.flatten(saved.props.style)).toMatchObject({ fontSize: 24 });
+    expect(displayTexts()).toEqual([]);
     // 40 s of a 4-hour goal moves nothing visible: the step line is left out.
     expect(screen.getByTestId('finish-detail').props.children).toBe('Fizik çalıştın');
     expect(screen.getByTestId('today-total').props.children).toBe('1 dakikadan az');
@@ -2585,20 +2590,75 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
   }
   const contains = (node: Node, testID: string) => node.findAll((n) => n.props.testID === testID).length > 0;
 
-  it('first-use tips: only the text scrolls, Geç and İleri stay on the card below it, stacked', () => {
+  /**
+   * A form sheet's content has no height of its own (react-native-screens leaves out `bottom: 0`)
+   * and the library sizes the scroll view it finds to the sheet. As the sheet's root it fills the
+   * sheet; nested in a padded `flex: 1` view it was set to the screen's frame (IOS-02: an empty
+   * half-height sheet, text without margins).
+   */
+  function expectSheetRoot(testID: string) {
+    const root = screen.getByTestId(testID);
+    expect(root.type).toBe('RCTScrollView');
+    const style = RN.StyleSheet.flatten(root.props.style) ?? {};
+    expect(style.flex).toBeUndefined();
+    expect(style.padding).toBeUndefined();
+    expect(RN.StyleSheet.flatten(root.props.contentContainerStyle)).toMatchObject({ padding: 24 });
+    // No laid-out view of the app between the sheet's route and its scroll view.
+    let n = root.parent;
+    while (n !== null && typeof n.type !== 'string') n = n.parent;
+    expect(n === null || !RN.StyleSheet.flatten(n.props.style)?.padding).toBe(true);
+  }
+
+  it.each([1, 3])('text size %d: the daily goal sheet is one scroll view with the presets, the fine tune and Tamam (IOS-02)', (fontScale) => {
+    textSize(fontScale);
+    memory.profile = ADULT_SAYISAL;
+    memory.dailyGoal = 120;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('goal-edit'));
+    expectSheetRoot('goal-sheet');
+    const sheet = screen.getByTestId('goal-sheet');
+    for (const id of ['goal-preset-60', 'goal-preset-360', 'goal-sheet-minus', 'goal-sheet-off', 'goal-sheet-done']) {
+      expect(contains(sheet, id)).toBe(true);
+    }
+    fireEvent.press(screen.getByTestId('goal-preset-180'));
+    expect(memory.dailyGoal).toBe(180);
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    expect(screen.queryByTestId('goal-sheet')).toBeNull();
+  });
+
+  it.each([
+    [1, 'row'],
+    [3, 'column'],
+  ])('text size %d: a "Yakında" feature on Gruplar puts its symbol beside / above its text: %s', (fontScale, direction) => {
+    textSize(fontScale);
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    for (const key of ['invite', 'live', 'weekly', 'cheers']) {
+      const feature = screen.getByTestId(`groups-teaser-${key}`);
+      expect(RN.StyleSheet.flatten(feature.props.style).flexDirection ?? 'column').toBe(direction);
+    }
+    // Above its symbol the text has the card's whole width: no `flex: 1` column beside it.
+    const body = screen.getByText(/İstediğinde görünmez çalışırsın\./);
+    let column = body.parent;
+    while (column !== null && typeof column.type !== 'string') column = column.parent;
+    expect(RN.StyleSheet.flatten(column?.props.style)?.flex).toBe(fontScale === 1 ? 1 : undefined);
+  });
+
+  it('first-use tips: the sheet is one scroll view with the step and Geç / İleri, stacked at large text (IOS-02)', () => {
     textSize(3);
     memory.tipsSeen = false;
     memory.profile = ADULT_SAYISAL;
+    const scrollTo = jest.mocked(ScrollView.prototype.scrollTo);
     renderRouter(APP_DIR, { initialUrl: '/' });
+    expectSheetRoot('tips-card');
     const card = screen.getByTestId('tips-card');
-    const scroll = screen.getByTestId('tips-scroll');
-    expect(contains(card, 'tips-scroll')).toBe(true);
-    expect(contains(scroll, 'tips-step-title')).toBe(true);
-    for (const id of ['tips-skip', 'tips-next']) {
-      expect(contains(card, id)).toBe(true);
-      expect(contains(scroll, id)).toBe(false);
-    }
+    for (const id of ['tips-step-title', 'tips-skip', 'tips-next']) expect(contains(card, id)).toBe(true);
     expect(directions(screen.getByTestId('tips-skip'))[0]).toBe('column');
+    // Each step starts from the top of the sheet.
+    scrollTo.mockClear();
+    fireEvent.press(screen.getByTestId('tips-next'));
+    expect(screen.getByTestId('tips-step-title').props.children).toBe('Uygulamadan çıkarsan');
+    expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
     // Swiping the sheet down is one more way out (the route goes; no button pressed).
     act(() => router.back());
     expect(screen.queryByTestId('tips-card')).toBeNull();
@@ -4902,6 +4962,18 @@ describe('Halka screens: settings rows, weekly tiles, onboarding brand', () => {
     expect(RN.StyleSheet.flatten(screen.getByTestId('settings-delete-all').props.style).backgroundColor).toBe(LIGHT.dangerSoft);
   });
 
+  it('settings: the note on what "Nasıl çalışır" covers sits right under that row, not under "Turu yeniden göster" (V-14)', () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    const section = screen.getByTestId('settings-open-guide').parent;
+    let host = section;
+    while (host !== null && typeof host.type !== 'string') host = host.parent;
+    const order = (host?.findAll((n) => typeof n.type === 'string' && (n.props.testID?.startsWith('settings-') || n.props.children === 'Sayaç, net, seri ve yedek kısaca nasıl işliyor.')) ?? [])
+      .map((n) => n.props.testID ?? 'note')
+      .filter((id, i, all) => all.indexOf(id) === i);
+    expect(order).toEqual(['settings-open-guide', 'note', 'settings-show-tips']);
+  });
+
   it('weekly: the four tiles are each read as "name: value"', () => {
     memory.profile = ADULT_SAYISAL;
     memory.sessions = [
@@ -4919,7 +4991,9 @@ describe('Halka screens: settings rows, weekly tiles, onboarding brand', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     const page = screen.getByTestId('onboarding-screen');
     expect(within(page).getByTestId('onboarding-brand')).toBeTruthy();
-    expect(within(page).getByRole('header', { name: 'Etüt’e hoş geldin' })).toBeTruthy();
+    // The title grows like a header, not without limit: at accessibility sizes it left no question
+    // on the first screen (IOS-10).
+    expect(within(page).getByRole('header', { name: 'Etüt’e hoş geldin' }).props.maxFontSizeMultiplier).toBe(1.3);
     expect(within(page).queryByTestId('onboarding-start')).toBeNull();
     expect(screen.getByTestId('onboarding-start').props.accessibilityState.disabled).toBe(true);
     expect(screen.getAllByRole('button').filter((b) => b.props.accessibilityState?.selected === true)).toEqual([]);

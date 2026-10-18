@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 
 import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '../domain/streak';
 import { tr } from '../strings';
@@ -39,9 +39,15 @@ export function GoalPresets({
 /**
  * Daily goal picker on the timer screen (`app/hedef.tsx`, a system form sheet): presets, a 15 min
  * fine tune and "turn off". Every change is saved at once (like Settings); the same goal is edited
- * in Settings too. Only the choices scroll: "Tamam" stays at the bottom of the sheet.
- * `startsTomorrow`: the goal shown was raised after today's goal was met and starts tomorrow
- * (`goalFromTomorrow`).
+ * in Settings too. `startsTomorrow`: the goal shown was raised after today's goal was met and
+ * starts tomorrow (`goalFromTomorrow`).
+ *
+ * The scroll view is the sheet's root (IOS-02). react-native-screens gives a form sheet's content
+ * no height of its own (no `bottom: 0`) and sizes the scroll view it finds to the sheet: as the
+ * first child of the content it fills the sheet; nested in a padded `flex: 1` view it was set to
+ * the screen's frame instead, so at the half-height detent the presets were off the sheet (only
+ * "Tamam" showed) and text lost its margins. The padding is the scroll content's; the buttons
+ * follow the choices.
  */
 export function GoalSheet({
   goal,
@@ -56,40 +62,39 @@ export function GoalSheet({
 }) {
   const c = usePalette();
   return (
-    <View testID="goal-sheet" style={[styles.sheet, { backgroundColor: c.surface }]}>
-      <ScrollView style={styles.choices} contentContainerStyle={{ gap: space.md }}>
-        <Label variant="heading">{tr.goalSheet.title}</Label>
-        <Label variant="small">{tr.goal.info}</Label>
-        <GoalPresets goal={goal} onPick={onChange} testIDPrefix="goal-preset" />
-        {goal !== null ? (
-          <Stepper
-            testID="goal-sheet"
-            label={tr.goalSheet.fineTune}
-            value={formatDuration(goal * 60_000)}
-            onMinus={() => onChange(goal - STEP_MINUTES)}
-            onPlus={() => onChange(goal + STEP_MINUTES)}
-            minusDisabled={goal <= GOAL_MIN_MINUTES}
-            plusDisabled={goal >= GOAL_MAX_MINUTES}
-          />
-        ) : null}
-        {goal !== null && startsTomorrow ? (
-          <Label variant="small" testID="goal-starts-tomorrow">
-            {tr.goal.startsTomorrow}
-          </Label>
-        ) : null}
-      </ScrollView>
+    <ScrollView
+      testID="goal-sheet"
+      style={{ backgroundColor: c.surface }}
+      contentContainerStyle={styles.content}>
+      <Label variant="heading">{tr.goalSheet.title}</Label>
+      <Label variant="small">{tr.goal.info}</Label>
+      <GoalPresets goal={goal} onPick={onChange} testIDPrefix="goal-preset" />
+      {goal !== null ? (
+        <Stepper
+          testID="goal-sheet"
+          label={tr.goalSheet.fineTune}
+          value={formatDuration(goal * 60_000)}
+          onMinus={() => onChange(goal - STEP_MINUTES)}
+          onPlus={() => onChange(goal + STEP_MINUTES)}
+          minusDisabled={goal <= GOAL_MIN_MINUTES}
+          plusDisabled={goal >= GOAL_MAX_MINUTES}
+        />
+      ) : null}
+      {goal !== null && startsTomorrow ? (
+        <Label variant="small" testID="goal-starts-tomorrow">
+          {tr.goal.startsTomorrow}
+        </Label>
+      ) : null}
       <ResponsiveRow>
         {goal !== null ? (
           <Button testID="goal-sheet-off" kind="secondary" title={tr.goal.turnOff} onPress={() => onChange(null)} />
         ) : null}
         <Button testID="goal-sheet-done" title={tr.goalSheet.done} onPress={onClose} />
       </ResponsiveRow>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  // The sheet is as tall as its detent: the choices take what the buttons leave.
-  sheet: { flex: 1, padding: space.xl, paddingTop: space.xxl, gap: space.md },
-  choices: { flex: 1 },
+  content: { padding: space.xl, paddingTop: space.xxl, gap: space.md },
 });

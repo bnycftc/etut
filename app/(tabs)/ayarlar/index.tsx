@@ -575,6 +575,10 @@ export default function SettingsScreen() {
 
       <Section title={tr.help.title}>
         <ListRow icon="guide" testID="settings-open-guide" title={tr.help.guide} onPress={() => openGuide()} />
+        {/* What "Nasıl çalışır" covers: under its own row, not under "Turu yeniden göster" (V-14). */}
+        <Label variant="small" style={styles.rowNote}>
+          {tr.help.info}
+        </Label>
         <ListRow
           icon="tips"
           testID="settings-show-tips"
@@ -585,9 +589,6 @@ export default function SettingsScreen() {
             router.navigate('/');
           }}
         />
-        <Label variant="small" style={styles.rowNote}>
-          {tr.help.info}
-        </Label>
       </Section>
 
       {/* An action (writes an e-mail), so a button, not a row. */}

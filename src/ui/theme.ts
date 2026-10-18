@@ -50,7 +50,8 @@ export const typography = {
 
 /**
  * Largest Dynamic Type / font scale multiplier for the big timer digits (they must stay on one
- * line). Body text scales without a limit.
+ * line), header buttons and the onboarding title (a screen title without a bar). Body text scales
+ * without a limit.
  */
 export const MAX_FONT_SCALE = { clock: 1.3, header: 1.3 } as const;
 

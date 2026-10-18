@@ -378,7 +378,9 @@ export default function TimerScreen() {
                   <SavedMark />
                   <View testID="timer-saved" accessible accessibilityLabel={finished.saved} style={styles.grow}>
                     <Label variant="muted">{tr.finish.savedTitle}</Label>
-                    <Label variant="display">{finished.duration}</Label>
+                    {/* Under a minute the time is words ("1 dakikadan az"): at the hero size they took three
+                        lines beside the ring and broke "dakika/dan" (IOS-05), so they get the smaller size. */}
+                    <Label variant={finished.durationMs < 60_000 ? 'displaySmall' : 'display'}>{finished.duration}</Label>
                   </View>
                 </View>
                 {stepReached ? (

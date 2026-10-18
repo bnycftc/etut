@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ScrollView, StyleSheet } from 'react-native';
 
 import { loadTipsSeen, storeTipsSeen } from '../storage/kv';
 import { tr } from '../strings';
@@ -22,10 +22,16 @@ export function FirstUseTips() {
   return null;
 }
 
-/** The tips sheet itself (a system form sheet). Only the text scrolls: Geç / İleri stay below it. */
+/**
+ * The tips sheet itself (a system form sheet). The scroll view is the sheet's root, as in the goal
+ * sheet (`goal-sheet.tsx`, IOS-02): nested in a padded `flex: 1` view, react-native-screens set it
+ * to the screen's frame, so the first step showed only Geç / İleri and the others lost their
+ * margins ("sa bir tur · 2/3"). Each step starts from the top.
+ */
 export function TipsSheet() {
   const c = usePalette();
   const [step, setStep] = useState(0);
+  const scroll = useRef<ScrollView>(null);
   // However the sheet goes (a button, a swipe down), the tips count as closed.
   useEffect(() => storeTipsSeen, []);
 
@@ -35,34 +41,36 @@ export function TipsSheet() {
     storeTipsSeen();
     router.back();
   };
+  const next = () => {
+    setStep(step + 1);
+    scroll.current?.scrollTo({ y: 0, animated: false });
+  };
 
   return (
-    <View testID="tips-card" style={[styles.card, { backgroundColor: c.surface }]}>
-      {/* At large text sizes only the text scrolls (from the top on each step). */}
-      <ScrollView key={step} testID="tips-scroll" style={styles.text} contentContainerStyle={styles.textContent}>
-        <Label variant="small">
-          {tr.tips.title} · {tr.tips.step(step + 1, steps.length)}
-        </Label>
-        <Label variant="heading" testID="tips-step-title">
-          {steps[step].title}
-        </Label>
-        <Label>{steps[step].body}</Label>
-      </ScrollView>
+    <ScrollView
+      ref={scroll}
+      testID="tips-card"
+      style={{ backgroundColor: c.surface }}
+      contentContainerStyle={styles.content}>
+      <Label variant="small">
+        {tr.tips.title} · {tr.tips.step(step + 1, steps.length)}
+      </Label>
+      <Label variant="heading" testID="tips-step-title">
+        {steps[step].title}
+      </Label>
+      <Label>{steps[step].body}</Label>
       <ResponsiveRow>
         {!last ? <Button testID="tips-skip" kind="secondary" title={tr.tips.skip} onPress={close} /> : null}
         <Button
           testID={last ? 'tips-done' : 'tips-next'}
           title={last ? tr.tips.done : tr.tips.next}
-          onPress={last ? close : () => setStep(step + 1)}
+          onPress={last ? close : next}
         />
       </ResponsiveRow>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  // The sheet is as tall as its detent: the text takes what the buttons leave.
-  card: { flex: 1, padding: space.xl, paddingTop: space.xxl, gap: space.md },
-  text: { flex: 1 },
-  textContent: { gap: space.md },
+  content: { padding: space.xl, paddingTop: space.xxl, gap: space.md },
 });

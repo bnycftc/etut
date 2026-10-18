@@ -20,7 +20,7 @@ import { Button, Card, Chip, ChipRow, Label } from '@/ui/components';
 import { GoalPresets } from '@/ui/goal-sheet';
 import { Icon } from '@/ui/icon';
 import { Ring } from '@/ui/ring';
-import { space, usePalette } from '@/ui/theme';
+import { MAX_FONT_SCALE, space, usePalette } from '@/ui/theme';
 
 /** The brand moment's ring: three quarters, like the app icon's arc. */
 const BRAND_RING = 0.75;
@@ -64,7 +64,12 @@ export default function OnboardingScreen() {
           <Ring ratio={BRAND_RING} color={c.accent} track={c.barSoft} size={64} thickness={8}>
             <Icon name="timerFill" color={c.accent} size={26} />
           </Ring>
-          <Label variant="largeTitle">{tr.onboarding.title}</Label>
+          {/* The screen's title (onboarding has no bar): it grows no further than a header, as the
+              system's own large titles do. Unbounded, at accessibility sizes it took three lines and
+              with the intro and the fixed Başla left no question on the first screen (IOS-10). */}
+          <Label variant="largeTitle" maxFontSizeMultiplier={MAX_FONT_SCALE.header}>
+            {tr.onboarding.title}
+          </Label>
           <Label variant="muted">{tr.onboarding.intro}</Label>
         </View>
 
