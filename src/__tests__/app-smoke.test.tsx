@@ -755,7 +755,7 @@ describe('the moment after Bitir', () => {
 });
 
 describe('root error screen (V-15)', () => {
-  it('a render error shows plain text and "Tekrar dene"; nothing is deleted and retry opens the app', () => {
+  it('a render error shows plain text and "Yeniden dene"; nothing is deleted and retry opens the app', () => {
     memory.profile = ADULT_SAYISAL;
     memory.sessions = [
       { id: 's1', subjectId: 'fizik', topicId: null, startedAt: 1, endedAt: 60_001, pauses: [], durationMs: 60_000, source: 'timer' },
@@ -780,7 +780,7 @@ describe('root error screen (V-15)', () => {
       expect(memory.profile).toEqual(ADULT_SAYISAL);
       expect(memory.sessions).toHaveLength(1);
       broken = false;
-      fireEvent.press(screen.getByRole('button', { name: 'Tekrar dene' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Yeniden dene' }));
       expect(screen.queryByTestId('error-screen')).toBeNull();
       expect(screen.getByTestId('timer-screen')).toBeTruthy();
       expect(memory.sessions).toHaveLength(1);
@@ -1654,7 +1654,7 @@ describe('mock exam entry, editing and charts', () => {
     expect(rows).toEqual(['9,67', '4,33', '6,67', '5,67', '9,67', '10,33']);
     expect(screen.getByTestId('exam-total-net').props.children).toBe('46,33');
     expect(screen.getByTestId('exam-rounding').props.children).toBe(
-      'Toplam net, yuvarlanmamış ders netlerinden hesaplanır; bu yüzden 0,01 fark çıkabilir.',
+      'Toplam net, yuvarlanmamış ders netlerinden hesaplanır; bu yüzden ders netlerinin toplamıyla arasında küçük bir fark olabilir.',
     );
     // Not while a row has an error (the total shows "–").
     fireEvent.changeText(screen.getByTestId('exam-wrong-fen'), '20');

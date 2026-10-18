@@ -411,7 +411,7 @@ export const tr = {
   crash: {
     title: 'Bir şey ters gitti',
     body: 'Bu ekran açılırken bir hata oldu. Kayıtların cihazında duruyor; hiçbiri silinmedi.',
-    retry: 'Tekrar dene',
+    retry: 'Yeniden dene',
     contact: (address: string) => `Sorun sürerse bize yaz: ${address}`,
   },
 
@@ -658,9 +658,9 @@ export const tr = {
     days: 'Günler',
     manualLine: (duration: string) => `Elle eklenen: ${duration}`,
     todayLabel: 'Bugün',
-    /** Short label above a bar: `2,1 sa` (hours, one decimal; never `2:05`, which reads as a clock) or `45 dk`. */
+    /** Short label above a bar: `2,1 sa` (hours, one decimal, rounded down so 1:59 is not `2 sa`; never `2:05`, which reads as a clock) or `45 dk`. */
     barValue: (hours: number, minutes: number) =>
-      hours > 0 ? `${(Math.round((hours + minutes / 60) * 10) / 10).toString().replace('.', ',')} sa` : `${minutes} dk`,
+      hours > 0 ? `${(Math.floor((hours * 60 + minutes) / 6) / 10).toString().replace('.', ',')} sa` : `${minutes} dk`,
     /** A day's timer sessions, folded away by default (the place to delete one). */
     sessionsShow: 'Sayaç kayıtları',
     sessionsHide: 'Kayıtları gizle',
@@ -706,7 +706,7 @@ export const tr = {
     sectionA11y: (section: string, correct: number, wrong: number, net: string) =>
       `${section}: ${correct} doğru, ${wrong} yanlış, ${net} net`,
     /** Shown under the totals when the rounded section nets do not add up to the total (LGS). */
-    roundingNote: 'Toplam net, yuvarlanmamış ders netlerinden hesaplanır; bu yüzden 0,01 fark çıkabilir.',
+    roundingNote: 'Toplam net, yuvarlanmamış ders netlerinden hesaplanır; bu yüzden ders netlerinin toplamıyla arasında küçük bir fark olabilir.',
     fixErrors: 'Hatalı alanları düzelt.',
     /** "Kaydet" on a form with no correct or wrong answer anywhere (it would be a 0-net exam). */
     emptyExam: 'Kaydetmek için en az bir derse doğru ya da yanlış sayısı gir.',

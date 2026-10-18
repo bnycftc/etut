@@ -88,7 +88,7 @@ export default function RootLayout() {
 /**
  * Any error thrown while rendering (a broken stored row, unexpected JSON) lands here instead of
  * closing the app. It replaces this layout, so no app state or storage is used: plain text and
- * "Tekrar dene", which renders the layout again. Nothing is deleted and the error is not shown or
+ * "Yeniden dene", which renders the layout again. Nothing is deleted and the error is not shown or
  * sent anywhere (no telemetry).
  */
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {

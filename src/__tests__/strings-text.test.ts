@@ -23,5 +23,7 @@ describe('history bar label', () => {
     expect(tr.history.barValue(2, 30)).toBe('2,5 sa');
     expect(tr.history.barValue(3, 0)).toBe('3 sa');
     expect(tr.history.barValue(0, 45)).toBe('45 dk');
+    expect(tr.history.barValue(1, 59)).toBe('1,9 sa');
+    expect(tr.history.barValue(1, 12)).toBe('1,2 sa');
   });
 });
