@@ -11,6 +11,7 @@ import type { ParentNoticeKind, ReactionKind, ReportReason } from './domain/grou
 import type { ManualEntryError } from './domain/manual-entry';
 import type { ExamKind, ScoreError, YksArea } from './domain/net';
 import type { ExamType } from './domain/profile';
+import { possessive } from './domain/tr-suffix';
 
 /** Shown wherever a data controller field has no value (every build except the release one). */
 export const DATA_CONTROLLER_PLACEHOLDER = '[DOLDURULACAK]';
@@ -657,9 +658,9 @@ export const tr = {
     days: 'Günler',
     manualLine: (duration: string) => `Elle eklenen: ${duration}`,
     todayLabel: 'Bugün',
-    /** Short label above a bar: `2:05` (hours) or `45 dk`. */
+    /** Short label above a bar: `2,1 sa` (hours, one decimal; never `2:05`, which reads as a clock) or `45 dk`. */
     barValue: (hours: number, minutes: number) =>
-      hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}` : `${minutes} dk`,
+      hours > 0 ? `${(Math.round((hours + minutes / 60) * 10) / 10).toString().replace('.', ',')} sa` : `${minutes} dk`,
     /** A day's timer sessions, folded away by default (the place to delete one). */
     sessionsShow: 'Sayaç kayıtları',
     sessionsHide: 'Kayıtları gizle',
@@ -1345,9 +1346,9 @@ export const tr = {
     noStudy: 'Bu dönemde kayıtlı çalışma yok.',
     otherSubjects: 'Diğer dersler',
     streak: (days: number) => `Seri: ${days} gün`,
-    goalDay: (percent: number) => (percent >= 100 ? 'Günlük hedef tamam' : `Günlük hedefin %${percent}’i`),
-    goalWeek: (days: number) => `Hedef tutan gün: ${days}/7`,
-    activeDays: (days: number) => `Çalışılan gün: ${days}/7`,
+    goalDay: (percent: number) => (percent >= 100 ? 'Günlük hedef tamam' : `Günlük hedefin %${percent}${possessive(percent)}`),
+    goalWeek: (days: number) => `Hedefi tutturduğun gün: ${days}/7`,
+    activeDays: (days: number) => `Çalıştığın gün: ${days}/7`,
     footer: 'Etüt · çalışma takibi',
     /** Screen reader text for the card preview. */
     a11y: (period: string, total: string) => `${period}: toplam ${total}`,

@@ -3789,6 +3789,18 @@ describe('ders karnesi, soru sayısı, ders hedefi, aylık görünüm', () => {
     );
   });
 
+  it('weekly: subject percentages add up to 100 (largest remainder), like the share card', () => {
+    memory.sessions = [
+      studied('a', 'matematik', '2026-10-05T07:00:00Z', 20),
+      studied('b', 'fizik', '2026-10-06T07:00:00Z', 20),
+      studied('c', 'kimya', '2026-10-06T10:00:00Z', 20),
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    // Plain rounding would give 33 + 33 + 33 = 99.
+    expect(screen.getAllByText('%33')).toHaveLength(2);
+    expect(screen.getAllByText('%34')).toHaveLength(1);
+  });
+
   it('report card: weekly target with − / +, shown again in Haftalık; no ranking anywhere', () => {
     memory.sessions = [studied('a', 'matematik', '2026-10-05T07:00:00Z', 90)];
     renderRouter(APP_DIR, { initialUrl: '/karne/matematik' });
