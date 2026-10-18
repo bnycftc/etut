@@ -43,6 +43,13 @@ appId: com.bnycftc.etut
       id: onboarding-start
     direction: DOWN
     timeout: 20000
+# Başla turns on only once the app has handled the area tap; on a stalled CI simulator that can
+# come late, and a tap on the still disabled button does nothing (run 39114266438, g retry).
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+      enabled: true
+    timeout: 30000
 # A slow CI simulator can drop this tap (the screen stays on onboarding): tap again if nothing changes.
 - tapOn:
     id: onboarding-start

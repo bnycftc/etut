@@ -12,11 +12,13 @@ tags:
 # Leave some data behind: one short study session.
 - tapOn:
     id: timer-start
+# The app took the tap but its screen stood still for more than 15 s on the CI simulator (run
+# 39114266438); the pattern still allows up to 0:59, so a longer wait keeps the check exact.
 - extendedWaitUntil:
     visible:
       id: timer-clock
       text: "0:(0[2-9]|[1-5][0-9])"
-    timeout: 15000
+    timeout: 45000
 - tapOn:
     id: timer-finish
 - assertVisible:

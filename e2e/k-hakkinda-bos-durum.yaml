@@ -18,10 +18,12 @@ tags:
 - tapOn:
     id: onboarding-privacy
     retryTapIfNoChange: true
+# The app can stall for many seconds on the CI simulator before it handles a tap (run 39114266438:
+# nothing after 11 s).
 - extendedWaitUntil:
     visible:
       id: legal-aydinlatma
-    timeout: 10000
+    timeout: 30000
 - takeScreenshot: k-01-aydinlatma
 - launchApp:
     clearState: true
@@ -40,10 +42,11 @@ tags:
 - stopApp
 - launchApp:
     clearState: false
+# A cold start stood still for 21 s before any app code ran in run 39114266438 (splash at 30 s).
 - extendedWaitUntil:
     visible:
       id: timer-start
-    timeout: 30000
+    timeout: 60000
 - tapOn:
     id: tab-exams
 # Below the add button and the (empty) charts.
@@ -69,10 +72,11 @@ tags:
 - stopApp
 - launchApp:
     clearState: false
+# A cold start stood still for 21 s before any app code ran in run 39114266438 (splash at 30 s).
 - extendedWaitUntil:
     visible:
       id: timer-start
-    timeout: 30000
+    timeout: 60000
 - tapOn:
     id: tab-settings
 # Ayarlar is long and each hierarchy read on a busy CI simulator can take ~5 s, so allow time for
