@@ -1,11 +1,14 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, type ErrorBoundaryProps, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GROUPS_ENABLED } from '@/config/features';
+import { contactEmail } from '@/domain/contact';
 import { AppStateProvider, useAppState } from '@/state/app-state';
 import { SystemSync } from '@/state/system-sync';
-import { tr } from '@/strings';
+import { DATA_CONTROLLER, tr } from '@/strings';
+import { Button, Card, Label, Screen } from '@/ui/components';
 import { useReducedMotion } from '@/ui/motion';
 import { usePalette } from '@/ui/theme';
 
@@ -79,5 +82,40 @@ export default function RootLayout() {
         <StatusBar style="auto" />
       </AppStateProvider>
     </ThemeProvider>
+  );
+}
+
+/**
+ * Any error thrown while rendering (a broken stored row, unexpected JSON) lands here instead of
+ * closing the app. It replaces this layout, so no app state or storage is used: plain text and
+ * "Tekrar dene", which renders the layout again. Nothing is deleted and the error is not shown or
+ * sent anywhere (no telemetry).
+ */
+export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+  const c = usePalette();
+  const email = contactEmail(DATA_CONTROLLER.contact);
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
+      <StatusBar style="auto" />
+      <Screen testID="error-screen">
+        <Card>
+          <Label variant="title">{tr.crash.title}</Label>
+          <Label>{tr.crash.body}</Label>
+          {email !== null ? (
+            <Label variant="small" testID="error-contact">
+              {tr.crash.contact(email)}
+            </Label>
+          ) : null}
+        </Card>
+        <Button
+          large
+          testID="error-retry"
+          title={tr.crash.retry}
+          onPress={() => {
+            void retry();
+          }}
+        />
+      </Screen>
+    </SafeAreaView>
   );
 }

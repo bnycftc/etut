@@ -406,6 +406,14 @@ export const tr = {
     delete: 'Sil',
   },
 
+  /** Root error screen (app/_layout.tsx ErrorBoundary): nothing is deleted, nothing is sent. */
+  crash: {
+    title: 'Bir şey ters gitti',
+    body: 'Bu ekran açılırken bir hata oldu. Kayıtların cihazında duruyor; hiçbiri silinmedi.',
+    retry: 'Tekrar dene',
+    contact: (address: string) => `Sorun sürerse bize yaz: ${address}`,
+  },
+
   tabs: {
     timer: 'Sayaç',
     exams: 'Denemeler',
@@ -697,7 +705,7 @@ export const tr = {
     sectionA11y: (section: string, correct: number, wrong: number, net: string) =>
       `${section}: ${correct} doğru, ${wrong} yanlış, ${net} net`,
     /** Shown under the totals when the rounded section nets do not add up to the total (LGS). */
-    roundingNote: 'Toplam net, yuvarlanmamış ders netlerinden hesaplanır; ders netlerinin toplamından 0,01 farklı olabilir.',
+    roundingNote: 'Toplam net, yuvarlanmamış ders netlerinden hesaplanır; bu yüzden 0,01 fark çıkabilir.',
     fixErrors: 'Hatalı alanları düzelt.',
     /** "Kaydet" on a form with no correct or wrong answer anywhere (it would be a 0-net exam). */
     emptyExam: 'Kaydetmek için en az bir derse doğru ya da yanlış sayısı gir.',

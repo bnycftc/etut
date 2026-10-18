@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, type Ref, useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, type TextStyle, View } from 'react-native';
 
 import { tr } from '../strings';
@@ -6,10 +6,20 @@ import { announce } from './feedback';
 import { Icon, type IconName } from './icon';
 import { MAX_FONT_SCALE, space, useLargeText, usePalette } from './theme';
 
-export function Screen({ children, testID }: { children: ReactNode; testID?: string }) {
+export function Screen({
+  children,
+  testID,
+  ref,
+}: {
+  children: ReactNode;
+  testID?: string;
+  /** The scroll view, for a screen that brings new content at the top into view. */
+  ref?: Ref<ScrollView>;
+}) {
   const c = usePalette();
   return (
     <ScrollView
+      ref={ref}
       testID={testID}
       style={{ flex: 1, backgroundColor: c.background }}
       contentContainerStyle={styles.screen}

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { AppState, StyleSheet, Text, Vibration, View } from 'react-native';
+import { AppState, type ScrollView, StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { clockParts, formatClock } from '@/domain/clock';
 import { comparisonLine, type ComparisonLine } from '@/domain/compare';
@@ -51,6 +51,7 @@ import { formatDuration, topicLabel } from '@/ui/format';
 import { GoalSheet } from '@/ui/goal-sheet';
 import { Icon } from '@/ui/icon';
 import { InfoLink } from '@/ui/info-link';
+import { useReducedMotion } from '@/ui/motion';
 import { subjectColor } from '@/ui/subject-colors';
 import { MAX_FONT_SCALE, space, usePalette } from '@/ui/theme';
 import { QuestionCount } from '@/ui/question-count';
@@ -107,6 +108,8 @@ export default function TimerScreen() {
   const topicId = topicOfSubject(examType, yksArea, subjectId, pickedTopic);
   const [finished, setFinished] = useState<Finished | null>(null);
   const [goalOpen, setGoalOpen] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const reduceMotion = useReducedMotion();
   // Stored, not screen state: a restored backup brings its own timer mode.
   const mode = useStored(`timerMode|${app.dataVersions.settings}`, loadTimerMode);
   const setSubjectId = (id: string) => {
@@ -201,6 +204,9 @@ export default function TimerScreen() {
         at: Date.now(),
         undoable: done.durationMs > 0 && !isSyncActive(),
       });
+      // The summary ("Kaydedildi", "Geri al", the goal) is at the top of the screen and Bitir further
+      // down, where the student may have scrolled to: bring the summary into view (V-01).
+      scrollRef.current?.scrollTo({ y: 0, animated: !reduceMotion });
       setSubjectId(done.subjectId);
       noteFinishForWidgetTip(done.durationMs);
       hapticSuccess();
@@ -257,7 +263,7 @@ export default function TimerScreen() {
       : null;
 
   return (
-    <Screen testID="timer-screen">
+    <Screen testID="timer-screen" ref={scrollRef}>
       <TimerKeepAwake running={running} />
       <FirstUseTips />
       <GoalSheet
