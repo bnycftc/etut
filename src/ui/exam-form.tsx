@@ -267,8 +267,8 @@ export function ExamForm({
               />
             ))}
           </ChipRow>
-          <Row>
-            <Label variant="small" testID="exam-net-rule">
+          <Row wrap>
+            <Label variant="small" testID="exam-net-rule" style={{ flexShrink: 1 }}>
               {tr.exams.netRule(wrongsPerCorrect(kind))}
             </Label>
             <InfoLink testID="exam-net-info" section="net" term={tr.infoLink.net} />

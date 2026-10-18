@@ -25,5 +25,7 @@ describe('history bar label', () => {
     expect(tr.history.barValue(0, 45)).toBe('45 dk');
     expect(tr.history.barValue(1, 59)).toBe('1,9 sa');
     expect(tr.history.barValue(1, 12)).toBe('1,2 sa');
+    // Only bars with time get a label: under a minute it is not "0 dk" (V-11).
+    expect(tr.history.barValue(0, 0)).toBe('<1 dk');
   });
 });

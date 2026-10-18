@@ -7,7 +7,7 @@ import { comparisonLine, type ComparisonLine } from '@/domain/compare';
 import { topicOfSubject } from '@/domain/curriculum';
 import { activeSpan, dailyTotals } from '@/domain/daily-totals';
 import { examDaysLeft, resolveExamDate } from '@/domain/exam-dates';
-import { goalStep, topicMarkToRestore, UNDO_FINISH_MS } from '@/domain/finish';
+import { goalStep, showsGoalStep, topicMarkToRestore, UNDO_FINISH_MS } from '@/domain/finish';
 import { istanbulDayKey } from '@/domain/istanbul-day';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { canShareCard } from '@/domain/share-card';
@@ -37,6 +37,7 @@ import {
   Chip,
   ChipRow,
   Dot,
+  fillText,
   Label,
   ListRow,
   ProgressBar,
@@ -47,7 +48,7 @@ import {
 } from '@/ui/components';
 import { BackupNudge } from '@/ui/backup-reminder';
 import { announce, hapticSuccess, hapticTap } from '@/ui/feedback';
-import { formatDuration, topicLabel } from '@/ui/format';
+import { formatDuration, formatStudyTime, topicLabel } from '@/ui/format';
 import { GoalSheet } from '@/ui/goal-sheet';
 import { Icon } from '@/ui/icon';
 import { InfoLink } from '@/ui/info-link';
@@ -210,7 +211,7 @@ export default function TimerScreen() {
       setSubjectId(done.subjectId);
       noteFinishForWidgetTip(done.durationMs);
       hapticSuccess();
-      announce(tr.finish.announce(saved, formatDuration(todayAfterMs)));
+      announce(tr.finish.announce(saved, formatStudyTime(todayAfterMs)));
     }
   };
   const finishCheck = useFinishCheck(finish);
@@ -277,15 +278,16 @@ export default function TimerScreen() {
       {/* Today: exam countdown, today's total, goal and streak; the summary after Bitir lives here too. */}
       <Card tone="accent">
         {examDate !== null && daysLeft !== null && daysLeft >= 0 ? (
-          <Row>
-            <Label testID="countdown" style={{ fontWeight: '700', flex: 1, color: c.accent }}>
+          // Wraps at large text: "tahmini · Nedir?" moves below instead of breaking "YKS’ye" (IOS-04).
+          <Row wrap>
+            <Label testID="countdown" style={{ ...fillText, fontWeight: '700', color: c.accent }}>
               {daysLeft === 0 ? tr.countdown.today : tr.countdown.days(examType, daysLeft)}
             </Label>
             {examDate.estimated ? (
-              <>
+              <View style={styles.inline}>
                 <Tag title={tr.countdown.estimated} />
                 <InfoLink testID="countdown-info" section="tarih" term={tr.infoLink.estimated} />
-              </>
+              </View>
             ) : null}
           </Row>
         ) : daysLeft !== null ? (
@@ -319,7 +321,7 @@ export default function TimerScreen() {
               {(topicLabel(finished.topicId)
                 ? tr.finish.studiedTopic(tr.subject(finished.subjectId), topicLabel(finished.topicId) ?? '')
                 : tr.finish.studied(tr.subject(finished.subjectId))) +
-                (step !== null && !step.reached ? ` · ${tr.finish.goalStep(step.beforePercent, step.afterPercent)}` : '')}
+                (step !== null && showsGoalStep(step) ? ` · ${tr.finish.goalStep(step.beforePercent, step.afterPercent)}` : '')}
             </Label>
             {finished.addedToYesterday ? (
               <Label variant="small" testID="finish-yesterday">
@@ -373,7 +375,7 @@ export default function TimerScreen() {
             <Label variant="muted">{tr.timer.today}</Label>
             <View style={styles.totalLine}>
               <Label variant="title" testID="today-total">
-                {formatDuration(todayTotal)}
+                {formatStudyTime(todayTotal)}
               </Label>
               {todayQuestions > 0 ? (
                 <Label variant="muted" testID="today-questions">
@@ -646,7 +648,7 @@ function CompareLine({ line }: { line: ComparisonLine }) {
       {parts.map((p, i) => (
         <Fragment key={p.testID}>
           {i > 0 ? ' · ' : ''}
-          {p.label} <Text testID={p.testID}>{formatDuration(p.ms)}</Text>
+          {p.label} <Text testID={p.testID}>{formatStudyTime(p.ms)}</Text>
         </Fragment>
       ))}
     </Label>

@@ -1,18 +1,28 @@
 import { router } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
+import { HeaderTitle, type HeaderTitleProps } from 'expo-router/react-navigation';
 import type { ColorValue } from 'react-native';
 
 import { useAppState } from '@/state/app-state';
 import { tr } from '@/strings';
 import { HeaderButton } from '@/ui/components';
 import { Icon, type IconName } from '@/ui/icon';
-import { usePalette } from '@/ui/theme';
+import { MAX_FONT_SCALE, usePalette } from '@/ui/theme';
 
 /** Outline symbol, filled when the tab is selected (iOS convention). Decorative: the tab is announced by its title. */
 function tabIcon(outline: IconName, filled: IconName) {
   return function TabIcon({ color, focused }: { color: ColorValue; focused: boolean }) {
     return <Icon name={focused ? filled : outline} color={color} size={24} />;
   };
+}
+
+/**
+ * The tab header's bar keeps its fixed height at any text size, so the title grows only as far as
+ * the "Geçmiş" button beside it (IOS-03: at accessibility sizes "Sayaç" lost its ç and the bottom
+ * of every letter).
+ */
+function TabHeaderTitle(props: HeaderTitleProps) {
+  return <HeaderTitle {...props} maxFontSizeMultiplier={MAX_FONT_SCALE.header} />;
 }
 
 export default function TabsLayout() {
@@ -31,6 +41,7 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: c.surface },
         headerTintColor: c.text,
         headerTitleStyle: { fontWeight: '700' },
+        headerTitle: TabHeaderTitle,
       }}>
       <Tabs.Screen
         name="index"

@@ -678,6 +678,33 @@ describe('the moment after Bitir', () => {
     expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
   });
 
+  it('a short session: no "Hedef: %0 → %0", and "1 dakikadan az" on the summary, today and Geçmiş (V-13, V-11)', () => {
+    memory.dailyGoal = 240;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    jump(40_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 1 dakikadan az');
+    // 40 s of a 4-hour goal moves nothing visible: the step line is left out.
+    expect(screen.getByTestId('finish-detail').props.children).toBe('Fizik çalıştın');
+    expect(screen.getByTestId('today-total').props.children).toBe('1 dakikadan az');
+    act(() => router.push('/gecmis'));
+    // The day and its subject line say the same as the summary, never "0 dk".
+    expect(screen.getAllByText('1 dakikadan az').length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText('0 dk')).toBeNull();
+  });
+
+  it('the goal step stays when the whole percent moves', () => {
+    memory.dailyGoal = 240;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    jump(5 * 60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(screen.getByTestId('finish-detail').props.children).toBe('Fizik çalıştın · Hedef: %0 → %2');
+  });
+
   it('"Geri al" right after an accidental Bitir brings the session back and removes the record', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     fireEvent.press(screen.getByText('Fizik'));
@@ -993,6 +1020,8 @@ describe('manual entry ("elle")', () => {
 
     fill('10', '30', '1', '0');
     expect(screen.getByTestId('manual-error').props.children).toBe('Bu saatlerde başka bir çalışma kaydın var.');
+    // Not a dead end: it says what to change.
+    expect(screen.getByTestId('manual-overlap-hint').props.children).toBe('Süreyi kısalt ya da başka bir saat seç.');
     expect(memory.sessions).toHaveLength(1);
 
     fill('11', '00', '10', '1');
@@ -1045,6 +1074,55 @@ describe('manual entry ("elle")', () => {
     expect(Date.now() - saved.endedAt).toBeLessThan(60_000);
     const clock = (ms: number) => new Date(ms + 3 * 3_600_000).toISOString().slice(11, 16);
     expect(span).toBe(`Az önce bitti: ${clock(saved.startedAt)}–${clock(saved.endedAt)}`);
+  });
+
+  it('right after a timer session "Az önce bitti" ends where that session started, and Ekle takes it (IOS-06)', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:20Z')); // 12:00:20 Istanbul
+    // Saved from the timer three minutes ago: 11:50:10–11:57:40.
+    const timer: CompletedSession = {
+      id: 't1',
+      subjectId: 'fizik',
+      topicId: null,
+      startedAt: Date.parse('2026-10-07T08:50:10Z'),
+      endedAt: Date.parse('2026-10-07T08:57:40Z'),
+      pauses: [],
+      durationMs: 450_000,
+      source: 'timer',
+    };
+    memory.sessions = [timer];
+    renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    fireEvent.press(screen.getByTestId('manual-duration-chip-60'));
+    expect(screen.getByTestId('manual-just-finished').props.children).toBe('Az önce bitti: 10:50–11:50');
+    expect(screen.getByTestId('manual-moved-before').props.children).toBe(
+      'Başka bir kaydınla çakışmasın diye o kayıttan önceye yerleştirildi.',
+    );
+    fireEvent.press(screen.getByTestId('manual-add'));
+    expect(screen.queryByTestId('manual-error')).toBeNull();
+    expect(screen.getByTestId('manual-added').props.children).toBe('Eklendi: 1 sa 0 dk (elle)');
+    const manual = memory.sessions.find((x) => x.source === 'manual');
+    expect(manual).toMatchObject({ startedAt: Date.parse('2026-10-07T07:50:00Z'), endedAt: Date.parse('2026-10-07T08:50:00Z') });
+  });
+
+  it('with nothing in the way "Az önce bitti" still ends now, without the note', () => {
+    renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    fireEvent.press(screen.getByTestId('manual-duration-chip-30'));
+    expect(screen.queryByTestId('manual-moved-before')).toBeNull();
+  });
+
+  it('the number boxes show examples, not values, and have a "Bitti" bar that closes the keyboard (IOS-07)', () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss');
+    renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
+    const hours = screen.getByTestId('manual-duration-hours');
+    expect(hours.props.placeholder).toBe('ör. 1');
+    expect(screen.getByTestId('manual-duration-minutes').props.placeholder).toBe('ör. 45');
+    // The number pad has no return key: the bar is attached to the box (iOS input accessory).
+    expect(hours.props.inputAccessoryViewID).toEqual(expect.any(String));
+    const done = screen.getByTestId('manual-duration-hours-done');
+    expect(done.props.accessibilityLabel).toBe('Klavyeyi kapat: Süre, Saat');
+    fireEvent.press(done);
+    expect(dismiss).toHaveBeenCalled();
+    dismiss.mockRestore();
   });
 
   it('"Saati değiştir" opens the start fields, "Az önce bitti" closes them; another day always asks', () => {
@@ -2256,6 +2334,73 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
     fireEvent.press(screen.getByTestId('settings-delete-all-backdrop', { includeHiddenElements: true }));
     expect(screen.queryByTestId('settings-delete-all-dialog')).toBeNull();
     expect(memory.profile).not.toBeNull();
+  });
+
+  /** Flattened style of the nearest laid-out row or column around a node. */
+  function lineOf(node: Node) {
+    for (let n = node.parent; n !== null; n = n.parent) {
+      const style = typeof n.type === 'string' ? RN.StyleSheet.flatten(n.props.style) : undefined;
+      if (style?.flexDirection !== undefined) return style;
+    }
+    return undefined;
+  }
+
+  it('text size 3: the tab header title grows no further than its bar (IOS-03)', () => {
+    textSize(3);
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    const title = screen.getAllByText('Sayaç').find((n) => n.props.role === 'heading');
+    expect(title?.props.maxFontSizeMultiplier).toBe(1.3);
+  });
+
+  it.each([1, 2])(
+    'text size %d: label and value rows wrap at word boundaries instead of squeezing a word (IOS-04)',
+    (fontScale) => {
+      textSize(fontScale);
+      memory.profile = ADULT_SAYISAL;
+      renderRouter(APP_DIR, { initialUrl: '/' });
+      // "YKS’ye 244 gün" keeps its natural width; "tahmini · Nedir?" moves below when it does not fit.
+      const countdown = screen.getByTestId('countdown');
+      expect(lineOf(countdown)).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap' });
+      expect(RN.StyleSheet.flatten(countdown.props.style)).toMatchObject({ flexGrow: 1, flexShrink: 1 });
+      expect(RN.StyleSheet.flatten(countdown.props.style).flex).toBeUndefined();
+      act(() => router.push('/ayarlar'));
+      const exam = screen.getByTestId('settings-exam-current');
+      expect(lineOf(exam)).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap' });
+      expect(RN.StyleSheet.flatten(screen.getByText('Sınav').props.style).flex).toBeUndefined();
+    },
+  );
+
+  it.each([
+    [1, false],
+    [2, true],
+  ])('text size %d: a weekly subject row puts its share under the name: %s ("Mat/ema/tik", IOS-04)', (fontScale, under) => {
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // Wednesday 12:00 Istanbul
+    textSize(fontScale);
+    memory.profile = ADULT_SAYISAL;
+    memory.sessions = [
+      {
+        id: 'w1',
+        subjectId: 'matematik',
+        topicId: null,
+        startedAt: Date.parse('2026-10-07T07:00:00Z'),
+        endedAt: Date.parse('2026-10-07T07:30:00Z'),
+        pauses: [],
+        durationMs: 30 * 60_000,
+        source: 'timer',
+      },
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    const row = screen.getByTestId('weekly-subject-matematik');
+    const name = row.findAll((n) => typeof n.type === 'string' && n.props.children === 'Matematik')[0];
+    // The laid-out view the name sits in (its column, inside the row).
+    let column: Node | null = name.parent;
+    while (column !== null && typeof column.type !== 'string') column = column.parent;
+    expect(column).not.toBeNull();
+    const inColumn = (column as Node).findAll((n) => typeof n.type === 'string' && n.props.children === '%100');
+    expect(inColumn.length > 0).toBe(under);
+    expect(row.findAll((n) => typeof n.type === 'string' && n.props.children === '%100')).toHaveLength(1);
   });
 
   it.each([

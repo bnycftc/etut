@@ -54,3 +54,11 @@ export function goalStep(todayAfterMs: number, sessionTodayMs: number, goalMinut
     reached: before < 1 && after >= 1,
   };
 }
+
+/**
+ * Whether the summary shows "Hedef: %40 → %55". Not once the goal is reached (that has its own
+ * line) and not when the whole percent did not move: a short session left "%0 → %0" (V-13).
+ */
+export function showsGoalStep(step: GoalStep): boolean {
+  return !step.reached && step.afterPercent > step.beforePercent;
+}

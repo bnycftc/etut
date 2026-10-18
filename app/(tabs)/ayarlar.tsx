@@ -42,7 +42,7 @@ import { loadGroupsAccount, loadParentAccount } from '@/storage/groups-kv';
 import { tr } from '@/strings';
 import { groupApi, isAccountGone } from '@/sync/api';
 import { LastBackupLabel } from '@/ui/backup-reminder';
-import { Button, Card, Chip, ChipRow, Field, Label, Row, Screen, Stepper, Tag } from '@/ui/components';
+import { Button, Card, Chip, ChipRow, Field, fillText, Label, Row, Screen, Stepper, Tag } from '@/ui/components';
 import { useContactMail } from '@/ui/contact-mail';
 import { formatDay, formatDuration } from '@/ui/format';
 import { openGuide } from '@/ui/info-link';
@@ -188,11 +188,11 @@ export default function SettingsScreen() {
       {profile !== null ? (
         <Card>
           <Label variant="heading">{tr.settings.profile}</Label>
-          <Row>
-            <Label variant="muted" style={{ flex: 1 }}>
+          <Row wrap>
+            <Label variant="muted" style={fillText}>
               {tr.settings.exam}
             </Label>
-            <Label testID="settings-exam-current">
+            <Label testID="settings-exam-current" style={{ flexShrink: 1 }}>
               {tr.examType(profile.examType)}
               {profile.yksArea ? ` · ${tr.yksArea(profile.yksArea)}` : ''}
             </Label>
@@ -251,8 +251,8 @@ export default function SettingsScreen() {
       {profile !== null ? (
         <Card>
           <Label variant="heading">{tr.countdown.settingsTitle}</Label>
-          <Row>
-            <Label testID="settings-exam-date" style={{ flex: 1 }}>
+          <Row wrap>
+            <Label testID="settings-exam-date" style={fillText}>
               {examDate === null ? tr.countdown.none : formatDay(examDate.day)}
             </Label>
             {examDate?.estimated ? <Tag title={tr.countdown.estimated} /> : null}

@@ -405,6 +405,10 @@ export const tr = {
     cancel: 'Vazgeç',
     save: 'Kaydet',
     delete: 'Sil',
+    /** The bar above the number pad (it has no return key). */
+    keyboardDone: 'Bitti',
+    /** Its screen-reader name: which box it closes the keyboard of (`Klavyeyi kapat: Süre, Saat`). */
+    keyboardDoneA11y: (field: string) => `Klavyeyi kapat: ${field}`,
   },
 
   /** Root error screen (app/_layout.tsx ErrorBoundary): nothing is deleted, nothing is sent. */
@@ -489,11 +493,16 @@ export const tr = {
     /** `Az önce bitti: 11:15–12:00` */
     justFinishedSpan: (start: string, end: string) => `Az önce bitti: ${start}–${end}`,
     changeTime: 'Saati değiştir',
+    /** Under "Az önce bitti" when the span was moved back so it does not overlap a record (IOS-06). */
+    movedBefore: 'Başka bir kaydınla çakışmasın diye o kayıttan önceye yerleştirildi.',
+    /** Under the overlap error: the way out. */
+    overlapHint: 'Süreyi kısalt ya da başka bir saat seç.',
     add: 'Ekle',
     added: (duration: string) => `Eklendi: ${duration} (elle)`,
     limits:
       'Yalnız son 7 gün (bugün dahil) için; tek kayıt en fazla 10 saat; gelecekteki ya da başka kayıtla çakışan zaman eklenemez.',
-    placeholders: { startHour: '14', startMinute: '00', durationHours: '0', durationMinutes: '45' },
+    /** Examples, not values: "ör." keeps an empty box from looking filled in (IOS-07). */
+    placeholders: { startHour: 'ör. 14', startMinute: 'ör. 30', durationHours: 'ör. 1', durationMinutes: 'ör. 45' },
     errors: {
       invalid: 'Başlangıç saatini ve süreyi kontrol et.',
       too_old: 'Yalnız son 7 gün için süre eklenebilir.',
@@ -658,9 +667,17 @@ export const tr = {
     days: 'Günler',
     manualLine: (duration: string) => `Elle eklenen: ${duration}`,
     todayLabel: 'Bugün',
-    /** Short label above a bar: `2,1 sa` (hours, one decimal, rounded down so 1:59 is not `2 sa`; never `2:05`, which reads as a clock) or `45 dk`. */
+    /**
+     * Short label above a bar: `2,1 sa` (hours, one decimal, rounded down so 1:59 is not `2 sa`; never
+     * `2:05`, which reads as a clock) or `45 dk`. A bar with time is never `0 dk`: under a minute it is
+     * `<1 dk` (V-11; empty bars have no label).
+     */
     barValue: (hours: number, minutes: number) =>
-      hours > 0 ? `${(Math.floor((hours * 60 + minutes) / 6) / 10).toString().replace('.', ',')} sa` : `${minutes} dk`,
+      hours > 0
+        ? `${(Math.floor((hours * 60 + minutes) / 6) / 10).toString().replace('.', ',')} sa`
+        : minutes > 0
+          ? `${minutes} dk`
+          : '<1 dk',
     /** A day's timer sessions, folded away by default (the place to delete one). */
     sessionsShow: 'Sayaç kayıtları',
     sessionsHide: 'Kayıtları gizle',
