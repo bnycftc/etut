@@ -4,7 +4,7 @@ import { LGS_TOPICS } from '../curriculum/lgs';
 import { TYT_TOPICS } from '../curriculum/yks-tyt';
 import type { SessionSpan } from '../daily-totals';
 import { dayStartMs } from '../istanbul-day';
-import { addMonths, heatLevel, monthDays, monthStartOf, monthView } from '../month-calendar';
+import { addMonths, firstUseDay, heatLevel, monthDays, monthStartOf, monthView } from '../month-calendar';
 import { examKindsFor } from '../net';
 import {
   examSectionsForSubject,
@@ -59,30 +59,32 @@ describe('month calendar', () => {
     expect(monthView([], '2026-03-01', '2026-03-01').weeks).toHaveLength(6);
   });
 
-  it('total, best day, average on study days and days without study (only up to today)', () => {
+  it('total, best day, average on study days and days without study (up to yesterday)', () => {
     const spans = [
       span('matematik', '2026-10-01', 9, 120),
       span('fizik', '2026-10-01', 14, 30),
       span('kimya', '2026-10-03', 10, 400),
       span('matematik', '2026-10-05', 8, 50),
-      // Crosses midnight into the 6th: 30 min on the 5th, 30 min on the 6th.
+      // Crosses midnight into the 6th: all 60 min on the 5th, the day it started.
       span('fizik', '2026-10-05', 23.5, 60),
     ];
     const view = monthView(spans, '2026-10-01', '2026-10-07');
     expect(view).toMatchObject({
       year: 2026,
       month: 10,
-      totalMs: (150 + 400 + 80 + 30) * MIN,
-      elapsedDays: 7,
-      studyDays: 4,
+      totalMs: (150 + 400 + 110) * MIN,
+      // 1st–6th: studied on the 1st, 3rd and 5th; today (7th, nothing yet) is no rest day.
+      elapsedDays: 6,
+      studyDays: 3,
       restDays: 3,
       bestDay: { day: '2026-10-03', ms: 400 * MIN },
-      averageStudyDayMs: Math.round(((150 + 400 + 80 + 30) * MIN) / 4),
+      averageStudyDayMs: Math.round(((150 + 400 + 110) * MIN) / 3),
     });
     const byDay = new Map(view.days.map((d) => [d.day, d]));
     expect(byDay.get('2026-10-01')).toMatchObject({ date: 1, level: 2, future: false });
     expect(byDay.get('2026-10-03')?.level).toBe(4);
-    expect(byDay.get('2026-10-06')).toMatchObject({ ms: 30 * MIN, level: 1 });
+    expect(byDay.get('2026-10-05')).toMatchObject({ ms: 110 * MIN, level: 2 });
+    expect(byDay.get('2026-10-06')).toMatchObject({ ms: 0, level: 0 });
     expect(byDay.get('2026-10-08')).toMatchObject({ ms: 0, level: 0, future: true });
   });
 
@@ -92,6 +94,46 @@ describe('month calendar', () => {
     // On a tie the earlier day is the best one.
     const tie = monthView([span('a', '2026-09-03', 9, 60), span('a', '2026-09-02', 9, 60)], '2026-09-01', '2026-10-07');
     expect(tie.bestDay?.day).toBe('2026-09-02');
+  });
+
+  it('installed mid-month: the days before are neutral and out of the count', () => {
+    // Profile made on the 15th, nothing older; today is the 18th, studied on the 15th and 17th.
+    const first = firstUseDay(dayStartMs('2026-10-15') + 20 * HOUR, null);
+    expect(first).toBe('2026-10-15');
+    const view = monthView(
+      [span('fizik', '2026-10-15', 10, 60), span('fizik', '2026-10-17', 10, 30)],
+      '2026-10-01',
+      '2026-10-18',
+      first,
+    );
+    // 15th–17th: two study days, one rest day (16th); the 18th is not over yet.
+    expect(view).toMatchObject({ elapsedDays: 3, studyDays: 2, restDays: 1 });
+    const byDay = new Map(view.days.map((d) => [d.day, d]));
+    expect(byDay.get('2026-10-14')).toMatchObject({ beforeStart: true, future: false });
+    expect(byDay.get('2026-10-15')).toMatchObject({ beforeStart: false });
+    expect(view.days.filter((d) => d.beforeStart)).toHaveLength(14);
+  });
+
+  it('install day: no rest day; studied today counts once in x/y', () => {
+    const first = firstUseDay(dayStartMs('2026-10-18') + 9 * HOUR, null);
+    expect(monthView([], '2026-10-01', '2026-10-18', first)).toMatchObject({ elapsedDays: 0, studyDays: 0, restDays: 0 });
+    expect(monthView([span('fizik', '2026-10-18', 10, 30)], '2026-10-01', '2026-10-18', first)).toMatchObject({
+      elapsedDays: 1,
+      studyDays: 1,
+      restDays: 0,
+    });
+  });
+
+  it('the first day of use is the earlier of the profile and the first session (a backup can be older)', () => {
+    expect(firstUseDay(null, null)).toBeNull();
+    expect(firstUseDay(dayStartMs('2026-10-15'), dayStartMs('2026-09-20') + HOUR)).toBe('2026-09-20');
+    expect(firstUseDay(dayStartMs('2026-10-15'), dayStartMs('2026-10-16'))).toBe('2026-10-15');
+    // A month wholly before it: nothing counted, every day neutral.
+    const august = monthView([], '2026-08-01', '2026-10-18', '2026-09-20');
+    expect(august).toMatchObject({ elapsedDays: 0, studyDays: 0, restDays: 0 });
+    expect(august.days.every((d) => d.beforeStart)).toBe(true);
+    // The month it falls in: from the 20th to the 30th, 11 rest days.
+    expect(monthView([], '2026-09-01', '2026-10-18', '2026-09-20')).toMatchObject({ elapsedDays: 11, restDays: 11 });
   });
 });
 

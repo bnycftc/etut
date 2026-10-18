@@ -43,7 +43,7 @@ export default function ShareCardScreen() {
   const streak = stats.streak?.current ?? null;
   const card =
     period === 'day'
-      ? dailyCard(spans, stats.today, stats.goal, streak)
+      ? dailyCard(spans, stats.today, stats.todayGoal, streak)
       : weeklyCard(spans, weekStart, stats.goalOf, streak);
   // "0 dk" is nothing to share: the button is off and the screen says why.
   const shareable = cardHasStudy(card);

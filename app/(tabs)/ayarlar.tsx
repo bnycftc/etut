@@ -21,14 +21,16 @@ import {
 } from '@/domain/pomodoro';
 import { EXAM_TYPES, type ExamType, YKS_AREAS } from '@/domain/profile';
 import { effectiveReminderPrefs } from '@/domain/reminders';
-import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '@/domain/streak';
+import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES, goalFromTomorrow } from '@/domain/streak';
 import { useAppState, useNow, useStored } from '@/state/app-state';
 import { backupExportText, shareBackup } from '@/state/backup-export';
 import { useNotificationPermission } from '@/state/notification-permission';
+import { studiedToday } from '@/state/study-stats';
 import {
   clearTipsSeen,
   loadCustomExamDate,
   loadDailyGoal,
+  loadDailyGoalHistory,
   loadPomodoroConfig,
   loadReminderPrefs,
   loadRemindersConfirmed,
@@ -64,7 +66,7 @@ const POMODORO_FIELDS: {
 ];
 
 export default function SettingsScreen() {
-  const { profile, resetAll, dataVersions, notifyDataChanged, updateExam, createBackup } = useAppState();
+  const { active, profile, resetAll, dataVersions, notifyDataChanged, updateExam, createBackup } = useAppState();
   const [confirming, setConfirming] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -86,8 +88,10 @@ export default function SettingsScreen() {
     setExamSaved(saved);
   };
   const goal = useStored(`goal|${dataVersions.settings}`, loadDailyGoal);
+  const goalHistory = useStored(`goalHistory|${dataVersions.settings}`, loadDailyGoalHistory);
   const setGoal = (minutes: number | null) => {
-    storeDailyGoal(minutes, istanbulDayKey(Date.now()));
+    const now = Date.now();
+    storeDailyGoal(minutes, istanbulDayKey(now), studiedToday(active, now));
     notifyDataChanged('settings');
   };
   const pomodoro = useStored(`pomodoro|${dataVersions.settings}`, loadPomodoroConfig);
@@ -311,6 +315,11 @@ export default function SettingsScreen() {
               minusDisabled={goal <= GOAL_MIN_MINUTES}
               plusDisabled={goal >= GOAL_MAX_MINUTES}
             />
+            {goalFromTomorrow(goalHistory, today) !== null ? (
+              <Label variant="small" testID="settings-goal-starts-tomorrow">
+                {tr.goal.startsTomorrow}
+              </Label>
+            ) : null}
             <Button
               testID="settings-goal-off"
               kind="secondary"

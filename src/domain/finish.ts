@@ -42,7 +42,7 @@ export interface GoalStep {
 
 /**
  * Goal progress the session added. `todayAfterMs` is today's total including the session,
- * `sessionTodayMs` the part of the session that fell on today (a session can cross midnight).
+ * `sessionTodayMs` the part of the session counted today (0 for one that started yesterday).
  */
 export function goalStep(todayAfterMs: number, sessionTodayMs: number, goalMinutes: number): GoalStep {
   const beforeMs = Math.max(0, todayAfterMs - sessionTodayMs);

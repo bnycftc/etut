@@ -517,6 +517,8 @@ export const tr = {
     turnOff: 'Hedefi kapat',
     turnOn: 'Hedef koy',
     info: 'Hedefini tutturduğun ardışık günler seriyi oluşturur. Haftada 1 gün hedefin altında kalırsan seri bozulmaz; o gün dinlenme günü sayılır.',
+    /** Under the goal setting after a raise made once today's goal was met (`goalFromTomorrow`). */
+    startsTomorrow: 'Bugünkü hedefin tuttu, yeni hedef yarın başlar.',
   },
 
   countdown: {
@@ -1430,6 +1432,8 @@ export const tr = {
     /** "Bitti" / "Tekrar lazım" (topics.done / topics.review) for the session's topic. */
     topicMark: 'Konuyu işaretle (isteğe bağlı)',
     announce: (saved: string, today: string) => `${saved}. Bugün toplam ${today}.`,
+    /** The session started before midnight: it counts whole towards that day. */
+    addedToYesterday: 'Dünün çalışmasına eklendi.',
   },
 
   /** Daily goal sheet on the timer screen and the optional onboarding step. */

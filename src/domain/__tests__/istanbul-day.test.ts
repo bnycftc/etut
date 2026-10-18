@@ -1,13 +1,11 @@
 import {
   addDays,
-  DAY_MS,
   dayStartMs,
   istanbulDayKey,
   istanbulDayStartMs,
   istanbulWeekday,
   istanbulYear,
   lastDays,
-  splitByIstanbulDay,
 } from '../istanbul-day';
 
 const utc = (iso: string) => Date.parse(iso);
@@ -55,34 +53,5 @@ describe('day starts', () => {
   it('weekday is Monday-based', () => {
     expect(istanbulWeekday('2026-10-05')).toBe(0); // Monday
     expect(istanbulWeekday('2026-10-04')).toBe(6); // Sunday
-  });
-});
-
-describe('splitByIstanbulDay', () => {
-  it('keeps an interval inside one day whole', () => {
-    const start = utc('2026-10-04T06:00:00Z');
-    expect(splitByIstanbulDay({ start, end: start + 3_600_000 })).toEqual([
-      { day: '2026-10-04', ms: 3_600_000 },
-    ]);
-  });
-
-  it('splits at Istanbul midnight (23:30–00:45 → 30 + 45 min)', () => {
-    const start = utc('2026-10-04T20:30:00Z'); // 23:30 Istanbul
-    const end = utc('2026-10-04T21:45:00Z'); // 00:45 Istanbul next day
-    expect(splitByIstanbulDay({ start, end })).toEqual([
-      { day: '2026-10-04', ms: 30 * 60_000 },
-      { day: '2026-10-05', ms: 45 * 60_000 },
-    ]);
-  });
-
-  it('spans several days', () => {
-    const start = dayStartMs('2026-10-01') + DAY_MS / 2;
-    const parts = splitByIstanbulDay({ start, end: start + 2 * DAY_MS });
-    expect(parts.map((p) => p.day)).toEqual(['2026-10-01', '2026-10-02', '2026-10-03']);
-    expect(parts.reduce((s, p) => s + p.ms, 0)).toBe(2 * DAY_MS);
-  });
-
-  it('returns nothing for an empty interval', () => {
-    expect(splitByIstanbulDay({ start: 10, end: 10 })).toEqual([]);
   });
 });

@@ -59,20 +59,6 @@ export function lastDays(nowMs: number, count: number): DayKey[] {
   return days;
 }
 
-/** Splits `[start, end)` at Istanbul midnights. Returns milliseconds per day, in order. */
-export function splitByIstanbulDay(interval: Interval): { day: DayKey; ms: number }[] {
-  const parts: { day: DayKey; ms: number }[] = [];
-  let cursor = interval.start;
-  while (cursor < interval.end) {
-    const day = istanbulDayKey(cursor);
-    const nextMidnight = dayStartMs(day) + DAY_MS;
-    const partEnd = Math.min(interval.end, nextMidnight);
-    parts.push({ day, ms: partEnd - cursor });
-    cursor = partEnd;
-  }
-  return parts;
-}
-
 /** Istanbul wall-clock hours and minutes of the instant `ms`. */
 export function istanbulTimeOfDay(ms: number): { hours: number; minutes: number } {
   const d = new Date(ms + ISTANBUL_OFFSET_MS);

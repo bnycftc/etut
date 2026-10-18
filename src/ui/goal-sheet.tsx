@@ -39,16 +39,19 @@ export function GoalPresets({
 
 /**
  * Daily goal picker on the timer screen: presets, a 15 min fine tune and "turn off". Every change
- * is saved at once (like Settings); the same goal is edited in Settings too.
+ * is saved at once (like Settings); the same goal is edited in Settings too. `startsTomorrow`: the
+ * goal shown was raised after today's goal was met and starts tomorrow (`goalFromTomorrow`).
  */
 export function GoalSheet({
   visible,
   goal,
+  startsTomorrow = false,
   onChange,
   onClose,
 }: {
   visible: boolean;
   goal: number | null;
+  startsTomorrow?: boolean;
   onChange: (minutes: number | null) => void;
   onClose: () => void;
 }) {
@@ -78,6 +81,11 @@ export function GoalSheet({
                 minusDisabled={goal <= GOAL_MIN_MINUTES}
                 plusDisabled={goal >= GOAL_MAX_MINUTES}
               />
+            ) : null}
+            {goal !== null && startsTomorrow ? (
+              <Label variant="small" testID="goal-starts-tomorrow">
+                {tr.goal.startsTomorrow}
+              </Label>
             ) : null}
             <ResponsiveRow>
               {goal !== null ? (

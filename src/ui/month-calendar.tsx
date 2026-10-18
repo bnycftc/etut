@@ -36,6 +36,8 @@ export function MonthCalendar({ view, today, testID }: { view: MonthView; today:
                 ? tr.monthly.cell(date, formatDuration(cell.ms))
                 : tr.monthly.cellNone(date);
             const colors = heatColor(cell.level, c);
+            // Days still to come and days before the first use are neutral (no "no study" shade).
+            const neutral = cell.future || cell.beforeStart;
             return (
               <View
                 key={cell.day}
@@ -46,12 +48,12 @@ export function MonthCalendar({ view, today, testID }: { view: MonthView; today:
                   styles.cell,
                   styles.filled,
                   {
-                    backgroundColor: cell.future ? 'transparent' : colors.fill,
+                    backgroundColor: neutral ? 'transparent' : colors.fill,
                     borderColor: cell.day === today ? c.text : 'transparent',
                   },
                 ]}>
                 <Text
-                  style={[styles.date, { color: cell.future ? c.textMuted : colors.text }]}
+                  style={[styles.date, { color: neutral ? c.textMuted : colors.text }]}
                   maxFontSizeMultiplier={CELL_FONT_SCALE}>
                   {cell.date}
                 </Text>

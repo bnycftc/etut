@@ -1,6 +1,10 @@
-/** Per-day study totals, split at Istanbul midnight. */
+/**
+ * Per-day study totals. A session belongs whole to the Istanbul day it started on, everywhere
+ * (day totals, goal, streak, week, widget): one that crosses midnight is not split, so a day never
+ * shows two numbers for the same session.
+ */
 
-import { DAY_MS, type DayKey, dayStartMs, splitByIstanbulDay } from './istanbul-day';
+import { type DayKey, istanbulDayKey } from './istanbul-day';
 import {
   type ActiveSession,
   effectivePauses,
@@ -39,30 +43,27 @@ export function spanStudyMs(span: SessionSpan): number {
 }
 
 /**
- * Study time per Istanbul day before `today`, only for days the spans touch (e.g. a running
- * session that crossed one or more midnights).
+ * Study time per Istanbul day before `today`, only for days the spans started on (e.g. a running
+ * session that started before midnight).
  */
 export function pastDayTotals(spans: SessionSpan[], today: DayKey): Map<DayKey, number> {
   const out = new Map<DayKey, number>();
   for (const s of spans) {
-    for (const interval of workIntervals(s.startedAt, s.pauses, s.endedAt)) {
-      for (const part of splitByIstanbulDay(interval)) {
-        if (part.day < today) out.set(part.day, (out.get(part.day) ?? 0) + part.ms);
-      }
-    }
+    const day = istanbulDayKey(s.startedAt);
+    if (day < today) out.set(day, (out.get(day) ?? 0) + spanStudyMs(s));
   }
   return out;
 }
 
-/** Study time inside `[from, to)` across all spans. */
+/**
+ * Study time of the spans that started inside `[from, to)`, counted up to `to` (what a day or week
+ * total showed at the moment `to`).
+ */
 export function studiedBetween(spans: SessionSpan[], from: number, to: number): number {
   let total = 0;
   for (const s of spans) {
-    for (const i of workIntervals(s.startedAt, s.pauses, s.endedAt)) {
-      const start = Math.max(i.start, from);
-      const end = Math.min(i.end, to);
-      if (end > start) total += end - start;
-    }
+    if (s.startedAt < from || s.startedAt >= to) continue;
+    total += intervalsTotal(workIntervals(s.startedAt, s.pauses, Math.min(s.endedAt, to)));
   }
   return total;
 }
@@ -75,31 +76,20 @@ export interface DayTotal {
 
 /**
  * Totals for each day in `days` (keeps the given order; days without study are 0).
- * A session that crosses midnight counts towards both days. Each interval is first cut to the
- * asked days, so a session spanning years (a wrong device clock) costs no more than a short one.
+ * A session counts whole towards the day it started on, also when it crosses midnight. Sessions
+ * that started on other days are skipped before their time is summed.
  */
 export function dailyTotals(sessions: SessionSpan[], days: DayKey[]): DayTotal[] {
   const byDay = new Map<DayKey, DayTotal>();
-  let from = Infinity;
-  let to = -Infinity;
-  for (const day of days) {
-    byDay.set(day, { day, totalMs: 0, bySubject: {} });
-    from = Math.min(from, dayStartMs(day));
-    to = Math.max(to, dayStartMs(day) + DAY_MS);
-  }
+  for (const day of days) byDay.set(day, { day, totalMs: 0, bySubject: {} });
 
   for (const s of sessions) {
-    for (const interval of workIntervals(s.startedAt, s.pauses, s.endedAt)) {
-      const start = Math.max(interval.start, from);
-      const end = Math.min(interval.end, to);
-      if (end <= start) continue;
-      for (const part of splitByIstanbulDay({ start, end })) {
-        const total = byDay.get(part.day);
-        if (!total) continue;
-        total.totalMs += part.ms;
-        total.bySubject[s.subjectId] = (total.bySubject[s.subjectId] ?? 0) + part.ms;
-      }
-    }
+    const total = byDay.get(istanbulDayKey(s.startedAt));
+    if (!total) continue;
+    const ms = spanStudyMs(s);
+    if (ms <= 0) continue;
+    total.totalMs += ms;
+    total.bySubject[s.subjectId] = (total.bySubject[s.subjectId] ?? 0) + ms;
   }
   return days.map((d) => byDay.get(d)!);
 }

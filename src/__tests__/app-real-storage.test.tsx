@@ -11,7 +11,7 @@
  * Clock: 2026-10-07 09:00 Istanbul (06:00 UTC), fake timers.
  */
 
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import { AccessibilityInfo, AppState, type AppStateStatus } from 'react-native';
@@ -478,6 +478,55 @@ describe('daily goal history on the real storage', () => {
     expect(screen.getByText('Hedefi tutturduğun gün: 2/7')).toBeTruthy();
   });
 
+  it('a raise after today was met starts tomorrow: today stays met, the sheet and Ayarlar say so', async () => {
+    saveSession(day('today', '2026-10-07T04:00:00Z'), T0); // 07:00–08:10 Istanbul, 70 min
+    kv.storeDailyGoal(60, '2026-10-01');
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
+    fireEvent.press(screen.getByTestId('goal-edit'));
+    expect(screen.queryByTestId('goal-starts-tomorrow')).toBeNull();
+    fireEvent.press(screen.getByTestId('goal-preset-120'));
+    await settle();
+    expect(screen.getByTestId('goal-starts-tomorrow').props.children).toBe(
+      'Bugünkü hedefin tuttu, yeni hedef yarın başlar.',
+    );
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    await settle();
+    expect(kv.loadDailyGoal()).toBe(120);
+    expect(kv.loadDailyGoalHistory()).toEqual([
+      { from: '2026-10-01', minutes: 60 },
+      { from: '2026-10-08', minutes: 120 },
+    ]);
+    expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
+    expect(screen.getByTestId('streak').props.children).toBe('Seri: 1 gün');
+    // The widget judges today by today's goal too.
+    expect(mockSurfaces.widget[0].props.goalLine).toBe('Hedef tamam');
+    act(() => router.push('/ayarlar'));
+    expect(screen.getByTestId('settings-goal-starts-tomorrow')).toBeTruthy();
+  });
+
+  it('a raise before today is met, and a lowering after it, apply today', async () => {
+    saveSession({ ...day('today', '2026-10-07T04:00:00Z'), endedAt: Date.parse('2026-10-07T04:50:00Z'), durationMs: 50 * MIN }, T0);
+    kv.storeDailyGoal(60, '2026-10-01');
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('goal-edit'));
+    fireEvent.press(screen.getByTestId('goal-preset-120'));
+    await settle();
+    expect(screen.queryByTestId('goal-starts-tomorrow')).toBeNull();
+    expect(kv.loadDailyGoalHistory()).toEqual([
+      { from: '2026-10-01', minutes: 60 },
+      { from: '2026-10-07', minutes: 120 },
+    ]);
+    fireEvent.press(screen.getByTestId('goal-sheet-minus'));
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    await settle();
+    expect(kv.loadDailyGoalHistory()).toEqual([
+      { from: '2026-10-01', minutes: 60 },
+      { from: '2026-10-07', minutes: 105 },
+    ]);
+    expect(screen.getByTestId('goal-progress').props.children).toContain('1 sa 45 dk');
+  });
+
   it('a change just after midnight is noted on the new day, though the idle clock still shows the old one', async () => {
     kv.storeDailyGoal(60, '2026-10-01');
     jest.setSystemTime(Date.parse('2026-10-07T20:59:30Z')); // 23:59:30 Istanbul
@@ -631,6 +680,39 @@ describe('backup screen on the real storage', () => {
 });
 
 describe('timer on the real storage', () => {
+  it('a session 23:30–00:45 counts 75 min on the day it started: summary, Geçmiş, streak, week', () => {
+    kv.storeDailyGoal(75, '2026-10-01');
+    const startAt = Date.parse('2026-10-06T20:30:00Z'); // Tue 23:30 Istanbul
+    jest.setSystemTime(startAt);
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    start();
+    at(startAt + 75 * MIN); // Wed 00:45
+    finish();
+    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 1 sa 15 dk');
+    expect(screen.getByTestId('finish-yesterday').props.children).toBe('Dünün çalışmasına eklendi.');
+    // Nothing of it on today's goal, so no "Hedef: %0 → %0".
+    expect(screen.getByTestId('finish-detail').props.children).not.toContain('Hedef:');
+    expect(screen.getByTestId('today-total').props.children).toBe('0 dk');
+    // Tuesday met the 75 min goal with this one session; Wednesday is not over.
+    expect(screen.getByTestId('streak').props.children).toBe('Seri: 1 gün');
+
+    const id = allSessions()[0].id;
+    act(() => router.push('/gecmis'));
+    // One day card (Tuesday), its total, subject line and session row all 1 sa 15 dk.
+    expect(screen.queryByTestId('history-sessions-2026-10-07')).toBeNull();
+    fireEvent.press(screen.getByTestId('history-sessions-2026-10-06'));
+    expect(within(screen.getByTestId(`history-session-${id}`)).getByText('1 sa 15 dk')).toBeTruthy();
+    expect(screen.getAllByText('1 sa 15 dk')).toHaveLength(3);
+    expect(screen.queryByText('30 dk')).toBeNull();
+    expect(screen.queryByText('45 dk')).toBeNull();
+
+    act(() => router.push('/haftalik'));
+    expect(screen.getByTestId('weekly-total').props.children).toBe('1 sa 15 dk');
+    expect(screen.getByTestId('weekly-longest').props.children).toBe('1 sa 15 dk');
+    expect(screen.getByTestId('monthly-day-2026-10-06').props.accessibilityLabel).toContain('1 sa 15 dk');
+    expect(screen.getByTestId('monthly-day-2026-10-07').props.accessibilityLabel).toContain('çalışma yok');
+  });
+
   it('heartbeat: every 5 s while running the stored session records the time; not while paused', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     start();
@@ -747,7 +829,7 @@ describe('timer on the real storage', () => {
     expect(storedActive()?.pendingAway).toBeNull();
   });
 
-  it('a session over 24 hours: asked, saved whole, split at midnight and kept in the backup', async () => {
+  it('a session over 24 hours: asked, saved whole on the day it started and kept in the backup', async () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     start();
     at(T0 + 25 * HOUR);
@@ -757,8 +839,9 @@ describe('timer on the real storage', () => {
     fireEvent.press(screen.getByTestId('finish-long-all'));
     expect(allSessions()).toHaveLength(1);
     expect(allSessions()[0]).toMatchObject({ startedAt: T0, endedAt: T0 + 25 * HOUR, durationMs: 25 * HOUR });
-    // Today (8 Oct, Istanbul) holds only the part after midnight: 00:00 → 10:00.
-    expect(screen.getByTestId('today-total').props.children).toBe('10 sa 0 dk');
+    // All of it went to 7 Oct, the day it started: today (8 Oct, Istanbul) holds none of it.
+    expect(screen.getByTestId('today-total').props.children).toBe('0 dk');
+    expect(screen.getByTestId('finish-yesterday')).toBeTruthy();
 
     act(() => router.push('/yedek'));
     await act(async () => {
