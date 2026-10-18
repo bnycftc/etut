@@ -1,0 +1,669 @@
+# Ayarlar: her satıra gir. Env (akış başlığından): P, NOTIF, EXAM, AREA, ALT.
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+---
+- tapOn:
+    id: tab-settings
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: settings-screen
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-70-ayarlar-ust
+- tapOn:
+    id: settings-exam-type-${ALT}
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-71-sinav-degisti-secim
+- scrollUntilVisible:
+    element:
+      id: settings-exam-save
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: settings-exam-save
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-72-sinav-kaydet-alansiz
+- runFlow:
+    when:
+      true: ${ALT == "YKS"}
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: settings-yks-area-esit_agirlik
+        direction: UP
+        centerElement: true
+        timeout: 10000
+        optional: true
+    - tapOn:
+        id: settings-yks-area-esit_agirlik
+        optional: true
+    - scrollUntilVisible:
+        element:
+          id: settings-exam-save
+        direction: DOWN
+        centerElement: true
+        timeout: 10000
+        optional: true
+    - tapOn:
+        id: settings-exam-save
+        optional: true
+    - takeScreenshot: ${P}-72b-sinav-yks-ea
+- tapOn:
+    id: tab-timer
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: ${P}-73-sayac-baska-sinavla
+- tapOn:
+    id: tab-exams
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    id: exams-add
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: ${P}-73b-deneme-turleri-baska-sinav
+- tapOn:
+    id: exam-cancel
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn:
+    id: tab-settings
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: settings-exam-type-${EXAM}
+    direction: UP
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: settings-exam-type-${EXAM}
+    optional: true
+- runFlow:
+    when:
+      true: ${EXAM == "YKS"}
+    commands:
+    - tapOn:
+        id: settings-yks-area-${AREA}
+        optional: true
+- scrollUntilVisible:
+    element:
+      id: settings-exam-save
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: settings-exam-save
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: settings-exam-saved
+    timeout: 10000
+    optional: true
+- takeScreenshot: ${P}-74-sinav-geri-alindi
+- scrollUntilVisible:
+    element:
+      id: settings-exam-date-input
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: settings-exam-date-input
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- inputText:
+    text: 32.13.2020
+    optional: true
+- pressKey: Enter
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-75-tarih-gecersiz
+- tapOn:
+    id: settings-exam-date-input
+    optional: true
+- eraseText:
+    charactersToErase: 12
+    optional: true
+- inputText:
+    text: çğıİöşü
+    optional: true
+- takeScreenshot: ${P}-75b-tarih-turkce-karakter
+- pressKey: Enter
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-75c-tarih-turkce-sonra
+- tapOn:
+    id: settings-exam-date-input
+    optional: true
+- eraseText:
+    charactersToErase: 12
+    optional: true
+- inputText:
+    text: 15.06.${new Date().getFullYear() + 1}
+    optional: true
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      id: settings-exam-date
+      text: .*${new Date().getFullYear() + 1}.*
+    timeout: 15000
+    optional: true
+- takeScreenshot: ${P}-76-tarih-gecerli
+- tapOn:
+    id: tab-timer
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: countdown
+    timeout: 15000
+    optional: true
+- takeScreenshot: ${P}-76b-geri-sayim
+- tapOn:
+    id: tab-settings
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: settings-exam-date-reset
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: settings-exam-date-reset
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-76c-tarih-sifirlandi
+- scrollUntilVisible:
+    element:
+      id: settings-goal-(plus|on)
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: settings-goal-plus
+    optional: true
+- tapOn:
+    id: settings-goal-plus
+    optional: true
+- tapOn:
+    id: settings-goal-minus
+    optional: true
+- takeScreenshot: ${P}-77-hedef-ayar
+- tapOn:
+    id: settings-goal-off
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-77b-hedef-kapali
+- tapOn:
+    id: settings-goal-on
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-77c-hedef-acik
+- scrollUntilVisible:
+    element:
+      id: settings-pomodoro-reset
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: settings-pomodoro-preset-.*
+    index: 1
+    optional: true
+- tapOn:
+    id: settings-pomodoro-.*-plus
+    index: 0
+    optional: true
+- takeScreenshot: ${P}-78-pomodoro-ayar
+- tapOn:
+    id: settings-pomodoro-reset
+    optional: true
+- takeScreenshot: ${P}-78b-pomodoro-sifir
+- scrollUntilVisible:
+    element:
+      id: settings-away-info
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- takeScreenshot: ${P}-79-sayac-ayar
+- tapOn:
+    id: settings-keep-awake-on
+    optional: true
+- tapOn:
+    id: settings-away-ask
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-79b-sayac-ayar-sor
+- tapOn:
+    id: settings-keep-awake-off
+    optional: true
+- tapOn:
+    id: settings-away-count
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: settings-reminders
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- takeScreenshot: ${P}-80-hatirlatici-satiri
+- tapOn:
+    id: settings-reminders
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: reminders-screen
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-80b-hatirlaticilar
+- tapOn:
+    id: reminder-daily-toggle
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: ${P}-80c-gunluk-dokununca
+- runFlow:
+    when:
+      visible:
+        id: notification-permission-allow
+    commands:
+    - takeScreenshot: ${P}-80d-izin-aciklama
+    - tapOn:
+        id: notification-permission-allow
+        optional: true
+    - waitForAnimationToEnd:
+        timeout: 5000
+    - takeScreenshot: ${P}-80e-sistem-izin
+    - tapOn:
+        text: İzin Ver|Allow
+        optional: true
+    - waitForAnimationToEnd:
+        timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: reminders-screen
+    timeout: 20000
+    optional: true
+- takeScreenshot: ${P}-80f-izin-sonrasi
+- runFlow:
+    when:
+      visible:
+        id: reminders-permission
+    commands:
+    - tapOn:
+        id: reminders-permission
+        optional: true
+    - waitForAnimationToEnd:
+        timeout: 5000
+    - tapOn:
+        text: İzin Ver|Allow
+        optional: true
+    - waitForAnimationToEnd:
+        timeout: 5000
+    - takeScreenshot: ${P}-80g-izin-ver-dugmesi
+- runFlow:
+    when:
+      visible:
+        id: reminder-daily-toggle
+        checked: false
+    commands:
+    - tapOn:
+        id: reminder-daily-toggle
+        optional: true
+    - waitForAnimationToEnd:
+        timeout: 3000
+- tapOn:
+    id: reminder-daily-hour-plus
+    optional: true
+- tapOn:
+    id: reminder-daily-minute-plus
+    optional: true
+- takeScreenshot: ${P}-81-gunluk-saat
+- tapOn:
+    id: reminder-long-toggle
+    optional: true
+- tapOn:
+    id: reminder-long-hours-plus
+    optional: true
+- takeScreenshot: ${P}-81b-uzun-oturum
+- scrollUntilVisible:
+    element:
+      id: reminder-exam-toggle
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: reminder-pomodoro-toggle
+    optional: true
+- tapOn:
+    id: reminder-exam-toggle
+    optional: true
+- takeScreenshot: ${P}-81c-hatirlatici-alt
+- tapOn:
+    id: reminder-exam-toggle
+    optional: true
+- runFlow:
+    file: geri.yaml
+- tapOn:
+    id: tab-settings
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: settings-reminders-summary
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- takeScreenshot: ${P}-82-hatirlatici-ozet
+- scrollUntilVisible:
+    element:
+      id: settings-open-backup
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: settings-open-backup
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: backup-export
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-83-yedek
+- tapOn:
+    id: backup-export
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 8000
+- takeScreenshot: ${P}-83b-yedek-paylasim
+- tapOn:
+    point: 50%,8%
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: backup-export
+    commands:
+    - swipe:
+        start: 50%, 55%
+        end: 50%, 98%
+        duration: 400
+        optional: true
+- extendedWaitUntil:
+    visible:
+      id: backup-message
+    timeout: 20000
+    optional: true
+- takeScreenshot: ${P}-83c-yedek-mesaj
+- scrollUntilVisible:
+    element:
+      id: csv-exams
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: csv-sessions
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 8000
+- takeScreenshot: ${P}-84-csv-paylasim
+- tapOn:
+    point: 50%,8%
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: csv-sessions
+    commands:
+    - swipe:
+        start: 50%, 55%
+        end: 50%, 98%
+        duration: 400
+        optional: true
+- scrollUntilVisible:
+    element:
+      id: backup-import
+    direction: UP
+    centerElement: true
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: backup-import
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 8000
+- takeScreenshot: ${P}-85-ice-aktar-secici
+- tapOn:
+    text: Vazgeç|İptal|Cancel
+    index: 0
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: ${P}-85b-ice-aktar-iptal
+- runFlow:
+    file: geri.yaml
+- tapOn:
+    id: tab-settings
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: settings-open-guide
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- assertNotVisible:
+    id: settings-privacy
+    optional: true
+- takeScreenshot: ${P}-86-yardim-karti
+- tapOn:
+    id: settings-open-guide
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: guide-screen
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-86b-rehber-ust
+- scrollUntilVisible:
+    element:
+      id: guide-close
+    direction: DOWN
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-86c-rehber-alt
+- tapOn:
+    id: guide-close
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- scrollUntilVisible:
+    element:
+      id: settings-feedback
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- takeScreenshot: ${P}-87-oneri
+- tapOn:
+    id: settings-feedback
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: ${P}-87b-oneri-dokununca
+- runFlow:
+    when:
+      notVisible:
+        id: settings-screen
+    commands:
+    - tapOn:
+        text: Vazgeç|İptal|Cancel|Tamam|OK
+        index: 0
+        optional: true
+- scrollUntilVisible:
+    element:
+      id: settings-open-about
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- takeScreenshot: ${P}-88-surum-satiri
+- tapOn:
+    id: settings-open-about
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: about-screen
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-89-hakkinda-ust
+- scrollUntilVisible:
+    element:
+      id: about-controller
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- takeScreenshot: ${P}-89b-hakkinda-sorumlu
+- runFlow:
+    file: yasal.yaml
+    env:
+      IDX: '0'
+- runFlow:
+    file: yasal.yaml
+    env:
+      IDX: '1'
+- runFlow:
+    file: yasal.yaml
+    env:
+      IDX: '2'
+- runFlow:
+    file: yasal.yaml
+    env:
+      IDX: '3'
+- scrollUntilVisible:
+    element:
+      id: about-licenses
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: about-licenses
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: licenses-screen
+    timeout: 30000
+    optional: true
+- takeScreenshot: ${P}-90-lisanslar
+- tapOn:
+    id: license-.*
+    index: 0
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: ${P}-90b-lisans-acik
+- tapOn:
+    text: Geri|Back
+    index: 0
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: about-screen
+    timeout: 20000
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: about-contact
+    direction: UP
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: about-contact
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: ${P}-91-iletisim
+- runFlow:
+    when:
+      notVisible:
+        id: about-screen
+    commands:
+    - tapOn:
+        text: Vazgeç|İptal|Cancel|Tamam|OK
+        index: 0
+        optional: true
+- tapOn:
+    id: about-open-guide
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: ${P}-91b-hakkinda-rehber
+- tapOn:
+    id: guide-close
+    optional: true
+- runFlow:
+    file: geri.yaml
+- tapOn:
+    id: tab-settings
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: settings-show-tips
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: settings-show-tips
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: tips-(next|done)
+    timeout: 60000
+    optional: true
+- takeScreenshot: ${P}-92-ipucu-1
+- tapOn:
+    id: tips-next
+    optional: true
+- takeScreenshot: ${P}-92b-ipucu-2
+- tapOn:
+    id: tips-next
+    optional: true
+- takeScreenshot: ${P}-92c-ipucu-3
+- tapOn:
+    id: tips-done
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-screen
+    timeout: 20000
+    optional: true
+- takeScreenshot: ${P}-92d-ipucu-sonra

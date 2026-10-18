@@ -1,0 +1,60 @@
+# İlk açılış: doğum yılı (bu yıl - AGE), YKS, alan AREA; ipuçlarını geç. Env: AGE, AREA.
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+---
+- extendedWaitUntil:
+    visible:
+      id: onboarding-screen
+    timeout: 90000
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: birth-year-${new Date().getFullYear() - Number(AGE)}
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: birth-year-${new Date().getFullYear() - Number(AGE)}
+    retryTapIfNoChange: true
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: exam-type-YKS
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: exam-type-YKS
+    retryTapIfNoChange: true
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: yks-area-${AREA}
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: yks-area-${AREA}
+    retryTapIfNoChange: true
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+      enabled: true
+    timeout: 30000
+    optional: true
+- tapOn:
+    id: onboarding-start
+    retryTapIfNoChange: true
+    optional: true
+- runFlow:
+    file: ipucu-gec.yaml

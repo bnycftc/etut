@@ -1,0 +1,688 @@
+# P1 Elif, 17, YKS Sayısal: bir öğrencinin günü (keşif; her adım isteğe bağlı).
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+env:
+  P: p1
+  NOTIF: allow
+  AGE: '17'
+  EXAM: YKS
+  AREA: sayisal
+  ALT: LGS
+  YEDEK: '1'
+---
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+- extendedWaitUntil:
+    visible:
+      id: onboarding-screen
+    timeout: 120000
+    optional: true
+- takeScreenshot: p1-01-onboarding-bos
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- assertVisible:
+    id: onboarding-start
+    enabled: false
+    optional: true
+- tapOn:
+    id: onboarding-start
+    optional: true
+- assertVisible:
+    id: onboarding-missing
+    optional: true
+- takeScreenshot: p1-02-onboarding-eksik
+- scrollUntilVisible:
+    element:
+      id: birth-year-more
+    direction: UP
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: birth-year-more
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: p1-03-onboarding-eski-yillar
+- scrollUntilVisible:
+    element:
+      id: exam-type-YKS
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+    optional: true
+- takeScreenshot: p1-03b-onboarding-eski-yillar-sonu
+- tapOn:
+    id: exam-type-YKS
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- takeScreenshot: p1-04-onboarding-alan-eksik
+- scrollUntilVisible:
+    element:
+      id: birth-year-${new Date().getFullYear() - 17}
+    direction: UP
+    centerElement: true
+    timeout: 30000
+    optional: true
+- tapOn:
+    id: birth-year-${new Date().getFullYear() - 17}
+    retryTapIfNoChange: true
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: yks-area-sayisal
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: yks-area-sayisal
+    retryTapIfNoChange: true
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: onboarding-goal-180
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: onboarding-goal-180
+    optional: true
+- takeScreenshot: p1-05-onboarding-dolu
+- scrollUntilVisible:
+    element:
+      id: onboarding-privacy
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: onboarding-privacy
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: legal-aydinlatma
+    timeout: 30000
+    optional: true
+- takeScreenshot: p1-06-aydinlatma
+- tapOn:
+    text: Geri|Back
+    index: 0
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-screen
+    timeout: 20000
+    optional: true
+- takeScreenshot: p1-06b-aydinlatmadan-donus-secimler-korundu
+- scrollUntilVisible:
+    element:
+      id: onboarding-start
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+      enabled: true
+    timeout: 30000
+    optional: true
+- tapOn:
+    id: onboarding-start
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: tips-(next|done)
+    timeout: 60000
+    optional: true
+- takeScreenshot: p1-07-ipucu-1
+- tapOn:
+    id: tips-next
+    optional: true
+- takeScreenshot: p1-07b-ipucu-2
+- tapOn:
+    id: tips-next
+    optional: true
+- takeScreenshot: p1-07c-ipucu-3
+- tapOn:
+    id: tips-done
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-start
+    timeout: 30000
+    optional: true
+- takeScreenshot: p1-08-sayac-ilk
+- assertVisible:
+    id: tab-groups
+    optional: true
+- runFlow:
+    file: subflows/sayac.yaml
+    env:
+      SUBJ: matematik
+      SUBJ2: fizik
+- tapOn:
+    id: subject-matematik
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: timer-start
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: timer-start
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: 0:(0[3-9]|[1-5][0-9])
+    timeout: 45000
+    optional: true
+- pressKey: Home
+- runFlow:
+    file: subflows/bekle.yaml
+    env:
+      SEC: '3'
+- swipe:
+    start: 15%, 0%
+    end: 15%, 70%
+    duration: 600
+    optional: true
+- runFlow:
+    file: subflows/bekle.yaml
+    env:
+      SEC: '3'
+- takeScreenshot: p1-24-kilit-ekrani-canli-etkinlik
+- swipe:
+    start: 50%, 99%
+    end: 50%, 20%
+    duration: 400
+    optional: true
+- launchApp:
+    stopApp: false
+    permissions:
+      notifications: allow
+- extendedWaitUntil:
+    visible:
+      id: timer-finish
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: away-credit
+    commands:
+    - tapOn:
+        id: away-credit
+        optional: true
+- tapOn:
+    id: timer-finish
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-saved
+    timeout: 30000
+    optional: true
+- runFlow:
+    file: subflows/hedef.yaml
+    env:
+      PRESET: '60'
+- runFlow:
+    file: subflows/elle.yaml
+    env:
+      SUBJ: kimya
+      H: '0'
+      M: '55'
+- runFlow:
+    file: subflows/geri.yaml
+- scrollUntilVisible:
+    element:
+      id: goal-progress
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- takeScreenshot: p1-46-hedef-elle-sonrasi
+- scrollUntilVisible:
+    element:
+      id: timer-start
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: timer-start
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: '[2-9]:[0-5][0-9]'
+    timeout: 240000
+    optional: true
+- tapOn:
+    id: timer-finish
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-saved
+    timeout: 30000
+    optional: true
+- takeScreenshot: p1-47-hedef-doldu-kutlama
+- assertVisible:
+    id: finish-goal-reached
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: timer-start
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: timer-start
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+      text: 0:(1[0-9]|[2-5][0-9])
+    timeout: 45000
+    optional: true
+- tapOn:
+    id: timer-finish
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-saved
+    timeout: 30000
+    optional: true
+- takeScreenshot: p1-48-hedef-sonrasi-ikinci-oturum
+- assertNotVisible:
+    id: finish-goal-reached
+    optional: true
+- tapOn:
+    id: tab-exams
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exams-screen
+    timeout: 30000
+    optional: true
+- takeScreenshot: p1-100-denemeler-bos
+- tapOn:
+    id: exams-add
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exam-kind-TYT
+    timeout: 30000
+    optional: true
+- takeScreenshot: p1-101-deneme-turleri
+- tapOn:
+    id: exam-kind-TYT
+    optional: true
+- takeScreenshot: p1-102-tyt-form
+- scrollUntilVisible:
+    element:
+      id: exam-save
+    direction: DOWN
+    timeout: 30000
+    optional: true
+- tapOn:
+    id: exam-save
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: p1-103-tyt-bos-kaydet
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-correct-turkce
+      V: '30'
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-wrong-turkce
+      V: '8'
+- assertVisible:
+    id: exam-net-turkce
+    text: '28'
+    optional: true
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-correct-matematik
+      V: '25'
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-wrong-matematik
+      V: '10'
+- assertVisible:
+    id: exam-net-matematik
+    text: 22,5
+    optional: true
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-correct-fizik
+      V: '9'
+- takeScreenshot: p1-104-tyt-fazla-soru-hatasi
+- tapOn:
+    id: exam-save
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: p1-105-tyt-fazla-ile-kaydet
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-correct-fizik
+      V: '5'
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-wrong-fizik
+      V: '2'
+- assertVisible:
+    id: exam-net-fizik
+    text: 4,5
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: exam-total-net
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- assertVisible:
+    id: exam-total-net
+    text: '55'
+    optional: true
+- takeScreenshot: p1-106-tyt-toplam
+- scrollUntilVisible:
+    element:
+      id: exam-save
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: exam-save
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exams-saved-title
+    timeout: 30000
+    optional: true
+- assertVisible:
+    id: exams-saved-title
+    text: 55 net kaydedildi
+    optional: true
+- takeScreenshot: p1-107-tyt-kaydedildi
+- tapOn:
+    id: exams-add
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exam-kind-TYT
+    timeout: 30000
+    optional: true
+- tapOn:
+    id: exam-kind-TYT
+    optional: true
+- tapOn:
+    id: exam-day-yesterday
+    optional: true
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-correct-turkce
+      V: '20'
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-wrong-turkce
+      V: '4'
+- scrollUntilVisible:
+    element:
+      id: exam-save
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- assertVisible:
+    id: exam-total-net
+    text: '19'
+    optional: true
+- tapOn:
+    id: exam-save
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exams-saved-title
+    timeout: 30000
+    optional: true
+- takeScreenshot: p1-108-iki-deneme
+- scrollUntilVisible:
+    element:
+      id: exams-chart
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- takeScreenshot: p1-109-grafik
+- scrollUntilVisible:
+    element:
+      id: exam-item-1
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+    optional: true
+- takeScreenshot: p1-110-liste
+- tapOn:
+    id: exam-item-0
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exam-detail-total
+    timeout: 30000
+    optional: true
+- takeScreenshot: p1-111-deneme-ayrinti
+- scrollUntilVisible:
+    element:
+      id: exam-open-analysis
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: exam-open-analysis
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: p1-112-analiz
+- tapOn:
+    id: analysis-kind-.*-wrong
+    index: 0
+    optional: true
+- tapOn:
+    id: analysis-add-topic-.*
+    index: 0
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: p1-113-analiz-konu-ekle
+- tapOn:
+    id: analysis-add-.*
+    index: 0
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: analysis-save
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- takeScreenshot: p1-114-analiz-kaydet-oncesi
+- tapOn:
+    id: analysis-save
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: p1-115-analiz-kaydedildi
+- runFlow:
+    when:
+      notVisible:
+        id: exam-detail-total
+    commands:
+    - tapOn:
+        text: Geri|Back
+        index: 0
+        optional: true
+- extendedWaitUntil:
+    visible:
+      id: exam-detail-total
+    timeout: 20000
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: exam-edit
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: exam-edit
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exam-form
+    timeout: 30000
+    optional: true
+- runFlow:
+    file: subflows/alan.yaml
+    env:
+      F: exam-wrong-turkce
+      V: '0'
+- scrollUntilVisible:
+    element:
+      id: exam-total-net
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- assertVisible:
+    id: exam-total-net
+    text: '57'
+    optional: true
+- takeScreenshot: p1-116-duzenle
+- tapOn:
+    id: exam-cancel
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: p1-117-vazgec-sorusu
+- tapOn:
+    id: exam-discard-stay
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: exam-save
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- tapOn:
+    id: exam-save
+    retryTapIfNoChange: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exam-detail-total
+      text: '57'
+    timeout: 30000
+    optional: true
+- takeScreenshot: p1-118-duzenlendi
+- scrollUntilVisible:
+    element:
+      text: Sil
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    text: Sil
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: p1-119-sil-sorusu
+- scrollUntilVisible:
+    element:
+      text: Sil
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    text: Sil
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: exams-screen
+    timeout: 30000
+    optional: true
+- takeScreenshot: p1-120-silindi-liste
+- runFlow:
+    file: subflows/istatistik.yaml
+    env:
+      SUBJ: matematik
+- runFlow:
+    file: subflows/paylas.yaml
+- runFlow:
+    file: subflows/gruplar.yaml
+- assertVisible:
+    id: groups-teaser-parent
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: groups-teaser-parent
+    direction: UP
+    centerElement: true
+    timeout: 20000
+    optional: true
+- takeScreenshot: p1-68-gruplar-veli-bolumu
+- runFlow:
+    file: subflows/ayarlar.yaml
+- runFlow:
+    file: subflows/sil.yaml
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+- takeScreenshot: p1-98-yeniden-kurulum
+- tapOn:
+    id: tab-exams
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: p1-99-yeniden-kurulum-denemeler-bos
