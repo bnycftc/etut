@@ -5,7 +5,6 @@
 
 const KEYS = [
   'EXPO_PUBLIC_DATA_CONTROLLER_NAME',
-  'EXPO_PUBLIC_DATA_CONTROLLER_ADDRESS',
   'EXPO_PUBLIC_DATA_CONTROLLER_CONTACT',
 ] as const;
 
@@ -31,7 +30,6 @@ it('without the build variables every field is the placeholder', () => {
   const { DATA_CONTROLLER, DATA_CONTROLLER_PLACEHOLDER } = loadStrings({});
   expect(DATA_CONTROLLER).toEqual({
     name: DATA_CONTROLLER_PLACEHOLDER,
-    address: DATA_CONTROLLER_PLACEHOLDER,
     contact: DATA_CONTROLLER_PLACEHOLDER,
   });
 });
@@ -39,11 +37,12 @@ it('without the build variables every field is the placeholder', () => {
 it('the release build shows the values it was built with, in the legal texts too', () => {
   const { DATA_CONTROLLER, tr } = loadStrings({
     EXPO_PUBLIC_DATA_CONTROLLER_NAME: 'Ad Soyad',
-    EXPO_PUBLIC_DATA_CONTROLLER_ADDRESS: 'İlçe / İl',
     EXPO_PUBLIC_DATA_CONTROLLER_CONTACT: 'destek@ornek.com',
   });
-  expect(DATA_CONTROLLER).toEqual({ name: 'Ad Soyad', address: 'İlçe / İl', contact: 'destek@ornek.com' });
+  expect(DATA_CONTROLLER).toEqual({ name: 'Ad Soyad', contact: 'destek@ornek.com' });
   const legal = JSON.stringify(tr);
-  expect(legal).toContain('Ad Soyad · İlçe / İl · destek@ornek.com');
+  expect(legal).toContain('Ad Soyad · destek@ornek.com');
+  // No postal address and no letter route: contact is by e-mail only (bny, 18 Oct 2026).
+  expect(legal).not.toMatch(/mektup|Adres:/);
   expect(legal).not.toContain('[DOLDURULACAK]');
 });

@@ -21,8 +21,8 @@ name: TestFlight
 # Apple refuses, register them once by hand (README, "App Store Connect'te elle yapılacaklar").
 #
 # Gate (job "gate", ubuntu, before any macOS minute): a tag v<x.y.z> must equal app.json
-# expo.version; without internal_only only main or a v* tag on main may build; npm ci, tsc and jest
-# must pass.
+# expo.version; without internal_only only main, a v* tag on main or a release/<version> branch
+# whose <version> equals app.json expo.version may build; npm ci, tsc and jest must pass.
 #
 # Required repository secrets: ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY (raw .p8 text or base64 of it).
 # The API key needs the Admin role: cloud-managed distribution signing is refused for other roles.
@@ -32,7 +32,7 @@ on:
   workflow_dispatch:
     inputs:
       internal_only:
-        description: "Internal TestFlight testing only: allow the [DOLDURULACAK] legal placeholders and a ref other than main. Such a build must never go to external testing or App Review."
+        description: "Internal TestFlight testing only: allow the [DOLDURULACAK] legal placeholders and a ref other than main or release/<version>. Such a build must never go to external testing or App Review."
         type: boolean
         default: false
   push:
@@ -68,7 +68,8 @@ jobs:
           fetch-depth: 0
 
       # App Store Connect can send any uploaded build to external testing or App Review, so only
-      # the release line uploads: main, or a v* tag on a commit of main whose version is the app's.
+      # the release line uploads: main, a v* tag on a commit of main whose version is the app's, or
+      # the release/<version> branch of the version under review (<version> = app.json expo.version).
       - name: Release ref and version
         env:
           INTERNAL_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.internal_only }}
@@ -90,12 +91,16 @@ jobs:
           fi
           case "$GITHUB_REF" in
             refs/heads/main) ;;
+            refs/heads/release/*)
+              [ "${GITHUB_REF_NAME#release/}" = "$app_version" ] \
+                || { echo "::error::Branch $GITHUB_REF_NAME does not match app.json expo.version $app_version (expected release/$app_version)"; exit 1; }
+              ;;
             refs/tags/v*)
               git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
                 || { echo "::error::Tag $GITHUB_REF_NAME is not on main. Tag a commit of main, or run manually with internal_only."; exit 1; }
               ;;
             *)
-              echo "::error::$GITHUB_REF is neither main nor a v* tag. Run from main, or manually with internal_only for internal testing."
+              echo "::error::$GITHUB_REF is neither main, release/$app_version nor a v* tag. Run from one of them, or manually with internal_only for internal testing."
               exit 1
               ;;
           esac
@@ -124,7 +129,7 @@ jobs:
 
       # No build may reach App Store Connect with the data controller left as a placeholder
       # (KVKK m.10/a, K-31, K-38): App Store Connect can send any uploaded build to external
-      # testing or App Review, whatever started it. The real name, postal address and e-mail are
+      # testing or App Review, whatever started it. The real name and e-mail are
       # not in this public repository (src/strings.ts DATA_CONTROLLER): they come from these
       # secrets and are inlined into the JS bundle by the archive step. Only a manual run with
       # internal_only ticked passes without them, and says so in the run summary.
@@ -132,17 +137,16 @@ jobs:
         env:
           INTERNAL_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.internal_only }}
           DC_NAME: ${{ secrets.DATA_CONTROLLER_NAME }}
-          DC_ADDRESS: ${{ secrets.DATA_CONTROLLER_ADDRESS }}
           DC_CONTACT: ${{ secrets.DATA_CONTROLLER_CONTACT }}
         run: |
           missing=""
-          for name in DC_NAME DC_ADDRESS DC_CONTACT; do [ -n "${!name}" ] || missing="$missing $name"; done
+          for name in DC_NAME DC_CONTACT; do [ -n "${!name}" ] || missing="$missing $name"; done
           if [ -n "$missing" ]; then
             if [ "$INTERNAL_ONLY" = "true" ]; then
               echo "::warning::Data controller secrets missing:$missing. Internal TestFlight only: do NOT add build $BUILD_NUMBER to an external group or submit it for review."
               echo "Build $BUILD_NUMBER: internal TestFlight only (data controller placeholders). Never send it to external testing or App Review." >> "$GITHUB_STEP_SUMMARY"
             else
-              echo "::error::Data controller secrets missing:$missing (DATA_CONTROLLER_NAME / _ADDRESS / _CONTACT). Set them, or run manually with internal_only for internal testing."
+              echo "::error::Data controller secrets missing:$missing (DATA_CONTROLLER_NAME / _CONTACT). Set them, or run manually with internal_only for internal testing."
               exit 1
             fi
           fi
@@ -273,7 +277,6 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           # Inlined by Metro into the JS bundle (the "Bundle React Native code" phase of the archive).
           EXPO_PUBLIC_DATA_CONTROLLER_NAME: ${{ secrets.DATA_CONTROLLER_NAME }}
-          EXPO_PUBLIC_DATA_CONTROLLER_ADDRESS: ${{ secrets.DATA_CONTROLLER_ADDRESS }}
           EXPO_PUBLIC_DATA_CONTROLLER_CONTACT: ${{ secrets.DATA_CONTROLLER_CONTACT }}
         run: |
           set -o pipefail
@@ -422,7 +425,7 @@ jobs:
           mkdir -p build
           find "${TMPDIR:-/tmp}" -maxdepth 1 -name '*.xcdistributionlogs' -exec cp -R {} build/ \; || true
 
-      # The archive step's environment holds the data controller's name, postal address and e-mail
+      # The archive step's environment holds the data controller's name and e-mail
       # (secrets, kept out of this public repository), and Xcode writes the environment of every
       # script phase into the raw log ("export NAME\=value", spaces escaped with a backslash).
       # GitHub masks secrets in the console only, not inside uploaded files: replace the values
@@ -432,14 +435,13 @@ jobs:
         if: failure()
         env:
           DC_NAME: ${{ secrets.DATA_CONTROLLER_NAME }}
-          DC_ADDRESS: ${{ secrets.DATA_CONTROLLER_ADDRESS }}
           DC_CONTACT: ${{ secrets.DATA_CONTROLLER_CONTACT }}
         run: |
           python3 - <<'PY'
           import glob, os, re
-          values = [os.environ.get(k, "") for k in ("DC_NAME", "DC_ADDRESS", "DC_CONTACT")]
-          # Each value whole and each of its lines (a multi-line address), longest first, with an
-          # optional backslash before every character.
+          values = [os.environ.get(k, "") for k in ("DC_NAME", "DC_CONTACT")]
+          # Each value whole and each of its lines, longest first, with an optional backslash before
+          # every character.
           parts = sorted({p.strip() for v in values for p in [v, *v.splitlines()] if len(p.strip()) >= 3}, key=len, reverse=True)
           patterns = [re.compile(r"\\?".join(re.escape(ch) for ch in p)) for p in parts]
           env_line = re.compile(r"(EXPO_PUBLIC_DATA_CONTROLLER_[A-Z]+\\?=).*")

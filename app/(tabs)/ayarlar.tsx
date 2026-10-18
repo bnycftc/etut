@@ -234,8 +234,6 @@ export default function SettingsScreen() {
               {tr.settings.examChangeSaved}
             </Label>
           ) : null}
-          {/* K-17: the declared age can not be edited; say so instead of offering a control. */}
-          <Label variant="small">{tr.settings.ageFixed}</Label>
         </Card>
       ) : null}
 

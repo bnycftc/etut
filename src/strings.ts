@@ -18,20 +18,19 @@ export const DATA_CONTROLLER_PLACEHOLDER = '[DOLDURULACAK]';
 /**
  * Data controller ("veri sorumlusu", KVKK m.10) shown in the legal texts and on Hakkında. The real
  * values are deliberately not in this public repository (bny, 11 Oct 2026): the TestFlight build
- * gets them at bundle time from the GitHub secrets DATA_CONTROLLER_NAME / _ADDRESS / _CONTACT
+ * gets them at bundle time from the GitHub secrets DATA_CONTROLLER_NAME / _CONTACT
  * (.github/workflows/testflight.yml), which Expo inlines from these EXPO_PUBLIC_ variables. Every
- * other build (tests, E2E, web) shows the placeholder.
+ * other build (tests, E2E, web) shows the placeholder. No postal address anywhere in the app: contact
+ * is by e-mail only (bny, 18 Oct 2026).
  */
 export const DATA_CONTROLLER = {
   name: process.env.EXPO_PUBLIC_DATA_CONTROLLER_NAME || DATA_CONTROLLER_PLACEHOLDER,
-  /** Postal address for written KVKK applications (Başvuru Tebliği m.5). */
-  address: process.env.EXPO_PUBLIC_DATA_CONTROLLER_ADDRESS || DATA_CONTROLLER_PLACEHOLDER,
   /** Support and KVKK application e-mail; enables the İletişim button on Hakkında. */
   contact: process.env.EXPO_PUBLIC_DATA_CONTROLLER_CONTACT || DATA_CONTROLLER_PLACEHOLDER,
 };
 
 /** Date shown as "Son güncelleme" on the legal texts. */
-export const LEGAL_UPDATED = '16 Ekim 2026';
+export const LEGAL_UPDATED = '18 Ekim 2026';
 
 export interface LegalSection {
   heading: string;
@@ -60,7 +59,7 @@ const legalDocs = {
       {
         heading: 'Kim sorumlu?',
         paragraphs: [
-          `Etüt’ü ${C.name} geliştiriyor; veri sorumlusu odur (gerçek kişi). Adres: ${C.address}. Soruların için: ${C.contact} ya da Hakkında → İletişim.`,
+          `Etüt’ü ${C.name} geliştiriyor; veri sorumlusu odur (gerçek kişi). Soruların için: ${C.contact} ya da Hakkında → İletişim.`,
         ],
       },
       {
@@ -68,8 +67,8 @@ const legalDocs = {
         paragraphs: [
           'Doğum yılın (yalnız yıl), sınav türün ve alanın; çalışma oturumların (ders, konu, başlangıç ve bitiş zamanı, molalar ve uygulamadan çıktığın süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı); konu ilerlemen; deneme netlerin ve analizlerin; günlük hedefin, derslere koyduğun haftalık hedefler, hedef netlerin ve sınav tarihin; sayaç ayarların (pomodoro, ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihlerin, en son ne zaman yedek dosyası oluşturduğun ve yedek hatırlatmasını ne zaman kapattığın.',
           // [AVUKAT TEYİDİ] Toplama yöntemi (KVKK m.10/1-ç; `docs/hukuk/kvkk/01` zorunlu unsur): otomatik
-          // (cihazda) ve otomatik olmayan (e-posta, mektup) ayrımı bu cümleyle yeterli mi.
-          'Bu bilgiler, uygulamayı kullanırken senin girdiklerinden ve sayacın tuttuğu zamanlardan oluşur; uygulama onları otomatik olarak bu telefona kaydeder. Bize e-posta ya da mektupla yazarsan yazdıkların bize otomatik olmayan yolla ulaşır.',
+          // (cihazda) ve otomatik olmayan (e-posta) ayrımı bu cümleyle yeterli mi.
+          'Bu bilgiler, uygulamayı kullanırken senin girdiklerinden ve sayacın tuttuğu zamanlardan oluşur; uygulama onları otomatik olarak bu telefona kaydeder. Bize e-postayla yazarsan yazdıkların bize otomatik olmayan yolla ulaşır.',
           'Uygulamanın hiç sormadıkları ve kaydetmedikleri: adın, e-postan, telefon numaran, okulun, konumun, fotoğrafların, rehberin, reklam kimliğin.',
         ],
       },
@@ -95,14 +94,15 @@ const legalDocs = {
           // §1.1'e göre yurt dışındaki bir e-posta hizmetinde saklamak aktarımdır. Kurul'un standart sözleşmesi
           // (SS-2) Google ile imzalanmadı ve Kurum'a bildirilmedi; bireysel Gmail'de bu yol yok (`00` §2), bu
           // yüzden metin "standart sözleşme" demiyor (yoksa 2026/347'nin yasakladığı yanıltıcı aydınlatma olur).
-          // Metin öğrencinin kendi seçimine (yazmazsa aktarım yok, mektup yolu açık) ve Google'ın güvenlik
+          // Metin öğrencinin kendi seçimine (yazmazsa aktarım yok) ve Google'ın güvenlik
           // önlemlerine dayanıyor; bu, m.9/6 arızi istisnalarına yakın bir dayanak ama `00` §1.5 düzenli bir
           // kanalın arızi sayılmayabileceğini söylüyor. Avukat seçsin: (a) bu metin, (b) Google Workspace'e geçip
           // Cloud DPA'nın Türkiye ek şartlarıyla SS-2 imzalamak + 5 iş günü içinde Kurum'a bildirmek (o zaman bu
           // cümle "standart sözleşme" diye değişir), (c) Türkiye'de barındırılan e-posta (rapor seçenek A; aktarım
           // yok). Gmail'in tüketici hesabında Google'ın veri işleyen mi bağımsız sorumlu mu olduğu da sorulmalı.
           'E-posta adresimiz Gmail’de. Bu yüzden bize yazdığın e-posta, Google’ın (Google LLC, ABD) Türkiye dışındaki sunucularında saklanır; bu, KVKK m.9 kapsamında yurt dışına aktarımdır. Bu aktarım yalnız sen bize e-postayla yazmayı seçersen olur ve Google’ın kendi güvenlik önlemleriyle korunur.',
-          `E-posta kullanmak istemezsen sorunu ya da KVKK başvurunu imzalı bir mektupla ${C.address} adresine gönderebilirsin; o zaman yurt dışına hiçbir şey gitmez.`,
+          // [AVUKAT TEYİDİ] Mektup yolu kaldırıldı (bny, 18 Ekim 2026: posta adresi yayımlanmaz); tek başvuru
+          // kanalı e-posta (Gmail, yurt dışı). m.9 "seçim" dayanağı ve Başvuru Tebliği m.5 bununla yeterli mi.
         ],
       },
       {
@@ -119,7 +119,7 @@ const legalDocs = {
         paragraphs: [
           // [AVUKAT TEYİDİ] Destek yazışması için m.5/2-c (kullanım şartları sözleşmesi) ve yurt dışı cümlesi:
           // yukarıdaki m.9 notu.
-          'Uygulamanın bu telefonda tuttuğu bilgiler, uygulamayı senin isteğinle kullanabilmen için gereklidir (KVKK m.5/2-c, sözleşmenin kurulması ve ifası). Bize e-posta yazarsan yazışma, sorununu çözmek için yine m.5/2-c’ye; KVKK başvurusuysa cevap verme yükümlülüğümüze (m.5/2-ç, KVKK m.13) dayanır. E-postanın Google’ın yurt dışındaki sunucularında durması, bize e-postayla yazmayı senin seçmene dayanır (KVKK m.9); istemezsen mektupla yazabilirsin. Uygulamada reklam, analitik, çökme raporu ve izleme yoktur.',
+          'Uygulamanın bu telefonda tuttuğu bilgiler, uygulamayı senin isteğinle kullanabilmen için gereklidir (KVKK m.5/2-c, sözleşmenin kurulması ve ifası). Bize e-posta yazarsan yazışma, sorununu çözmek için yine m.5/2-c’ye; KVKK başvurusuysa cevap verme yükümlülüğümüze (m.5/2-ç, KVKK m.13) dayanır. E-postanın Google’ın yurt dışındaki sunucularında durması, bize e-postayla yazmayı senin seçmene dayanır (KVKK m.9). Uygulamada reklam, analitik, çökme raporu ve izleme yoktur.',
         ],
       },
       {
@@ -137,9 +137,9 @@ const legalDocs = {
           '(g) Verilerinin yalnız otomatik sistemlerle analiz edilmesi sonucunda aleyhine bir sonuç çıkarsa buna itiraz etmek.',
           '(ğ) Verilerinin kanuna aykırı işlenmesi yüzünden zarara uğradıysan zararının giderilmesini istemek.',
           // [AVUKAT TEYİDİ] Başvuru Tebliği m.5/1: uygulamadaki mailto (kayıtlı e-posta değil) başvuru kanalı
-          // sayılır mı; yazılı başvuru için posta adresi (ev adresi şart mı) — rapor E3, 4.2.
+          // sayılır mı — rapor E3, 4.2.
           'Uygulamadaki verilerin yalnız sende: Ayarlar’dan görebilir, yedek ya da CSV olarak dışa aktarabilir, istediğin an silebilirsin. Başvurunu Hakkında → İletişim’den e-postayla ' +
-            `(${C.contact}) ya da imzalı bir mektupla ${C.address} adresine yapabilirsin. En geç 30 gün içinde ücretsiz ve yazılı cevap veririz. Cevabımızdan memnun kalmazsan Kişisel Verileri Koruma Kurulu’na şikâyet edebilirsin.`,
+            `(${C.contact}) yapabilirsin. En geç 30 gün içinde ücretsiz ve yazılı cevap veririz. Cevabımızdan memnun kalmazsan Kişisel Verileri Koruma Kurulu’na şikâyet edebilirsin.`,
         ],
       },
     ],
@@ -168,9 +168,9 @@ const legalDocs = {
       {
         heading: '3. Paylaşım',
         paragraphs: [
-          'Uygulama hiçbir bilgini kendiliğinden bize göndermez; bize yalnız kendin yazmayı seçtiğin e-postalar ve mektuplar ulaşır. Onları yalnız sana cevap vermek ve KVKK başvurunu sonuçlandırmak için kullanırız. Hiçbir bilgiyi satmayız, reklam ya da başka bir amaçla kimseyle paylaşmayız.',
+          'Uygulama hiçbir bilgini kendiliğinden bize göndermez; bize yalnız kendin yazmayı seçtiğin e-postalar ulaşır. Onları yalnız sana cevap vermek ve KVKK başvurunu sonuçlandırmak için kullanırız. Hiçbir bilgiyi satmayız, reklam ya da başka bir amaçla kimseyle paylaşmayız.',
           // [AVUKAT TEYİDİ] KVKK m.9 dayanağı: "Aydınlatma metni" → "Nerede duruyor" altındaki nota bak.
-          `E-posta adresimiz Gmail’de olduğu için bu e-postalar Google’ın (Google LLC, ABD) Türkiye dışındaki sunucularında saklanır; bu, KVKK m.9 kapsamında yurt dışına aktarımdır ve yalnız sen bize e-postayla yazmayı seçersen olur. İstemezsen imzalı bir mektupla ${C.address} adresine yazabilirsin; o zaman yurt dışına hiçbir şey gitmez.`,
+          'E-posta adresimiz Gmail’de olduğu için bu e-postalar Google’ın (Google LLC, ABD) Türkiye dışındaki sunucularında saklanır; bu, KVKK m.9 kapsamında yurt dışına aktarımdır ve yalnız sen bize e-postayla yazmayı seçersen olur.',
           `Yedek, CSV ya da çalışma kartı yalnız sen dokunduğunda, telefonunun paylaşım ekranıyla dışarı çıkar. Seçtiğin uygulama ya da servis (ör. Dosyalar, AirDrop, bir mesajlaşma uygulaması) kendi kurallarına tabidir. ${BACKUP_CONTENTS} Çalışma kartında ad, yaş, okul gibi seni tanıtan bilgi yer almaz.`,
         ],
       },
@@ -207,7 +207,7 @@ const legalDocs = {
         paragraphs: [
           // [AVUKAT TEYİDİ] m.11 haklarının tek tek listesi Aydınlatma metninde; buradan oraya gönderme yeterli mi.
           'Verilerini görebilir, yedek ya da CSV olarak dışa aktarabilir ve silebilirsin. KVKK m.11’deki haklarının hepsi Aydınlatma metninin “Hakların” bölümünde tek tek yazar. KVKK kapsamındaki başvurunu Hakkında → İletişim’den e-postayla ' +
-            `(${C.contact}) ya da imzalı bir mektupla ${C.address} adresine yapabilirsin. En geç 30 gün içinde ücretsiz ve yazılı cevap veririz. Cevabımızdan memnun kalmazsan Kişisel Verileri Koruma Kurulu’na şikâyet edebilirsin.`,
+            `(${C.contact}) yapabilirsin. En geç 30 gün içinde ücretsiz ve yazılı cevap veririz. Cevabımızdan memnun kalmazsan Kişisel Verileri Koruma Kurulu’na şikâyet edebilirsin.`,
         ],
       },
       {
@@ -218,7 +218,7 @@ const legalDocs = {
       },
       {
         heading: '10. İletişim',
-        paragraphs: [`${C.name} · ${C.address} · ${C.contact}`],
+        paragraphs: [`${C.name} · ${C.contact}`],
       },
     ],
   },
@@ -277,7 +277,7 @@ const legalDocs = {
       },
       {
         heading: '9. İletişim',
-        paragraphs: [`${C.name} · ${C.address} · ${C.contact}`],
+        paragraphs: [`${C.name} · ${C.contact}`],
       },
     ],
   },
@@ -1139,8 +1139,6 @@ export const tr = {
     examChangeSave: 'Değişikliği kaydet',
     examChangeSaved: 'Kaydedildi.',
     examChangeArea: 'Alan',
-    /** K-17: shown next to the exam settings so nobody looks for an age setting. */
-    ageFixed: 'Doğum yılı sonradan değiştirilemez.',
     openAbout: 'Hakkında, gizlilik ve lisanslar',
   },
 
@@ -1249,7 +1247,6 @@ export const tr = {
     licenseTextMissing: (license: string) =>
       `${license} lisansı. Tam metin projenin kendi deposunda; bir sonraki sürümde buraya da eklenecek.`,
     controller: 'Veri sorumlusu',
-    address: 'Adres',
     contact: 'İletişim',
     updated: (date: string) => `Son güncelleme: ${date}`,
     noNetwork: 'Etüt internete bağlanmaz; reklam, analitik ve izleme içermez.',
@@ -1571,7 +1568,7 @@ export const tr = {
   /** Hakkında → İletişim (e-mail with the app and OS version in the subject, nothing else). */
   contact: {
     title: 'İletişim',
-    info: 'Soru, hata, öneri ya da KVKK başvurun için bize e-posta gönderebilirsin. Konu satırına yalnız uygulama ve işletim sistemi sürümü eklenir. E-posta adresin, e-posta uygulamanın gönderen olarak gösterdiği ad, yazdıkların ve eklediğin dosyalar bize ulaşır; e-postalarımız Gmail’de, yani Google’ın yurt dışındaki sunucularında durur. İstemezsen aşağıdaki adrese mektupla yazabilirsin. Ayrıntılar “Aydınlatma metni”nde.',
+    info: 'Soru, hata, öneri ya da KVKK başvurun için bize e-posta gönderebilirsin. Konu satırına yalnız uygulama ve işletim sistemi sürümü eklenir. E-posta adresin, e-posta uygulamanın gönderen olarak gösterdiği ad, yazdıkların ve eklediğin dosyalar bize ulaşır; e-postalarımız Gmail’de, yani Google’ın yurt dışındaki sunucularında durur. Ayrıntılar “Aydınlatma metni”nde.',
     send: 'E-posta gönder',
     soon: 'E-posta · Yakında',
     soonInfo: 'İletişim adresi yayından önce eklenecek.',
