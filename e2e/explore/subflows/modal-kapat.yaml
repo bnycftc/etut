@@ -13,17 +13,6 @@ appId: com.bnycftc.etut
         direction: DOWN
         timeout: 30000
         optional: true
-    - runFlow:
-        when:
-          notVisible:
-            id: guide-close
-        commands:
-        - scrollUntilVisible:
-            element:
-              id: guide-close
-            direction: UP
-            timeout: 30000
-            optional: true
     - tapOn:
         id: guide-close
         optional: true

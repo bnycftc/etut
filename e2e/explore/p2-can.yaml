@@ -50,18 +50,6 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
-- runFlow:
-    when:
-      notVisible:
-        id: exam-type-LGS
-    commands:
-    - scrollUntilVisible:
-        element:
-          id: exam-type-LGS
-        direction: UP
-        centerElement: true
-        timeout: 20000
-        optional: true
 - tapOn:
     id: exam-type-LGS
     retryTapIfNoChange: true
@@ -268,17 +256,6 @@ env:
     direction: DOWN
     timeout: 20000
     optional: true
-- runFlow:
-    when:
-      notVisible:
-        id: exam-total-net
-    commands:
-    - scrollUntilVisible:
-        element:
-          id: exam-total-net
-        direction: UP
-        timeout: 20000
-        optional: true
 - takeScreenshot: p2-104-lgs-toplam
 - assertVisible:
     id: exam-total-net
@@ -331,18 +308,6 @@ env:
     centerElement: true
     timeout: 15000
     optional: true
-- runFlow:
-    when:
-      notVisible:
-        id: exam-edit
-    commands:
-    - scrollUntilVisible:
-        element:
-          id: exam-edit
-        direction: UP
-        centerElement: true
-        timeout: 15000
-        optional: true
 - tapOn:
     id: exam-edit
     retryTapIfNoChange: true
@@ -363,17 +328,6 @@ env:
     direction: DOWN
     timeout: 20000
     optional: true
-- runFlow:
-    when:
-      notVisible:
-        id: exam-total-net
-    commands:
-    - scrollUntilVisible:
-        element:
-          id: exam-total-net
-        direction: UP
-        timeout: 20000
-        optional: true
 - assertVisible:
     id: exam-total-net
     text: '52'
@@ -483,18 +437,6 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
-- runFlow:
-    when:
-      notVisible:
-        id: exam-type-LGS
-    commands:
-    - scrollUntilVisible:
-        element:
-          id: exam-type-LGS
-        direction: UP
-        centerElement: true
-        timeout: 20000
-        optional: true
 - tapOn:
     id: exam-type-LGS
     optional: true

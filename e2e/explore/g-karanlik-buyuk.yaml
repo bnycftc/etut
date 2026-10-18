@@ -71,18 +71,6 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
-- runFlow:
-    when:
-      notVisible:
-        id: exam-type-YKS
-    commands:
-    - scrollUntilVisible:
-        element:
-          id: exam-type-YKS
-        direction: UP
-        centerElement: true
-        timeout: 20000
-        optional: true
 - tapOn:
     id: exam-type-YKS
     optional: true
@@ -286,17 +274,6 @@ env:
     direction: DOWN
     timeout: 15000
     optional: true
-- runFlow:
-    when:
-      notVisible:
-        id: goal-sheet-done
-    commands:
-    - scrollUntilVisible:
-        element:
-          id: goal-sheet-done
-        direction: UP
-        timeout: 15000
-        optional: true
 - takeScreenshot: g-10b-hedef-sayfasi-alt
 - tapOn:
     id: goal-sheet-done
@@ -477,17 +454,6 @@ env:
     direction: DOWN
     timeout: 30000
     optional: true
-- runFlow:
-    when:
-      notVisible:
-        id: exam-save
-    commands:
-    - scrollUntilVisible:
-        element:
-          id: exam-save
-        direction: UP
-        timeout: 30000
-        optional: true
 - takeScreenshot: g-23-deneme-form-alt
 - tapOn:
     id: exam-save

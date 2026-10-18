@@ -50,18 +50,6 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
-- runFlow:
-    when:
-      notVisible:
-        id: exam-type-KPSS
-    commands:
-    - scrollUntilVisible:
-        element:
-          id: exam-type-KPSS
-        direction: UP
-        centerElement: true
-        timeout: 20000
-        optional: true
 - tapOn:
     id: exam-type-KPSS
     retryTapIfNoChange: true
@@ -243,17 +231,6 @@ env:
     direction: DOWN
     timeout: 20000
     optional: true
-- runFlow:
-    when:
-      notVisible:
-        id: exam-total-net
-    commands:
-    - scrollUntilVisible:
-        element:
-          id: exam-total-net
-        direction: UP
-        timeout: 20000
-        optional: true
 - assertVisible:
     id: exam-total-net
     text: 45,5
@@ -447,18 +424,6 @@ env:
     centerElement: true
     timeout: 20000
     optional: true
-- runFlow:
-    when:
-      notVisible:
-        id: exam-type-KPSS
-    commands:
-    - scrollUntilVisible:
-        element:
-          id: exam-type-KPSS
-        direction: UP
-        centerElement: true
-        timeout: 20000
-        optional: true
 - tapOn:
     id: exam-type-KPSS
     optional: true

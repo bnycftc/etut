@@ -1,4 +1,4 @@
-# Elle süre ekle: önce geçersiz (süre boş), sonra bugün 00:05'ten H saat M dakika.
+# Elle süre ekle: önce geçersiz (süre yok), sonra bugün 60 dk. 0.4.1+: süre çipleri + "Az önce bitti";
 # GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
 appId: com.bnycftc.etut
 ---
@@ -64,7 +64,7 @@ appId: com.bnycftc.etut
 - takeScreenshot: ${P}-41-elle-bos-hata
 - scrollUntilVisible:
     element:
-      id: manual-start-hour
+      id: manual-questions
     direction: UP
     centerElement: true
     timeout: 15000
@@ -72,46 +72,73 @@ appId: com.bnycftc.etut
 - runFlow:
     when:
       notVisible:
-        id: manual-start-hour
+        id: manual-questions
     commands:
     - scrollUntilVisible:
         element:
-          id: manual-start-hour
+          id: manual-questions
         direction: DOWN
         centerElement: true
         timeout: 15000
         optional: true
 - tapOn:
-    id: manual-start-hour
+    id: manual-questions
     optional: true
 - inputText:
-    text: '00'
+    text: '12'
     optional: true
-- tapOn:
-    id: manual-start-minute
-    optional: true
-- inputText:
-    text: '05'
-    optional: true
-- tapOn:
-    id: manual-duration-hours
-    optional: true
-- inputText:
-    text: ${H}
-    optional: true
-- tapOn:
-    id: manual-duration-minutes
-    optional: true
-- inputText:
-    text: ${M}
-    optional: true
-- takeScreenshot: ${P}-42-elle-klavye-acik
+- takeScreenshot: ${P}-41b-elle-klavye-acik
 - tapOn:
     text: Süre
     index: 0
     optional: true
 - waitForAnimationToEnd:
     timeout: 3000
+- takeScreenshot: ${P}-41c-elle-basliga-dokununca
+- swipe:
+    start: 50%, 40%
+    end: 50%, 75%
+    duration: 300
+    optional: true
+- takeScreenshot: ${P}-41d-elle-kaydirinca
+- runFlow:
+    when:
+      visible:
+        id: manual-duration-chip-60
+    commands:
+    - tapOn:
+        id: manual-duration-chip-60
+        optional: true
+- runFlow:
+    when:
+      visible:
+        id: manual-start-hour
+    commands:
+    - tapOn:
+        id: manual-start-hour
+        optional: true
+    - inputText:
+        text: '00'
+        optional: true
+    - tapOn:
+        id: manual-start-minute
+        optional: true
+    - inputText:
+        text: '05'
+        optional: true
+    - tapOn:
+        id: manual-duration-hours
+        optional: true
+    - inputText:
+        text: '1'
+        optional: true
+    - tapOn:
+        id: manual-duration-minutes
+        optional: true
+    - inputText:
+        text: '0'
+        optional: true
+- takeScreenshot: ${P}-42-elle-dolu
 - scrollUntilVisible:
     element:
       id: manual-add
@@ -131,7 +158,7 @@ appId: com.bnycftc.etut
         centerElement: true
         timeout: 15000
         optional: true
-- takeScreenshot: ${P}-43-elle-dolu
+- takeScreenshot: ${P}-43-elle-ekle-dugmesi
 - tapOn:
     id: manual-add
     optional: true
