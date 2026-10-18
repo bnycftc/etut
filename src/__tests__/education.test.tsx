@@ -174,6 +174,8 @@ jest.mock('../storage/sessions', () => ({
   sessionsOverlapping: (from: number, to: number) =>
     memory.sessions.filter((s) => s.endedAt > from && s.startedAt < to),
   allSessions: () => memory.sessions,
+  firstSessionStartedAt: () =>
+    memory.sessions.length === 0 ? null : Math.min(...memory.sessions.map((s) => s.startedAt)),
   recentManualSessions: () => memory.sessions.filter((s) => s.source === 'manual'),
   deleteManualSession: () => {},
   deleteSessionForUndo: () => {},

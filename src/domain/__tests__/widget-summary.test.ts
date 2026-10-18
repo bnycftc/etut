@@ -123,9 +123,10 @@ describe('widgetTimeline', () => {
     // The widget draws the clock from at − todayMs.
     expect(entries[0].at - entries[0].todayMs).toBe(NOW - 50 * MIN);
     expect(entries[1]).toMatchObject({ at: NOW + 10 * MIN, todayMs: 60 * MIN, goalMet: true, streakDays: 1 });
-    // After midnight the running session counts towards the new day from 00:00.
+    // After midnight the running session still belongs to the day it started: the new day stays
+    // empty and does not count, yesterday's met goal keeps the streak.
     const next = entries.find((e) => e.at === midnight(TODAY, 1));
-    expect(next).toMatchObject({ day: '2026-10-08', todayMs: 0, counting: true });
+    expect(next).toMatchObject({ day: '2026-10-08', todayMs: 0, counting: false, goalReachedAt: null, streakDays: 1 });
   });
 
   it('a paused session does not count', () => {

@@ -73,8 +73,10 @@ interface Finished {
   durationMs: number;
   /** Today's total including the session as saved. */
   todayAfterMs: number;
-  /** The part of the saved session that fell on today (a session can cross midnight). */
+  /** The part of the saved session counted today: all of it, or 0 when it started yesterday. */
   sessionTodayMs: number;
+  /** It started before midnight and went to that day ("Dünün çalışmasına eklendi."). */
+  addedToYesterday: boolean;
   at: number;
   undoable: boolean;
   /**
@@ -117,7 +119,8 @@ export default function TimerScreen() {
   };
   const pomodoroConfig = useStored(`pomodoro|${app.dataVersions.settings}`, loadPomodoroConfig);
 
-  const { today, todayTotal, todayManual, todayQuestions, comparison, goal, streak, studyDays } = useStudyStats(now);
+  const { today, todayTotal, todayManual, todayQuestions, comparison, goal, todayGoal, streak, studyDays } =
+    useStudyStats(now);
   const compare = comparisonLine(comparison);
   const customExamDay = useStored(`examDate|${examType}|${app.dataVersions.settings}`, () =>
     loadCustomExamDate(examType),
@@ -194,6 +197,7 @@ export default function TimerScreen() {
         durationMs: done.durationMs,
         todayAfterMs,
         sessionTodayMs,
+        addedToYesterday: istanbulDayKey(done.startedAt) < today,
         at: Date.now(),
         undoable: done.durationMs > 0 && !isSyncActive(),
       });
@@ -239,19 +243,30 @@ export default function TimerScreen() {
   };
 
   const setGoal = (minutes: number | null) => {
-    // The day of the tap, not of the render clock (it ticks once a minute while idle).
-    storeDailyGoal(minutes, istanbulDayKey(Date.now()));
+    // The day of the tap, not of the render clock (it ticks once a minute while idle). Today's total
+    // as shown decides whether a raise waits for tomorrow (a met goal stays met).
+    storeDailyGoal(minutes, istanbulDayKey(Date.now()), todayTotal);
     app.notifyDataChanged('settings');
   };
 
-  const goalStreak = goal !== null && streak !== null ? { goal, streak } : null;
-  const step = finished !== null && goal !== null ? goalStep(finished.todayAfterMs, finished.sessionTodayMs, goal) : null;
+  const goalStreak = todayGoal !== null && streak !== null ? { goal: todayGoal, streak } : null;
+  // A session that went to yesterday moved nothing of today's goal: no "%40 → %40".
+  const step =
+    finished !== null && todayGoal !== null && !finished.addedToYesterday
+      ? goalStep(finished.todayAfterMs, finished.sessionTodayMs, todayGoal)
+      : null;
 
   return (
     <Screen testID="timer-screen">
       <TimerKeepAwake running={running} />
       <FirstUseTips />
-      <GoalSheet visible={goalOpen} goal={goal} onChange={setGoal} onClose={() => setGoalOpen(false)} />
+      <GoalSheet
+        visible={goalOpen}
+        goal={goal}
+        startsTomorrow={goal !== todayGoal}
+        onChange={setGoal}
+        onClose={() => setGoalOpen(false)}
+      />
 
       {/* Today: exam countdown, today's total, goal and streak; the summary after Bitir lives here too. */}
       <Card tone="accent">
@@ -300,6 +315,11 @@ export default function TimerScreen() {
                 : tr.finish.studied(tr.subject(finished.subjectId))) +
                 (step !== null && !step.reached ? ` · ${tr.finish.goalStep(step.beforePercent, step.afterPercent)}` : '')}
             </Label>
+            {finished.addedToYesterday ? (
+              <Label variant="small" testID="finish-yesterday">
+                {tr.finish.addedToYesterday}
+              </Label>
+            ) : null}
             {step?.reached ? (
               <Label variant="small" testID="finish-goal-reached" style={{ color: c.success, fontWeight: '600' }}>
                 {tr.finish.goalReached}

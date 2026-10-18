@@ -78,11 +78,11 @@ describe('manual sessions', () => {
     });
   });
 
-  it('an entry across Istanbul midnight is split between the two days', () => {
+  it('an entry across Istanbul midnight counts whole on the day it started', () => {
     const start = parseStartTime('2026-10-03', '23', '30')!;
     const s = buildManualSession('m2', { subjectId: 'fizik', topicId: null, startMs: start, durationMs: min(60) });
     const totals = dailyTotals([s], ['2026-10-03', '2026-10-04']);
-    expect(totals.map((t) => t.totalMs)).toEqual([min(30), min(30)]);
+    expect(totals.map((t) => t.totalMs)).toEqual([min(60), 0]);
   });
 });
 
@@ -129,6 +129,6 @@ describe('"az önce bitti"', () => {
     const start = justFinishedStart(now, min(30));
     expect(start).toBe(parseStartTime('2026-10-04', '23', '40'));
     const s = buildManualSession('m3', { subjectId: 'fizik', topicId: null, startMs: start, durationMs: min(30) });
-    expect(dailyTotals([s], ['2026-10-04', '2026-10-05']).map((t) => t.totalMs)).toEqual([min(20), min(10)]);
+    expect(dailyTotals([s], ['2026-10-04', '2026-10-05']).map((t) => t.totalMs)).toEqual([min(30), 0]);
   });
 });

@@ -76,6 +76,12 @@ export function sessionsOverlapping(fromMs: number, toMs: number): CompletedSess
     .map(toSession);
 }
 
+/** Start of the oldest stored session; `null` without any (the monthly view's first day of use). */
+export function firstSessionStartedAt(): number | null {
+  const row = getDb().getFirstSync<{ first: number | null }>(`SELECT MIN(started_at) AS first FROM sessions`);
+  return row?.first ?? null;
+}
+
 /** Every stored session, oldest first (backup and CSV export). */
 export function allSessions(): CompletedSession[] {
   return getDb()

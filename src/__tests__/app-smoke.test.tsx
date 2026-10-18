@@ -374,6 +374,8 @@ jest.mock('../storage/sessions', () => ({
     return memory.sessions.filter((s) => s.endedAt > from && s.startedAt < to);
   },
   allSessions: () => memory.sessions,
+  firstSessionStartedAt: () =>
+    memory.sessions.length === 0 ? null : Math.min(...memory.sessions.map((s) => s.startedAt)),
   recentManualSessions: () => memory.sessions.filter((s) => s.source === 'manual').reverse(),
   deleteManualSession: (id: string) => {
     memory.sessions = memory.sessions.filter((s) => !(s.id === id && s.source === 'manual'));
@@ -3767,8 +3769,9 @@ describe('ders karnesi, soru sayısı, ders hedefi, aylık görünüm', () => {
     expect(screen.getByTestId('monthly-month').props.children).toBe('Ekim 2026');
     expect(screen.getByTestId('monthly-total').props.children).toBe('Toplam: 8 sa 40 dk');
     expect(screen.getByTestId('monthly-best').props.children).toBe('En çok: 3 Ekim 2026 · 6 sa 40 dk');
-    expect(screen.getByText('Çalıştığın gün: 2/7')).toBeTruthy();
-    expect(screen.getByText('Ara verdiğin gün: 5')).toBeTruthy();
+    // 1–6 Ekim: today (the 7th, nothing yet) is no rest day.
+    expect(screen.getByText('Çalıştığın gün: 2/6')).toBeTruthy();
+    expect(screen.getByText('Ara verdiğin gün: 4')).toBeTruthy();
     expect(screen.getByLabelText('3 Ekim 2026: 6 sa 40 dk')).toBeTruthy();
     expect(screen.getByLabelText('2 Ekim 2026: çalışma yok')).toBeTruthy();
     expect(screen.getByLabelText('20 Ekim 2026: henüz gelmedi')).toBeTruthy();

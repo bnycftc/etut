@@ -2,10 +2,14 @@
  * Monthly view ("aylık görünüm"): a Monday-first calendar of one Istanbul month with every day
  * shaded by its study time, plus the month's own numbers (total, best day, average on study
  * days, days without study). Own data only; nothing is compared with anyone.
+ *
+ * Days before the student began (`firstUseDay`) are neutral: neither a study day nor a rest day,
+ * and not in the "x/y" count. Today is no rest day while it is not over (as for the streak); it
+ * counts once studied.
  */
 
 import { dailyTotals, type SessionSpan } from './daily-totals';
-import { addDays, type DayKey, istanbulWeekday } from './istanbul-day';
+import { addDays, type DayKey, istanbulDayKey, istanbulWeekday } from './istanbul-day';
 
 /** Shade of a day: 0 = no study, then <1 h, 1–3 h, 3–6 h, 6 h and more. */
 export type HeatLevel = 0 | 1 | 2 | 3 | 4;
@@ -52,6 +56,8 @@ export interface MonthCell {
   level: HeatLevel;
   /** After today: nothing can have been studied yet. */
   future: boolean;
+  /** Before the first day of use: shown neutral, not as a rest day. */
+  beforeStart: boolean;
 }
 
 export interface MonthView {
@@ -63,10 +69,10 @@ export interface MonthView {
   weeks: (MonthCell | null)[][];
   days: MonthCell[];
   totalMs: number;
-  /** Days of the month up to today (all of them for a past month). */
+  /** Days counted so far: study days and rest days (the "y" of "x/y"). */
   elapsedDays: number;
   studyDays: number;
-  /** Elapsed days without any study. */
+  /** Days from the first day of use up to yesterday without any study (today is not over). */
   restDays: number;
   /** The day with the most study; the earlier one on a tie. `null` without study. */
   bestDay: { day: DayKey; ms: number } | null;
@@ -75,10 +81,25 @@ export interface MonthView {
 }
 
 /**
- * `spans` must cover the month (the running session included as a span). `today` decides which
- * days are still to come.
+ * The day the student began: the earlier of the profile's creation and the first saved session (a
+ * backup can bring older sessions). `null` when neither is known.
  */
-export function monthView(spans: SessionSpan[], monthStart: DayKey, today: DayKey): MonthView {
+export function firstUseDay(profileCreatedAt: number | null, firstSessionAt: number | null): DayKey | null {
+  const known = [profileCreatedAt, firstSessionAt].filter((ms): ms is number => ms !== null);
+  return known.length === 0 ? null : istanbulDayKey(Math.min(...known));
+}
+
+/**
+ * `spans` must cover the month (the running session included as a span). `today` decides which
+ * days are still to come; `firstDay` (`firstUseDay`) which ones came before the student began
+ * (`null` = none).
+ */
+export function monthView(
+  spans: SessionSpan[],
+  monthStart: DayKey,
+  today: DayKey,
+  firstDay: DayKey | null = null,
+): MonthView {
   const keys = monthDays(monthStart);
   const totals = dailyTotals(spans, keys);
   const days: MonthCell[] = totals.map((t) => ({
@@ -87,6 +108,7 @@ export function monthView(spans: SessionSpan[], monthStart: DayKey, today: DayKe
     ms: t.totalMs,
     level: heatLevel(t.totalMs),
     future: t.day > today,
+    beforeStart: firstDay !== null && t.day < firstDay,
   }));
 
   const weeks: (MonthCell | null)[][] = [];
@@ -103,8 +125,8 @@ export function monthView(spans: SessionSpan[], monthStart: DayKey, today: DayKe
     weeks.push(row);
   }
 
-  const elapsed = days.filter((d) => !d.future);
-  const studied = elapsed.filter((d) => d.ms > 0);
+  const studied = days.filter((d) => !d.future && d.ms > 0);
+  const restDays = days.filter((d) => !d.beforeStart && d.day < today && d.ms <= 0).length;
   const totalMs = studied.reduce((sum, d) => sum + d.ms, 0);
   let bestDay: MonthView['bestDay'] = null;
   for (const d of studied) if (bestDay === null || d.ms > bestDay.ms) bestDay = { day: d.day, ms: d.ms };
@@ -115,9 +137,9 @@ export function monthView(spans: SessionSpan[], monthStart: DayKey, today: DayKe
     weeks,
     days,
     totalMs,
-    elapsedDays: elapsed.length,
+    elapsedDays: studied.length + restDays,
     studyDays: studied.length,
-    restDays: elapsed.length - studied.length,
+    restDays,
     bestDay,
     averageStudyDayMs: studied.length === 0 ? 0 : Math.round(totalMs / studied.length),
   };
