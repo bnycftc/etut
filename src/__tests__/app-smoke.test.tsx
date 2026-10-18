@@ -14,6 +14,7 @@ import {
   AppState,
   type AppStateStatus,
   Dimensions,
+  InputAccessoryView,
   Keyboard,
   ScrollView,
   StyleSheet,
@@ -1291,18 +1292,17 @@ describe('manual entry ("elle")', () => {
   });
 
   it('the number boxes show examples, not values, and have a "Bitti" bar that closes the keyboard (IOS-07)', () => {
-    const dismiss = jest.spyOn(Keyboard, 'dismiss');
     renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
     const hours = screen.getByTestId('manual-duration-hours');
     expect(hours.props.placeholder).toBe('ör. 1');
     expect(screen.getByTestId('manual-duration-minutes').props.placeholder).toBe('ör. 45');
-    // The number pad has no return key: the bar is attached to the box (iOS input accessory).
-    expect(hours.props.inputAccessoryViewID).toEqual(expect.any(String));
-    const done = screen.getByTestId('manual-duration-hours-done');
-    expect(done.props.accessibilityLabel).toBe('Klavyeyi kapat: Süre, Saat');
-    fireEvent.press(done);
-    expect(dismiss).toHaveBeenCalled();
-    dismiss.mockRestore();
+    // The number pad has no return key: the system bar above it with "Bitti", which ends editing
+    // (no <InputAccessoryView>: a mounted one crashed the layout animations on Başla).
+    expect(hours.props.keyboardType).toBe('number-pad');
+    expect(hours.props.inputAccessoryViewButtonLabel).toBe('Bitti');
+    expect(hours.props.returnKeyType).toBe('done');
+    expect(hours.props.inputAccessoryViewID).toBeUndefined();
+    expect(screen.UNSAFE_queryAllByType(InputAccessoryView)).toHaveLength(0);
   });
 
   it('"Saati değiştir" opens the start fields, "Az önce bitti" closes them; another day always asks', () => {

@@ -412,10 +412,8 @@ export const tr = {
     cancel: 'Vazgeç',
     save: 'Kaydet',
     delete: 'Sil',
-    /** The bar above the number pad (it has no return key). */
+    /** The button of the system bar above the number pad (it has no return key). */
     keyboardDone: 'Bitti',
-    /** Its screen-reader name: which box it closes the keyboard of (`Klavyeyi kapat: Süre, Saat`). */
-    keyboardDoneA11y: (field: string) => `Klavyeyi kapat: ${field}`,
   },
 
   /** Root error screen (app/_layout.tsx ErrorBoundary): nothing is deleted, nothing is sent. */

@@ -1,7 +1,5 @@
-import { type ReactNode, type Ref, useEffect, useId, useState } from 'react';
+import { type ReactNode, type Ref, useEffect, useState } from 'react';
 import {
-  InputAccessoryView,
-  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -595,9 +593,6 @@ export function Field({
   accessibilityLabel?: string;
 }) {
   const c = usePalette();
-  // The iOS number pad has no return key: a "Bitti" bar above it closes the keyboard.
-  const accessoryId = useId();
-  const ios = Platform.OS === 'ios';
   return (
     <View style={{ flex: 1, gap: 4 }}>
       <Text style={[styles.small, { color: c.textMuted }]} importantForAccessibility="no" accessibilityElementsHidden>
@@ -609,7 +604,11 @@ export function Field({
         value={value}
         onChangeText={onChange}
         onBlur={onBlur}
-        inputAccessoryViewID={ios ? accessoryId : undefined}
+        // The iOS number pad has no return key: the system's own "Bitti" bar above it closes the
+        // keyboard. Not an <InputAccessoryView>: with 0.4.2's layout animations (`easeNextLayout`)
+        // a mounted one crashed the app on Başla (Fabric mounting, E2E run 39160836781).
+        returnKeyType="done"
+        inputAccessoryViewButtonLabel={tr.common.keyboardDone}
         keyboardType={numeric ? 'number-pad' : 'numbers-and-punctuation'}
         inputMode={numeric ? 'numeric' : 'text'}
         maxLength={maxLength}
@@ -617,19 +616,6 @@ export function Field({
         placeholderTextColor={c.textMuted}
         style={[styles.input, { color: c.text, borderColor: c.controlBorder, backgroundColor: c.background }]}
       />
-      {ios ? (
-        <InputAccessoryView nativeID={accessoryId}>
-          <View style={[styles.keyboardBar, { backgroundColor: c.surface, borderColor: c.border }]}>
-            <Button
-              compact
-              testID={testID ? `${testID}-done` : undefined}
-              title={tr.common.keyboardDone}
-              accessibilityLabel={tr.common.keyboardDoneA11y(accessibilityLabel)}
-              onPress={() => Keyboard.dismiss()}
-            />
-          </View>
-        </InputAccessoryView>
-      ) : null}
     </View>
   );
 }
@@ -898,13 +884,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 18,
-  },
-  keyboardBar: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: space.md,
-    paddingVertical: space.xs,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
   stepButton: {
     width: 40,
