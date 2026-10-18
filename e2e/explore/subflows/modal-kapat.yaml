@@ -1,0 +1,32 @@
+# Açık kalan modal/sayfa varsa (rehber, belge seçici, paylaşım) aşağı sürükleyerek kapat.
+# GENERATED from etut-audit/explore-2026-10-18/ios/src (gen.py): every step is optional.
+appId: com.bnycftc.etut
+---
+- runFlow:
+    when:
+      visible:
+        id: guide-screen
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: guide-close
+        direction: DOWN
+        timeout: 30000
+        optional: true
+    - tapOn:
+        id: guide-close
+        optional: true
+    - waitForAnimationToEnd:
+        timeout: 3000
+- runFlow:
+    when:
+      visible:
+        id: guide-screen
+    commands:
+    - swipe:
+        start: 50%, 12%
+        end: 50%, 95%
+        duration: 300
+        optional: true
+    - waitForAnimationToEnd:
+        timeout: 3000

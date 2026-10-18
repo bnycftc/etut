@@ -24,6 +24,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 10000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: history-delete-.*
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: history-delete-.*
+        direction: UP
+        centerElement: true
+        timeout: 10000
+        optional: true
 - tapOn:
     id: history-delete-.*
     index: 0
@@ -44,6 +56,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: open-weekly
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: open-weekly
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: open-weekly
     retryTapIfNoChange: true
@@ -61,6 +85,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 10000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: weekly-longest
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: weekly-longest
+        direction: UP
+        centerElement: true
+        timeout: 10000
+        optional: true
 - takeScreenshot: ${P}-52b-haftalik-alt
 - scrollUntilVisible:
     element:
@@ -69,6 +105,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: monthly-grid
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: monthly-grid
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - takeScreenshot: ${P}-53-aylik
 - tapOn:
     id: monthly-prev
@@ -86,6 +134,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: weekly-prev
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: weekly-prev
+        direction: DOWN
+        centerElement: true
+        timeout: 15000
+        optional: true
 - tapOn:
     id: weekly-prev
     optional: true
@@ -104,6 +164,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: open-topics
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: open-topics
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: open-topics
     retryTapIfNoChange: true
@@ -135,6 +207,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: topics-open-report
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: topics-open-report
+        direction: DOWN
+        centerElement: true
+        timeout: 15000
+        optional: true
 - tapOn:
     id: topics-open-report
     optional: true
@@ -155,6 +239,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 20000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: open-report
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: open-report
+        direction: UP
+        centerElement: true
+        timeout: 20000
+        optional: true
 - tapOn:
     id: open-report
     retryTapIfNoChange: true
@@ -172,6 +268,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: report-exams
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: report-exams
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - takeScreenshot: ${P}-58b-karne-orta
 - scrollUntilVisible:
     element:
@@ -180,6 +288,18 @@ appId: com.bnycftc.etut
     centerElement: true
     timeout: 15000
     optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: report-topics
+    commands:
+    - scrollUntilVisible:
+        element:
+          id: report-topics
+        direction: UP
+        centerElement: true
+        timeout: 15000
+        optional: true
 - takeScreenshot: ${P}-58c-karne-alt
 - runFlow:
     file: geri.yaml
