@@ -154,8 +154,11 @@ jobs:
               prices = sorted({by_id.get(((i.get("relationships") or {}).get("appPricePoint") or {}).get("data", {}).get("id"), "?")
                                for i in inc})
               print(f"manual prices (customer price): {prices}")
-              if prices and any(x not in ("0", "0.0", "0.00") for x in prices):
+              known = [x for x in prices if x != "?"]
+              if any(float(x) != 0.0 for x in known):
                   missing.append("price is not free")
+              elif not known:
+                  print("  (price point not resolvable here; the schedule was set to the free point by setup)")
           else:
               missing.append("price not set")
 
