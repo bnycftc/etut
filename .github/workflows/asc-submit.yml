@@ -1,0 +1,152 @@
+name: ASC submit for review
+
+# Attaches a processed TestFlight build to the editable App Store version and submits it for
+# App Review. Dry run by default: it only checks and prints what is missing. Never changes
+# metadata, prices, availability or App Privacy (asc-metadata.yml and App Store Connect do that).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: App Store version string (e.g. 0.4.0)
+        required: true
+      build:
+        description: Build number to submit (e.g. 17.1)
+        required: true
+      apply:
+        description: Attach the build and submit (false = dry run, checks only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check and submit
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          VERSION: ${{ inputs.version }}
+          BUILD: ${{ inputs.build }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import base64, os, sys, time, jwt, requests
+
+          APP = "6818980777"
+          API = "https://api.appstoreconnect.apple.com/v1"
+          VERSION, BUILD = os.environ["VERSION"].strip(), os.environ["BUILD"].strip()
+          APPLY = os.environ.get("APPLY") == "true"
+          print("mode:", "APPLY (attach build + submit)" if APPLY else "DRY RUN (checks only)")
+          print(f"target: version {VERSION}, build {BUILD}")
+
+          raw = os.environ["ASC_PRIVATE_KEY"]
+          key = raw if "BEGIN PRIVATE KEY" in raw else base64.b64decode(raw).decode()
+          now = int(time.time())
+          token = jwt.encode(
+              {"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 1200, "aud": "appstoreconnect-v1"},
+              key, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+          http = requests.Session()
+          http.headers["Authorization"] = "Bearer " + token
+
+          def errors(r):
+              try:
+                  return [(e.get("code"), e.get("title"), e.get("detail")) for e in r.json().get("errors", [])]
+              except ValueError:
+                  return []
+
+          def call(method, path, body=None, params=None, ok_404=False):
+              r = http.request(method, API + path, json=body, params=params, timeout=30)
+              if ok_404 and r.status_code == 404:
+                  return None
+              if not r.ok:
+                  sys.exit(f"{method} {path} HTTP {r.status_code} errors: {errors(r)}")
+              return r.json() if r.content else {}
+
+          missing = []
+
+          # ---- App Store version ----
+          versions = call("GET", f"/apps/{APP}/appStoreVersions",
+                          params={"filter[versionString]": VERSION, "filter[platform]": "IOS"})["data"]
+          if len(versions) != 1:
+              sys.exit(f"expected one App Store version {VERSION}, found {len(versions)}")
+          ver = versions[0]
+          state = ver["attributes"].get("appStoreState") or ver["attributes"].get("appVersionState")
+          print(f"version {VERSION}: state {state}")
+          if state not in ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED",
+                           "READY_FOR_REVIEW"):
+              sys.exit(f"version {VERSION} is not editable (state {state})")
+
+          # ---- Build ----
+          builds = call("GET", "/builds", params={
+              "filter[app]": APP, "filter[version]": BUILD, "filter[preReleaseVersion.version]": VERSION,
+              "filter[processingState]": "VALID", "limit": 5})["data"]
+          if len(builds) != 1:
+              sys.exit(f"expected one VALID build {BUILD} of {VERSION}, found {len(builds)}")
+          build = builds[0]
+          ba = build["attributes"]
+          print(f"build {BUILD}: VALID, expired={ba.get('expired')}, usesNonExemptEncryption={ba.get('usesNonExemptEncryption')}")
+          if ba.get("expired"):
+              missing.append("build has expired")
+          if ba.get("usesNonExemptEncryption") is None:
+              missing.append("export compliance (usesNonExemptEncryption) not set on the build")
+
+          current = call("GET", f"/appStoreVersions/{ver['id']}/relationships/build").get("data")
+          print("attached build:", "this build" if current and current["id"] == build["id"] else ("another build" if current else "none"))
+
+          # ---- Review details (values never printed) ----
+          rd = call("GET", f"/appStoreVersions/{ver['id']}/appStoreReviewDetail", ok_404=True)
+          rda = (rd or {}).get("data") or {}
+          rda = rda.get("attributes", {}) if rda else {}
+          for f in ("contactFirstName", "contactLastName", "contactPhone", "contactEmail"):
+              ok = bool((rda.get(f) or "").strip())
+              print(f"review contact {f}: {'set' if ok else 'MISSING'}")
+              if not ok:
+                  missing.append(f"App Review contact {f}")
+          print(f"review notes: {'set' if (rda.get('notes') or '').strip() else 'empty'}")
+
+          # ---- Availability ----
+          avail = call("GET", f"/apps/{APP}/appAvailabilityV2", ok_404=True)
+          if avail and avail.get("data"):
+              terr = call("GET", f"/appAvailabilities/{avail['data']['id']}/territoryAvailabilities",
+                          params={"limit": 200, "include": "territory"})
+              on = [t["relationships"]["territory"]["data"]["id"] for t in terr["data"]
+                    if t["attributes"].get("available")]
+              print(f"available territories: {len(on)}{' (TUR)' if on == ['TUR'] else ''}: {', '.join(sorted(on)[:10])}")
+              if "TUR" not in on:
+                  missing.append("availability: Türkiye (TUR) not available")
+          else:
+              print("availability: not set")
+              missing.append("availability (pricing and availability) not set")
+
+          print("App Privacy: not readable via the API; it must be published in App Store Connect")
+
+          if missing:
+              print("\nMISSING before submission:\n  " + "\n  ".join(missing))
+          else:
+              print("\nall API-checkable items are ready")
+          if not APPLY:
+              sys.exit(0)
+          if missing:
+              sys.exit("not submitting: items missing")
+
+          # ---- Attach + submit ----
+          if not (current and current["id"] == build["id"]):
+              call("PATCH", f"/appStoreVersions/{ver['id']}/relationships/build",
+                   {"data": {"type": "builds", "id": build["id"]}})
+              print(f"attached build {BUILD} to {VERSION}")
+          sub = call("POST", "/reviewSubmissions", {"data": {"type": "reviewSubmissions",
+                     "attributes": {"platform": "IOS"},
+                     "relationships": {"app": {"data": {"type": "apps", "id": APP}}}}})["data"]
+          call("POST", "/reviewSubmissionItems", {"data": {"type": "reviewSubmissionItems",
+               "relationships": {"reviewSubmission": {"data": {"type": "reviewSubmissions", "id": sub["id"]}},
+                                 "appStoreVersion": {"data": {"type": "appStoreVersions", "id": ver["id"]}}}}})
+          done = call("PATCH", f"/reviewSubmissions/{sub['id']}", {"data": {"type": "reviewSubmissions",
+                      "id": sub["id"], "attributes": {"submitted": True}}})["data"]
+          print(f"submitted for review: state {done['attributes'].get('state')}")
+          PY
