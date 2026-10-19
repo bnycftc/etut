@@ -75,6 +75,18 @@ export function toApiError(error: { message?: string; code?: string } | null | u
   return new ApiError('unknown');
 }
 
+/**
+ * auth-js reports a refresh that may still work later (network, 5xx, and the refused refresh
+ * client.ts turns from 429 into 503) as AuthRetryableFetchError and keeps the session in
+ * storage, but getSession() then returns no session. That is "try again later", not a lost
+ * account: no new anonymous account, no "account gone". Checked by name so this module does
+ * not load supabase-js.
+ */
+function transientAuthError(error: { name?: string; message?: string } | null | undefined): ApiError | null {
+  if (error?.name !== 'AuthRetryableFetchError') return null;
+  return new ApiError(/rate limit/i.test(error.message ?? '') ? 'rate_limited' : 'network');
+}
+
 /** The server account cannot be reached any more (deleted, purged, tokens gone). */
 export function isAccountGone(error: unknown): boolean {
   return error instanceof ApiError && error.code === 'not_authenticated';
@@ -272,7 +284,16 @@ export function createSupabaseApi(getClient: () => SupabaseClient = getSupabase)
     } catch (e) {
       throw toApiError({ message: e instanceof Error ? e.message : 'network' });
     }
-    if (result.error) throw toApiError(result.error);
+    if (result.error) {
+      const error = toApiError(result.error);
+      // Without a fresh access token supabase-js sends the call as anon (42501): first ask
+      // whether the refresh only failed for now.
+      if (error.code === 'not_authenticated') {
+        const { error: sessionError } = await getClient().auth.getSession();
+        throw transientAuthError(sessionError) ?? error;
+      }
+      throw error;
+    }
     return result.data as T;
   }
   const rows = async (fn: string, args?: Record<string, unknown>) => (await call<Row[] | null>(fn, args)) ?? [];
@@ -280,13 +301,20 @@ export function createSupabaseApi(getClient: () => SupabaseClient = getSupabase)
   return {
     async ensureSignedIn() {
       const auth = getClient().auth;
-      const { data } = await auth.getSession();
+      const { data, error: sessionError } = await auth.getSession();
       if (data.session) return;
+      // A stored session whose refresh failed for now must not be replaced by a new account.
+      const transient = transientAuthError(sessionError);
+      if (transient) throw transient;
       const { error } = await auth.signInAnonymously();
+      // GoTrue's per-IP limit on new anonymous accounts (a whole class behind one NAT).
+      if (error?.status === 429) throw new ApiError('rate_limited');
       if (error) throw toApiError(error);
     },
     async hasSession() {
-      const { data } = await getClient().auth.getSession();
+      const { data, error } = await getClient().auth.getSession();
+      const transient = transientAuthError(error);
+      if (transient) throw transient;
       return data.session !== null;
     },
     async linkIdToken(provider, token, nonce) {

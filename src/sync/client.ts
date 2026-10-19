@@ -19,6 +19,29 @@ export class SyncUnavailableError extends Error {
   }
 }
 
+const isTokenRefresh = (input: RequestInfo | URL): boolean => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  return url.includes('/auth/v1/token?') && url.includes('grant_type=refresh_token');
+};
+
+/**
+ * Many students share one IP behind school Wi-Fi or carrier NAT, so GoTrue's per-IP limit can
+ * refuse a token refresh with 429. auth-js treats a 429 as final: when the access token has
+ * already expired it removes the session (GoTrueClient _callRefreshToken), and an anonymous
+ * account cannot be signed into again. A 5xx is retried and keeps the session, so a refused
+ * refresh is passed on as 503 with GoTrue's body ("Request rate limit reached"). Every other
+ * request is untouched.
+ */
+const keepSessionOn429: typeof fetch = async (input, init) => {
+  const response = await fetch(input, init);
+  if (response.status !== 429 || !isTokenRefresh(input)) return response;
+  return new Response(await response.text(), {
+    status: 503,
+    statusText: 'Service Unavailable',
+    headers: response.headers,
+  });
+};
+
 export function getSupabase(): SupabaseClient {
   if (!GROUPS_ENABLED) throw new SyncUnavailableError('disabled');
   if (client !== null) return client;
@@ -34,6 +57,7 @@ export function getSupabase(): SupabaseClient {
       persistSession: true,
       detectSessionInUrl: false,
     },
+    global: { fetch: keepSessionOn429 },
   });
   // Refresh tokens only while the app is in the foreground (supabase React Native guidance).
   AppState.addEventListener('change', (state) => {
