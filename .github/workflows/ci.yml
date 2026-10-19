@@ -46,6 +46,11 @@ jobs:
       - name: Store frame composer
         run: npm run test:store-compose
 
+      # scripts/gen-legal-site.mjs: the published device-only site and the group-version pages
+      # (src/legal/pages): every page builds, no placeholders or internal notes, K-25, links.
+      - name: Legal site generator
+        run: node --test scripts/gen-legal-site.test.mjs
+
       - name: Expo doctor
         run: npx --yes expo-doctor
 
