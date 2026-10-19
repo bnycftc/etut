@@ -138,19 +138,24 @@ jobs:
           else:
               print("availability: not set")
               missing.append("availability not set")
-          sched = call("GET", f"/apps/{APP}/appPriceSchedule", ok_404=True)
-          has_price = bool(sched and sched.get("data"))
-          print(f"price schedule: {'set' if has_price else 'not set'}")
+          sched = call("GET", f"/apps/{APP}/appPriceSchedule", ok_404=True,
+                       params={"include": "manualPrices,baseTerritory"})
+          sdata = (sched or {}).get("data") or {}
+          base = (((sdata.get("relationships") or {}).get("baseTerritory") or {}).get("data") or {}).get("id")
+          manual = ((sdata.get("relationships") or {}).get("manualPrices") or {}).get("data") or []
+          has_price = bool(base and manual)
+          print(f"price schedule: {'set, base ' + base if has_price else 'not set'}")
           if has_price:
-              mp = call("GET", f"/appPriceSchedules/{sched['data']['id']}/manualPrices",
-                        params={"include": "appPricePoint,territory", "limit": 50})
-              points = {i["id"]: i["attributes"].get("customerPrice") for i in mp.get("included", [])
-                        if i["type"] == "appPricePoints"}
-              prices = sorted({points.get(m["relationships"]["appPricePoint"]["data"]["id"]) for m in mp["data"]})
+              pts = call("GET", f"/apps/{APP}/appPricePoints", params={"filter[territory]": base, "limit": 200})["data"]
+              by_id = {p["id"]: p["attributes"].get("customerPrice") for p in pts}
+              mp_ids = [m["id"] for m in manual]
+              inc = [i for i in sched.get("included", []) if i["type"] == "appPrices" and i["id"] in mp_ids]
+              prices = sorted({by_id.get(((i.get("relationships") or {}).get("appPricePoint") or {}).get("data", {}).get("id"), "?")
+                               for i in inc})
               print(f"manual prices (customer price): {prices}")
-              if any(float(x or 0) != 0.0 for x in prices):
+              if prices and any(x not in ("0", "0.0", "0.00") for x in prices):
                   missing.append("price is not free")
-          if not has_price:
+          else:
               missing.append("price not set")
 
           # ---- Setup: contact, free price, Türkiye only ----
