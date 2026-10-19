@@ -12,8 +12,12 @@ on:
       build:
         description: Build number to submit (e.g. 17.1)
         required: true
+      setup:
+        description: Before submitting, fill the review contact (data controller name and e-mail, REVIEW_PHONE), set the price to free and availability to Türkiye only
+        type: boolean
+        default: false
       apply:
-        description: Attach the build and submit (false = dry run, checks only)
+        description: Write (setup if chosen, attach the build, submit); false = dry run, checks only
         type: boolean
         default: false
 
@@ -25,6 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # Review notes come from the release branch of the version being submitted.
+      - uses: actions/checkout@v4
+        with:
+          ref: release/${{ inputs.version }}
       - name: Check and submit
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -33,6 +41,11 @@ jobs:
           VERSION: ${{ inputs.version }}
           BUILD: ${{ inputs.build }}
           APPLY: ${{ inputs.apply }}
+          SETUP: ${{ inputs.setup }}
+          # Contact: name and e-mail of the data controller (bny), phone from its own secret.
+          DC_NAME: ${{ secrets.DATA_CONTROLLER_NAME }}
+          DC_CONTACT: ${{ secrets.DATA_CONTROLLER_CONTACT }}
+          REVIEW_PHONE: ${{ secrets.REVIEW_PHONE }}
         run: |
           pip install --quiet pyjwt cryptography requests
           python3 - <<'PY'
@@ -40,6 +53,8 @@ jobs:
 
           APP = "6818980777"
           API = "https://api.appstoreconnect.apple.com/v1"
+          API2 = "https://api.appstoreconnect.apple.com/v2"
+          SETUP = os.environ.get("SETUP") == "true"
           VERSION, BUILD = os.environ["VERSION"].strip(), os.environ["BUILD"].strip()
           APPLY = os.environ.get("APPLY") == "true"
           print("mode:", "APPLY (attach build + submit)" if APPLY else "DRY RUN (checks only)")
@@ -60,8 +75,8 @@ jobs:
               except ValueError:
                   return []
 
-          def call(method, path, body=None, params=None, ok_404=False):
-              r = http.request(method, API + path, json=body, params=params, timeout=30)
+          def call(method, path, body=None, params=None, ok_404=False, v2=False):
+              r = http.request(method, (API2 if v2 else API) + path, json=body, params=params, timeout=30)
               if ok_404 and r.status_code == 404:
                   return None
               if not r.ok:
@@ -114,7 +129,7 @@ jobs:
           avail = call("GET", f"/apps/{APP}/appAvailabilityV2", ok_404=True)
           if avail and avail.get("data"):
               terr = call("GET", f"/appAvailabilities/{avail['data']['id']}/territoryAvailabilities",
-                          params={"limit": 200, "include": "territory"})
+                          params={"limit": 200, "include": "territory"}, v2=True)
               on = [t["relationships"]["territory"]["data"]["id"] for t in terr["data"]
                     if t["attributes"].get("available")]
               print(f"available territories: {len(on)}{' (TUR)' if on == ['TUR'] else ''}: {', '.join(sorted(on)[:10])}")
@@ -122,7 +137,60 @@ jobs:
                   missing.append("availability: Türkiye (TUR) not available")
           else:
               print("availability: not set")
-              missing.append("availability (pricing and availability) not set")
+              missing.append("availability not set")
+          sched = call("GET", f"/apps/{APP}/appPriceSchedule", ok_404=True)
+          has_price = bool(sched and sched.get("data"))
+          print(f"price schedule: {'set' if has_price else 'not set'}")
+          if not has_price:
+              missing.append("price not set")
+
+          # ---- Setup: contact, free price, Türkiye only ----
+          if SETUP:
+              name = os.environ.get("DC_NAME", "").split()
+              contact = {"contactFirstName": " ".join(name[:-1]), "contactLastName": name[-1] if name else "",
+                         "contactPhone": os.environ.get("REVIEW_PHONE", "").strip(),
+                         "contactEmail": os.environ.get("DC_CONTACT", "").strip()}
+              empty = [k for k, v in contact.items() if not v]
+              if empty:
+                  sys.exit("setup: missing " + ", ".join(empty) + " (DATA_CONTROLLER_NAME / _CONTACT, REVIEW_PHONE secrets)")
+              notes = open("store/app-store/review-notes.txt", encoding="utf-8").read().strip()
+              free = [p for p in call("GET", f"/apps/{APP}/appPricePoints",
+                                      params={"filter[territory]": "TUR", "limit": 200})["data"]
+                      if float(p["attributes"].get("customerPrice") or "1") == 0.0]
+              if len(free) != 1:
+                  sys.exit(f"setup: expected one free price point for TUR, found {len(free)}")
+              print("setup: contact from secrets (4 fields), notes from release branch, free price, TUR only")
+              if APPLY:
+                  attrs = dict(contact, notes=notes, demoAccountRequired=False)
+                  if rd and rd.get("data"):
+                      call("PATCH", f"/appStoreReviewDetails/{rd['data']['id']}", {"data": {
+                          "type": "appStoreReviewDetails", "id": rd["data"]["id"], "attributes": attrs}})
+                  else:
+                      call("POST", "/appStoreReviewDetails", {"data": {"type": "appStoreReviewDetails",
+                           "attributes": attrs, "relationships": {"appStoreVersion": {"data": {
+                               "type": "appStoreVersions", "id": ver["id"]}}}}})
+                  print("setup: review contact and notes written")
+                  if not has_price:
+                      call("POST", "/appPriceSchedules", {"data": {"type": "appPriceSchedules", "relationships": {
+                          "app": {"data": {"type": "apps", "id": APP}},
+                          "baseTerritory": {"data": {"type": "territories", "id": "TUR"}},
+                          "manualPrices": {"data": [{"type": "appPrices", "id": "${price1}"}]}}},
+                          "included": [{"type": "appPrices", "id": "${price1}", "attributes": {"startDate": None},
+                                        "relationships": {"appPricePoint": {"data": {
+                                            "type": "appPricePoints", "id": free[0]["id"]}}}}]})
+                      print("setup: price set to free (base territory TUR)")
+                  if not (avail and avail.get("data")):
+                      call("POST", "/appAvailabilities", {"data": {"type": "appAvailabilities",
+                           "attributes": {"availableInNewTerritories": False},
+                           "relationships": {"app": {"data": {"type": "apps", "id": APP}},
+                                             "territoryAvailabilities": {"data": [
+                                                 {"type": "territoryAvailabilities", "id": "${tur}"}]}}},
+                           "included": [{"type": "territoryAvailabilities", "id": "${tur}",
+                                         "attributes": {"available": True},
+                                         "relationships": {"territory": {"data": {
+                                             "type": "territories", "id": "TUR"}}}}]}, v2=True)
+                      print("setup: availability set to Türkiye only")
+                  missing = [m for m in missing if not m.startswith(("App Review contact", "availability", "price"))]
 
           print("App Privacy: not readable via the API; it must be published in App Store Connect")
 
