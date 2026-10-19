@@ -71,7 +71,8 @@ jobs:
 
           def errors(r):
               try:
-                  return [(e.get("code"), e.get("title"), e.get("detail")) for e in r.json().get("errors", [])]
+                  return [(e.get("code"), e.get("title"), e.get("detail"), (e.get("meta") or {}).get("associatedErrors"))
+                          for e in r.json().get("errors", [])]
               except ValueError:
                   return []
 
@@ -223,9 +224,13 @@ jobs:
               call("PATCH", f"/appStoreVersions/{ver['id']}/relationships/build",
                    {"data": {"type": "builds", "id": build["id"]}})
               print(f"attached build {BUILD} to {VERSION}")
-          sub = call("POST", "/reviewSubmissions", {"data": {"type": "reviewSubmissions",
+          # Reuse an open (not yet submitted) submission left by an earlier failed run.
+          open_subs = call("GET", "/reviewSubmissions", params={"filter[app]": APP, "filter[platform]": "IOS",
+                                                                "filter[state]": "READY_FOR_REVIEW"})["data"]
+          sub = open_subs[0] if open_subs else call("POST", "/reviewSubmissions", {"data": {"type": "reviewSubmissions",
                      "attributes": {"platform": "IOS"},
                      "relationships": {"app": {"data": {"type": "apps", "id": APP}}}}})["data"]
+          print(f"review submission: {'reused open one' if open_subs else 'created'}")
           call("POST", "/reviewSubmissionItems", {"data": {"type": "reviewSubmissionItems",
                "relationships": {"reviewSubmission": {"data": {"type": "reviewSubmissions", "id": sub["id"]}},
                                  "appStoreVersion": {"data": {"type": "appStoreVersions", "id": ver["id"]}}}}})
