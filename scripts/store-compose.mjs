@@ -327,8 +327,8 @@ export function checkConfig(config, features = readFileSync(FEATURES_PATH, 'utf8
     }
     for (const req of f.requires ?? []) {
       if (req !== 'offline') problems.push(`${label}: unknown requirement ${req}`);
-      else if (!/export const GROUPS_ENABLED(?:\s*:\s*boolean)?\s*=\s*false\s*;/.test(features)) {
-        problems.push(`${label}: claims the app works offline, but GROUPS_ENABLED is not false (src/config/features.ts)`);
+      else if (!/^export const GROUPS_PHASE(?:: *[A-Za-z]+)? *= *'off' *;/m.test(features)) {
+        problems.push(`${label}: claims the app works offline, but GROUPS_ENABLED is on (GROUPS_PHASE is not 'off', src/config/features.ts)`);
       }
     }
   });

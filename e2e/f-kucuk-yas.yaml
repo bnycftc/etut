@@ -1,7 +1,14 @@
-# f. 15 yaş altı (Gruplar sekmesi yok, K-16)
+# f. 15 yaş altı (Gruplar sekmesi yok, ağ bağlantısı yok, K-16)
 appId: com.bnycftc.etut
 tags:
   - e2e
+# Network check: in CI (.github/workflows/e2e-ios.yml, NET_PROBE_URL) these hooks open and close
+# the probe's window; every app process started in between must have no internet socket. Without
+# NET_PROBE_URL (a local run) they do nothing. onFlowComplete also runs when the flow fails.
+onFlowStart:
+  - evalScript: "${typeof NET_PROBE_URL === 'undefined' || !NET_PROBE_URL ? null : http.get(NET_PROBE_URL + '/start').status}"
+onFlowComplete:
+  - evalScript: "${typeof NET_PROBE_URL === 'undefined' || !NET_PROBE_URL ? null : http.get(NET_PROBE_URL + '/stop').status}"
 ---
 - launchApp:
     clearState: true
