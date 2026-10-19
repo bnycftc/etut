@@ -194,15 +194,16 @@ jobs:
                                             "type": "appPricePoints", "id": free[0]["id"]}}}}]})
                       print("setup: price set to free (base territory TUR)")
                   if not (avail and avail.get("data")):
+                      terrs = [t["id"] for t in call("GET", "/territories", params={"limit": 200})["data"]]
                       call("POST", "/appAvailabilities", {"data": {"type": "appAvailabilities",
                            "attributes": {"availableInNewTerritories": False},
                            "relationships": {"app": {"data": {"type": "apps", "id": APP}},
                                              "territoryAvailabilities": {"data": [
-                                                 {"type": "territoryAvailabilities", "id": "${tur}"}]}}},
-                           "included": [{"type": "territoryAvailabilities", "id": "${tur}",
-                                         "attributes": {"available": True},
-                                         "relationships": {"territory": {"data": {
-                                             "type": "territories", "id": "TUR"}}}}]}, v2=True)
+                                                 {"type": "territoryAvailabilities", "id": "${" + t + "}"} for t in terrs]}}},
+                           "included": [{"type": "territoryAvailabilities", "id": "${" + t + "}",
+                                         "attributes": {"available": t == "TUR"},
+                                         "relationships": {"territory": {"data": {"type": "territories", "id": t}}}}
+                                        for t in terrs]}, v2=True)
                       print("setup: availability set to Türkiye only")
                   missing = [m for m in missing if not m.startswith(("App Review contact", "availability", "price"))]
 
