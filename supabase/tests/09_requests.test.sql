@@ -69,8 +69,19 @@ select throws_ok($$ select * from public.submit_request('other', 'self', repeat(
 select lives_ok($$ select * from public.submit_request('other', 'self', repeat('a', 2000)) $$, '2000 characters are fine');
 select lives_ok($$ select * from public.submit_request('deletion', 'self', null) $$, 'a deletion request needs no text');
 select is((select count(*)::int from public.my_requests()), 3, 'A sees three own requests');
-select is((select kind from public.my_requests() limit 1), 'deletion', 'newest first');
 reset role;
+-- Newest first (inside this transaction now() is fixed, so an older row is added for the check).
+insert into app.dsr_requests (ref, user_id, kind, created_at)
+values ('ESKSRALA', '88888888-0000-0000-0000-00000000000a', 'purpose', now() - interval '1 day');
+call tests.act_as('88888888-0000-0000-0000-00000000000a');
+select is((select array_agg(kind) from public.my_requests()) @> array['purpose'], true, 'the older request is listed');
+select is((select kind from public.my_requests() offset 3 limit 1), 'purpose', 'newest first');
+reset role;
+do $$ begin
+  perform set_config('etut.purge', 'on', true);
+  delete from app.dsr_requests where ref = 'ESKSRALA';
+  perform set_config('etut.purge', 'off', true);
+end $$;
 
 -- A parent account (no profile) can apply too, for the child.
 call tests.act_as('88888888-0000-0000-0000-0000000000e1');
