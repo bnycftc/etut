@@ -141,6 +141,15 @@ jobs:
           sched = call("GET", f"/apps/{APP}/appPriceSchedule", ok_404=True)
           has_price = bool(sched and sched.get("data"))
           print(f"price schedule: {'set' if has_price else 'not set'}")
+          if has_price:
+              mp = call("GET", f"/appPriceSchedules/{sched['data']['id']}/manualPrices",
+                        params={"include": "appPricePoint,territory", "limit": 50})
+              points = {i["id"]: i["attributes"].get("customerPrice") for i in mp.get("included", [])
+                        if i["type"] == "appPricePoints"}
+              prices = sorted({points.get(m["relationships"]["appPricePoint"]["data"]["id"]) for m in mp["data"]})
+              print(f"manual prices (customer price): {prices}")
+              if any(float(x or 0) != 0.0 for x in prices):
+                  missing.append("price is not free")
           if not has_price:
               missing.append("price not set")
 
