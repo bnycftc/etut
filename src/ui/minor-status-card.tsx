@@ -15,7 +15,8 @@ import { Card, Label } from './components';
 
 const t = tr.minor.card;
 
-export function MinorStatusCard({ api = minorApi() }: { api?: MinorApi }) {
+/** `reload`: read the status again whenever it changes (the last one stays on screen meanwhile). */
+export function MinorStatusCard({ api = minorApi(), reload = 0 }: { api?: MinorApi; reload?: number }) {
   const [status, setStatus] = useState<MinorStatus | null>(null);
 
   useEffect(() => {
@@ -29,7 +30,7 @@ export function MinorStatusCard({ api = minorApi() }: { api?: MinorApi }) {
     return () => {
       live = false;
     };
-  }, [api]);
+  }, [api, reload]);
 
   const restriction = status === null ? null : minorRestriction(status);
   if (status === null || restriction === null) return null;

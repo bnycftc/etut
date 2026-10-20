@@ -47,7 +47,7 @@ export const page: LegalPage = {
             '15 yaşından küçükler: yalnız cihaz modu. Grup hesabı açılmaz, gruplar görünmez, hiçbir bilgi telefondan dışarı çıkmaz.',
             '15–17 yaş: gruplar şimdilik yalnız 18 yaş ve üstüne açık; 15–17 yaşındakiler yeni grup hesabı açamaz. Sayaç, denemeler ve netler her zamanki gibi çalışır. 15–17 yaşındakilerin gruplara katılması ileride, velinin onayıyla açılacak (aşağıda). Yaş ya da yaş bandı gruplarda hiçbir yerde gösterilmez. Veli bağlantısını yalnız 15–17 yaşındakiler kurabilir.',
             'Yaş, kullanıcının seçtiği doğum yılına göre belirlenir; kimlik kontrolü yapmıyoruz. 15 yaş altı beyanından sonra yaş, yeniden kayıtla ya da yedek geri yükleyerek yükseltilemez.',
-            'iPhone’da (iOS 26 ve sonrası) grup hesabı açılırken Apple, çocuğunuza Apple hesabındaki yaş aralığını paylaşmak isteyip istemediğini sorar. Paylaşılırsa telefonda yalnız aralık okunur ve doğum yılıyla çelişirse düşük yaş esas alınır; 15 yaşından küçük çıkarsa grup hesabı açılmaz. Aralık sunucuya gönderilmez.',
+            'iPhone’da (iOS 26 ve sonrası) Gruplar’da grup hesabı açma ekranı açılınca Apple, çocuğunuza Apple hesabındaki yaş aralığını paylaşmak isteyip istemediğini sorar. Paylaşılırsa telefonda yalnız aralık okunur; doğum yılıyla çelişirse düşük yaş esas alınır ve telefondaki doğum yılı buna göre düşürülür; 15 yaşından küçük çıkarsa grup hesabı açılmaz. Aralık sunucuya gönderilmez.',
           ],
         },
       ],
@@ -104,7 +104,7 @@ export const page: LegalPage = {
         {
           list: [
             'Onay: 15–17 yaşındakiler için gruplar açıldığında, veli ekranınızda çocuğunuzun yanında “Onaylıyorum” düğmesi görünür. Onay verene kadar çocuğunuzun grup özellikleri sınırlı kalır ve çocuğunuzun ekranında neyin neden sınırlı olduğu yazar. Onayınız tarihiyle kaydedilir; bağlı iki veliden birinin onayı yeterlidir. Onaydan sonra da yukarıdaki kilitlerle grupları istediğiniz gibi sınırlayabilirsiniz.',
-            'İtiraz: çocuğunuzun Etüt’te grup hesabı olmasını istemiyorsanız veli ekranında “İtiraz ediyorum”a dokunabilirsiniz; bu her zaman mümkündür. Onaylarsanız çocuğunuzun grup hesabı ve sunucudaki bilgileri (takma ad, grup üyelikleri, çalışma süreleri gibi) hemen silinir; bu geri alınamaz. Uygulama çocuğunuzun telefonunda grupsuz çalışmaya devam eder, telefondaki kayıtları silinmez. İtirazla yapılan silme, hesap silme kaydına yazılır (yalnız hesap numarası, zaman ve yol; 3 yıl).',
+            'İtiraz: çocuğunuzun Etüt’te grup hesabı olmasını istemiyorsanız veli ekranında “İtiraz ediyorum”a dokunabilirsiniz; bu her zaman mümkündür. Onaylarsanız çocuğunuzun grup hesabı ve sunucudaki bilgileri (takma ad, grup üyelikleri, çalışma süreleri gibi) hemen silinir; bu geri alınamaz. Uygulama çocuğunuzun telefonunda grupsuz çalışmaya devam eder, telefondaki kayıtları silinmez. İtiraz o anki grup hesabını siler, yeni bir hesabı engellemez: çocuğunuz yeniden grup hesabı açabilir (aşağıda, “Veli araçlarının sınırı”); bu yüzden önce çocuğunuzla konuşmanızı öneririz. İtirazla yapılan silme, hesap silme kaydına yazılır (yalnız hesap numarası, zaman ve yol; 3 yıl).',
           ],
         },
       ],

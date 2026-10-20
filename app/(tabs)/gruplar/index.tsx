@@ -115,7 +115,7 @@ function GroupsHome() {
   // Before the first group account: the terms box and Apple's age signal (K-17).
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [signal, setSignal] = useState<AgeSignal | null>(null);
-  // Bumped by every load of the account: remounts the minor status card, so it is read on focus.
+  // Bumped by every load of the account (on focus, after an action): the minor card reads again.
   const [loads, setLoads] = useState(0);
 
   // K-17: Apple's Declared Age Range is asked when a 15+ profile opens the sign-up (not during
@@ -337,6 +337,8 @@ function GroupsHome() {
         <Card>
           <Label variant="muted">{tr.groups.parentDisabled}</Label>
         </Card>
+        {/* The code stays reachable: /hesap-sil sends the student here (K-37). */}
+        <AccountCodeCard />
       </Screen>
     );
   }
@@ -347,6 +349,7 @@ function GroupsHome() {
         <Card>
           <Label variant="muted">{tr.groups.limitReached}</Label>
         </Card>
+        <AccountCodeCard />
       </Screen>
     );
   }
@@ -383,7 +386,7 @@ function GroupsHome() {
   return (
     <Screen testID="groups-home">
       {/* K-23: what is limited for a 15–17 account and how a parent approves (nothing otherwise). */}
-      {me.ageBand === '15_17' ? <MinorStatusCard key={loads} /> : null}
+      {me.ageBand === '15_17' ? <MinorStatusCard reload={loads} /> : null}
 
       {incoming.length > 0 ? (
         <Card>

@@ -857,6 +857,19 @@ describe('integration (WP-J), phase beta18', () => {
     fireEvent.press(screen.getByTestId('groups-invisible'));
     await flush();
     expect(minor.calls.filter((c) => c === 'myMinorStatus').length).toBeGreaterThan(reads);
+    // The last status stays on screen while it is read again.
+    expect(screen.getByTestId('minor-status-card')).toBeTruthy();
+  });
+
+  it('a parent lock or the daily limit still shows the account code (the /hesap-sil way)', async () => {
+    memory.groupsAccount = true;
+    server.signedIn = true;
+    server.me = studentMe({ groupsDisabled: true });
+    memory.profile = profile(teenYear);
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    await waitFor(() => expect(screen.getByTestId('groups-locked')).toBeTruthy());
+    expect(screen.getByTestId('account-code-card')).toBeTruthy();
   });
 
   it('Ayarlar → Gizlilik carries the KVKK entry', async () => {

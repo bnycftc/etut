@@ -59,7 +59,7 @@ export const page: LegalPage = {
           },
         },
         'Sınav türün ve alanın grup hesabı açılırken yalnız denetlenir (LGS profiliyle grup açılmaz), saklanmaz. Uygulama Apple ya da Google hesabıyla giriş kullanmaz; grup hesabı anonimdir.',
-        'iPhone’da (iOS 26 ve sonrası) grup hesabı açılırken Apple, Apple hesabındaki yaş aralığını paylaşmak isteyip istemediğini sorar. Paylaşırsan telefonda yalnız aralık okunur (15 yaşından küçük, 15–17 ya da 18 ve üstü); doğum yılınla çelişirse düşük yaş esas alınır. Aralık sunucuya gönderilmez, sunucuya yalnız sonuçtaki yaş bandı gider.',
+        'iPhone’da (iOS 26 ve sonrası) Gruplar’da grup hesabı açma ekranı açılınca Apple, Apple hesabındaki yaş aralığını paylaşmak isteyip istemediğini sorar. Paylaşırsan telefonda yalnız aralık okunur (15 yaşından küçük, 15–17 ya da 18 ve üstü); doğum yılınla çelişirse düşük yaş esas alınır. Aralık sunucuya gönderilmez, sunucuya yalnız sonuçtaki yaş bandı gider.',
       ],
     },
     {
