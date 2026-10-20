@@ -13,6 +13,7 @@ const KEYS = {
   usage: 'etut.groups.usage.v1',
   member: 'etut.groups.member.v1',
   parentLinked: 'etut.groups.parent-linked.v1',
+  terms: 'etut.groups.terms.v1',
 } as const;
 
 /** True once this device created a group profile on the server (until the account is deleted). */
@@ -75,4 +76,12 @@ export function loadGroupsUsage(day: DayKey): number {
 
 export function storeGroupsUsage(day: DayKey, ms: number): void {
   Storage.setItemSync(KEYS.usage, JSON.stringify({ day, ms: Math.max(0, Math.round(ms)) }));
+}
+
+/**
+ * Records the version ("Son güncelleme" date of the group-version pages, LEGAL_PAGES_UPDATED) of
+ * the terms of use the student accepted before the first group account was opened, and when.
+ */
+export function storeTermsAccepted(version: string, at: number): void {
+  Storage.setItemSync(KEYS.terms, JSON.stringify({ version, at }));
 }

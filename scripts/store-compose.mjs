@@ -29,7 +29,9 @@
  * Checks (any problem: exit code 1, nothing written): caption length and line count, measured line
  * width, WCAG contrast of the text on both gradient ends (src/domain/contrast.ts), words a store
  * image must not carry (price, LGS, ranking, social, superlatives, streak loss), "requires":
- * ["offline"] only while GROUPS_ENABLED is false, output names and sizes of the sources.
+ * ["offline"] only before the store release (GROUPS_PHASE 'off' or 'beta18': the closed beta is
+ * TestFlight only and keeps this v0 product page; 'public' uses store/app-store/groups/), output
+ * names and sizes of the sources.
  */
 
 import { createHash } from 'node:crypto';
@@ -327,8 +329,8 @@ export function checkConfig(config, features = readFileSync(FEATURES_PATH, 'utf8
     }
     for (const req of f.requires ?? []) {
       if (req !== 'offline') problems.push(`${label}: unknown requirement ${req}`);
-      else if (!/^export const GROUPS_PHASE(?:: *[A-Za-z]+)? *= *'off' *;/m.test(features)) {
-        problems.push(`${label}: claims the app works offline, but GROUPS_ENABLED is on (GROUPS_PHASE is not 'off', src/config/features.ts)`);
+      else if (!/^export const GROUPS_PHASE(?:: *[A-Za-z]+)? *= *'(?:off|beta18)' *;/m.test(features)) {
+        problems.push(`${label}: claims the app works offline, but GROUPS_PHASE is not 'off' or 'beta18' (src/config/features.ts): the store release has groups`);
       }
     }
   });

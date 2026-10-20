@@ -93,7 +93,7 @@ plugins/with-etut-ios.js Yerel config plugin (app.json'da İLK sırada kalmalı)
 src/ui/                 Tema (WCAG AA testli), ortak bileşenler, kart, ipucu, azaltılmış hareket
 src/legal/licenses.ts   Üretilen lisans listesi ve metinleri (npm run gen:licenses)
 src/strings.ts          Kullanıcıya görünen tüm metinler (yasal metinler ve DATA_CONTROLLER dahil)
-src/config/features.ts  Özellik bayrakları (GROUPS_ENABLED=false)
+src/config/features.ts  Grup modülünün fazı (GROUPS_PHASE 'off' | 'beta18' | 'public', şimdi 'off') ve açılış engelleri
 src/sync/               Grup sunucusu: tipli RPC API'si, çıkış kuyruğu, nabız (bayrak kapalıyken hiç çalışmaz)
 supabase/               Arka uç: migrations/ (SQL, RLS, RPC), tests/ (pgTAP), tests-ts/ (supabase-js), config.toml
 infra/                  Üretim sunucusu runbook'u ve betikleri (İlkbyte VPS, yalnız dosya)
@@ -412,7 +412,8 @@ yay, gerçek ekran yuvarlak kartta, başlık Inter Display Bold, alt satır Inte
 (`store/fonts/`, Inter 4.1, OFL-1.1, değiştirilmeden). Sıra, yerleşim ve metinler
 `store/app-store/tr/screenshots.json`'da; başlık en çok 35, alt satır en çok 70 karakter, en çok 2
 satır, satır genişliği ölçülür, kontrast (WCAG AA) ve yasak sözcükler (fiyat, LGS, sıralama, sosyal,
-seri kaybı …) denetlenir; "Hesap yok" karesi yalnız `GROUPS_ENABLED=false` iken çizilir. Sahte cihaz
+seri kaybı …) denetlenir; "Hesap yok" karesi yalnız `GROUPS_PHASE` 'off' ya da 'beta18' iken
+çizilir (kapalı beta mağaza sayfasını değiştirmez; 'public' için `store/app-store/groups/`). Sahte cihaz
 çerçevesi ya da çizilmiş kilit ekranı yoktur; kahraman karesi yalnız gerçek kırpmaları kullanır
 (`cropOn` SpringBoard öğesini bulamazsa `tam-*` görüntülerinden koyu bant aranarak kırpılır).
 Başlık değişikliği için 90 dakikalık macOS koşusu gerekmez. Çıktı
@@ -483,10 +484,14 @@ tanımlanması önerilir. Aynı gizli değerler CarPlay Medya deposundakilerle a
 ## Gruplar (arka uç, bayrak arkasında kapalı)
 
 Kişisel veri KVKK gereği Türkiye'deki kendi barındırdığımız Supabase'te tutulacak
-(`docs/hukuk/kvkk/00-aktarim-cozumu.md`); sunucu henüz yok. Bu yüzden `src/config/features.ts`
-içinde `GROUPS_ENABLED = false`: uygulama hiçbir ağ isteği yapmaz, supabase-js yüklenmez, Gruplar
-sekmesi 15+ profillerde yalnız "Yakında" ön izlemesini gösterir (`src/ui/groups-teaser.tsx`; ağ, hesap,
-veri yok; 15 altında sekme hiç yok). Bayrak açılınca:
+(`docs/hukuk/kvkk/00-aktarim-cozumu.md`); sunucu henüz yok. Anahtar `src/config/features.ts`
+içindeki `GROUPS_PHASE`: `'off'` (şimdi) iken uygulama hiçbir ağ isteği yapmaz, supabase-js
+yüklenmez, Gruplar sekmesi 15+ profillerde yalnız "Yakında" ön izlemesini gösterir
+(`src/ui/groups-teaser.tsx`; ağ, hesap, veri yok; 15 altında sekme hiç yok). `'beta18'` kapalı
+TestFlight betası (yalnız 18+; sunucu `app.minor_policy = 'closed'` ile 15–17'yi reddeder),
+`'public'` mağaza sürümü. `GROUPS_ENABLED` bundan türetilir (`GROUPS_PHASE !== 'off'`); elle
+değiştirilmez. Faz, `GROUPS_LAUNCH_BLOCKERS` o faza ait madde taşırken ilerletilemez
+(`src/config/__tests__/launch-gate.test.ts`). Faz açılınca:
 
 - Gruplar sekmesinde takma adla anonim hesap açılır (sunucuya yalnız yaş **bandı** gider: 15–17 /
   18+; doğum yılı gitmez; 15 altı hiç hesap açamaz, sunucu da reddeder). Sonradan Apple/Google

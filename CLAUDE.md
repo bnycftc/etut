@@ -5,9 +5,11 @@ expo-router. Kurulum, komutlar ve yayın hattı: `README.md`.
 
 ## Mimari özet
 
-- **Arka uç bayrak arkasında kapalı.** `src/config/features.ts` `GROUPS_ENABLED=false` iken veri
-  yalnız cihazdadır ve uygulama hiçbir ağ isteği yapmaz; ağ kodu yalnız `src/sync/` içinde ve
-  bayrağı denetler. Arka uç `supabase/` (SQL göçleri, RLS, RPC, pgTAP), üretim `infra/`.
+- **Arka uç faz anahtarının arkasında kapalı.** `src/config/features.ts` `GROUPS_PHASE = 'off'`
+  iken (`GROUPS_ENABLED` bundan türer) veri yalnız cihazdadır ve uygulama hiçbir ağ isteği yapmaz;
+  ağ kodu yalnız `src/sync/` içinde ve bayrağı denetler. `'beta18'` / `'public'` yalnız
+  `GROUPS_LAUNCH_BLOCKERS` o faz için boşken (launch-gate.test.ts). Arka uç `supabase/` (SQL
+  göçleri, RLS, RPC, pgTAP), üretim `infra/`.
   Analitik, push, reklam SDK'sı, EAS (Build/Update) ve Expo hesabı gerektiren hiçbir şey ekleme.
   Sunucu tablolarına istemciden yazılmaz; yeni sunucu kuralı = yeni RPC + pgTAP testi
   (`npm run test:db`, Docker yoksa `npm run test:db:pglite`).

@@ -1,8 +1,9 @@
 import { Redirect, router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 
 import { GROUPS_ENABLED } from '@/config/features';
+import { type AgeSignal, birthYearAfterSignal, resolveBand, signalCap } from '@/domain/age-signal';
 import {
   ageBandFor,
   checkNameLocally,
@@ -14,9 +15,17 @@ import {
   usageLimitReached,
 } from '@/domain/groups';
 import { istanbulYear } from '@/domain/istanbul-day';
+import { isSoloOnly } from '@/domain/profile';
+import { LEGAL_PAGES_UPDATED } from '@/legal/pages/_shared';
 import { useAppState, useNow } from '@/state/app-state';
 import { useGroupsUsage } from '@/state/groups-usage';
-import { loadGroupsAccount, storeGroupsAccount, storeGroupsMember, storeParentLinked } from '@/storage/groups-kv';
+import {
+  loadGroupsAccount,
+  storeGroupsAccount,
+  storeGroupsMember,
+  storeParentLinked,
+  storeTermsAccepted,
+} from '@/storage/groups-kv';
 import { tr } from '@/strings';
 import {
   type BlockedUser,
@@ -27,9 +36,14 @@ import {
   type Me,
 } from '@/sync/api';
 import { endGroupsAccount } from '@/sync/session-sync';
+import { requestAgeSignal } from '@/system/age-range';
+import { AccountCodeCard } from '@/ui/account-code-card';
 import { Button, Card, Chip, ChipRow, Label, Row, Screen, Tag, TextField } from '@/ui/components';
 import { errorText, Message, minutesLeft, ToggleRow } from '@/ui/group-ui';
 import { GroupsTeaser } from '@/ui/groups-teaser';
+import { Icon } from '@/ui/icon';
+import { MinorStatusCard } from '@/ui/minor-status-card';
+import { RequestsEntry } from '@/ui/requests-entry';
 import { usePalette } from '@/ui/theme';
 
 /**
@@ -45,9 +59,36 @@ export default function GroupsScreen() {
   return <GroupsHome />;
 }
 
+/** "Okudum, kabul ediyorum" box of the terms (announced as a checkbox). */
+function TermsCheck({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
+  const c = usePalette();
+  return (
+    <Pressable
+      testID="groups-terms-accept"
+      accessibilityRole="checkbox"
+      accessibilityLabel={tr.groups.termsAccept}
+      accessibilityState={{ checked }}
+      onPress={onToggle}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        minHeight: 44,
+        paddingVertical: 6,
+        opacity: pressed ? 0.6 : 1,
+      })}>
+      {checked ? (
+        <Icon name="saved" color={c.accent} size={22} />
+      ) : (
+        <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: c.controlBorder }} />
+      )}
+      <Text style={{ flex: 1, fontSize: 16, lineHeight: 22, color: c.text }}>{tr.groups.termsAccept}</Text>
+    </Pressable>
+  );
+}
 
 function GroupsHome() {
-  const { profile } = useAppState();
+  const { profile, saveProfile } = useAppState();
   const api = groupApi();
   const c = usePalette();
   const band = profile === null ? null : ageBandFor(profile.birthYear, istanbulYear(Date.now()));
@@ -71,6 +112,37 @@ function GroupsHome() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmUnlinkParents, setConfirmUnlinkParents] = useState(false);
   const [blocks, setBlocks] = useState<BlockedUser[] | null>(null);
+  // Before the first group account: the terms box and Apple's age signal (K-17).
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [signal, setSignal] = useState<AgeSignal | null>(null);
+  // Bumped by every load of the account: remounts the minor status card, so it is read on focus.
+  const [loads, setLoads] = useState(0);
+
+  // K-17: Apple's Declared Age Range is asked when a 15+ profile opens the sign-up (not during
+  // onboarding). Android and web answer 'unavailable' at once (src/system/age-range).
+  const signUpOpen = !hasAccount && profile !== null && band !== null && groupsAllowedForExam(profile.examType);
+  useEffect(() => {
+    if (!signUpOpen) return;
+    let live = true;
+    void requestAgeSignal().then((s) => {
+      if (live) setSignal(s);
+    });
+    return () => {
+      live = false;
+    };
+  }, [signUpOpen]);
+
+  // The signal can only lower the band. Under 15 → solo only (the age guard keeps the year, the
+  // tab goes away); 15–17 over an older declaration → the declared year is replaced. Idempotent:
+  // once saved, the stored year already gives the signal's band.
+  useEffect(() => {
+    if (signal === null || profile === null) return;
+    const year = istanbulYear(Date.now());
+    const birthYear = birthYearAfterSignal(profile.birthYear, resolveBand(profile.birthYear, signal, year), year);
+    if (birthYear !== profile.birthYear) {
+      saveProfile({ ...profile, birthYear, soloOnly: profile.soloOnly || isSoloOnly(birthYear, year) });
+    }
+  }, [signal, profile, saveProfile]);
 
   const accountGone = useCallback(() => {
     // The server account no longer exists (deleted, or purged after long inactivity): stop the
@@ -104,6 +176,7 @@ function GroupsHome() {
         if (raised) current = (await api.getMe()) ?? current;
       }
       setMe(current);
+      setLoads((n) => n + 1);
       // A linked parent sees the weekly time: sessions are sent even in no group (session-sync).
       storeParentLinked(current.parentCount > 0);
       if (!current.groupsDisabled) {
@@ -166,17 +239,25 @@ function GroupsHome() {
   if (!hasAccount) {
     const enable = () =>
       run(async () => {
+        if (!termsAccepted) {
+          setError(tr.groups.termsRequired);
+          return;
+        }
         const problem = checkNameLocally(nickname, 'nickname');
         if (problem !== null) {
           setError(tr.groupErrors[problem]);
           return;
         }
+        // The band as the age signal decided it (the effect above also updates the profile).
+        const decision = resolveBand(profile.birthYear, signal ?? 'unavailable', istanbulYear(Date.now()));
+        if (decision.band === 'under15') return;
+        storeTermsAccepted(LEGAL_PAGES_UPDATED, Date.now());
         await api.ensureSignedIn();
         await api.saveProfile({
           nickname: cleanName(nickname),
           examType: profile.examType,
           yksArea: profile.yksArea,
-          ageBand: band,
+          ageBand: decision.band,
         });
         storeGroupsAccount(true);
         setHasAccount(true);
@@ -208,9 +289,30 @@ function GroupsHome() {
             />
           </Row>
           <Label variant="small">{tr.groups.nicknameHint}</Label>
+          {signal !== null && signalCap(signal) === '15_17' ? (
+            <Label testID="groups-age-signal" variant="small">
+              {tr.groups.ageSignalTeen}
+            </Label>
+          ) : null}
+        </Card>
+        <Card testID="groups-terms">
+          <Label variant="small">{tr.groups.termsInfo}</Label>
+          <Button
+            testID="groups-terms-link"
+            kind="secondary"
+            title={tr.groups.termsLink}
+            onPress={() => router.push({ pathname: '/yasal/[doc]', params: { doc: 'gruplar-kullanim' } })}
+          />
+          <Button
+            testID="groups-privacy-policy-link"
+            kind="secondary"
+            title={tr.groups.privacyPolicyLink}
+            onPress={() => router.push({ pathname: '/yasal/[doc]', params: { doc: 'gruplar-gizlilik' } })}
+          />
+          <TermsCheck checked={termsAccepted} onToggle={() => setTermsAccepted((v) => !v)} />
           <Message text={error} error testID="groups-error" />
           <Message text={notice} testID="groups-notice" />
-          <Button testID="groups-enable" title={tr.groups.enable} onPress={enable} disabled={busy} />
+          <Button testID="groups-enable" title={tr.groups.enable} onPress={enable} disabled={busy || signal === null} />
         </Card>
       </Screen>
     );
@@ -280,6 +382,9 @@ function GroupsHome() {
 
   return (
     <Screen testID="groups-home">
+      {/* K-23: what is limited for a 15–17 account and how a parent approves (nothing otherwise). */}
+      {me.ageBand === '15_17' ? <MinorStatusCard key={loads} /> : null}
+
       {incoming.length > 0 ? (
         <Card>
           <Label variant="heading">{tr.groups.reactionsTitle}</Label>
@@ -498,6 +603,11 @@ function GroupsHome() {
           <Button testID="groups-delete" kind="danger" title={tr.groups.deleteAccount} onPress={() => setConfirmDelete(true)} />
         )}
       </Card>
+      {/* Gruplar → Grup hesabı → Hesap kodu (K-37; the /hesap-sil page points here). */}
+      <AccountCodeCard />
+
+      {/* K-31 / K-38: KVKK application and complaint channel (also in Ayarlar → Gizlilik). */}
+      <RequestsEntry />
     </Screen>
   );
 }

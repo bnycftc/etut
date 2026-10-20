@@ -29,6 +29,9 @@ export type ApiErrorCode =
   | 'not_parent'
   | 'parent_locked'
   | 'parent_limit'
+  // K-23 (minor policy migration): 15–17 not served yet ('closed') / waiting for a parent's approval.
+  | 'minor_closed'
+  | 'minor_pending'
   | 'network'
   | 'unknown';
 
@@ -49,6 +52,8 @@ const KNOWN_CODES: readonly ApiErrorCode[] = [
   'not_parent',
   'parent_locked',
   'parent_limit',
+  'minor_closed',
+  'minor_pending',
 ];
 
 export class ApiError extends Error {

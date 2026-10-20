@@ -5,10 +5,12 @@
  */
 
 import type { BackupError } from './domain/backup';
+import type { AnswerResult, RequestApplicant, RequestInputError, RequestKind } from './domain/dsr';
 import type { MarkError, MarkKind } from './domain/exam-analysis';
 import type { ExamDateKind } from './domain/exam-dates';
 import type { ParentNoticeKind, ReactionKind, ReportReason } from './domain/groups';
 import type { ManualEntryError } from './domain/manual-entry';
+import type { MinorPolicy } from './domain/minor-policy';
 import type { ExamKind, ScoreError, YksArea } from './domain/net';
 import type { ExamType } from './domain/profile';
 import { possessive } from './domain/tr-suffix';
@@ -1049,6 +1051,16 @@ export const tr = {
     introSecurity:
       'Güvenlik ve yasal zorunluluk (5651) için yaptığın işlemler hesap numarası, zaman ve IP adresiyle 395 gün saklanır. Reklam ve analitik yok; hiçbir bilgin yurt dışına gönderilmez.',
     privacyLink: 'Bilgilerin ne oluyor? (Gizlilik)',
+    // Before the first group account (kullanim.ts §1). Only the terms are accepted; the privacy
+    // policy informs and asks for no consent (K-35), so it is a link, not part of the box.
+    termsInfo:
+      'Grupları açmak için kullanım şartlarını ve topluluk kurallarını kabul etmen gerekir. Gizlilik politikası bilgilerinin nasıl işlendiğini anlatır; onu kabul etmen ya da onay vermen gerekmez.',
+    termsLink: 'Kullanım şartları ve topluluk kuralları',
+    privacyPolicyLink: 'Gizlilik politikası',
+    termsAccept: 'Kullanım şartlarını ve topluluk kurallarını okudum, kabul ediyorum.',
+    termsRequired: 'Grupları açmak için önce kullanım şartlarını kabul et.',
+    /** K-17: Apple's Declared Age Range said 15–17 for a profile declared older. */
+    ageSignalTeen: 'Apple hesabındaki yaş aralığına göre 15–17 yaş bandında sayılıyorsun; Etüt bunu esas alır.',
     unavailableLgs: 'Gruplar YKS, KPSS ve diğer sınavlar için. LGS profilinde sayaç ve denemeler gruplar olmadan tam çalışır.',
     nickname: 'Takma ad',
     nicknameHint: 'Gerçek adını, okulunu, şehrini ya da sosyal medya adını yazma.',
@@ -1274,6 +1286,8 @@ export const tr = {
     parent_limit: 'En fazla 2 veli bağlanabilir.',
     not_owner: 'Bunu yalnız grubun kurucusu yapabilir.',
     not_member: 'Bu grubun üyesi değilsin.',
+    minor_closed: 'Gruplar şimdilik yalnız 18 yaş ve üstüne açık.',
+    minor_pending: 'Bu özellik velin onay verince açılır.',
     network: 'Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.',
     generic: 'Bir sorun oluştu. Yeniden dene.',
   },
@@ -1868,5 +1882,163 @@ export const tr = {
     today: 'Sınav bugün',
     /** The exam day by the built-in estimate, worded as on the timer's card (`countdown.todayEstimated`). */
     todayEstimated: 'Tahmini sınav günü bugün',
+  },
+
+  /** In-app KVKK application channel (K-31, K-38; kvkk/07 C1, C2, C4, C5): app/basvuru.tsx, app/basvurularim.tsx, src/ui/requests-entry.tsx. */
+  requests: {
+    form: {
+      title: 'KVKK başvurusu',
+      intro:
+        'KVKK’nın 11. maddesindeki haklarını kullanmak ya da bir şikâyeti bildirmek için buradan yazabilirsin. Başvurun hesabından geldiği için kimliğini ayrıca kanıtlaman gerekmez. Ücretsizdir; cevabımız en geç 30 gün içinde yazılı olarak Başvurularım ekranına gelir.',
+      kind: 'Talep türü',
+      kinds: {
+        processed: 'Kişisel verilerim işleniyor mu?',
+        info: 'İşlenen verilerim hakkında bilgi istiyorum',
+        purpose: 'Verilerimin hangi amaçla işlendiğini ve amacına uygun kullanılıp kullanılmadığını öğrenmek istiyorum',
+        recipients: 'Verilerimin yurt içinde ya da yurt dışında kimlere aktarıldığını öğrenmek istiyorum',
+        correction: 'Eksik ya da yanlış işlenen verilerimin düzeltilmesini istiyorum',
+        deletion: 'Verilerimin silinmesini ya da yok edilmesini istiyorum',
+        notify_recipients: 'Düzeltme ya da silmenin verilerimin aktarıldığı kişilere bildirilmesini istiyorum',
+        automated_decision: 'Yalnız otomatik sistemlerle yapılan bir değerlendirmenin aleyhime sonucuna itiraz ediyorum',
+        damages: 'Hukuka aykırı işleme yüzünden uğradığım zararın giderilmesini istiyorum',
+        complaint: 'Şikâyet / bildirim',
+        other: 'Diğer',
+      } as Record<RequestKind, string>,
+      applicant: 'Başvuran',
+      applicants: {
+        self: 'Kendim',
+        parent: 'Velisi olduğum çocuğum adına',
+      } as Record<RequestApplicant, string>,
+      parentNote:
+        'Çocuğun adına başvuruyorsan açıklamaya çocuğunun takma adını yaz. Veli modunda bağlı olduğun hesabı doğrularız; bağlantı yoksa yalnız genel bilgi verebiliriz.',
+      body: 'Açıklama',
+      bodyRequired: 'Açıklama (bu talep türünde gerekli)',
+      bodyHint: 'Adını, T.C. kimlik numaranı ya da telefonunu yazmana gerek yok.',
+      bodyCount: (n: number, max: number) => `${n}/${max}`,
+      submit: 'Başvuruyu gönder',
+      errors: {
+        body_required: 'Bu talep türünde birkaç cümleyle ne olduğunu yazman gerekiyor.',
+        body_too_long: 'Açıklama en fazla 2.000 karakter olabilir.',
+      } as Record<RequestInputError, string>,
+      invalid: 'Başvuru kaydedilemedi. Talep türünü ve açıklamayı kontrol et.',
+      rateLimited: 'Bugün en fazla 5 başvuru gönderebilirsin. Yarın yeniden dene ya da bize e-postayla yaz.',
+      received: (ref: string, date: string, due: string) =>
+        `Başvurun alındı. Başvuru numaran: ${ref} · Tarih: ${date}. En geç ${due} tarihine kadar cevap vereceğiz.`,
+      openList: 'Başvurularım',
+      noAccount:
+        'Bu cihazın sunucuda bir hesabı yok; verilerin yalnız bu telefonda duruyor. Başvuru ya da şikâyet için bize e-postayla yazabilirsin.',
+      mail: 'E-posta gönder',
+      mailFailed: 'E-posta uygulaması açılamadı.',
+    },
+
+    list: {
+      title: 'Başvurularım',
+      empty: 'Henüz başvurun yok.',
+      newRequest: 'Yeni başvuru',
+      number: (ref: string) => `Başvuru no: ${ref}`,
+      submitted: (date: string) => `Başvuru tarihi: ${date}`,
+      open: (due: string) => `Cevap bekleniyor · son gün ${due}`,
+      overdue: (due: string) => `Cevap bekleniyor · son gün ${due} geçti; en kısa sürede yazacağız.`,
+      answered: (date: string) => `Cevaplandı · ${date}`,
+      newAnswer: 'Yeni cevap',
+      read: 'Cevabı oku',
+      hide: 'Cevabı gizle',
+      seenAt: (when: string) => `Cevabı ilk açtığın zaman: ${when}`,
+      loadFailed: 'Başvurular yüklenemedi.',
+    },
+
+    /** kvkk/07 C4: the answer as the applicant sees it. The answer text itself never changes. */
+    answer: {
+      title: 'KVKK Başvurusuna Cevap',
+      controller: (name: string, contact: string) => `Veri sorumlusu: ${name}, ${contact}`,
+      applicant: 'Başvuru sahibi: bu uygulamadaki hesabın',
+      numberDate: (ref: string, date: string) => `Başvuru no / tarihi: ${ref} / ${date}`,
+      subject: (kind: string) => `Talep konusu: ${kind}`,
+      explanations: 'Açıklamalarımız',
+      result: (result: string) => `Sonuç: ${result}`,
+      results: {
+        accepted: 'Kabul edildi',
+        partial: 'Kısmen kabul edildi',
+        rejected: 'Reddedildi',
+      } as Record<AnswerResult, string>,
+      date: (date: string) => `Cevap tarihi: ${date}`,
+      objection:
+        'Bu cevaba itiraz etmek istersen, cevabı öğrendiğin tarihten itibaren 30 gün ve her hâlde başvuru tarihinden itibaren 60 gün içinde Kişisel Verileri Koruma Kurulu’na şikâyette bulunabilirsin (KVKK m.14).',
+    },
+
+    export: {
+      title: 'Sunucudaki verilerim',
+      info: 'Sunucuda senin hakkında tutulan her şeyi (profilin, grupların, oturumların, tepkiler, başvuruların ve güvenlik kaydındaki işlemlerin) bir JSON dosyası olarak alabilirsin. IP adresleri bu dosyada yok. Telefonundaki kayıtlar da yok; onları Yedekle ekranından alırsın.',
+      button: 'Verilerimi indir',
+      fileName: (day: string) => `etut-sunucu-verilerim-${day}.json`,
+      dialogTitle: 'Sunucudaki verilerim',
+      done: 'Dosya hazır.',
+      unavailable: 'Bu cihazda paylaşma ekranı açılamadı.',
+    },
+
+    entry: {
+      title: 'KVKK başvurusu ve şikâyet',
+      info: 'Verilerinle ilgili haklarını kullanmak ya da bir şikâyeti bildirmek için yaz. En geç 30 gün içinde yazılı cevap veririz.',
+      apply: 'Başvuru yap',
+      list: 'Başvurularım',
+    },
+  },
+
+  /** K-23: the student card (src/ui/minor-status-card.tsx) and the parent approval / objection (app/veli.tsx). The parent part says "sen" like tr.parent. */
+  minor: {
+    card: {
+      title: 'Gruplar ve velin',
+      closed:
+        'Gruplar şimdilik yalnız 18 yaş ve üstüne açık. Sayaç, netler ve çalışma kayıtların her zamanki gibi çalışır; hepsi telefonunda kalır.',
+      strict:
+        'Gruplar, velin onay verince açılır. O zamana kadar sayaç, netler ve çalışma kayıtların her zamanki gibi çalışır.',
+      basic:
+        'Velin onay verene kadar gruplara katılabilirsin; yalnız görünmez çalışırsın, hazır tepki gönderip alamazsın ve yeni grup kuramazsın. Sayaç ve netlerin her zamanki gibi çalışır.',
+      why: '18 yaşından küçükler için grup özelliklerini velinin haberiyle ve onayıyla tam açıyoruz.',
+      notLinked:
+        'Onay için velin kendi telefonunda Etüt’ü açıp Ayarlar → Veli modu’na senin veli kodunu yazar, sonra “Onaylıyorum”a dokunur. Veli kodunu Gruplar → Veli bağlantısı’ndan oluşturursun.',
+      waiting: 'Velin bağlı; onayı bekleniyor. Velin Veli modu ekranında “Onaylıyorum”a dokununca bu sınırlar kalkar.',
+      reminder: 'Velinin onayı hâlâ bekleniyor. Uygun bir anda ona hatırlatabilirsin.',
+    },
+    parent: {
+      title: 'Veli onayı',
+      approveInfo: (policy: Extract<MinorPolicy, 'strict' | 'basic'>) =>
+        `${
+          policy === 'strict'
+            ? 'Onay verene kadar çocuğun gruplara katılamaz; yalnız hesabı ve seninle bağlantısı çalışır.'
+            : 'Onay verene kadar çocuğun gruplara katılabilir ama görünmez çalışır, hazır tepki gönderemez ve grup kuramaz.'
+        } Onaylarsan bu sınırlar kalkar; yukarıdaki ayarlarla grupları yine istediğin gibi sınırlayabilirsin. Onayın tarihiyle kaydedilir.`,
+      approve: 'Onaylıyorum',
+      approvedOn: (day: string) => `${day} tarihinde onay verdin.`,
+      approvedByOther: 'Bağlı diğer veli onay verdi.',
+      approvedNotice: 'Onayın kaydedildi.',
+      objectInfo:
+        'Çocuğunun Etüt’te grup hesabı olmasını istemiyorsan itiraz edebilirsin; o zaman grup hesabı silinir.',
+      object: 'İtiraz ediyorum',
+      objectConfirm: (nickname: string) =>
+        `İtiraz edersen “${nickname}” adlı grup hesabı ve sunucudaki bilgileri (takma ad, grup üyelikleri, çalışma süreleri gibi) hemen silinir; bu geri alınamaz. Uygulama çocuğunun telefonunda grupsuz çalışmaya devam eder, oradaki kayıtlar silinmez. İstersen önce çocuğunla konuş.`,
+      objectYes: 'Evet, grup hesabını sil',
+      objected: 'İtirazın kaydedildi; grup hesabı silindi.',
+    },
+  },
+
+  /** "Hesap kodu" card (src/ui/account-code-card.tsx; K-37, kvkk/07 A Yol 2, /hesap-sil). */
+  accountCode: {
+    title: 'Hesap kodu',
+    info: (contact: string) =>
+      `Uygulamayı silersen ya da telefonunu kaybedersen grup hesabına bir daha giremezsin. O zaman bu kodu ${contact} adresine e-postayla gönder; grup hesabını biz sileriz. Kodu bir yere not et ya da kaydet.`,
+    secret:
+      'Kodu kimseyle paylaşma: kodu bilen herkes hesabının silinmesini isteyebilir. Sunucuda kodun kendisi değil, yalnız ondan türetilen bir özet tutulur; kodu yalnız bu telefon gösterir.',
+    codeLabel: (spoken: string) => `Hesap kodun: ${spoken}`,
+    loading: 'Hesap kodu yükleniyor…',
+    copy: 'Kopyala ya da kaydet',
+    copyMessage: (code: string) => `Etüt hesap kodum: ${code}`,
+    missing:
+      'Hesap kodun daha önce oluşturuldu ama bu telefonda kayıtlı değil. Bir yere not ettiysen o kod geçerli. Bulamıyorsan yeni bir kod oluştur; eski kod o an geçersiz olur.',
+    renew: 'Yeni kod oluştur',
+    renewConfirm: 'Yeni kod oluşturulunca eski kod geçersiz olur ve silme isteğinde kullanılamaz. Devam edilsin mi?',
+    renewYes: 'Evet, yeni kod oluştur',
+    renewed: 'Yeni hesap kodun oluşturuldu. Bir yere not et.',
+    retry: 'Yeniden dene',
   },
 } as const;

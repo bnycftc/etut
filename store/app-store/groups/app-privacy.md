@@ -25,6 +25,7 @@ Her satırda: **Linked to the user: Yes**, **Used for tracking: No**, amaç yaln
 | Usage Data > **Other Usage Data** | Çalışma oturumları (ders, konu, süre), "şu an çalışıyor" durumu, günlük toplamlar, hazır tepkiler, grup üyelikleri | app.study_sessions, app.presence, app.daily_totals, app.reactions |
 | Diagnostics > **Other Diagnostic Data** | Güvenlik kaydındaki IP adresi ve işlem zamanı (5651, 395 gün) | audit.ip_events |
 | Other Data > **Other Data Types** | Yaş bandı (15–17 / 18+; doğum yılı gönderilmez), sınav türü ve alan | app.profiles |
+| User Content > **Customer Support** | Uygulama içi KVKK başvurusu ve şikâyet metni (en çok 2000 karakter serbest metin, talep türü) ve cevabımız | app.dsr_requests (WP-C) |
 
 ## Toplanmayanlar (No)
 
@@ -35,13 +36,6 @@ Her satırda: **Linked to the user: Yes**, **Used for tracking: No**, amaç yaln
 - Diagnostics > Crash Data, Performance Data: yok (uygulamada çökme raporu SDK'sı yok).
 - Location, Contacts, Health & Fitness, Financial Info, Sensitive Info, Browsing/Search History,
   Audio, Photos or Videos, Purchases: yok.
-
-## bny'nin karar vermesi gereken satır [KONTROL]
-
-- User Content > **Customer Support**: uygulama içi başvuru/şikâyet formu (WP-C, app.dsr_requests,
-  en çok 2000 karakter serbest metin) ve bildirim nedeni sunucuda tutulur. Apple bunu "Customer
-  Support" sayar. Plan bu satırı saymıyor; form yayındaki sürümde varsa **Yes, App Functionality,
-  Linked** girilmesi ihtiyatlı cevaptır.
 
 ## Girdikten sonra
 

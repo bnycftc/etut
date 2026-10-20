@@ -11,7 +11,7 @@ import { ApiError, setGroupApiForTests } from '../sync/api';
 import { setMinorApiForTests } from '../sync/minor-api';
 import { createFakeServer, type FakeServer } from '../sync/testing/fake-api';
 import { createFakeMinorServer, type FakeMinorServer } from '../sync/testing/minor-fake';
-import { minorTr } from '../strings-wp/minor';
+import { tr } from '../strings';
 import type { MinorPolicy } from '../domain/minor-policy';
 
 jest.mock('expo-router', () => {
@@ -21,7 +21,7 @@ jest.mock('expo-router', () => {
 jest.mock('@/state/app-state', () => ({ useAppState: () => ({ profile: { birthYear: 1980 } }) }));
 jest.mock('@/storage/groups-kv', () => ({ loadParentAccount: () => true, storeParentAccount: () => {} }));
 
-const m = minorTr.parent;
+const m = tr.minor.parent;
 let groups: FakeServer;
 let minor: FakeMinorServer;
 

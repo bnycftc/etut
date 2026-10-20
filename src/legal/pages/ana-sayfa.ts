@@ -17,6 +17,7 @@ export const page: LegalPage = {
         '[Velilere](veli)',
         '[Çocuk güvenliği ve yaş politikası](cocuk-guvenligi)',
         '[Saklama ve imha politikası](saklama)',
+        '[Hesabını silme](hesap-sil)',
         '[İletişim](iletisim)',
         '[Eski sürümler](gizlilik/arsiv)',
       ],

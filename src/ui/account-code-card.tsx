@@ -11,11 +11,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Share, Text, View } from 'react-native';
 
 import { DATA_CONTROLLER, tr } from '../strings';
-import { accountCodeTr as t } from '../strings-wp/account-code';
 import { type AccountCode, type AccountCodeApi, accountCodeApi, formatAccountCode } from '../sync/account-code-api';
 import { Button, Card, Label, Row } from './components';
 import { errorText, Message } from './group-ui';
 import { MAX_FONT_SCALE, typography, usePalette } from './theme';
+
+const t = tr.accountCode;
 
 export function AccountCodeCard({ api = accountCodeApi() }: { api?: AccountCodeApi }) {
   const c = usePalette();

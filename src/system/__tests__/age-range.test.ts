@@ -107,6 +107,7 @@ describe('plugins/with-age-range.js', () => {
       'NSPrivacyCollectedDataTypeOtherUsageData',
       'NSPrivacyCollectedDataTypeOtherDiagnosticData',
       'NSPrivacyCollectedDataTypeOtherDataTypes',
+      'NSPrivacyCollectedDataTypeCustomerSupport',
     ]);
     for (const t of types) {
       expect(t).toMatchObject({

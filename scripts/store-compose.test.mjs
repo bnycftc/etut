@@ -112,13 +112,24 @@ test('the checks catch price, LGS, ranking and streak-loss words, long and shout
   bad.frames[2].sub = ['LGS denemesi ücretsiz'];
   bad.frames[3].title = ['KRONOMETRE'];
   bad.frames[4].title = ['Doğru ve yanlışı gir, net hazır!'];
-  const problems = checkConfig(bad, 'export const GROUPS_ENABLED: boolean = true;');
+  const problems = checkConfig(bad, "export const GROUPS_PHASE: GroupsPhase = 'public';");
   const has = (...parts) => problems.some((p) => parts.every((s) => p.includes(s)));
   assert.ok(has('02-net-grafigi.png title', 'characters'), problems.join('\n'));
   assert.ok(has('03-yanlis-konular.png sub', 'lgs', 'ücret'), problems.join('\n'));
   assert.ok(has('04-kronometre-pomodoro.png title', 'upper case'), problems.join('\n'));
   assert.ok(has('05-net-hesabi.png title', 'px wide'), problems.join('\n'));
-  assert.ok(has('07-veriler-sende.png', 'GROUPS_ENABLED'), problems.join('\n'));
+  assert.ok(has('07-veriler-sende.png', 'GROUPS_PHASE'), problems.join('\n'));
+});
+
+test('the offline claim stands before the store release and falls at public', () => {
+  const offline = (phase) =>
+    checkConfig(config, `export const GROUPS_PHASE: GroupsPhase = '${phase}';`).filter((p) => p.includes('offline'));
+  // The closed beta (TestFlight only) keeps the v0 product page; the store release uses the groups set.
+  assert.deepEqual(offline('off'), []);
+  assert.deepEqual(offline('beta18'), []);
+  assert.ok(offline('public').some((p) => p.startsWith('07-veriler-sende.png')));
+  // Without a readable phase the claim is not trusted.
+  assert.notDeepEqual(checkConfig(config, 'export const GROUPS_ENABLED: boolean = true;').filter((p) => p.includes('offline')), []);
 });
 
 test('the luma fallback finds the Dynamic Island and the Live Activity banner in full shots', () => {

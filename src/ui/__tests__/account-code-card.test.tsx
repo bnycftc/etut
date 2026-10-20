@@ -9,7 +9,7 @@ import { Share } from 'react-native';
 
 import { ApiError } from '../../sync/api';
 import { createFakeAccountCodeServer } from '../../sync/testing/account-code-fake';
-import { accountCodeTr } from '../../strings-wp/account-code';
+import { tr } from '../../strings';
 import { AccountCodeCard } from '../account-code-card';
 
 jest.mock('@/strings', () => {
@@ -30,9 +30,9 @@ it('makes the code on first use and shows it with what it is for', async () => {
   );
   expect(screen.getByTestId('account-code-value').props.selectable).toBe(true);
   // What it is for, where to send it, and that it is not to be shared.
-  expect(screen.getByText(accountCodeTr.info('destek@ornek.com'))).toBeTruthy();
+  expect(screen.getByText(tr.accountCode.info('destek@ornek.com'))).toBeTruthy();
   expect(screen.getByText(/destek@ornek\.com/)).toBeTruthy();
-  expect(screen.getByText(accountCodeTr.secret)).toBeTruthy();
+  expect(screen.getByText(tr.accountCode.secret)).toBeTruthy();
   expect(screen.queryByTestId('account-code-missing')).toBeNull();
   expect(server.calls).toEqual(['accountCode']);
 });
@@ -64,15 +64,15 @@ it('offers a new code, after a warning, when the phone lost its copy', async () 
 
   // Cancel keeps the old code.
   fireEvent.press(screen.getByTestId('account-code-renew'));
-  expect(screen.getByText(accountCodeTr.renewConfirm)).toBeTruthy();
+  expect(screen.getByText(tr.accountCode.renewConfirm)).toBeTruthy();
   fireEvent.press(screen.getByTestId('account-code-renew-cancel'));
-  expect(screen.queryByText(accountCodeTr.renewConfirm)).toBeNull();
+  expect(screen.queryByText(tr.accountCode.renewConfirm)).toBeNull();
   expect(server.serverCode).toBe('ABCDEFGHJKLM');
 
   fireEvent.press(screen.getByTestId('account-code-renew'));
   fireEvent.press(screen.getByTestId('account-code-renew-confirm'));
   expect(await screen.findByText('NPQR-STUV-WXYZ')).toBeTruthy();
-  expect(screen.getByTestId('account-code-notice').props.children).toBe(accountCodeTr.renewed);
+  expect(screen.getByTestId('account-code-notice').props.children).toBe(tr.accountCode.renewed);
   expect(screen.queryByTestId('account-code-missing')).toBeNull();
   expect(server.serverCode).toBe('NPQRSTUVWXYZ');
 });

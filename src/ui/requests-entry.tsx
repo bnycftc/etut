@@ -9,7 +9,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { GROUPS_ENABLED } from '../config/features';
 import { istanbulDayKey, istanbulTimeOfDay } from '../domain/istanbul-day';
-import { requestsTr } from '../strings-wp/requests';
+import { tr } from '../strings';
 import { Card, Label, ListRow } from './components';
 import { formatDay } from './format';
 import { Icon } from './icon';
@@ -19,10 +19,10 @@ export function RequestsEntry() {
   if (!GROUPS_ENABLED) return null;
   return (
     <Card testID="requests-entry">
-      <Label variant="heading">{requestsTr.entry.title}</Label>
-      <Label variant="muted">{requestsTr.entry.info}</Label>
-      <ListRow testID="requests-entry-apply" icon="manual" title={requestsTr.entry.apply} onPress={() => router.push('/basvuru')} />
-      <ListRow testID="requests-entry-list" icon="document" title={requestsTr.entry.list} onPress={() => router.push('/basvurularim')} />
+      <Label variant="heading">{tr.requests.entry.title}</Label>
+      <Label variant="muted">{tr.requests.entry.info}</Label>
+      <ListRow testID="requests-entry-apply" icon="manual" title={tr.requests.entry.apply} onPress={() => router.push('/basvuru')} />
+      <ListRow testID="requests-entry-list" icon="document" title={tr.requests.entry.list} onPress={() => router.push('/basvurularim')} />
     </Card>
   );
 }

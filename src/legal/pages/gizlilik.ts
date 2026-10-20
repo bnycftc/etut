@@ -45,7 +45,7 @@ export const page: LegalPage = {
             head: ['Bilgi', 'Nasıl toplanır?', 'Ne için?'],
             rows: [
               ['Takma ad', 'Sen yazarsın', 'Grupta görünmek'],
-              ['Yaş bandı (15–17 ya da 18+) ve bildirildiği yıl; doğum yılı gönderilmez', 'Doğum yılından telefonunda hesaplanır', 'Yaş sınırı, 15–17 için veli bağlantısı'],
+              ['Yaş bandı (15–17 ya da 18+) ve bildirildiği yıl; doğum yılı gönderilmez', 'Doğum yılından telefonunda hesaplanır; Apple’ın paylaştığı yaş aralığı daha düşükse o esas alınır', 'Yaş sınırı, 15–17 için veli bağlantısı'],
               ['Rastgele hesap numarası, oturum anahtarları, son kullanım günü (e-posta ve telefon yok)', 'Otomatik', 'Grup hesabının çalışması, kullanılmayan hesabın silinmesi'],
               ['Grup üyelikleri, katılma istekleri, grup ayarların', 'Sen katıldıkça ve seçtikçe', 'Grupların çalışması'],
               ['Canlı durum (çalışıyor mu, molada mı, hangi ders, ne zamandır)', 'Sayaç açıkken, yalnız bir gruptaysan', 'Grubunda “şu an çalışıyor” göstermek'],
@@ -59,6 +59,7 @@ export const page: LegalPage = {
           },
         },
         'Sınav türün ve alanın grup hesabı açılırken yalnız denetlenir (LGS profiliyle grup açılmaz), saklanmaz. Uygulama Apple ya da Google hesabıyla giriş kullanmaz; grup hesabı anonimdir.',
+        'iPhone’da (iOS 26 ve sonrası) grup hesabı açılırken Apple, Apple hesabındaki yaş aralığını paylaşmak isteyip istemediğini sorar. Paylaşırsan telefonda yalnız aralık okunur (15 yaşından küçük, 15–17 ya da 18 ve üstü); doğum yılınla çelişirse düşük yaş esas alınır. Aralık sunucuya gönderilmez, sunucuya yalnız sonuçtaki yaş bandı gider.',
       ],
     },
     {

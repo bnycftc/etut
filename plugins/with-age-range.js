@@ -12,9 +12,10 @@
  *   1. `com.apple.developer.declared-age-range` in the app's entitlements. expo-age-range has no
  *      config plugin of its own; without the entitlement AgeRangeService answers "not available".
  *   2. `NSPrivacyCollectedDataTypes` in the app's privacy manifest, matching App Privacy in App
- *      Store Connect: user ID, other user content, other usage data, other diagnostic data (IP
- *      address in server logs) and other data types (the age band). Linked to the user, no
- *      tracking, only for app functionality.
+ *      Store Connect (store/app-store/groups/app-privacy.md): user ID, other user content, other
+ *      usage data, other diagnostic data (IP address in server logs), other data types (the age
+ *      band) and customer support (the in-app KVKK request and complaint text, app.dsr_requests).
+ *      Linked to the user, no tracking, only for app functionality.
  *
  * Only the app target gets these; the widget extension's manifest (with-etut-ios.js) is unchanged.
  */
@@ -28,6 +29,7 @@ const COLLECTED_TYPES = [
   'NSPrivacyCollectedDataTypeOtherUsageData',
   'NSPrivacyCollectedDataTypeOtherDiagnosticData',
   'NSPrivacyCollectedDataTypeOtherDataTypes',
+  'NSPrivacyCollectedDataTypeCustomerSupport',
 ];
 
 function groupsPhase() {

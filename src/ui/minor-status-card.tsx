@@ -9,11 +9,11 @@
 import { useEffect, useState } from 'react';
 
 import { minorRestriction, type MinorStatus, showApprovalReminder } from '../domain/minor-policy';
-import { minorTr } from '../strings-wp/minor';
+import { tr } from '../strings';
 import { type MinorApi, minorApi } from '../sync/minor-api';
 import { Card, Label } from './components';
 
-const t = minorTr.card;
+const t = tr.minor.card;
 
 export function MinorStatusCard({ api = minorApi() }: { api?: MinorApi }) {
   const [status, setStatus] = useState<MinorStatus | null>(null);

@@ -15,7 +15,7 @@ import {
 import { formatCode } from '@/domain/groups';
 import { useAppState } from '@/state/app-state';
 import { loadGroupsAccount, loadParentAccount } from '@/storage/groups-kv';
-import { requestsTr } from '@/strings-wp/requests';
+import { tr } from '@/strings';
 import { ApiError, isAccountGone } from '@/sync/api';
 import { requestsApi, type SubmittedRequest } from '@/sync/requests-api';
 import { Button, Card, Label, Screen } from '@/ui/components';
@@ -24,7 +24,7 @@ import { errorText, Message } from '@/ui/group-ui';
 import { ChoiceRow, requestDate } from '@/ui/requests-entry';
 import { usePalette } from '@/ui/theme';
 
-const t = requestsTr.form;
+const t = tr.requests.form;
 
 /**
  * In-app KVKK application and complaint form (KVKK m.11, m.13; hukuk/03 K-31, K-38; kvkk/07 C2).

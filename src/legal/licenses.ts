@@ -100,6 +100,7 @@ export const LICENSES: readonly PackageLicense[] = [
   { name: "escape-string-regexp", version: "4.0.0", license: "MIT", source: null, text: T[16] },
   { name: "event-target-shim", version: "5.0.1", license: "MIT", source: null, text: T[17] },
   { name: "expo", version: "57.0.30", license: "MIT", source: null, text: T[1] },
+  { name: "expo-age-range", version: "57.0.5", license: "MIT", source: null, text: T[1] },
   { name: "expo-application", version: "57.0.3", license: "MIT", source: null, text: T[1] },
   { name: "expo-asset", version: "57.0.20", license: "MIT", source: null, text: T[1] },
   { name: "expo-constants", version: "57.0.22", license: "MIT", source: null, text: T[1] },

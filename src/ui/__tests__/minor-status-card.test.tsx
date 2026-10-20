@@ -8,10 +8,10 @@ import { render, screen, waitFor } from '@testing-library/react-native';
 
 import { ApiError } from '../../sync/api';
 import { createFakeMinorServer } from '../../sync/testing/minor-fake';
-import { minorTr } from '../../strings-wp/minor';
+import { tr } from '../../strings';
 import { MinorStatusCard } from '../minor-status-card';
 
-const t = minorTr.card;
+const t = tr.minor.card;
 
 it('strict, no parent yet: what is limited, why, and how a parent approves', async () => {
   const server = createFakeMinorServer({ policy: 'strict', daysSinceSignup: 3 });

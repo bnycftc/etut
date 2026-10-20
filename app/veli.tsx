@@ -7,7 +7,6 @@ import { parentActions } from '@/domain/minor-policy';
 import { useAppState } from '@/state/app-state';
 import { loadParentAccount, storeParentAccount } from '@/storage/groups-kv';
 import { tr } from '@/strings';
-import { minorTr } from '@/strings-wp/minor';
 import {
   type ChildSummary,
   type DayTotal,
@@ -21,7 +20,7 @@ import { BarChart, Button, Card, Label, Row, Screen, Stepper, TextField } from '
 import { formatDuration } from '@/ui/format';
 import { errorText, Message, ToggleRow } from '@/ui/group-ui';
 
-const m = minorTr.parent;
+const m = tr.minor.parent;
 
 /**
  * Parent mode on the parent's own device (K-22): enter the code shown on the student's screen,

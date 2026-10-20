@@ -2,17 +2,26 @@
  * Group screens with the flag ON, against the in-memory fake server (src/sync/testing). Storage
  * is replaced by in-memory fakes like in app-smoke.test.tsx. A second block checks that with the
  * flag OFF the tab shows only the "Yakında" preview to 15+ (none under 15) and nothing reaches
- * the network.
+ * the network. "ON" runs at GROUPS_PHASE 'beta18' (mocked); the WP-J block checks the terms gate,
+ * Apple's age signal (K-17), where the cards sit and the K-23 error kinds.
  */
 
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
 
+import type { AgeSignal } from '../domain/age-signal';
 import type { Profile } from '../domain/profile';
 import type { ActiveSession } from '../domain/timer';
-import { setGroupApiForTests } from '../sync/api';
+import { LEGAL_PAGES_UPDATED } from '../legal/pages/_shared';
+import { tr } from '../strings';
+import { setAccountCodeApiForTests } from '../sync/account-code-api';
+import { ApiError, setGroupApiForTests, toApiError } from '../sync/api';
+import { setMinorApiForTests } from '../sync/minor-api';
+import { createFakeAccountCodeServer, type FakeAccountCodeServer } from '../sync/testing/account-code-fake';
 import { createFakeServer, type FakeServer, ME_ID } from '../sync/testing/fake-api';
+import { createFakeMinorServer, type FakeMinorServer } from '../sync/testing/minor-fake';
+import { errorText } from '../ui/group-ui';
 
 // The first renderRouter of a cold run (fresh CI runner, empty transform cache) loads and
 // transforms every route and can take well over Jest's default 5 s.
@@ -22,6 +31,18 @@ const flags = { enabled: true };
 jest.mock('../config/features', () => ({
   get GROUPS_ENABLED() {
     return flags.enabled;
+  },
+  get GROUPS_PHASE() {
+    return flags.enabled ? 'beta18' : 'off';
+  },
+}));
+
+// Apple's Declared Age Range (src/system/age-range): what the next request answers.
+const age: { signal: AgeSignal; asked: number } = { signal: 'unavailable', asked: 0 };
+jest.mock('../system/age-range', () => ({
+  requestAgeSignal: async () => {
+    age.asked += 1;
+    return age.signal;
   },
 }));
 
@@ -34,6 +55,8 @@ const memory: {
   parentLinked: boolean;
   usage: { day: string; ms: number } | null;
   outboxCleared: boolean;
+  terms: { version: string; at: number } | null;
+  ageGuard: number | null;
 } = {
   profile: null,
   active: null,
@@ -43,6 +66,8 @@ const memory: {
   parentLinked: false,
   usage: null,
   outboxCleared: false,
+  terms: null,
+  ageGuard: null,
 };
 
 jest.mock('../storage/kv', () => ({
@@ -132,6 +157,9 @@ jest.mock('../storage/groups-kv', () => ({
   storeGroupsUsage: (day: string, ms: number) => {
     memory.usage = { day, ms };
   },
+  storeTermsAccepted: (version: string, at: number) => {
+    memory.terms = { version, at };
+  },
 }));
 jest.mock('../storage/outbox', () => ({
   enqueueSession: () => {},
@@ -144,8 +172,10 @@ jest.mock('../storage/outbox', () => ({
   },
 }));
 jest.mock('../storage/age-guard', () => ({
-  loadYoungestDeclaredBirthYear: () => null,
-  storeYoungestDeclaredBirthYear: () => {},
+  loadYoungestDeclaredBirthYear: () => memory.ageGuard,
+  storeYoungestDeclaredBirthYear: (year: number | null) => {
+    memory.ageGuard = year;
+  },
 }));
 jest.mock('../storage/sessions', () => ({
   saveSession: () => {},
@@ -200,6 +230,8 @@ function pressAlert(text: string) {
   act(() => onPress());
 }
 let server: FakeServer;
+let codes: FakeAccountCodeServer;
+let minor: FakeMinorServer;
 
 function profile(birthYear: number): Profile {
   return { birthYear, examType: 'YKS', yksArea: 'sayisal', soloOnly: false, createdAt: 0 };
@@ -218,11 +250,23 @@ beforeEach(() => {
   memory.parentLinked = false;
   memory.usage = null;
   memory.outboxCleared = false;
+  memory.terms = null;
+  memory.ageGuard = null;
+  age.signal = 'unavailable';
+  age.asked = 0;
   server = createFakeServer();
   setGroupApiForTests(server.api);
+  codes = createFakeAccountCodeServer();
+  setAccountCodeApiForTests(codes.api);
+  minor = createFakeMinorServer({ policy: 'closed' });
+  setMinorApiForTests(minor.api);
 });
 
-afterEach(() => setGroupApiForTests(null));
+afterEach(() => {
+  setGroupApiForTests(null);
+  setAccountCodeApiForTests(null);
+  setMinorApiForTests(null);
+});
 
 /** Lets the fake server's promises settle (renderRouter uses fake timers; promises are real). */
 async function flush() {
@@ -233,11 +277,18 @@ async function flush() {
   }
 }
 
-async function signUp(nickname = 'Gece Kuşu') {
+/** The sign-up screen, once the age signal is in (the button waits for it). */
+async function openSignUp() {
   renderRouter(APP_DIR, { initialUrl: '/gruplar' });
   // The first render of a run can be slow under load: wait for the screen instead of a fixed flush.
   await waitFor(() => expect(screen.getByTestId('groups-nickname')).toBeTruthy());
+  await flush();
+}
+
+async function signUp(nickname = 'Gece Kuşu') {
+  await openSignUp();
   fireEvent.changeText(screen.getByTestId('groups-nickname'), nickname);
+  fireEvent.press(screen.getByTestId('groups-terms-accept'));
   fireEvent.press(screen.getByTestId('groups-enable'));
   await flush();
 }
@@ -255,9 +306,9 @@ describe('group module ON', () => {
   });
 
   it('a bad nickname is caught before anything is sent', async () => {
-    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
-    await waitFor(() => expect(screen.getByTestId('groups-nickname')).toBeTruthy());
+    await openSignUp();
     fireEvent.changeText(screen.getByTestId('groups-nickname'), 'A😀');
+    fireEvent.press(screen.getByTestId('groups-terms-accept'));
     fireEvent.press(screen.getByTestId('groups-enable'));
     await waitFor(() => expect(screen.getByTestId('groups-error')).toBeTruthy());
     expect(server.calls).not.toContain('saveProfile');
@@ -678,6 +729,183 @@ describe('group module ON', () => {
     await flush();
     expect(server.blocks).toEqual([]);
     expect(screen.getByText('Kimseyi engellemedin.')).toBeTruthy();
+  });
+});
+
+describe('integration (WP-J), phase beta18', () => {
+  it('the terms must be accepted before the first group account; the version is kept on the device', async () => {
+    await openSignUp();
+    fireEvent.changeText(screen.getByTestId('groups-nickname'), 'Gece Kuşu');
+    fireEvent.press(screen.getByTestId('groups-enable'));
+    await flush();
+    expect(screen.getByTestId('groups-error').props.children).toBe(tr.groups.termsRequired);
+    expect(server.calls).toEqual([]);
+    expect(memory.terms).toBeNull();
+
+    const box = screen.getByTestId('groups-terms-accept');
+    expect(box.props.accessibilityRole).toBe('checkbox');
+    expect(box.props.accessibilityState).toEqual({ checked: false });
+    fireEvent.press(box);
+    expect(screen.getByTestId('groups-terms-accept').props.accessibilityState).toEqual({ checked: true });
+    fireEvent.press(screen.getByTestId('groups-enable'));
+    await flush();
+    expect(memory.terms?.version).toBe(LEGAL_PAGES_UPDATED);
+    expect(server.calls.slice(0, 2)).toEqual(['ensureSignedIn', 'saveProfile']);
+    await waitFor(() => expect(screen.getByTestId('groups-home')).toBeTruthy());
+  });
+
+  it('the terms box links to the group-version terms', async () => {
+    await openSignUp();
+    fireEvent.press(screen.getByTestId('groups-terms-link'));
+    await flush();
+    expect(screen.getByTestId('legal-gruplar-kullanim')).toBeTruthy();
+    expect(screen.getByText('Kullanım şartları ve topluluk kuralları')).toBeTruthy();
+    expect(screen.getByText('1. Taraflar ve kabul')).toBeTruthy();
+  });
+
+  it('the terms box links to the group-version privacy policy', async () => {
+    await openSignUp();
+    fireEvent.press(screen.getByTestId('groups-privacy-policy-link'));
+    await flush();
+    expect(screen.getByTestId('legal-gruplar-gizlilik')).toBeTruthy();
+    expect(screen.getByText('3. Sunucuda tutulanlar (yalnız grupları açarsan)')).toBeTruthy();
+  });
+
+  it('the age signal is asked when the sign-up opens, not before', async () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    await flush();
+    expect(age.asked).toBe(0);
+    await openSignUp();
+    expect(age.asked).toBe(1);
+  });
+
+  it('an existing group account is not asked again', async () => {
+    memory.groupsAccount = true;
+    server.signedIn = true;
+    server.me = studentMe({ ageBand: '18_plus', parentCount: 0 });
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    await waitFor(() => expect(screen.getByTestId('groups-home')).toBeTruthy());
+    expect(age.asked).toBe(0);
+  });
+
+  it('a signal under 15 makes the profile solo only through the age guard; nothing is sent', async () => {
+    age.signal = { lowerBound: null, upperBound: 14 };
+    const { istanbulYear } = jest.requireActual('../domain/istanbul-day');
+    const year = istanbulYear(Date.now());
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    expect(memory.profile).toMatchObject({ birthYear: year - 15, soloOnly: true });
+    expect(memory.ageGuard).toBe(year - 15);
+    expect(screen.queryByTestId('groups-intro')).toBeNull();
+    expect(screen.getByTestId('timer-screen')).toBeTruthy();
+    expect(server.calls).toEqual([]);
+  });
+
+  it('a 15–17 signal overrides an adult declaration: the year and the band sent', async () => {
+    age.signal = { lowerBound: 15, upperBound: 17 };
+    const { istanbulYear } = jest.requireActual('../domain/istanbul-day');
+    const year = istanbulYear(Date.now());
+    await openSignUp();
+    expect(memory.profile).toMatchObject({ birthYear: year - 16, soloOnly: false });
+    expect(screen.getByTestId('groups-age-signal').props.children).toBe(tr.groups.ageSignalTeen);
+    fireEvent.changeText(screen.getByTestId('groups-nickname'), 'Gece Kuşu');
+    fireEvent.press(screen.getByTestId('groups-terms-accept'));
+    fireEvent.press(screen.getByTestId('groups-enable'));
+    await flush();
+    expect(server.profileInputs[0]).toMatchObject({ ageBand: '15_17' });
+  });
+
+  it('a signal that does not limit the declaration keeps it (declined, 18+)', async () => {
+    for (const signal of ['declined', { lowerBound: 18, upperBound: null }] as AgeSignal[]) {
+      age.signal = signal;
+      memory.profile = profile(adultYear);
+      await openSignUp();
+      expect(memory.profile?.birthYear).toBe(adultYear);
+      expect(screen.queryByTestId('groups-age-signal')).toBeNull();
+    }
+  });
+
+  it('Gruplar → Grup hesabı carries the account code card, then the KVKK entry; no minor card for 18+', async () => {
+    await signUp();
+    await waitFor(() => expect(screen.getByTestId('account-code-card')).toBeTruthy());
+    expect(screen.getByTestId('requests-entry')).toBeTruthy();
+    expect(screen.queryByTestId('minor-status-card')).toBeNull();
+    // Order on the screen: Grup hesabı (delete) → Hesap kodu → KVKK başvurusu.
+    const ids = screen
+      .getByTestId('groups-home')
+      .findAll((n) => typeof n.props.testID === 'string' && typeof n.type === 'string')
+      .map((n) => n.props.testID as string);
+    const at = (id: string) => ids.indexOf(id);
+    expect(at('groups-delete')).toBeGreaterThan(-1);
+    expect(at('groups-delete')).toBeLessThan(at('account-code-card'));
+    expect(at('account-code-card')).toBeLessThan(at('requests-entry'));
+    expect(codes.calls).toContain('accountCode');
+  });
+
+  it('a 15–17 account sees the minor status card, read again on every load', async () => {
+    memory.groupsAccount = true;
+    server.signedIn = true;
+    server.me = studentMe({ parentCount: 0 });
+    memory.profile = profile(teenYear);
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    await waitFor(() => expect(screen.getByTestId('minor-status-card')).toBeTruthy());
+    expect(screen.getByTestId('minor-info').props.children).toBe(tr.minor.card.closed);
+    const reads = minor.calls.filter((c) => c === 'myMinorStatus').length;
+    // A load (as on focus) remounts the card; here through a preference change.
+    fireEvent.press(screen.getByTestId('groups-invisible'));
+    await flush();
+    expect(minor.calls.filter((c) => c === 'myMinorStatus').length).toBeGreaterThan(reads);
+  });
+
+  it('Ayarlar → Gizlilik carries the KVKK entry', async () => {
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await flush();
+    expect(screen.getByTestId('settings-privacy')).toBeTruthy();
+    expect(screen.getByTestId('requests-entry')).toBeTruthy();
+  });
+
+  it('minor_closed and minor_pending are error kinds with their own texts', async () => {
+    expect(toApiError({ message: 'minor_closed' }).code).toBe('minor_closed');
+    expect(toApiError({ message: 'minor_pending' }).code).toBe('minor_pending');
+    expect(errorText(new ApiError('minor_closed'))).toBe('Gruplar şimdilik yalnız 18 yaş ve üstüne açık.');
+    expect(errorText(new ApiError('minor_pending'))).toBe('Bu özellik velin onay verince açılır.');
+
+    // Under 'closed' the server refuses a new 15–17 profile: the sign-up says why.
+    memory.profile = profile(teenYear);
+    await openSignUp();
+    server.failNext = new ApiError('minor_closed');
+    fireEvent.changeText(screen.getByTestId('groups-nickname'), 'Genç Öğrenci');
+    fireEvent.press(screen.getByTestId('groups-terms-accept'));
+    fireEvent.press(screen.getByTestId('groups-enable'));
+    await flush();
+    expect(screen.getByTestId('groups-error').props.children).toBe(tr.groupErrors.minor_closed);
+    expect(memory.groupsAccount).toBe(false);
+  });
+});
+
+describe('group module OFF: nothing of WP-J is reachable', () => {
+  it('no age signal, no terms box, no cards, and the group legal pages fall back to the device text', async () => {
+    flags.enabled = false;
+    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    await flush();
+    expect(screen.getByTestId('groups-teaser')).toBeTruthy();
+    expect(age.asked).toBe(0);
+    expect(screen.queryByTestId('groups-terms')).toBeNull();
+    expect(screen.queryByTestId('account-code-card')).toBeNull();
+    expect(screen.queryByTestId('requests-entry')).toBeNull();
+
+    renderRouter(APP_DIR, { initialUrl: '/yasal/gruplar-kullanim' });
+    await flush();
+    expect(screen.getByTestId('legal-aydinlatma')).toBeTruthy();
+
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await flush();
+    expect(screen.queryByTestId('requests-entry')).toBeNull();
+    expect(codes.calls).toEqual([]);
+    expect(minor.calls).toEqual([]);
+    expect(server.calls).toEqual([]);
   });
 });
 

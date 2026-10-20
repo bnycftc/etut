@@ -79,9 +79,11 @@ sudo bash /opt/etut/repo/infra/scripts/04-migrate.sh
 - 03, resmi `utils/generate-keys.sh` ve `utils/add-new-auth-keys.sh` ile tüm sırları üretir,
   kalan bilinen varsayılanları da değiştirir ve biri kalmışsa durur. Sırlar yalnız
   `/opt/etut/supabase/.env` (600) içindedir; git'e, sohbete ya da e-postaya girmez.
-- E-posta ve telefon kaydı kapalı, anonim giriş açık, Apple ile bağlama açık (istemci kimliği
-  `com.bnycftc.etut`). `PGRST_DB_SCHEMAS` yalnız `public,graphql_public`: `app` ve `audit`
-  şemaları API'de yoktur.
+- E-posta ve telefon kaydı kapalı, anonim giriş açık. Apple/Google ile hesap bağlama kapalı
+  (`ETUT_LINKING_ENABLED=false`: uygulamada düğme yok; açmadan önce GoTrue'nun e-posta kopyası
+  temizlenmeli, `infra/supabase/docker-compose.override.yml`). Apple istemci kimliği
+  `com.bnycftc.etut` yalnız ileride bağlama için hazırdır. `PGRST_DB_SCHEMAS` yalnız
+  `public,graphql_public`: `app` ve `audit` şemaları API'de yoktur.
 - 04, `supabase/migrations/*.sql` dosyalarını sırayla, her birini bir kez uygular
   (`ops.migrations`) ve pg_cron işlerini listeler (`etut-leaderboards`, `etut-purge`).
 
@@ -230,9 +232,12 @@ yalnız yazılı talep üzerine veri; çevrim dışı defter D5) ve `evet` ister
 
 Derleme ortamında (GitHub Actions gizli değişkeni değil, açık değerler):
 `EXPO_PUBLIC_SUPABASE_URL=https://api.<alan>` ve `EXPO_PUBLIC_SUPABASE_KEY=<.env içindeki
-SUPABASE_PUBLISHABLE_KEY ya da ANON_KEY>`. Bu anahtar herkese açıktır; erişimi RLS ve RPC'ler
-belirler. Sonra `src/config/features.ts` → `GROUPS_ENABLED = true` (ayrı bir sürüm, App Privacy
-beyanı güncellenerek: "Data Not Collected" artık doğru değildir; `docs/hukuk/kvkk/11`).
+SUPABASE_PUBLISHABLE_KEY ya da ANON_KEY>`; testflight.yml bunları depo değişkenleri
+`SUPABASE_URL` ve `SUPABASE_PUBLISHABLE_KEY`'den alır. Bu anahtar herkese açıktır; erişimi RLS ve
+RPC'ler belirler. Sonra `src/config/features.ts` → `GROUPS_PHASE = 'beta18'` (kapalı beta), en son
+`'public'`; her biri ayrı bir sürüm ve yalnız o fazın engelleri (`GROUPS_LAUNCH_BLOCKERS`)
+kalmadıysa. `GROUPS_ENABLED` elle değiştirilmez, fazdan türer. Herkese açık sürümde App Privacy
+beyanı güncellenir: "Data Not Collected" artık doğru değildir (`store/app-store/groups/app-privacy.md`).
 
 ## Saklama ve imha (sunucu tarafı, kvkk/09 ile)
 

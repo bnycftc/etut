@@ -62,6 +62,7 @@ import { useContactMail } from '@/ui/contact-mail';
 import { formatDay, formatDuration } from '@/ui/format';
 import { openGuide } from '@/ui/info-link';
 import { useReducedMotion } from '@/ui/motion';
+import { RequestsEntry } from '@/ui/requests-entry';
 import { usePalette } from '@/ui/theme';
 import { TimerSettingsCard } from '@/ui/timer-safety';
 
@@ -561,6 +562,8 @@ export default function SettingsScreen() {
             title={tr.privacy.settingsEntry}
             onPress={() => router.push('/gizlilik')}
           />
+          {/* K-31 / K-38: KVKK application and complaint channel (also on the Gruplar screen). */}
+          <RequestsEntry />
         </Section>
       ) : null}
 

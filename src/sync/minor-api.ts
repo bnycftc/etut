@@ -4,9 +4,9 @@
  * approval or objection on the parent screen. An interface, so the card and app/veli.tsx can be
  * tested against the fake in src/sync/testing/minor-fake.ts.
  *
- * Server error codes of this package that the app does not know yet ('minor_closed',
- * 'minor_pending', raised by save_profile, create_group, request_join, …) arrive as 'unknown'
- * through src/sync/api.ts until the integration step adds them (texts: src/strings-wp/minor.ts).
+ * The server error codes of this package ('minor_closed', 'minor_pending', raised by save_profile,
+ * create_group, request_join, …) are ApiError codes of src/sync/api.ts; their texts are in
+ * tr.groupErrors.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';

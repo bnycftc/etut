@@ -3,6 +3,9 @@
  * Server periods: app.purge_expired (latest version: round3 migration, section 6; daily at
  * 03:30 Istanbul), delete_my_account, end_presence; Caddy log roll_keep_for 9600h (400 days);
  * backups: pgBackRest repo1-retention-full=30 (time, weekly full) and restic --keep-within 30d.
+ * Deletion records: audit.deletion_records, 3 years (app.purge_deletion_records, account code
+ * migration); KVKK applications: app.dsr_requests, 3 years after the answer or the submission
+ * (app.purge_requests, requests migration). Both run inside the daily app.purge_expired.
  */
 
 import { C, LEGAL_PAGES_UPDATED, type LegalPage, MAILBOX_IN_TURKEY } from './_shared';
@@ -94,9 +97,18 @@ export const page: LegalPage = {
                 'Kayıt dosyaları süresi dolunca kendiliğinden silinir',
               ],
               ['İmha kaydı (yalnız tarih, veri türü, kaç kayıt silindiği, yöntem)', '3 yıl', 'Günlük temizlik işi'],
+              [
+                'Hesap silme kaydı (yalnız hesap numarası, silme isteğinin ve silmenin zamanı, yolu: uygulamadan, hesap koduyla ya da veli itirazıyla)',
+                '3 yıl; hesap silinse de',
+                'Günlük temizlik işi',
+              ],
               ['Şifreli yedekler', '30 günlük döngü', 'Döngüyle; silinen bilgi en geç 40 gün içinde yedeklerden de çıkar'],
               ['Bize yazdığın e-postalar', 'Konu kapandıktan sonra 1 yıl', 'Elle'],
-              ['KVKK başvuruları ve cevaplarımız', '3 yıl', 'Elle'],
+              [
+                'KVKK başvuruları ve şikâyetler, cevaplarımız',
+                'Cevaptan (cevaplanmadıysa başvurudan) sonra 3 yıl; hesap silinirse hesapla bağı kaldırılır',
+                'Günlük temizlik işi',
+              ],
             ],
           },
         },

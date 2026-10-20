@@ -2,7 +2,11 @@
  * One-page information for parents (source: docs/hukuk/kvkk/06, corrected to the code). It
  * informs; it does not ask for consent. Parent tools: public.create_parent_code (10 minutes),
  * claim_parent_code (at most 2 parents), parent_set_controls, parent_weekly_summary,
- * parent_notices (90 days), child_unlink_parents.
+ * parent_notices (90 days), child_unlink_parents; K-23: parent_approve, parent_object
+ * (app.delete_account, method 'parent_objection'), parent_approvals (minor policy migration).
+ * The server's app.settings.minor_policy is 'closed' (no new 15–17 group profile), so the page
+ * says 15–17 groups open later with a parent's approval; no date and no final limits are promised
+ * (the lawyer decides the policy).
  */
 
 import { C, LEGAL_PAGES_UPDATED, type LegalPage } from './_shared';
@@ -41,8 +45,9 @@ export const page: LegalPage = {
         {
           list: [
             '15 yaşından küçükler: yalnız cihaz modu. Grup hesabı açılmaz, gruplar görünmez, hiçbir bilgi telefondan dışarı çıkmaz.',
-            '15–17 yaş: gruplar açılabilir. Yaş ya da yaş bandı gruplarda hiçbir yerde gösterilmez. Veli bağlantısını yalnız 15–17 yaşındakiler kurabilir.',
+            '15–17 yaş: gruplar şimdilik yalnız 18 yaş ve üstüne açık; 15–17 yaşındakiler yeni grup hesabı açamaz. Sayaç, denemeler ve netler her zamanki gibi çalışır. 15–17 yaşındakilerin gruplara katılması ileride, velinin onayıyla açılacak (aşağıda). Yaş ya da yaş bandı gruplarda hiçbir yerde gösterilmez. Veli bağlantısını yalnız 15–17 yaşındakiler kurabilir.',
             'Yaş, kullanıcının seçtiği doğum yılına göre belirlenir; kimlik kontrolü yapmıyoruz. 15 yaş altı beyanından sonra yaş, yeniden kayıtla ya da yedek geri yükleyerek yükseltilemez.',
+            'iPhone’da (iOS 26 ve sonrası) grup hesabı açılırken Apple, çocuğunuza Apple hesabındaki yaş aralığını paylaşmak isteyip istemediğini sorar. Paylaşılırsa telefonda yalnız aralık okunur ve doğum yılıyla çelişirse düşük yaş esas alınır; 15 yaşından küçük çıkarsa grup hesabı açılmaz. Aralık sunucuya gönderilmez.',
           ],
         },
       ],
@@ -87,7 +92,19 @@ export const page: LegalPage = {
             'Veli modunda grup özelliklerini kapatabilir, görünmez çalışmayı zorunlu yapabilir, günlük grup süresi sınırı koyabilir ve son 7 günün günlük toplam çalışma süresini görebilirsiniz. En fazla 2 veli bağlanabilir; iki veli farklı ayar seçerse en kısıtlayıcı olan geçerlidir ve her veli diğer bağlı hesabın varlığını görür.',
             'Doğum yılına göre 18 yaşını doldurduğu kesinleşince, çocuğunuz Gruplar ekranını ilk açtığında veli bağlantısı ve kilitler kendiliğinden biter; veli denetimi 15–17 yaş içindir.',
             'Telefonun ebeveyn denetimleri: iPhone’da Ekran Süresi ile kullanım süresini yönetebilirsiniz.',
-            'Bilgileri sildirmek: çocuğunuz grup hesabını Gruplar → Grup hesabı → Grup hesabımı sil ile ya da Ayarlar → Tüm verileri sil ile kendisi hemen silebilir. Sunucudaki bilgilerin dökümü şimdilik yazılı başvuruyla verilir.',
+            'Bilgileri sildirmek: çocuğunuz grup hesabını Gruplar → Grup hesabı → Grup hesabımı sil ile ya da Ayarlar → Tüm verileri sil ile kendisi hemen silebilir. Sunucudaki bilgilerinin dökümünü uygulamadaki Başvurularım ekranından kendisi indirebilir.',
+          ],
+        },
+      ],
+    },
+    {
+      heading: 'Veli onayı ve itiraz',
+      blocks: [
+        'Velinin onayı veli modunda verilir; e-posta, telefon ya da kimlik istemeyiz. Önce yukarıdaki gibi veli kodu ile çocuğunuza bağlanırsınız.',
+        {
+          list: [
+            'Onay: 15–17 yaşındakiler için gruplar açıldığında, veli ekranınızda çocuğunuzun yanında “Onaylıyorum” düğmesi görünür. Onay verene kadar çocuğunuzun grup özellikleri sınırlı kalır ve çocuğunuzun ekranında neyin neden sınırlı olduğu yazar. Onayınız tarihiyle kaydedilir; bağlı iki veliden birinin onayı yeterlidir. Onaydan sonra da yukarıdaki kilitlerle grupları istediğiniz gibi sınırlayabilirsiniz.',
+            'İtiraz: çocuğunuzun Etüt’te grup hesabı olmasını istemiyorsanız veli ekranında “İtiraz ediyorum”a dokunabilirsiniz; bu her zaman mümkündür. Onaylarsanız çocuğunuzun grup hesabı ve sunucudaki bilgileri (takma ad, grup üyelikleri, çalışma süreleri gibi) hemen silinir; bu geri alınamaz. Uygulama çocuğunuzun telefonunda grupsuz çalışmaya devam eder, telefondaki kayıtları silinmez. İtirazla yapılan silme, hesap silme kaydına yazılır (yalnız hesap numarası, zaman ve yol; 3 yıl).',
           ],
         },
       ],

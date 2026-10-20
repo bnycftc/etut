@@ -8,16 +8,15 @@ import { istanbulDayKey } from '@/domain/istanbul-day';
 import { useAppState } from '@/state/app-state';
 import { shareTextFile } from '@/storage/file-io';
 import { loadGroupsAccount, loadParentAccount } from '@/storage/groups-kv';
-import { DATA_CONTROLLER } from '@/strings';
-import { requestsTr } from '@/strings-wp/requests';
+import { DATA_CONTROLLER, tr } from '@/strings';
 import { isAccountGone } from '@/sync/api';
 import { type DsrRequest, requestsApi } from '@/sync/requests-api';
 import { Button, Card, Label, Screen, Tag } from '@/ui/components';
 import { errorText, Message } from '@/ui/group-ui';
 import { requestDate, requestDateTime } from '@/ui/requests-entry';
 
-const t = requestsTr.list;
-const a = requestsTr.answer;
+const t = tr.requests.list;
+const a = tr.requests.answer;
 
 /**
  * "Başvurularım" (kvkk/07 C4, C5): the own KVKK applications with the written answer, which never
@@ -70,7 +69,7 @@ function MyRequests() {
       <Screen testID="my-requests-screen">
         {title}
         <Card>
-          <Label testID="my-requests-no-account">{requestsTr.form.noAccount}</Label>
+          <Label testID="my-requests-no-account">{tr.requests.form.noAccount}</Label>
         </Card>
       </Screen>
     );
@@ -97,12 +96,12 @@ function MyRequests() {
     setError(null);
     try {
       const data = await api.exportMyData();
-      const result = await shareTextFile(requestsTr.export.fileName(istanbulDayKey(Date.now())), JSON.stringify(data, null, 2), {
+      const result = await shareTextFile(tr.requests.export.fileName(istanbulDayKey(Date.now())), JSON.stringify(data, null, 2), {
         mimeType: 'application/json',
         uti: 'public.json',
-        dialogTitle: requestsTr.export.dialogTitle,
+        dialogTitle: tr.requests.export.dialogTitle,
       });
-      setExportNote(result === 'shared' ? requestsTr.export.done : requestsTr.export.unavailable);
+      setExportNote(result === 'shared' ? tr.requests.export.done : tr.requests.export.unavailable);
     } catch (e) {
       fail(e);
     } finally {
@@ -129,7 +128,7 @@ function MyRequests() {
         const state = requestState(r, now);
         return (
           <Card key={r.id} testID={`my-request-${index}`}>
-            <Label variant="heading">{requestsTr.form.kinds[r.kind] ?? r.kind}</Label>
+            <Label variant="heading">{tr.requests.form.kinds[r.kind] ?? r.kind}</Label>
             {isUnseenAnswer(r) ? <Tag title={t.newAnswer} /> : null}
             <Label variant="small">{t.number(formatCode(r.ref))}</Label>
             <Label variant="small">{t.submitted(requestDate(r.createdAt))}</Label>
@@ -155,9 +154,9 @@ function MyRequests() {
       })}
 
       <Card>
-        <Label variant="heading">{requestsTr.export.title}</Label>
-        <Label variant="muted">{requestsTr.export.info}</Label>
-        <Button testID="my-data-export" title={requestsTr.export.button} onPress={() => void download()} disabled={busy} />
+        <Label variant="heading">{tr.requests.export.title}</Label>
+        <Label variant="muted">{tr.requests.export.info}</Label>
+        <Button testID="my-data-export" title={tr.requests.export.button} onPress={() => void download()} disabled={busy} />
         <Message text={exportNote} testID="my-data-export-note" />
       </Card>
     </Screen>
@@ -172,7 +171,7 @@ function Answer({ request: r, index }: { request: DsrRequest; index: number }) {
       <Label variant="small">{a.controller(DATA_CONTROLLER.name, DATA_CONTROLLER.contact)}</Label>
       <Label variant="small">{a.applicant}</Label>
       <Label variant="small">{a.numberDate(formatCode(r.ref), requestDate(r.createdAt))}</Label>
-      <Label variant="small">{a.subject(requestsTr.form.kinds[r.kind] ?? r.kind)}</Label>
+      <Label variant="small">{a.subject(tr.requests.form.kinds[r.kind] ?? r.kind)}</Label>
       <Label style={{ fontWeight: '600' }}>{a.explanations}</Label>
       <Label testID={`my-request-answer-${index}`}>{r.answerText ?? ''}</Label>
       {r.answerResult !== null ? <Label>{a.result(a.results[r.answerResult])}</Label> : null}

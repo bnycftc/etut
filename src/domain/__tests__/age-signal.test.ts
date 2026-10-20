@@ -1,4 +1,6 @@
-import { type AgeSignal, resolveBand } from '../age-signal';
+import { type AgeSignal, birthYearAfterSignal, resolveBand, signalCap } from '../age-signal';
+import { ageBandFor } from '../groups';
+import { isSoloOnly } from '../profile';
 
 const YEAR = 2026;
 // Lowest possible age in 2026: 2015 → 10, 2009 → 16, 2000 → 25.
@@ -40,5 +42,39 @@ describe('resolveBand (K-17: the lower age wins)', () => {
     expect(resolveBand(2011, 'unavailable', YEAR).band).toBe('under15');
     expect(resolveBand(2008, 'unavailable', YEAR).band).toBe('15_17');
     expect(resolveBand(2007, 'unavailable', YEAR).band).toBe('18_plus');
+  });
+});
+
+describe('birthYearAfterSignal (the signal overrides the declared year)', () => {
+  const after = (declared: number, signal: AgeSignal) =>
+    birthYearAfterSignal(declared, resolveBand(declared, signal, YEAR), YEAR);
+
+  test('under 15: the closest under-15 year, so the profile becomes solo only', () => {
+    expect(after(ADULT, UNDER_15_RANGE)).toBe(2011);
+    expect(after(TEEN, UNDER_15_RANGE)).toBe(2011);
+    expect(isSoloOnly(2011, YEAR)).toBe(true);
+    // One year later the year no longer means "under 15": the age guard drops it and the sign-up asks again.
+    expect(isSoloOnly(2011, YEAR + 1)).toBe(false);
+  });
+
+  test('15–17 over an adult declaration: the lowest age of the band', () => {
+    expect(after(ADULT, TEEN_RANGE)).toBe(2010);
+    expect(ageBandFor(2010, YEAR)).toBe('15_17');
+    expect(ageBandFor(2010, YEAR + 2)).toBe('15_17');
+  });
+
+  test('a signal that agrees, does not limit or is missing keeps the declared year', () => {
+    for (const signal of [TEEN_RANGE, ADULT_RANGE, IOS_25_TRAP, 'declined', 'unavailable'] as AgeSignal[]) {
+      expect(after(TEEN, signal)).toBe(TEEN);
+    }
+    expect(after(ADULT, ADULT_RANGE)).toBe(ADULT);
+    expect(after(UNDER_15, TEEN_RANGE)).toBe(UNDER_15);
+  });
+
+  test('signalCap names the band the signal alone allows', () => {
+    expect(signalCap(UNDER_15_RANGE)).toBe('under15');
+    expect(signalCap(TEEN_RANGE)).toBe('15_17');
+    expect(signalCap(ADULT_RANGE)).toBeNull();
+    expect(signalCap('declined')).toBeNull();
   });
 });
