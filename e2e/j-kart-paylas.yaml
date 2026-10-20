@@ -25,13 +25,14 @@ tags:
     visible:
       id: share-card-preview
     timeout: 10000
-# The note sits right above the button, below the card.
+# The note sits right above the button, below the card. The button is the last thing on the
+# screen and can never be centred: with centerElement Maestro swiped until it gave up (6 swipes,
+# about 19 s on a fast runner) and the flow failed whenever the 20 s timeout came first.
 - scrollUntilVisible:
     element:
       id: share-card-share
     direction: DOWN
     timeout: 20000
-    centerElement: true
 - assertVisible:
     id: share-nothing
 - assertVisible:
