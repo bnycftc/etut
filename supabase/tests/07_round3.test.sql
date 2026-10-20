@@ -3,6 +3,8 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 select no_plan();
+-- 15–17 rules without the K-23 minor policy (tested in 12_minor_policy); rolled back at the end.
+update app.settings set minor_policy = 'open';
 
 create schema tests;
 grant usage on schema tests to authenticated;

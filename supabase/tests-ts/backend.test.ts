@@ -67,16 +67,19 @@ describe('group backend through supabase-js', () => {
 
   it('creates profiles with only the age band', async () => {
     await rpc(founder, 'save_profile', { p_nickname: 'Kurucu Kişi', p_exam_type: 'YKS', p_yks_area: 'sayisal', p_age_band: '18_plus' });
-    await rpc(student, 'save_profile', { p_nickname: 'Genç Kişi', p_exam_type: 'YKS', p_yks_area: 'sayisal', p_age_band: '15_17' });
+    // K-23: the stack runs with the default minor policy 'closed' (18+ beta), so a 15–17 band is
+    // refused; the 15–17 rules under the other policies are pgTAP (01_profiles, 12_minor_policy).
+    assert.equal(await rpcError(student, 'save_profile', {
+      p_nickname: 'Genç Kişi', p_exam_type: 'YKS', p_yks_area: 'sayisal', p_age_band: '15_17',
+    }), 'minor_closed');
+    const [status] = await rpc<{ policy: string; band: string | null }[]>(student, 'my_minor_status');
+    assert.deepEqual([status.policy, status.band], ['closed', null]);
+    await rpc(student, 'save_profile', { p_nickname: 'Genç Kişi', p_exam_type: 'YKS', p_yks_area: 'sayisal', p_age_band: '18_plus' });
     const me = await rpc<{ age_band: string; nickname: string }[]>(student, 'get_me');
-    assert.equal(me[0].age_band, '15_17');
+    assert.equal(me[0].age_band, '18_plus');
     assert.equal(await rpcError(student, 'save_profile', {
-      p_nickname: 'or0spu', p_exam_type: 'YKS', p_yks_area: 'sayisal', p_age_band: '15_17',
+      p_nickname: 'or0spu', p_exam_type: 'YKS', p_yks_area: 'sayisal', p_age_band: '18_plus',
     }), 'name_banned');
-    // K-17: a 15-17 band declared this year does not become 18+ before next year.
-    assert.equal(await rpcError(student, 'save_profile', {
-      p_nickname: 'Genç Kişi', p_exam_type: 'YKS', p_yks_area: 'sayisal', p_age_band: '18_plus',
-    }), 'not_allowed');
   });
 
   it('does not expose any table through the Data API', async () => {

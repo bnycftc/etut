@@ -3,9 +3,11 @@ import { useCallback, useState } from 'react';
 
 import { canUseParentMode, formatCode, normalizeCode, stepDailyLimit } from '@/domain/groups';
 import { istanbulDayKey, istanbulYear } from '@/domain/istanbul-day';
+import { parentActions } from '@/domain/minor-policy';
 import { useAppState } from '@/state/app-state';
 import { loadParentAccount, storeParentAccount } from '@/storage/groups-kv';
 import { tr } from '@/strings';
+import { minorTr } from '@/strings-wp/minor';
 import {
   type ChildSummary,
   type DayTotal,
@@ -14,18 +16,23 @@ import {
   type ParentControls,
   type ParentNotice,
 } from '@/sync/api';
+import { minorApi, type ParentApproval } from '@/sync/minor-api';
 import { BarChart, Button, Card, Label, Row, Screen, Stepper, TextField } from '@/ui/components';
 import { formatDuration } from '@/ui/format';
 import { errorText, Message, ToggleRow } from '@/ui/group-ui';
 
+const m = minorTr.parent;
+
 /**
  * Parent mode on the parent's own device (K-22): enter the code shown on the student's screen,
  * then lock group settings, set a daily limit and see the weekly study time. No e-mail or phone.
- * Purchase approval is left to the stores' family features (K-24).
+ * Purchase approval is left to the stores' family features (K-24). K-23: the parent approves the
+ * student's group account ("Onaylıyorum") or objects, which deletes it after a confirmation.
  */
 export default function ParentScreen() {
   const { profile } = useAppState();
   const api = groupApi();
+  const minor = minorApi();
   const adult = profile !== null && canUseParentMode(profile.birthYear, istanbulYear(Date.now()));
 
   const [code, setCode] = useState('');
@@ -36,6 +43,8 @@ export default function ParentScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState<string | null>(null);
+  const [approvals, setApprovals] = useState<Record<string, ParentApproval>>({});
+  const [confirmObject, setConfirmObject] = useState<string | null>(null);
   const [linked, setLinked] = useState(loadParentAccount);
 
   const load = useCallback(async () => {
@@ -48,6 +57,9 @@ export default function ParentScreen() {
         list.map(async (child) => [child.childId, await api.parentWeeklySummary(child.childId)] as const),
       );
       setSummaries(Object.fromEntries(entries));
+      // Without the approvals the rest of the screen still works; they come back on next focus.
+      const approvalList = await minor.parentApprovals().catch(() => [] as ParentApproval[]);
+      setApprovals(Object.fromEntries(approvalList.map((a) => [a.childId, a] as const)));
     } catch (e) {
       if (isAccountGone(e)) {
         // The parent account was purged (unused) or removed: forget it, so "Tüm verileri sil"
@@ -60,7 +72,7 @@ export default function ParentScreen() {
         setError(errorText(e));
       }
     }
-  }, [api]);
+  }, [api, minor]);
 
   useFocusEffect(
     useCallback(() => {
@@ -152,6 +164,8 @@ export default function ParentScreen() {
 
       {children.map((child, index) => {
         const days = summaries[child.childId] ?? [];
+        const approval = approvals[child.childId];
+        const actions = approval === undefined ? null : parentActions(approval.policy, approval.approved);
         return (
           <Card key={child.childId}>
             <Label variant="heading" testID={`parent-child-${index}`}>
@@ -194,6 +208,70 @@ export default function ParentScreen() {
                 valueLabel: d.seconds > 0 ? formatDuration(d.seconds * 1000) : '',
               }))}
             />
+            {approval !== undefined && actions !== null ? (
+              <>
+                <Label variant="small">{m.title}</Label>
+                {approval.approvedAt !== null ? (
+                  <Label testID={`parent-approved-${index}`}>
+                    {m.approvedOn(istanbulDayKey(Date.parse(approval.approvedAt)))}
+                  </Label>
+                ) : approval.approved ? (
+                  <Label testID={`parent-approved-${index}`}>{m.approvedByOther}</Label>
+                ) : null}
+                {actions.approve && (approval.policy === 'strict' || approval.policy === 'basic') ? (
+                  <>
+                    <Label variant="small">{m.approveInfo(approval.policy)}</Label>
+                    <Button
+                      testID={`parent-approve-${index}`}
+                      title={m.approve}
+                      disabled={busy}
+                      onPress={() =>
+                        run(async () => {
+                          await minor.parentApprove(child.childId);
+                          return m.approvedNotice;
+                        })
+                      }
+                    />
+                  </>
+                ) : null}
+                {actions.object && confirmObject === child.childId ? (
+                  <>
+                    <Label testID={`parent-object-text-${index}`}>{m.objectConfirm(child.nickname)}</Label>
+                    <Row>
+                      <Button
+                        testID={`parent-object-confirm-${index}`}
+                        kind="danger"
+                        title={m.objectYes}
+                        disabled={busy}
+                        onPress={() =>
+                          run(async () => {
+                            await minor.parentObject(child.childId);
+                            setConfirmObject(null);
+                            return m.objected;
+                          })
+                        }
+                      />
+                      <Button
+                        testID={`parent-object-cancel-${index}`}
+                        kind="secondary"
+                        title={tr.common.cancel}
+                        onPress={() => setConfirmObject(null)}
+                      />
+                    </Row>
+                  </>
+                ) : actions.object ? (
+                  <>
+                    <Label variant="small">{m.objectInfo}</Label>
+                    <Button
+                      testID={`parent-object-${index}`}
+                      kind="secondary"
+                      title={m.object}
+                      onPress={() => setConfirmObject(child.childId)}
+                    />
+                  </>
+                ) : null}
+              </>
+            ) : null}
             <Label variant="small">{tr.parent.purchases}</Label>
             {confirmUnlink === child.childId ? (
               <>
