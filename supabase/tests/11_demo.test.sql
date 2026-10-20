@@ -5,6 +5,10 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select no_plan();
 
+-- The demo group's own adults-only rule, without the K-23 minor policy (tested in 12_minor_policy);
+-- rolled back at the end.
+update app.settings set minor_policy = 'open';
+
 create schema tests;
 grant usage on schema tests to authenticated;
 create procedure tests.user_with_profile(p_id uuid, p_nick text, p_band text) language sql as $$
