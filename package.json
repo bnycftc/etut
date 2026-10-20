@@ -6,6 +6,7 @@
     "@expo/ui": "~57.0.25",
     "@supabase/supabase-js": "^2.117.2",
     "expo": "~57.0.30",
+    "expo-age-range": "~57.0.5",
     "expo-application": "~57.0.3",
     "expo-constants": "~57.0.20",
     "expo-document-picker": "~57.0.3",
@@ -111,6 +112,7 @@
     "autolinking": {
       "android": {
         "exclude": [
+          "expo-age-range",
           "expo-store-review"
         ]
       }
