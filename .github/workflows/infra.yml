@@ -30,10 +30,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # SC2209 is a false positive in backup-run.sh (`type=diff` assigns the word, `diff` happens
+      # to be a command name).
       - name: Shellcheck
         run: |
           shellcheck --version
-          shellcheck --shell=bash --severity=warning infra/scripts/*.sh infra/ntfy/*.sh
+          shellcheck --shell=bash --severity=warning --exclude=SC2209 infra/scripts/*.sh infra/ntfy/*.sh
 
       - name: alert.sh state machine (stubbed psql, curl, msmtp)
         run: bash infra/ntfy/test-alert.sh

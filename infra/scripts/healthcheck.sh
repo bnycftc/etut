@@ -11,7 +11,7 @@ ok() { echo "OK   $*"; }
 bad() { echo "FAIL $*"; fail=1; nfail=$((nfail + 1)); }
 
 # Containers healthy.
-cd /opt/etut/supabase
+cd /opt/etut/supabase || { echo "FAIL /opt/etut/supabase missing"; exit 1; }
 unhealthy=$(docker compose ps --format json | jq -r 'select(.Health != "" and .Health != "healthy") | .Service' 2>/dev/null)
 [ -z "$unhealthy" ] && ok "supabase containers healthy" || bad "unhealthy: $unhealthy"
 if [ -f /opt/etut/glitchtip/compose.yml ]; then
