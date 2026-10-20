@@ -1,0 +1,36 @@
+{
+  "_source": "Age rating answers for the group version (0.5.0 public: groups, server, parent mode, Declared Age Range). Keys are App Store Connect API AgeRatingDeclaration attribute names; .github/workflows/asc-metadata.yml sends `attributes` as they are. Copied over store/app-store/age-rating.json when GROUPS_PHASE becomes 'public' (src/__tests__/store-metadata.test.ts). parentalControls: parent mode (Ayarlar > Veli modu) locks group settings and limits group time. ageAssurance: the iOS Declared Age Range signal (K-17). userGeneratedContent: nickname and group name. messagingAndChat: ready-made reactions only, no free text (declared Yes to be safe, K-44). socialMedia: no feed, discovery, likes or comments. contests FREQUENT: the daily and weekly in-group ranking; this is the answer that makes the rating 13+. FREQUENT is the value of the current questionnaire (the API also lists FREQUENT_OR_INTENSE); check the asc-metadata dry run before the first apply.",
+  "expectedRating": "13+",
+  "attributes": {
+    "parentalControls": true,
+    "ageAssurance": true,
+    "unrestrictedWebAccess": false,
+    "userGeneratedContent": true,
+    "socialMedia": false,
+    "messagingAndChat": true,
+    "advertising": false,
+    "profanityOrCrudeHumor": "NONE",
+    "horrorOrFearThemes": "NONE",
+    "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+    "matureOrSuggestiveThemes": "NONE",
+    "medicalOrTreatmentInformation": "NONE",
+    "healthOrWellnessTopics": false,
+    "sexualContentOrNudity": "NONE",
+    "sexualContentGraphicAndNudity": "NONE",
+    "violenceCartoonOrFantasy": "NONE",
+    "violenceRealistic": "NONE",
+    "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+    "gunsOrOtherWeapons": "NONE",
+    "gambling": false,
+    "gamblingSimulated": "NONE",
+    "lootBox": false,
+    "contests": "FREQUENT"
+  },
+  "notSet": {
+    "kidsAgeBand": "Not in the Kids category (K-45); left as it is.",
+    "socialMediaAgeRestricted": "Only meaningful when socialMedia is true; left as it is.",
+    "ageRatingOverrideV2": "No override; Apple's calculated rating is used.",
+    "koreaAgeRatingOverride": "Not distributed with a Korea-specific rating; left as it is.",
+    "developerAgeRatingInfoUrl": "Optional; not set."
+  }
+}

@@ -1,0 +1,51 @@
+Ücretsiz ve reklamsız. Sayaç kilit ekranında ve Dynamic Island’da çalışır; deneme netlerin ve en çok yanlış yaptığın konular aynı yerde. İstersen davet koduyla küçük bir çalışma grubuna katılırsın; grup kullanmazsan hesap açman gerekmez.
+
+Etüt, sınava hazırlanan öğrenciler için bir çalışma sayacı ve deneme net takibidir. Ne kadar çalıştığını, hangi konuda olduğunu ve denemelerde nerede yanlış yaptığını tek yerde görürsün. YKS (TYT, AYT; sayısal, eşit ağırlık, sözel, dil) ve KPSS için ders ve konu listeleri hazır gelir. Başka bir sınava hazırlanıyorsan sayacı ve hedefleri yine kullanabilirsin.
+
+ÇALIŞMA SAYACI
+- Kronometre ya da pomodoro. Pomodoro sürelerini ve uzun molanın aralığını sen ayarlarsın.
+- Ders ve istersen konu seçip başlat; mola ver, devam et, bitir.
+- Telefonu kilitlesen de sayaç saymaya devam eder. 3 saatten uzun dışarıda kalırsan fazlası mola sayılır; çalışıyorduysan "Çalışıyordum" ile süreye eklersin. İstersen ayarlardan her çıkışın sorulmasını seçersin.
+- Sayacı açmayı unuttuysan son 7 gün için süreyi elle eklersin. Bu kayıtlar "elle" etiketiyle görünür.
+- Oturum sonunda kaç soru çözdüğünü yazabilirsin; isteğe bağlıdır.
+
+HEDEF VE GEÇMİŞ
+- Günlük hedef ve seri. Haftada 1 gün hedefin altında kalırsan seri bozulmaz.
+- Derslere haftalık süre hedefi koyabilirsin.
+- Son 7 gün, haftalık özet, aylık görünüm ve ders dağılımı.
+- Kendinle kıyas: dün bu saate kadar ve geçen hafta bu zamana kadar ne kadar çalıştığın.
+
+KONULAR VE DENEMELER
+- Konu takibi: konu başına süre, "bitti" ve "tekrar lazım" işaretleri, ilerleme yüzdesi.
+- Genel ve branş deneme netlerini gir, net grafiğinde gelişimini izle.
+- Derslere hedef net koy; son denemelerinin ortalamasıyla aradaki farkı gör.
+- Deneme analizi: yanlış ve boş soruların konularını işaretle, en çok yanlış yaptığın konuları gör.
+- Ders karnesi: bir dersteki süren, konuların ve netlerin bir arada.
+- Sınav tarihine kalan gün. Gösterilen tarih tahminidir, kendin değiştirebilirsin.
+
+ÇALIŞMA GRUPLARI (İSTEĞE BAĞLI)
+- Grup kurarsın ya da kurucudan aldığın davet koduyla katılma isteği gönderirsin; kurucu onaylayınca gruba girersin. Grup araması ve herkese açık grup yoktur, bir grupta en fazla 30 kişi olur.
+- Grubunda kimin şu an çalıştığını ve günlük, haftalık çalışma sürelerini görürsün. İstersen görünmez çalışırsın; süren yine sayılır.
+- Mesajlaşma yok; yalnız hazır tepkiler var. Tepkileri kapatabilirsin.
+- Bir üyeyi bildirebilir ya da engelleyebilirsin.
+- Veli kendi telefonundan bağlanıp grup ayarlarını kilitleyebilir ve günlük grup süresine sınır koyabilir.
+- Grup için e-posta, telefon ya da ad istenmez; bir takma ad seçersin. Gruplar 15 yaş ve üstü içindir.
+
+IPHONE'DA
+- Sayaç açıkken kilit ekranında ve Dynamic Island'da canlı süre.
+- Ana ekran ve kilit ekranı widget'ı: bugünkü süre, seri, günlük hedef ve sınava kalan gün.
+- İsteğe bağlı hatırlatıcılar: uzun oturum, pomodoro aşama sonu, günlük çalışma ve deneme analizi. Hatırlatıcılar telefonda kurulur; sen açmadıkça bildirim izni istenmez.
+
+VERİLERİN SENDE
+- Tüm kayıtların telefonunda saklanır (iPhone yedeğin açıksa o yedekte de).
+- Grup kullanmazsan giriş yok; kayıtların hiçbir sunucuya gitmez.
+- Gruplara katılırsan takma adın, yaş grubun ve çalışma oturumların (ders ve süre) Türkiye’deki sunucumuzda da tutulur. Grup hesabını uygulamadan istediğin an silersin.
+- Reklam, analitik, çökme raporu ve izleme yok.
+- Yedek dosyası, CSV ya da çalışma kartı yalnız sen dokununca, telefonunun paylaşım ekranıyla dışarı çıkar. Çalışma kartında yalnız çalışma sayıların vardır; 15 yaşından küçükler için kart paylaşımı ve gruplar kapalıdır.
+- Telefon değiştirirken yedek dosyasıyla kayıtlarını taşıyabilirsin.
+
+Bugün ücretsiz olan hiçbir özellik sonradan ücretli olmayacak.
+
+Etüt resmî bir uygulama değildir; ÖSYM veya MEB ile bağlantısı yoktur.
+
+Gizlilik politikası ve kullanım şartları uygulamada Ayarlar > Hakkında bölümündedir.

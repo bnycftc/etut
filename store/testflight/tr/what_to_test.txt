@@ -1,0 +1,15 @@
+Etüt 0.5.0 kapalı beta: çalışma grupları. Bu beta yalnız 18 yaş ve üstü içindir; sunucu 15–17 yaş hesabını kabul etmez.
+
+Ne denemeni istiyoruz:
+- Gruplar sekmesinden takma adla grubu aç, bir grup kur ya da davet koduyla katılma isteği gönder. Kurucuysan "Katılma istekleri"nden onayla ya da reddet.
+- Sayacı başlat: grubundakiler seni "şu an çalışıyor" listesinde görmeli. "Görünmez çalış" açıkken görmemeli, süren yine sıralamada sayılmalı.
+- Oturumu bitirince günlük ve haftalık sıralama birkaç dakika içinde güncellenmeli. İnternet yokken çalıştığın süre bağlantı gelince eklenmeli ("çevrimdışı" etiketiyle).
+- Hazır tepki gönder, tepkileri kapat. Bir üyeyi bildir ya da engelle; engeli Gruplar > Engellediklerim'den kaldır.
+- Gruptan çık, kurucuysan bir üyeyi çıkar, davet kodunu yenile ya da iptal et.
+- Veli modu: ikinci bir telefonda Ayarlar > Veli modu'na öğrencinin kodunu yaz; grup ayarlarını kilitle, günlük sınır koy.
+- Grup hesabını sil (Gruplar > Grup hesabı > Grup hesabımı sil) ve "Tüm verileri sil"i dene.
+- Grup kullanmadan da sayaç, hedefler ve denemeler eskisi gibi çalışmalı.
+
+Bilinen sınırlar: bildirim (push) yok; sıralama 5 dakikada bir güncellenir.
+
+Hata ya da garip bir şey görürsen TestFlight'ta ekran görüntüsü alıp geri bildirim gönder ya da Ayarlar > Geri bildirim gönder'i kullan. Gerçek adını, okulunu ya da telefonunu takma ada ve grup adına yazma.

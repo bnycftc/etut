@@ -1,0 +1,13 @@
+Etüt is a study timer and mock-exam tracker for Turkish exam students (YKS, LGS, KPSS) with optional, invite-only study groups (at most 30 people). There is no chat, no direct messages, no feed, no public profile, no group search or listing and no user search. The only free text is the nickname and the group name, both filtered on the server. Group members see who is studying now, daily and weekly study time and an in-group ranking, and can send fixed ready-made reactions (no free text; recipients can turn them off). No ads, analytics, crash reporting or tracking; no push notifications.
+
+Demo: on first launch choose birth year 2000 and the exam YKS (groups are not offered for LGS). Open the Gruplar tab, create the group account with any nickname, then under "Koda katıl" enter the invite code [DEMO KODU] and tap "Katılma isteği gönder". This demo group approves join requests automatically (in real groups the founder approves each request), so it appears in the list at once. Its other members are demo accounts with made-up study times. To see the founder's side, create your own group from the same screen.
+
+Safety: tap a member in the group to report ("Bildir") or block ("Engelle"); a founder can also report or block a join request ("Takma adı bildir" / "Engelle" under "Katılma istekleri"). Blocks can be undone in Gruplar > Engellediklerim. Reports reach the developer at once and are reviewed within 24 hours. Parents can link from their own device (Ayarlar > Veli modu) with a code from the student's app, lock the group settings and set a daily group time limit.
+
+Age: the birth year (year only) never leaves the device; the server stores only an age band. Users under 15 get the on-device app with no account, no groups and no network requests. The iOS Declared Age Range signal is read where available; if it says younger than the birth year, the younger age applies. The app is not directed at children and is not in the Kids category.
+
+Account deletion: Gruplar > Grup hesabı > Grup hesabımı sil (server account only), or Ayarlar > Veriler > Tüm verileri sil (device and server).
+
+Without a group account the app stores everything on the device and sends nothing. Server: self-hosted in Turkey. Privacy policy, terms and licenses: Ayarlar (Settings) > Hakkında.
+
+Etüt is not an official app and is not affiliated with ÖSYM or MEB.

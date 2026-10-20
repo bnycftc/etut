@@ -1,0 +1,5 @@
+Etüt, sınava hazırlanan öğrenciler için bir çalışma sayacı ve deneme net takibidir. Bu kapalı beta, isteğe bağlı çalışma gruplarını dener: davet koduyla ve kurucunun onayıyla girilen, en fazla 30 kişilik gruplarda kimin şu an çalıştığını ve günlük, haftalık çalışma sürelerini görürsün. Mesajlaşma yok; yalnız hazır tepkiler var. Beta yalnız 18 yaş ve üstü içindir.
+
+Grup kullanmazsan kayıtların telefonunda kalır ve hiçbir sunucuya gitmez. Gruplara katılırsan takma adın, yaş grubun ve çalışma oturumların Türkiye’deki sunucumuzda tutulur; grup hesabını uygulamadan istediğin an silersin.
+
+Etüt resmî bir uygulama değildir; ÖSYM veya MEB ile bağlantısı yoktur.

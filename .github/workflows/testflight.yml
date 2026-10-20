@@ -24,6 +24,12 @@ name: TestFlight
 # expo.version; without internal_only only main, a v* tag on main or a release/<version> branch
 # whose <version> equals app.json expo.version may build; npm ci, tsc and jest must pass.
 #
+# Group module: GROUPS_PHASE in src/config/features.ts. With 'off' the build has no server address
+# and needs nothing more. With 'beta18' or 'public' the gate requires the repository variables
+# SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (passed to the bundle as EXPO_PUBLIC_SUPABASE_*), jest
+# requires that phase's launch blockers to be done, and the signed app must carry the Declared Age
+# Range entitlement (K-17).
+#
 # Required repository secrets: ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY (raw .p8 text or base64 of it).
 # The API key needs the Admin role: cloud-managed distribution signing is refused for other roles.
 # Optional: DIST_CERT_P12_BASE64 (base64 of an Apple Distribution .p12), DIST_CERT_PASSWORD.
@@ -61,6 +67,8 @@ jobs:
     name: Release ref, version, typecheck and tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      groups_phase: ${{ steps.phase.outputs.groups_phase }}
     steps:
       # Full history: the check below needs origin/main next to the tagged commit.
       - uses: actions/checkout@v4
@@ -105,6 +113,60 @@ jobs:
               ;;
           esac
 
+      # GROUPS_PHASE (src/config/features.ts) decides whether the build talks to the server. 'off'
+      # builds without the server address (no group module, no network). Any other phase needs the
+      # repository variables (Settings -> Secrets and variables -> Actions -> Variables; public
+      # values, not secrets) SUPABASE_URL (https://api.<domain>) and SUPABASE_PUBLISHABLE_KEY (the
+      # publishable / anon key). A service or secret key must never reach the app bundle.
+      # internal_only does not relax this. The launch blockers of the phase are checked by jest
+      # below (src/config/__tests__/launch-gate.test.ts).
+      - name: Group module phase
+        id: phase
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          # Same pattern as launch-gate.test.ts ("declares the phase in the form testflight.yml reads").
+          phases="$(sed -nE "s/^export const GROUPS_PHASE(: *[A-Za-z]+)? *= *'([a-z0-9]+)' *;.*/\2/p" src/config/features.ts)"
+          [ "$(printf '%s\n' "$phases" | grep -c .)" = 1 ] \
+            || { echo "::error::Expected exactly one GROUPS_PHASE declaration in src/config/features.ts, found: ${phases:-none}"; exit 1; }
+          phase="$phases"
+          case "$phase" in
+            off|beta18|public) ;;
+            *) echo "::error::Unknown GROUPS_PHASE '$phase'"; exit 1 ;;
+          esac
+          echo "GROUPS_PHASE=$phase"
+          if [ "$phase" != off ]; then
+            missing=""
+            [ -n "$SUPABASE_URL" ] || missing="$missing SUPABASE_URL"
+            [ -n "$SUPABASE_KEY" ] || missing="$missing SUPABASE_PUBLISHABLE_KEY"
+            [ -z "$missing" ] \
+              || { echo "::error::GROUPS_PHASE is '$phase' but repository variable(s) missing:$missing. Set them, or build with GROUPS_PHASE 'off'."; exit 1; }
+            case "$SUPABASE_URL" in
+              https://*) ;;
+              *) echo "::error::SUPABASE_URL must be an https:// address"; exit 1 ;;
+            esac
+            # sb_secret_* (new keys) or a JWT whose role is not anon (service_role) is a server key.
+            case "$SUPABASE_KEY" in
+              sb_secret_*) echo "::error::SUPABASE_PUBLISHABLE_KEY is a secret key; use the publishable / anon key"; exit 1 ;;
+            esac
+            SUPABASE_KEY="$SUPABASE_KEY" python3 - <<'PY'
+          import base64, json, os, sys
+          parts = os.environ["SUPABASE_KEY"].split(".")
+          if len(parts) == 3:
+              try:
+                  payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
+              except ValueError:
+                  sys.exit("::error::SUPABASE_PUBLISHABLE_KEY looks like a JWT but its payload is unreadable")
+              if payload.get("role") != "anon":
+                  sys.exit(f"::error::SUPABASE_PUBLISHABLE_KEY is a JWT with role {payload.get('role')!r}; only the anon key may ship")
+          PY
+            echo "Build $BUILD_NUMBER: group module on (GROUPS_PHASE '$phase'), server $SUPABASE_URL." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Build $BUILD_NUMBER: group module off (GROUPS_PHASE 'off'), built without the server address." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "groups_phase=$phase" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -124,6 +186,9 @@ jobs:
     needs: gate
     runs-on: macos-26
     timeout-minutes: 90
+    env:
+      # 'off', 'beta18' or 'public', read and checked by the gate job (step "Group module phase").
+      GROUPS_PHASE: ${{ needs.gate.outputs.groups_phase }}
     steps:
       - uses: actions/checkout@v4
 
@@ -206,6 +271,13 @@ jobs:
               echo "::error::$ent contains aps-environment; Etüt uses no push (see plugins/with-etut-ios.js)"; exit 1
             fi
           done
+          # With the group module on, the app reads Apple's Declared Age Range (K-17, expo-age-range):
+          # the app target needs that entitlement. Without the module it is not required.
+          if [ "$GROUPS_PHASE" != off ]; then
+            ent="ios/$scheme/$scheme.entitlements"
+            [ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.declared-age-range' "$ent" 2>/dev/null)" = true ] \
+              || { echo "::error::GROUPS_PHASE is '$GROUPS_PHASE' but $ent lacks com.apple.developer.declared-age-range = true (K-17)"; exit 1; }
+          fi
           # Privacy manifests (app.json ios.privacyManifests, plugins/with-etut-ios.js): both declare
           # the App Group UserDefaults reason 1C8F.1; the extension's is in its own Resources phase.
           for manifest in "ios/$scheme/PrivacyInfo.xcprivacy" "$ext_dir/PrivacyInfo.xcprivacy"; do
@@ -278,8 +350,16 @@ jobs:
           # Inlined by Metro into the JS bundle (the "Bundle React Native code" phase of the archive).
           EXPO_PUBLIC_DATA_CONTROLLER_NAME: ${{ secrets.DATA_CONTROLLER_NAME }}
           EXPO_PUBLIC_DATA_CONTROLLER_CONTACT: ${{ secrets.DATA_CONTROLLER_CONTACT }}
+          # Server address and publishable key (repository variables, public values) only when the
+          # group module is on; with GROUPS_PHASE 'off' the bundle never contains them.
+          EXPO_PUBLIC_SUPABASE_URL: ${{ needs.gate.outputs.groups_phase != 'off' && vars.SUPABASE_URL || '' }}
+          EXPO_PUBLIC_SUPABASE_KEY: ${{ needs.gate.outputs.groups_phase != 'off' && vars.SUPABASE_PUBLISHABLE_KEY || '' }}
         run: |
           set -o pipefail
+          if [ "$GROUPS_PHASE" != off ]; then
+            [ -n "$EXPO_PUBLIC_SUPABASE_URL" ] && [ -n "$EXPO_PUBLIC_SUPABASE_KEY" ] \
+              || { echo "::error::GROUPS_PHASE is '$GROUPS_PHASE' but the server address or key is empty"; exit 1; }
+          fi
           mkdir -p build
           xcodebuild archive \
             -workspace "$WORKSPACE" \
@@ -350,6 +430,11 @@ jobs:
             fi
           }
           check_entitlements "$app"
+          # Group module on: the app (not its extensions) is signed with Declared Age Range (K-17).
+          if [ "$GROUPS_PHASE" != off ]; then
+            [ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.declared-age-range' "$RUNNER_TEMP/entitlements-$(basename "$app").plist" 2>/dev/null)" = true ] \
+              || { echo "::error::GROUPS_PHASE is '$GROUPS_PHASE' but $app is not signed with com.apple.developer.declared-age-range (K-17)"; exit 1; }
+          fi
 
           # Privacy manifest of the app and of every extension (ITMS-91053 "Missing API declaration"):
           # each bundle declares the App Group UserDefaults reason 1C8F.1.
@@ -399,6 +484,26 @@ jobs:
           hits="$(unzip -p "$ipa" 'Payload/*.app/main.jsbundle' | LC_ALL=C grep -a -c -F "$DC_CONTACT" || true)"
           [ "${hits:-0}" -ge 1 ] || { echo "::error::The data controller e-mail is not in main.jsbundle; EXPO_PUBLIC_DATA_CONTROLLER_* did not reach the bundle"; exit 1; }
           echo "Data controller inlined into the JS bundle (found $hits time(s))." >> "$GITHUB_STEP_SUMMARY"
+
+      # The server address is in the shipped bundle exactly when the group module is on. It is a
+      # public value (repository variable), so the address may be printed.
+      - name: Verify server address in the bundle
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+        run: |
+          if [ -z "$SUPABASE_URL" ]; then
+            [ "$GROUPS_PHASE" = off ] || { echo "::error::GROUPS_PHASE is '$GROUPS_PHASE' but SUPABASE_URL is empty"; exit 1; }
+            echo "No SUPABASE_URL variable: nothing to look for (GROUPS_PHASE 'off')."; exit 0
+          fi
+          ipa="$(ls build/export/*.ipa | head -1)"
+          hits="$(unzip -p "$ipa" 'Payload/*.app/main.jsbundle' | LC_ALL=C grep -a -c -F "$SUPABASE_URL" || true)"
+          if [ "$GROUPS_PHASE" = off ]; then
+            [ "${hits:-0}" -eq 0 ] || { echo "::error::GROUPS_PHASE is 'off' but $SUPABASE_URL is in main.jsbundle"; exit 1; }
+            echo "Server address not in the JS bundle (GROUPS_PHASE 'off')." >> "$GITHUB_STEP_SUMMARY"
+          else
+            [ "${hits:-0}" -ge 1 ] || { echo "::error::$SUPABASE_URL is not in main.jsbundle; EXPO_PUBLIC_SUPABASE_* did not reach the bundle"; exit 1; }
+            echo "Server address $SUPABASE_URL inlined into the JS bundle (GROUPS_PHASE '$GROUPS_PHASE')." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload to App Store Connect
         env:

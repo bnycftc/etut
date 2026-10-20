@@ -9,6 +9,23 @@ name: E2E iOS (simulator)
 # Every night on main, and by hand (Actions → "E2E iOS (simulator)" → Run workflow). A run takes
 # about an hour, so a push never starts it; the nightly run is the regular automatic check of the
 # Live Activity and the widget on iOS.
+#
+# Network check of the under-15 flow (K-16: no server account, no request at all under 15).
+# The simulator app is an ordinary macOS process on the runner, so its sockets are visible on the
+# host. A probe (step "Start network probe") runs for the whole Maestro run and only records while
+# e2e/f-kucuk-yas.yaml is between its onFlowStart and onFlowComplete hooks, which call the probe
+# over HTTP (NET_PROBE_URL; without it, e.g. a local `maestro test e2e/`, the hooks do nothing).
+# Every app process started inside that window (pgrep, every 0.2 s; the previous flow's process,
+# alive when the window opens, is excluded) must have no internet socket at all:
+# - lsof -i on those pids every 0.2 s (sees any open TCP/UDP socket, including listening ones);
+# - nettop -P in log mode for the whole run (kernel network statistics per process, so it also
+#   sees connections that open and close between two lsof samples).
+# Before Maestro starts, each tool must see a known connection of its own (positive control): lsof
+# a socket the probe holds, nettop a short curl. If lsof fails that, the job fails (no blind
+# pass). nettop's log mode is not documented as stable; if it fails the control the check runs on
+# lsof alone with a warning instead of failing a run over a tool problem.
+# Not covered: name lookups go through the shared mDNSResponder daemon and are not attributable to
+# the app; a connection the app would open has to follow one, and that is what is checked.
 
 on:
   workflow_dispatch:
@@ -40,6 +57,9 @@ env:
   SIM_LOCALE: tr_TR
   SIM_TIMEZONE: Europe/Istanbul
   RESULTS: test-results/maestro
+  # Network probe of the under-15 flow (see the top of this file and e2e/f-kucuk-yas.yaml).
+  NET_PROBE_PORT: "8765"
+  NET_PROBE_URL: http://127.0.0.1:8765
 
 jobs:
   e2e:
@@ -272,6 +292,152 @@ jobs:
             *) echo "::warning::Expected Maestro $MAESTRO_VERSION, --version printed: $installed" ;;
           esac
 
+      - name: Start network probe
+        id: probe
+        run: |
+          mkdir -p "$RESULTS/net-probe"
+          cat > "$RUNNER_TEMP/net-probe.py" <<'PY'
+          import http.server, json, os, pty, socket, subprocess, sys, threading, time
+
+          APP = os.environ["SCHEME"]  # the app's executable name on the host
+          OUT = os.path.join(os.environ["RESULTS"], "net-probe")
+          lock = threading.Lock()
+          windows = []        # [start, stop or None] of the under-15 flow
+          excluded = set()    # app pids alive when a window opened (an earlier flow's process)
+          seen = set()        # app pids started inside a window
+          lsof_hits = []      # internet sockets of those pids (lsof lines)
+          nettop_rows = {}    # pid -> first nettop row of any process with a socket
+          nettop_lines = [0]
+          control = {}
+
+          def app_pids():
+              out = subprocess.run(["pgrep", "-x", APP], capture_output=True, text=True).stdout
+              return {int(p) for p in out.split()}
+
+          def lsof(pids):
+              out = subprocess.run(["lsof", "-nP", "-a", "-i", "-p", ",".join(map(str, sorted(pids)))],
+                                   capture_output=True, text=True).stdout
+              return [line for line in out.splitlines()[1:] if line.strip()]
+
+          def nettop():
+              # A pty keeps nettop's output line-buffered.
+              master, slave = pty.openpty()
+              subprocess.Popen(["sudo", "-n", "nettop", "-P", "-L", "0", "-s", "1", "-n"],
+                               stdin=subprocess.DEVNULL, stdout=slave, stderr=slave, start_new_session=True)
+              os.close(slave)
+              buf = b""
+              with open(os.path.join(OUT, "nettop.log"), "w") as log:
+                  while True:
+                      try:
+                          chunk = os.read(master, 65536)
+                      except OSError:
+                          break
+                      if not chunk:
+                          break
+                      buf += chunk
+                      *lines, buf = buf.split(b"\n")
+                      for raw in lines:
+                          line = raw.decode("utf-8", "replace").strip("\r")
+                          fields = line.split(",")
+                          name, dot, pid = (fields[1] if len(fields) > 1 else "").rpartition(".")
+                          with lock:
+                              nettop_lines[0] += 1
+                              if dot and pid.isdigit():
+                                  nettop_rows.setdefault(int(pid), line)
+                          if nettop_lines[0] <= 20 or name in (APP, "curl"):
+                              log.write(line + "\n")
+                              log.flush()
+
+          def sampler():
+              while True:
+                  with lock:
+                      active = bool(windows) and windows[-1][1] is None
+                      skip = set(excluded)
+                  if active:
+                      pids = app_pids() - skip
+                      hits = lsof(pids) if pids else []
+                      with lock:
+                          seen.update(pids)
+                          lsof_hits.extend(h for h in hits if h not in lsof_hits)
+                  time.sleep(0.2)
+
+          def report():
+              with lock:
+                  return {
+                      "control": control,
+                      "windows": [[round(a, 3), b and round(b, 3)] for a, b in windows],
+                      "excluded_pids": sorted(excluded),
+                      "app_pids": sorted(seen),
+                      "lsof": list(lsof_hits),
+                      "nettop": [nettop_rows[p] for p in sorted(seen) if p in nettop_rows],
+                      "nettop_lines": nettop_lines[0],
+                  }
+
+          class Handler(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  now = time.time()
+                  if self.path == "/start":
+                      alive = app_pids()
+                      with lock:
+                          if windows and windows[-1][1] is None:
+                              windows[-1][1] = now
+                          excluded.update(alive)
+                          windows.append([now, None])
+                      body = {"ok": True}
+                  elif self.path == "/stop":
+                      with lock:
+                          if windows and windows[-1][1] is None:
+                              windows[-1][1] = now
+                      body = {"ok": True}
+                  elif self.path == "/status":
+                      body = report()
+                  else:
+                      self.send_error(404)
+                      return
+                  data = json.dumps(body).encode()
+                  self.send_response(200)
+                  self.send_header("Content-Type", "application/json")
+                  self.send_header("Content-Length", str(len(data)))
+                  self.end_headers()
+                  self.wfile.write(data)
+
+              def log_message(self, fmt, *args):
+                  sys.stderr.write(time.strftime("%H:%M:%S ") + (fmt % args) + "\n")
+
+          threading.Thread(target=nettop, daemon=True).start()
+          deadline = time.time() + 30
+          while time.time() < deadline and not nettop_rows:
+              time.sleep(0.5)
+          # Positive control: lsof sees a socket this process holds; nettop sees a short curl.
+          with socket.create_connection(("github.com", 443), timeout=20):
+              control["lsof"] = bool(lsof({os.getpid()}))
+          curl = subprocess.Popen(["curl", "-sS", "-o", "/dev/null", "--max-time", "20", "https://github.com"])
+          curl.wait()
+          deadline = time.time() + 15
+          while time.time() < deadline and curl.pid not in nettop_rows:
+              time.sleep(0.25)
+          control["nettop"] = curl.pid in nettop_rows
+          print("control:", json.dumps(control), flush=True)
+          threading.Thread(target=sampler, daemon=True).start()
+          http.server.ThreadingHTTPServer(("127.0.0.1", int(os.environ["NET_PROBE_PORT"])), Handler).serve_forever()
+          PY
+          nohup python3 "$RUNNER_TEMP/net-probe.py" > "$RESULTS/net-probe/probe.log" 2>&1 &
+          echo "NET_PROBE_PID=$!" >> "$GITHUB_ENV"
+          for _ in $(seq 1 120); do
+            curl -fsS "$NET_PROBE_URL/status" -o "$RUNNER_TEMP/probe-status.json" 2>/dev/null && break
+            sleep 1
+          done
+          cat "$RESULTS/net-probe/probe.log"
+          [ -s "$RUNNER_TEMP/probe-status.json" ] || { echo "::error::The network probe did not start"; exit 1; }
+          python3 - <<'PY'
+          import json, os
+          control = json.load(open(os.path.join(os.environ["RUNNER_TEMP"], "probe-status.json")))["control"]
+          if not control.get("lsof"):
+              raise SystemExit("::error::Network probe: lsof did not see the probe's own connection; the check would be blind")
+          if not control.get("nettop"):
+              print("::warning::Network probe: nettop did not see a short curl connection; the under-15 check relies on lsof polling only")
+          PY
+
       - name: Run Maestro flows
         env:
           # Passed by simctl to the app Maestro launches (in addition to the host time zone above).
@@ -281,6 +447,7 @@ jobs:
           run_maestro() {
             local tag="$1"; shift
             maestro --device "$SIM_UDID" test "${@:-e2e/}" \
+              -e "NET_PROBE_URL=$NET_PROBE_URL" \
               --format junit \
               --output "$RESULTS/report-$tag.xml" \
               --test-output-dir "$RESULTS/output" \
@@ -343,6 +510,39 @@ jobs:
             fi
           fi
           exit "$status"
+
+      # Evaluated even when a flow failed: the under-15 app processes must have had no socket.
+      - name: Under-15 flow made no network connection
+        if: always() && steps.probe.outcome == 'success'
+        run: |
+          curl -fsS "$NET_PROBE_URL/status" -o "$RESULTS/net-probe/report.json" \
+            || { echo "::error::The network probe is not answering"; exit 1; }
+          kill "$NET_PROBE_PID" 2>/dev/null || true
+          sudo -n pkill -x nettop 2>/dev/null || true
+          python3 - <<'PY'
+          import json, os
+          r = json.load(open(os.path.join(os.environ["RESULTS"], "net-probe", "report.json")))
+          print(json.dumps({k: v for k, v in r.items() if k not in ("lsof", "nettop")}, indent=2))
+          problems = []
+          if not r["windows"]:
+              problems.append("f-kucuk-yas.yaml never opened a probe window (onFlowStart hook did not run)")
+          elif not r["app_pids"]:
+              problems.append("no app process was seen during the under-15 flow")
+          for line in r["lsof"]:
+              problems.append("lsof: " + line)
+          for line in r["nettop"]:
+              problems.append("nettop: " + line)
+          tools = "lsof + nettop" if r["control"].get("nettop") else "lsof only (nettop failed its control)"
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              if problems:
+                  summary.write(f"Under-15 network check FAILED ({tools}):\n\n")
+                  summary.writelines(f"- `{p}`\n" for p in problems)
+              else:
+                  summary.write(f"Under-15 network check: app processes {r['app_pids']} had no internet socket ({tools}).\n")
+          for p in problems:
+              print("::error::Under-15 network check: " + p)
+          raise SystemExit(1 if problems else 0)
+          PY
 
       - name: Summary
         if: always()
