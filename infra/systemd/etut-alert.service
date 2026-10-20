@@ -1,0 +1,8 @@
+[Unit]
+Description=Etüt operator alerts: report counts and health to ntfy + mail (journalctl -u etut-alert)
+After=docker.service network-online.target ntfy.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/etut/bin/alert.sh

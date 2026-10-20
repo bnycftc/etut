@@ -1,0 +1,13 @@
+# /etc/caddy/etut.d/ntfy.caddy — bildirim.<alan> → ntfy on 127.0.0.1:2586. Installed by
+# 09-ntfy.sh with <ETUT_NTFY_HOST> filled in; the main Caddyfile imports /etc/caddy/etut.d/*.caddy,
+# so re-running 05-caddy.sh keeps this site. Uses the snippets of the main Caddyfile.
+
+<ETUT_NTFY_HOST> {
+	import etut_log ntfy
+	import etut_headers
+	request_body {
+		max_size 16KB
+	}
+	# Phones hold long-lived streaming / WebSocket subscriptions; Caddy proxies both as is.
+	reverse_proxy 127.0.0.1:2586
+}

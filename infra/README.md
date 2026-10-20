@@ -13,15 +13,17 @@ Uygulama ──HTTPS──▶ Caddy (443, Let's Encrypt, Cloudflare YOK)
                      │                                          ├─ auth (GoTrue: anonim + Apple/Google)
                      │                                          └─ rest (PostgREST: yalnız public şemasındaki RPC'ler)
                      ├─ api.<alan>/saglik                    ──▶ "ok" (dış izleme için, veri taşımaz)
-                     └─ hata.<alan>                          ──▶ 127.0.0.1:8001 GlitchTip
+                     ├─ hata.<alan>                          ──▶ 127.0.0.1:8001 GlitchTip
+                     └─ bildirim.<alan>                      ──▶ 127.0.0.1:2586 ntfy (operatör uyarıları, upstream yok)
 Postgres (supabase/postgres + pgBackRest) ── WAL arşivi + yedek ──SFTP──▶ Radore (İstanbul), istemci tarafında AES-256
 restic (yapılandırma, sertifikalar, erişim kayıtları, GlitchTip dökümü)  ──SFTP──▶ Radore
+alert.sh (2 dk) ── yalnız sayılar ──▶ ntfy (bildirim.<alan>) + msmtp ile yurt içi posta kutusu
 Studio ve Postgres: yalnız 127.0.0.1; erişim SSH tüneliyle.
 ```
 
 Dışarı açık portlar yalnız 22, 80, 443 (ufw). Docker'ın yayımladığı portlar ufw'yi atlar; bu
 yüzden her yayımlanan port `127.0.0.1`'e bağlıdır (`supabase/docker-compose.override.yml`,
-`glitchtip/compose.yml`) ve `healthcheck.sh` dışarıya açık beklenmeyen port olmadığını denetler.
+`glitchtip/compose.yml`; ntfy de yalnız `127.0.0.1:2586` dinler) ve `healthcheck.sh` dışarıya açık beklenmeyen port olmadığını denetler.
 
 ## Sabit sürümler
 
@@ -36,14 +38,16 @@ yüzden her yayımlanan port `127.0.0.1`'e bağlıdır (`supabase/docker-compose
 | Docker Engine + compose | resmi apt deposu, `apt-mark hold` | 02-docker.sh (compose ≥ 2.24 gerekli) |
 | pgBackRest | PGDG deposu, ≥ 2.46 (SFTP deposu için) | db imajı derlenirken yazdırılır |
 | restic | Ubuntu 24.04 paketi | 01-harden.sh |
+| ntfy | `2.28.0` (GitHub sürüm `.deb`'i, SHA-256 betikte) | 09-ntfy.sh `NTFY_VERSION` / `NTFY_SHA256` |
+| msmtp | Ubuntu 24.04 paketi | 09-ntfy.sh |
 
 ## 0. bny'nin elle yapacakları (satın alma ve hesap işleri Claude yapmaz)
 
 1. `docs/arastirma/5-1-sunucu-saglayici.md` bölüm 5'teki soruları sağlayıcılara yazılı sor.
 2. İlkbyte Cloud III (Ubuntu 24.04) ve Radore Disk-Core satın al; KVKK veri işleme
    sözleşmelerini imzala. Radore kutusunda yalnız SFTP yapabilen `etutbackup` kullanıcısı aç.
-3. `.com.tr` alan adı al; `api.` ve `hata.` alt alan adları için A kayıtlarını sunucu IP'sine
-   yönlendir (yalnız DNS, vekil yok).
+3. `.com.tr` alan adı al; `api.`, `hata.` ve `bildirim.` alt alan adları için A kayıtlarını
+   sunucu IP'sine yönlendir (yalnız DNS, vekil yok).
 4. Sunucuya kendi SSH açık anahtarını ekle.
 
 ## 1. Sunucuyu hazırla
@@ -62,7 +66,9 @@ Doğrula: YENİ bir terminalde `ssh etut@<sunucu>` çalışıyor; `ssh root@<sun
 
 ## 2. Docker, Supabase, göçler
 
-Depoyu sunucuda `/opt/etut/repo` altına klonla (özel depo: salt okunur bir deploy anahtarıyla).
+Depoyu sunucuda `/opt/etut/repo` altına klonla. Depo herkese açıktır (github.com/bnycftc/etut):
+klonlamak için anahtar gerekmez. Bu yüzden depoya hiçbir sır ve hiçbir özel belge (hukuk notları
+dahil) girmez; sırlar yalnız sunucuda üretilir.
 
 ```bash
 sudo bash /opt/etut/repo/infra/scripts/02-docker.sh
@@ -150,9 +156,66 @@ yan yana yazılır; restic'ten bir dosya geri alınır. Sonucu (tarih, süre, fa
 
 `etut-health.timer` 5 dakikada bir `healthcheck.sh` çalıştırır (`journalctl -u etut-health`):
 kapsayıcı sağlığı, HTTPS ucu, Auth sağlığı, beklenmeyen açık port, sertifika süresi (≥ 14 gün),
-disk (< %80), bellek, son yedek (< 26 saat), WAL arşivi (< 15 dk), sıralama işi (< 15 dk).
+disk (< %80), bellek, son yedek (< 26 saat), WAL arşivi (< 15 dk), sıralama işi (< 15 dk), ntfy
+(yerel ve `https://bildirim.<alan>`), uyarı zamanlayıcısı (< 10 dk), açık raporlar.
 Dış izleme: Türkiye'de bir izleme hizmeti ya da ikinci kutudan `curl https://api.<alan>/saglik`
 (yalnız "ok" döner, kişisel veri taşımaz).
+
+### Operatör uyarıları (K-28, K-29)
+
+Rapor gelince operatörün haberi olmalı: K-28 raporların 24 saat içinde incelenmesini, K-29
+`danger` raporunda (tehdit, intihar riski, istismar) acil durum adımlarının hemen başlamasını
+ister. Kanal tamamen yurt içidir ve **yalnız sayı taşır**: takma ad, grup adı, rapor kimliği
+uyarıya hiç girmez.
+
+```bash
+sudo bash /opt/etut/repo/infra/scripts/09-ntfy.sh     # ntfy + Caddy bildirim.<alan> + msmtp
+sudo bash /opt/etut/repo/infra/scripts/08-timers.sh   # alert.sh, reports.sh, etut-alert.timer
+sudo /opt/etut/bin/alert.sh --test                    # telefona ve posta kutusuna deneme
+```
+
+- **ntfy** bu sunucuda, sabit sürüm, yalnız `127.0.0.1:2586`; dışarıdan yalnız Caddy üzerinden
+  `bildirim.<alan>`. `auth-default-access: deny-all`; `alert` kullanıcısı konuya yalnız yazar,
+  `bny` yalnız okur. Kayıt, web arayüzü ve ek dosya kapalı. **Upstream (ntfy.sh) kapalı**: ne
+  ntfy.sh ne Firebase/APNs bir mesaj olduğunu öğrenir. Bedeli: iOS uygulaması anlık push almaz,
+  mesajı uygulama açılınca ya da arka planda yoklayınca gösterir. Bu yüzden posta yedek kanaldır;
+  telefonda posta bildirimi açık kalsın.
+- **Parolalar** sunucuda üretilir (`/etc/etut/secrets/ntfy-alert-password`,
+  `ntfy-bny-password`, 600) ve ekrana basılmaz. Telefona girmek için kendi terminalinde
+  `sudo cat /etc/etut/secrets/ntfy-bny-password`, sonra çevrim dışı parola yöneticisine. SMTP
+  parolasını 09 bir kez sorar (`/etc/etut/secrets/smtp-password`).
+- **Posta**: msmtp, `/etc/msmtprc` (600), yurt içi bir sağlayıcıdaki kutudan `ALERT_MAIL_TO`'ya.
+- **Telefon**: ntfy uygulaması → sunucu `https://bildirim.<alan>`, kullanıcı `bny`, konu
+  `ETUT_NTFY_TOPIC` (varsayılan `etut-uyari`).
+
+`etut-alert.timer` 2 dakikada bir `alert.sh` çalıştırır (`journalctl -u etut-alert`). Sayılar
+`app.report_alert_counts()`'tan gelir (yalnız operatörün psql oturumu çağırabilir; hiçbir rol
+yetkili değil):
+
+| Ne zaman | Öncelik |
+|---|---|
+| Açık `danger` raporu sayısı değişti | 5 (acil) |
+| `danger` raporu açık kaldıkça her saat hatırlatma | 5 |
+| Bir rapor 24 saati geçti | 5 |
+| Bir rapor 12 saati geçti | 4 |
+| `healthcheck.sh` FAIL sayısı değişti ya da 15 dakikadır sonuç yok | 4 |
+| Rapor sayıları okunamadı (veritabanı) | 4 |
+| Hepsi sıfıra döndü | 2 |
+
+İki kanaldan biri iletirse yeter; ikisi de düşerse durum ilerletilmez ve sonraki çalışma yeniden
+dener. Durum `/var/lib/etut/alert-state` (yalnız sayılar ve zaman).
+
+**Raporu incele ve kapat** (yalnız SSH oturumunda, etkileşimli terminalde; takma ad ve grup adı
+yalnız bu ekrana basılır):
+
+```bash
+sudo /opt/etut/bin/reports.sh                               # açık raporlar, önce danger
+sudo /opt/etut/bin/reports.sh close <id> <karar>            # app.close_report
+```
+
+`close` kapatmadan önce K-28 listesini, `danger` raporunda ya da `reported_to_authorities`
+kararında K-29 acil durum listesini gösterir (112; 155/156 ya da savcılık; EGM e-İhbar; kolluğa
+yalnız yazılı talep üzerine veri; çevrim dışı defter D5) ve `evet` ister.
 
 ## 8. Güncelleme
 
@@ -215,10 +278,16 @@ beyanı güncellenerek: "Data Not Collected" artık doğru değildir; `docs/huku
   IP'yi paylaşır. Token yenileme 429 alırsa ve erişim belirtecinin süresi dolmuşsa uygulama
   oturumu siler (auth-js 429'u kalıcı sayar); anonim hesaba yeniden girilemez, öğrenci grup
   hesabını kaybeder ve eski hesap 6 ay sonra temizlenene kadar sunucuda kalır. Bu yüzden
-  `GOTRUE_RATE_LIMIT_TOKEN_REFRESH` 3000/5 dk'ya çekildi; anonim kayıt sınırı (30/saat/IP) bir
-  sınıfın aynı anda kaydolmasına yetmeyebilir. Açılıştan önce GoTrue günlüğünde 429 sayısına
-  bakın, gerekirse iki sınırı da yükseltin; uzun vadede Apple/Google hesap bağlama
+  `GOTRUE_RATE_LIMIT_TOKEN_REFRESH` 3000/5 dk'ya çekildi ve uygulama yenilemedeki 429'u yeniden
+  denenen 503'e çevirir; anonim kayıt sınırı 300/saat/IP (WP-H; GoTrue varsayılanı 30). Token
+  yenileme kovasının ani yükü GoTrue'da 30'a sabittir (ayarlanamaz): aynı saniyede yenileyen bir
+  sınıf yine 429 görebilir. Açılıştan önce `scripts/nat-load.mjs` ile ölçün (`infra/yuk-testi.md`)
+  ve GoTrue günlüğünde 429 sayısına bakın; uzun vadede Apple/Google hesap bağlama
   (GROUPS_LAUNCH_BLOCKERS).
-- `healthcheck.sh` açık `danger` raporunu ve 12 saatten eski raporu `FAIL` olarak yazar; bu yalnız
-  `journalctl`e düşer. Operatöre anında, yurt içi bir kanaldan (e-posta / SMS) uyarı gitmesi
-  bayrak açılmadan önce kurulmalı (K-28, K-29; `src/config/features.ts` GROUPS_LAUNCH_BLOCKERS).
+- Operatör uyarı kanalı (bölüm 7) gerçek sunucuda denenmedi: `alert.sh --test` telefona ve posta
+  kutusuna düşmeli; ntfy iOS uygulamasının upstream olmadan mesajı ne kadar gecikmeyle gösterdiği
+  ölçülmeli; `/v1/health`'in deny-all altında anonim açık olduğu, `ntfy access` çıktısında yalnız
+  `alert` (write-only) ve `bny` (read-only) bulunduğu, msmtp'nin seçilen sağlayıcıyla (587/465)
+  gönderebildiği ve `caddy validate`'in boş `etut.d` glob'unu uyarıyla geçtiği ilk kurulumda
+  doğrulanmalı. `reports.sh`'in SSH denetimi (sudo `SSH_CONNECTION`'ı siler, üst süreçlerde
+  `sshd` aranır) Ubuntu 24.04'te bir kez denenmeli.

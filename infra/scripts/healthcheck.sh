@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Health check (etut-health.timer, every 5 minutes; also by hand). Prints one line per check and
-# exits non-zero when something needs attention. Carries no personal data.
+# exits non-zero when something needs attention. Carries no personal data. Writes the number of
+# failed system checks to /var/lib/etut/health-status; alert.sh (etut-alert.timer) sends it.
 set -uo pipefail
 # shellcheck source=/dev/null
 . /etc/etut/etut.conf
 fail=0
+nfail=0
 ok() { echo "OK   $*"; }
-bad() { echo "FAIL $*"; fail=1; }
+bad() { echo "FAIL $*"; fail=1; nfail=$((nfail + 1)); }
 
 # Containers healthy.
 cd /opt/etut/supabase
@@ -52,13 +54,33 @@ lb=$(docker compose exec -T db psql -U supabase_admin -d postgres -tAc \
   "select coalesce(extract(epoch from now() - max(end_time))::int, -1) from cron.job_run_details d join cron.job j using (jobid) where j.jobname = 'etut-leaderboards' and d.status = 'succeeded'" 2>/dev/null)
 [ -n "$lb" ] && [ "$lb" -ge 0 ] && [ "$lb" -lt 900 ] && ok "leaderboard job ${lb}s ago" || bad "leaderboard job: ${lb:-unknown}"
 
+# Operator alerts (K-28, K-29): ntfy up on loopback and behind Caddy, alert.sh ran recently.
+if [ -n "${ETUT_NTFY_HOST:-}" ]; then
+  curl -fsS --max-time 5 http://127.0.0.1:2586/v1/health >/dev/null && ok "ntfy" || bad "ntfy not answering on 127.0.0.1:2586"
+  curl -fsS --max-time 10 "https://${ETUT_NTFY_HOST}/v1/health" >/dev/null && ok "ntfy https endpoint" || bad "ntfy https endpoint"
+else
+  bad "alert channel not configured (ETUT_NTFY_HOST; run 09-ntfy.sh)"
+fi
+last_alert=$(cat /var/lib/etut/alert-last-run 2>/dev/null || echo 0)
+[ $(( $(date +%s) - ${last_alert:-0} )) -lt 600 ] && ok "alert timer ran $(( $(date +%s) - last_alert ))s ago" || bad "alert timer not running (etut-alert.timer)"
+
+# State for alert.sh: time and number of failed system checks. The report counts below are sent
+# by alert.sh itself, so they are not part of this number.
+install -d -m 755 /var/lib/etut
+echo "$(date +%s) $nfail" > /var/lib/etut/health-status.tmp && mv /var/lib/etut/health-status.tmp /var/lib/etut/health-status
+
 # Moderation (K-28, K-29): open reports waiting more than 12 hours, and any open 'danger' report
 # (threat / self-harm: the emergency procedure starts at once). Counts only, no personal data.
-# Close a report after review with: select app.close_report('<id>', '<decision>');
-reports=$(docker compose exec -T db psql -U supabase_admin -d postgres -tAc \
-  "select count(*) filter (where created_at < now() - interval '12 hours') || ' ' || count(*) filter (where reason = 'danger') from app.reports where status = 'open'" 2>/dev/null)
-waiting=${reports%% *}
-danger=${reports#* }
-[ "${waiting:-x}" = "0" ] && [ "${danger:-x}" = "0" ] && ok "no report waiting" || bad "open reports: ${waiting:-?} older than 12 h, ${danger:-?} danger"
+# alert.sh sends the same counts to the operator; review and close with
+# `sudo /opt/etut/bin/reports.sh` in an SSH session.
+reports=$(docker compose exec -T db psql -U supabase_admin -d postgres -tA -F ' ' \
+  -c "select open_danger, open_over_12h, open_over_24h from app.report_alert_counts()" 2>/dev/null)
+read -r danger waiting overdue <<< "${reports:-? ? ?}"
+if [ "${waiting:-x}" = "0" ] && [ "${danger:-x}" = "0" ]; then
+  ok "no report waiting"
+else
+  echo "FAIL open reports: ${waiting:-?} older than 12 h (${overdue:-?} older than 24 h), ${danger:-?} danger"
+  fail=1
+fi
 
 exit $fail

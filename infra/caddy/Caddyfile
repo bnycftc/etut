@@ -73,3 +73,8 @@
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:8001
 }
+
+# Further sites dropped in by later steps, e.g. bildirim.<alan> → ntfy (09-ntfy.sh writes
+# /etc/caddy/etut.d/ntfy.caddy from infra/ntfy/ntfy.caddy). A glob that matches nothing is not an
+# error, so this file works before 09 and re-running 05-caddy.sh keeps those sites.
+import /etc/caddy/etut.d/*.caddy

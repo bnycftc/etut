@@ -1,0 +1,39 @@
+name: Infra
+
+# The server scripts in infra/ (they run only on the VPS, never here): shellcheck over every
+# script, and a dry run of alert.sh's state machine with psql, curl and msmtp stubbed
+# (infra/ntfy/test-alert.sh). Nothing connects to a server.
+
+on:
+  push:
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra.yml"
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scripts:
+    name: Shellcheck + alert state machine
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shellcheck
+        run: |
+          shellcheck --version
+          shellcheck --shell=bash --severity=warning infra/scripts/*.sh infra/ntfy/*.sh
+
+      - name: alert.sh state machine (stubbed psql, curl, msmtp)
+        run: bash infra/ntfy/test-alert.sh

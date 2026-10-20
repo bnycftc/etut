@@ -29,3 +29,16 @@ GOOGLE_CLIENT_ID=
 # Linking Apple / Google to the anonymous account. Keep false until the app has the buttons and
 # the e-mail / name GoTrue stores on linking is cleaned up (docs/hukuk/kvkk/08 #11).
 ETUT_LINKING_ENABLED=false
+
+# Operator alerts (K-28, K-29; 09-ntfy.sh, alert.sh, etut-alert.timer). Counts only, no nickname,
+# group name or report id. ntfy runs on this server behind Caddy, without the ntfy.sh upstream.
+# DNS A record of ETUT_NTFY_HOST → this server (DNS-only, no proxy).
+ETUT_NTFY_HOST=bildirim.etut.example.com.tr
+ETUT_NTFY_TOPIC=etut-uyari
+# Mail copy (backup channel) through msmtp: a mailbox at a provider in Turkey. 587 = STARTTLS,
+# 465 = TLS. 09-ntfy.sh asks once for the password and keeps it in /etc/etut/secrets/smtp-password.
+ALERT_SMTP_HOST=mail.example.com.tr
+ALERT_SMTP_PORT=587
+ALERT_SMTP_USER=uyari@example.com.tr
+ALERT_MAIL_FROM=uyari@example.com.tr
+ALERT_MAIL_TO=ops@example.com.tr
