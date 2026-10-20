@@ -1,0 +1,8 @@
+Bu sürümde:
+
+- Çalışma grupları: grup kur ya da kurucudan aldığın davet koduyla katılma isteği gönder; kurucu onaylayınca gruba girersin. Bir grupta en fazla 30 kişi olur, grup araması ve herkese açık grup yoktur.
+- Grubunda kimin şu an çalıştığını ve günlük, haftalık çalışma sürelerini görürsün. İstersen görünmez çalışırsın.
+- Mesajlaşma yok; yalnız hazır tepkiler. Tepkileri kapatabilir, bir üyeyi bildirebilir ya da engelleyebilirsin.
+- Veli modu: veli kendi telefonundan bağlanıp grup ayarlarını kilitleyebilir ve günlük grup süresine sınır koyabilir.
+- Gruplar isteğe bağlıdır ve 15 yaş ve üstü içindir. Grup için e-posta, telefon ya da ad istenmez; bir takma ad seçersin. Grup kullanmazsan kayıtların hiçbir sunucuya gitmez.
+- Grup hesabını uygulamadan istediğin an silebilirsin.

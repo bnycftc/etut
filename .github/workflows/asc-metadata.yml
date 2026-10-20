@@ -5,6 +5,15 @@
 # Default is a dry run: it prints current vs wanted and writes nothing. With apply=true it writes
 # only what differs. It never submits for review, never attaches a build, never touches pricing,
 # availability or App Privacy. Same API key secrets as asc-key-check.yml.
+#
+# Group module: GROUPS_PHASE in src/config/features.ts, read the same way as testflight.yml. While
+# it is 'beta18' (closed TestFlight beta, adults only) the App Review notes are neither compared
+# nor written: the listing stays the device-only one and the beta is reviewed through TestFlight
+# (store/testflight/). From 'public' on the root store files are the group version
+# (store/app-store/groups/, src/__tests__/store-metadata.test.ts), whose notes carry the
+# placeholder [DEMO KODU]. It is filled from the secret DEMO_INVITE_CODE (the code printed by
+# infra/scripts/demo-seed.sh; never committed, the repository is public); apply refuses notes
+# that still contain the placeholder.
 name: ASC metadata
 
 on:
@@ -28,18 +37,33 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Group module phase
+        id: phase
+        run: |
+          # Same pattern as testflight.yml and src/config/__tests__/launch-gate.test.ts.
+          phases="$(sed -nE "s/^export const GROUPS_PHASE(: *[A-Za-z]+)? *= *'([a-z0-9]+)' *;.*/\2/p" src/config/features.ts)"
+          [ "$(printf '%s\n' "$phases" | grep -c .)" = 1 ] \
+            || { echo "::error::Expected exactly one GROUPS_PHASE declaration in src/config/features.ts, found: ${phases:-none}"; exit 1; }
+          case "$phases" in
+            off|beta18|public) ;;
+            *) echo "::error::Unknown GROUPS_PHASE '$phases'"; exit 1 ;;
+          esac
+          echo "GROUPS_PHASE=$phases"
+          echo "groups_phase=$phases" >> "$GITHUB_OUTPUT"
       - name: Sync store/app-store with App Store Connect
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           DATA_CONTROLLER_NAME: ${{ secrets.DATA_CONTROLLER_NAME }}
+          DEMO_INVITE_CODE: ${{ secrets.DEMO_INVITE_CODE }}
+          GROUPS_PHASE: ${{ steps.phase.outputs.groups_phase }}
           APPLY: ${{ inputs.apply }}
           ALLOW_VERSION_CHANGE: ${{ inputs.allow_version_change }}
         run: |
           pip install --quiet pyjwt cryptography requests
           python3 - <<'PY'
-          import base64, json, os, sys, time, jwt, requests
+          import base64, json, os, re, sys, time, jwt, requests
 
           APP = "6818980777"
           LOCALE = "tr"
@@ -50,7 +74,11 @@ jobs:
           APPLY = os.environ.get("APPLY") == "true"
           ALLOW_VERSION_CHANGE = os.environ.get("ALLOW_VERSION_CHANGE") == "true"
           API = "https://api.appstoreconnect.apple.com/v1"
+          GROUPS_PHASE = os.environ["GROUPS_PHASE"]
+          # Closed beta: the App Store review notes wait for the public release (see the header).
+          WRITE_NOTES = GROUPS_PHASE != "beta18"
           print("mode:", "APPLY (writes)" if APPLY else "DRY RUN (no writes)")
+          print("GROUPS_PHASE:", GROUPS_PHASE, "" if WRITE_NOTES else "(App Review notes are not written)")
 
           # ---- Store files and limits (checked before any API call) ----
           def read(path):
@@ -70,6 +98,19 @@ jobs:
           # written only when an earlier version exists (see the version localization below).
           whats_new_want = read(tr + "whats_new.txt")
           notes_want = read("store/app-store/review-notes.txt")
+          # The demo group's invite code (store/testflight/README.md) comes from a secret.
+          DEMO_PLACEHOLDER = "[DEMO KODU]"
+          notes_unresolved = None
+          if DEMO_PLACEHOLDER in notes_want:
+              demo = os.environ.get("DEMO_INVITE_CODE", "").strip().upper().replace("-", "")
+              if re.fullmatch(r"[A-HJ-NP-Z2-9]{8}", demo):
+                  demo = demo[:4] + "-" + demo[4:]
+                  print("::add-mask::" + demo)
+                  notes_want = notes_want.replace(DEMO_PLACEHOLDER, demo)
+                  print("review notes: demo invite code filled from DEMO_INVITE_CODE")
+              else:
+                  notes_unresolved = (f"review notes contain {DEMO_PLACEHOLDER} but the DEMO_INVITE_CODE secret is missing "
+                                      "or not an 8-character invite code (infra/scripts/demo-seed.sh prints it)")
           with open("store/app-store/age-rating.json", encoding="utf-8") as f:
               age_want = json.load(f)["attributes"]
 
@@ -91,6 +132,11 @@ jobs:
           for k in ("supportUrl", "marketingUrl"):
               if not loc_want[k].startswith("https://"):
                   problems.append(f"{k} must start with https://")
+          if notes_unresolved and WRITE_NOTES:
+              if APPLY:
+                  problems.append(notes_unresolved)
+              else:
+                  print("warning:", notes_unresolved)
           if problems:
               sys.exit("store files invalid:\n  " + "\n  ".join(problems))
           print("store files: limits ok")
@@ -234,18 +280,22 @@ jobs:
           # ---- App Review detail: notes only; contact fields are filled by hand ----
           print("\n[app review detail]")
           detail = None
-          if version:
+          if version and WRITE_NOTES:
               res = get(f"/appStoreVersions/{version['id']}/appStoreReviewDetail", allow_404=True)
               detail = (res or {}).get("data")
           d_attrs = detail["attributes"] if detail else {}
           review_want = {"notes": notes_want, "demoAccountRequired": False}
-          changed = diff("appStoreReviewDetail", d_attrs, review_want)
+          changed = diff("appStoreReviewDetail", d_attrs, review_want) if WRITE_NOTES else {}
           contact_missing = [k for k in ("contactFirstName", "contactLastName", "contactPhone", "contactEmail")
                              if not d_attrs.get(k)]
-          for k in ("contactFirstName", "contactLastName", "contactPhone", "contactEmail"):
-              print(f"  {k}: {'set' if d_attrs.get(k) else 'MISSING - fill it in App Store Connect by hand'}")
+          if not WRITE_NOTES:
+              print("  notes: NOT compared or written while GROUPS_PHASE is 'beta18' (closed beta: TestFlight only)")
+          else:
+              for k in ("contactFirstName", "contactLastName", "contactPhone", "contactEmail"):
+                  print(f"  {k}: {'set' if d_attrs.get(k) else 'MISSING - fill it in App Store Connect by hand'}")
           # App Store Connect refuses a PATCH of the notes (HTTP 409, attribute required) while the review
           # contact is empty, so the notes wait for the hand-filled contact instead of stopping the run.
+          # Nothing is written while not WRITE_NOTES: `changed` is empty then.
           if APPLY and changed and detail and contact_missing:
               print("  notes NOT written: fill in the review contact in App Store Connect, then run this again")
           elif APPLY and changed:
