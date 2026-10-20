@@ -71,12 +71,14 @@ install -m 644 "$REPO_INFRA/caddy/Caddyfile" /etc/caddy/Caddyfile
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile --envfile /etc/caddy/etut.env
 systemctl reload caddy
 curl -fsS --retry 10 --retry-delay 3 --retry-all-errors --max-time 10 "https://${ETUT_NTFY_HOST}/v1/health" >/dev/null \
-  && echo "https://${ETUT_NTFY_HOST} works (TLS and Caddy)"
+  || { echo "https://${ETUT_NTFY_HOST} not reachable: check its DNS A record and journalctl -u caddy"; exit 1; }
+echo "https://${ETUT_NTFY_HOST} works (TLS and Caddy)"
 # deny-all: an anonymous reader and an anonymous publisher are both refused.
-for method in GET POST; do
-  code=$(curl -s -o /dev/null -w '%{http_code}' -X "$method" --max-time 10 \
-    "https://${ETUT_NTFY_HOST}/${ETUT_NTFY_TOPIC}/json?poll=1" || true)
-  case "$code" in 401 | 403) echo "anonymous $method refused ($code)" ;; *) echo "anonymous $method NOT refused ($code)"; exit 1 ;; esac
+base="https://${ETUT_NTFY_HOST}/${ETUT_NTFY_TOPIC}"
+for check in "read GET ${base}/json?poll=1" "publish POST ${base}"; do
+  read -r what method url <<< "$check"
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X "$method" --max-time 10 "$url" || true)
+  case "$code" in 401 | 403) echo "anonymous $what refused ($code)" ;; *) echo "anonymous $what NOT refused ($code)"; exit 1 ;; esac
 done
 
 # --- mail backup: msmtp through the mailbox in Turkey ------------------------------------------
