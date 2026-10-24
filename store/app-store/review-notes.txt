@@ -4,6 +4,8 @@ There is nothing to sign in to: on first launch choose a birth year and an exam,
 
 All data stays in the app's local database on the device. Data leaves the device only when the user taps export (backup file, CSV or a study-stats image) and picks a destination in the system share sheet; nothing is uploaded by the app.
 
+Users 15 and over see a "Gruplar" tab with a static preview ("Yakında") of a planned study-group feature. The preview has no buttons or forms, creates no account, collects nothing and makes no network request; users under 15 don't see the tab.
+
 Permissions: add-only Photos access, asked only when the user saves the study-stats image. Notification permission is asked only if the user turns on a local reminder (Ayarlar > Hatırlatıcılar); reminders are scheduled on the device, there is no push. The Live Activity and the Home Screen widget show data the app writes to its own App Group on the device.
 
 Ayarlar > Hakkında > İletişim and Ayarlar > Geri bildirim gönder open the Mail app with the app and OS version in the subject; the app itself sends nothing.
