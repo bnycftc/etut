@@ -1,0 +1,96 @@
+# Automatic App Store Connect watch, every 2 hours. Opens or closes GitHub issues on this repo
+# (the owner gets a notification) and restarts one TestFlight build once the Program License
+# Agreement is accepted. Prints only states; never submits to App Review (that has its own gate).
+name: ASC watch
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  actions: write
+
+env:
+  WATCH_VERSION: "0.4.0"
+  TF_REF: release/0.4.1
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Read App Store Connect
+        id: asc
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import base64, os, time, jwt, requests
+          raw = os.environ["ASC_PRIVATE_KEY"]
+          key = raw if "BEGIN PRIVATE KEY" in raw else base64.b64decode(raw).decode()
+          now = int(time.time())
+          token = jwt.encode(
+              {"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 600, "aud": "appstoreconnect-v1"},
+              key, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+          api = "https://api.appstoreconnect.apple.com/v1"
+          auth = {"Authorization": "Bearer " + token}
+
+          # Provisioning resources answer 403 while a newer Program License Agreement is unaccepted.
+          pla = False
+          for path in ("/bundleIds", "/profiles"):
+              r = requests.get(api + path, headers=auth, params={"limit": 1}, timeout=30)
+              err = (r.json().get("errors") or [{}])[0] if r.status_code >= 400 else {}
+              blocked = r.status_code == 403 and "agreement" in r.text.lower()
+              pla = pla or blocked
+              print(f"{path}: HTTP {r.status_code} {err.get('code', '')}; agreement block: {blocked}")
+
+          r = requests.get(api + "/apps/6818980777/appStoreVersions", headers=auth, timeout=30,
+                           params={"filter[versionString]": os.environ["WATCH_VERSION"], "filter[platform]": "IOS"})
+          r.raise_for_status()
+          data = r.json()["data"]
+          state = data[0]["attributes"].get("appStoreState") if data else "NOT_FOUND"
+          print(f"version {os.environ['WATCH_VERSION']}: {state}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"pla={'pending' if pla else 'ok'}\nstate={state}\n")
+          PY
+
+      - name: Notify and act
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PLA: ${{ steps.asc.outputs.pla }}
+          STATE: ${{ steps.asc.outputs.state }}
+        run: |
+          has_issue() {  # state, exact title
+            gh issue list --state "$1" --limit 200 --json title -q '.[].title' | grep -qxF "$2"
+          }
+
+          PLA_TITLE="ASC: Program License Agreement kabul bekliyor"
+          if [ "$PLA" = "pending" ]; then
+            has_issue open "$PLA_TITLE" || gh issue create --title "$PLA_TITLE" --body "Apple, hesap sahibinin güncel Program License Agreement'ı kabul etmesini bekliyor. Kabul edilmeden TestFlight derlemesi alınamıyor; App Review de bundan etkilenebilir. Kabul: developer.apple.com/account. Bu iş akışı 2 saatte bir kontrol eder; kabulden sonra bu konuyu kapatır ve $TF_REF için TestFlight derlemesini bir kez yeniden başlatır."
+          else
+            for n in $(gh issue list --state open --limit 200 --json number,title -q ".[] | select(.title == \"$PLA_TITLE\") | .number"); do
+              gh issue close "$n" --comment "Sözleşme kabul edilmiş görünüyor (provisioning API erişimi açık)."
+            done
+            # Restart TestFlight at most once: the latest run on TF_REF failed and a person (not this watcher) started it.
+            last=$(gh api "repos/$GH_REPO/actions/workflows/testflight.yml/runs?branch=$TF_REF&per_page=1" \
+                     -q '.workflow_runs[0] | "\(.conclusion) \(.triggering_actor.login)"')
+            echo "last TestFlight run on $TF_REF: $last"
+            case "$last" in
+              "failure github-actions[bot]") ;;
+              failure\ *) gh workflow run testflight.yml --ref "$TF_REF"; echo "TestFlight restarted on $TF_REF" ;;
+            esac
+          fi
+
+          case "$STATE" in
+            WAITING_FOR_REVIEW|NOT_FOUND|"") ;;
+            *) t="ASC: $WATCH_VERSION durumu $STATE"
+               has_issue all "$t" || gh issue create --title "$t" --body "App Store Connect'te $WATCH_VERSION sürümünün durumu $STATE oldu. Onaylandıysa (READY_FOR_DISTRIBUTION / PENDING_DEVELOPER_RELEASE) sıradaki sürüm kendi onay kapısıyla gönderilir; reddedildiyse App Store Connect'teki mesajı oku." ;;
+          esac
