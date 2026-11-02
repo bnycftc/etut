@@ -358,6 +358,27 @@ async function runScenario(page, baseUrl) {
   await visible('exam-item-0-net', FIRST_SCREEN_TIMEOUT_MS);
   check((await text('exam-item-0-net')) === '27 net', 'exam lost after reload');
 
+  // 5a. Net calculator: TYT, Türkçe 30 doğru 8 yanlış (= 28 net); "Deneme olarak kaydet" opens the
+  //     new-exam form with the same counts. Nothing is saved: the list still has the one exam.
+  log('step: net calculator');
+  await byId('exams-net-calc').click();
+  await visible('net-calc');
+  check(await byId('net-calc-kind-AYT_SAY').isVisible(), 'AYT Sayısal must be offered in the calculator');
+  await byId('net-calc-kind-TYT').click();
+  await byId('net-calc-correct-turkce').fill('30');
+  await byId('net-calc-wrong-turkce').fill('8');
+  await waitUntil(() => text('net-calc-net-turkce'), (v) => v === '28', 'calculator Türkçe net 28');
+  await waitUntil(() => text('net-calc-total'), (v) => v === '28', 'calculator total net 28');
+  await screenshot('net-calc');
+  await byId('net-calc-save').click();
+  await visible('exam-form');
+  await waitUntil(() => text('exam-net-turkce'), (v) => v === '28', 'prefilled exam form Türkçe net 28');
+  check((await text('exam-total-net')) === '28', 'prefilled exam form total should be 28');
+  await screenshot('net-calc-prefill');
+  await page.goto(baseUrl + 'denemeler');
+  await visible('exam-item-0-net', FIRST_SCREEN_TIMEOUT_MS);
+  check((await byId('exam-item-1').count()) === 0, 'the calculator must not save an exam by itself');
+
   // 5b. Settings: change the area (Sayısal → Eşit Ağırlık); the timer subjects follow.
   log('step: change area');
   await byId('tab-settings').click();

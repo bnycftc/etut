@@ -1,0 +1,137 @@
+# t. Konu detayı: Konular'da bir konu "Tekrar lazım" işaretlenir, "Tekrar lazım" süzgecinde açılır,
+#    detayda "Bitti" yapılır; geri dönünce süzgeçten çıkmış ve listede "Bitti" olarak işaretlidir.
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+- scrollUntilVisible:
+    element:
+      id: open-topics
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: open-topics
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: topics-screen
+    timeout: 15000
+- tapOn:
+    id: topics-subject-matematik
+- assertVisible:
+    id: topics-subject-matematik
+    selected: true
+# Nothing is marked yet: "Tekrar lazım" on the first TYT Matematik topic.
+- scrollUntilVisible:
+    element:
+      id: topic-review-tyt.matematik.temel-kavramlar
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: topic-review-tyt.matematik.temel-kavramlar
+- assertVisible:
+    id: topic-review-tyt.matematik.temel-kavramlar
+    selected: true
+# The filter: only the topics marked for review.
+- scrollUntilVisible:
+    element:
+      id: topics-filter-review
+    direction: UP
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: topics-filter-review
+- assertVisible:
+    id: topics-filter-review
+    selected: true
+- assertNotVisible:
+    id: topics-filter-empty
+- scrollUntilVisible:
+    element:
+      id: topic-row-tyt.matematik.temel-kavramlar
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- takeScreenshot: t-konu-01-suzgec
+- tapOn:
+    id: topic-row-tyt.matematik.temel-kavramlar
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: topic-detail-name
+    timeout: 15000
+- assertVisible:
+    id: topic-detail-name
+    text: "Temel Kavramlar"
+- scrollUntilVisible:
+    element:
+      id: topic-detail-mark
+    direction: DOWN
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: topic-detail-done
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- assertVisible:
+    id: topic-detail-review
+    selected: true
+- tapOn:
+    id: topic-detail-done
+- assertVisible:
+    id: topic-detail-done
+    selected: true
+- assertVisible:
+    id: topic-detail-review
+    selected: false
+- takeScreenshot: t-konu-02-detay-bitti
+# Back to Konular: the header's back button ("Geri"), else the edge swipe.
+- tapOn:
+    text: "Geri"
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: topic-detail-mark
+    commands:
+      - swipe:
+          start: 2%, 50%
+          end: 90%, 50%
+- extendedWaitUntil:
+    visible:
+      id: topics-filter-review
+    timeout: 15000
+# The filter is still on: the topic left it (it is "Bitti" now) and nothing else is marked.
+- assertVisible:
+    id: topics-filter-review
+    selected: true
+- assertNotVisible:
+    id: topic-row-tyt.matematik.temel-kavramlar
+- assertVisible:
+    id: topics-filter-empty
+- takeScreenshot: t-konu-03-suzgec-bos
+# Without the filter the topic is back in the list, marked "Bitti".
+- tapOn:
+    id: topics-filter-review
+- scrollUntilVisible:
+    element:
+      id: topic-done-tyt.matematik.temel-kavramlar
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- assertVisible:
+    id: topic-done-tyt.matematik.temel-kavramlar
+    selected: true
+- assertVisible:
+    id: topic-review-tyt.matematik.temel-kavramlar
+    selected: false
+- takeScreenshot: t-konu-04-isaret-bitti
