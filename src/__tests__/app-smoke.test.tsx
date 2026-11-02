@@ -2933,6 +2933,10 @@ describe('Örnek verilerle gez (demo mode)', () => {
 
     await act(async () => router.push('/ayarlar'));
     fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
+    // "Önce yedek al" is refused too: the example data must not leave as a real-looking backup.
+    await act(async () => pressAlert('Önce yedek al'));
+    expect(memory.shared).toEqual([]);
+    expect(lastAlert().message).toMatch(/Örnek modda yedek alınmaz\.$/);
     pressAlert('Evet, hepsini sil');
     expect(screen.queryByTestId('demo-banner')).toBeNull();
     expect(memory.profile).toEqual(ADULT_SAYISAL);

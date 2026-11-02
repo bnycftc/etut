@@ -187,6 +187,12 @@ export default function SettingsScreen() {
   // back (the dialog stays open), so deleting is still a choice of its own.
   const backupFirst = async (): Promise<BackupNote | null> => {
     if (backingUp) return null;
+    // Example data (demo mode) is not the student's: no backup of it, as on the Yedek screen.
+    if (demo) {
+      const note: BackupNote = { error: tr.demo.backupDisabled };
+      setBackupNote(note);
+      return note;
+    }
     setBackingUp(true);
     setBackupNote(null);
     let note: BackupNote;
