@@ -511,6 +511,22 @@ jest.mock('../storage/db', () => ({
     memory.sessions = [];
   },
 }));
+/** `kvStore()` rows (the study plan's availability). */
+const mockKvRows = new Map<string, string>();
+jest.mock('../storage/kv-store', () => ({
+  isDemo: () => false,
+  // Study plan availability (and anything else on `kvStore()`): an in-memory key-value store.
+  kvStore: () => ({
+    getItemSync: (key: string) => mockKvRows.get(key) ?? null,
+    setItemSync: (key: string, value: string) => {
+      mockKvRows.set(key, value);
+    },
+    removeItemSync: (key: string) => {
+      mockKvRows.delete(key);
+    },
+    clearSync: () => mockKvRows.clear(),
+  }),
+}));
 jest.mock('../storage/demo', () => ({
   isDemo: () => false,
   enterDemo: () => 'ok',
@@ -541,6 +557,7 @@ function pressAlert(text: string) {
 }
 
 beforeEach(() => {
+  mockKvRows.clear();
   memory.profile = null;
   memory.active = null;
   memory.sessions = [];
@@ -2964,7 +2981,7 @@ describe('backup and restore', () => {
     expect(memory.shared).toHaveLength(1);
     expect(memory.shared[0].name).toMatch(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/);
     const file = JSON.parse(memory.shared[0].content);
-    expect(file).toMatchObject({ format: 'etut-yedek', schemaVersion: 2, sessions: [{ id: 'a' }] });
+    expect(file).toMatchObject({ format: 'etut-yedek', schemaVersion: 3, sessions: [{ id: 'a' }] });
     expect(screen.getByTestId('backup-message')).toBeTruthy();
   });
 
@@ -5003,5 +5020,62 @@ describe('Halka screens: settings rows, weekly tiles, onboarding brand', () => {
     expect(within(page).queryByTestId('onboarding-start')).toBeNull();
     expect(screen.getByTestId('onboarding-start').props.accessibilityState.disabled).toBe(true);
     expect(screen.getAllByRole('button').filter((b) => b.props.accessibilityState?.selected === true)).toEqual([]);
+  });
+});
+
+describe('study plan (0.5.0)', () => {
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // Wednesday, 12:00 Istanbul
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  /** All plain texts under a node. */
+  const texts = (testID: string) =>
+    screen
+      .getByTestId(testID)
+      .findAll((n) => typeof n.type === 'string' && typeof n.props.children === 'string')
+      .map((n) => n.props.children as string);
+
+  it('day one with no data: "Bugünün planı" lists real subjects and topics, and "Başlat" starts that subject', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(within(screen.getByTestId('plan-card')).getByText('Bugünün planı')).toBeTruthy();
+    const first = texts('plan-block-0');
+    // "<Ders> · <dk> dk" and "<Konu> · <neden>": a real topic name from the curriculum, not an id.
+    expect(first[0]).toMatch(/^.+ · \d+ dk$/);
+    expect(first[1]).toMatch(/^[A-ZÇĞİÖŞÜ].* · .+$/);
+    expect(first[1]).not.toMatch(/tyt\.|ayt\./);
+    expect(screen.getByTestId('plan-progress').props.children).toMatch(/^0\/\d+ tamam$/);
+    fireEvent.press(screen.getByTestId('plan-block-start-0'));
+    expect(memory.active).not.toBeNull();
+    expect(memory.active?.topicId).toEqual(expect.any(String));
+    // While the timer runs the card is out of the way.
+    expect(screen.queryByTestId('plan-card')).toBeNull();
+  });
+
+  it('the Plan tab opens on the week: 7 days, the phase and the weekly total', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    act(() => router.push('/plan'));
+    expect(screen.getByTestId('plan-week')).toBeTruthy();
+    for (let d = 0; d < 7; d++) expect(screen.getByTestId(`plan-day-${d}`)).toBeTruthy();
+    expect(screen.getByTestId('plan-phase').props.children).toBe('Öğrenme dönemi');
+    // Default availability without a daily goal: 5 × 120 + 2 × 180 dk = 16 sa.
+    expect(screen.getByTestId('plan-week-total').props.children).toBe('Haftalık toplam: 16 sa 0 dk');
+    fireEvent.press(screen.getByTestId('plan-refresh'));
+    expect(screen.getByTestId('plan-week')).toBeTruthy();
+  });
+
+  it('a stepper changes the availability: stored at once, the weekly total follows', () => {
+    renderRouter(APP_DIR, { initialUrl: '/plan' });
+    fireEvent.press(screen.getByTestId('plan-availability-0-plus'));
+    expect(JSON.parse(mockKvRows.get('etut.studyAvailability.v1') ?? 'null')).toEqual({
+      0: 135, 1: 120, 2: 120, 3: 120, 4: 120, 5: 180, 6: 180,
+    });
+    expect(screen.getByTestId('plan-week-total').props.children).toBe('Haftalık toplam: 16 sa 15 dk');
+    fireEvent.press(screen.getByTestId('plan-availability-6-minus'));
+    expect(screen.getByTestId('plan-week-total').props.children).toBe('Haftalık toplam: 16 sa 0 dk');
   });
 });

@@ -25,6 +25,9 @@
  * daily goal history (`dailyGoalHistory`). It is an optional field, not a new version: 0.4.0 reads
  * only the settings it knows (it would refuse version 3 as `too_new`), and a file without it (0.4.0)
  * loads with no history, its goal then covering every day as it did there.
+ * 3 (0.5.0) = settings may hold the student's weekly availability for the study plan
+ * (`availability`, minutes per weekday, 0 = Monday). A version 2 file is upgraded as it is (it has
+ * none: the plan then uses its default); 0.4.x refuses a version 3 file as `too_new`.
  */
 
 import { type TopicMark, validateSectionMarks } from './exam-analysis';
@@ -34,6 +37,7 @@ import { isPomodoroConfig, normalizePomodoroConfig, type PomodoroConfig } from '
 import { birthYearOptions, EXAM_TYPES, type ExamType, isSoloOnly, type Profile, YKS_AREAS } from './profile';
 import { MAX_SESSION_QUESTIONS } from './questions';
 import { clampGoalMinutes, type GoalChange } from './streak';
+import type { Availability, Weekday } from './study-plan';
 import {
   SUBJECT_TARGET_MAX_MIN,
   SUBJECT_TARGET_MIN_MIN,
@@ -45,7 +49,7 @@ import { isTopicStatus, type TopicStatus } from './topics';
 
 export const BACKUP_FORMAT = 'etut-yedek';
 /** Bump when the file layout changes; add an upgrade step in `upgrade()` for the old one. */
-export const BACKUP_SCHEMA_VERSION = 2;
+export const BACKUP_SCHEMA_VERSION = 3;
 /** Larger files are refused before parsing (years of daily use stay far below this). */
 export const BACKUP_MAX_BYTES = 20 * 1024 * 1024;
 
@@ -81,6 +85,8 @@ export interface BackupSettings {
   subjectWeeklyTargets?: SubjectTargets;
   /** Changes of the daily goal, oldest first (since 0.4.1, still version 2); missing = none kept. */
   dailyGoalHistory?: GoalChange[];
+  /** Minutes the student can study per weekday (version 3, the study plan); missing = none set. */
+  availability?: Availability;
 }
 
 export interface BackupExam {
@@ -430,6 +436,25 @@ function withGoalHistory(settings: BackupSettings, history: GoalChange[]): Backu
   return history.length === 0 ? rest : { ...rest, dailyGoalHistory: history };
 }
 
+/** Most minutes a day the availability editor allows (`storage/study-plan.ts`). */
+const AVAILABILITY_MAX_MIN = 480;
+const WEEKDAYS: readonly Weekday[] = [0, 1, 2, 3, 4, 5, 6];
+
+/** The weekly availability (version 3): every weekday a whole number of minutes, 0–480. */
+function parseAvailability(value: unknown): Availability | null {
+  if (value === null || value === undefined) return null;
+  const v = obj(value);
+  const out = {} as Availability;
+  for (const day of WEEKDAYS) out[day] = int(v[day], 0, AVAILABILITY_MAX_MIN);
+  return out;
+}
+
+/** `settings` with the availability, the key left out when there is none. */
+function withAvailability(settings: BackupSettings, availability: Availability | null | undefined): BackupSettings {
+  const { availability: _old, ...rest } = settings;
+  return availability === null || availability === undefined ? rest : { ...rest, availability };
+}
+
 function parseSettings(value: unknown): { settings: BackupSettings; skippedTargets: number } {
   const v = obj(value ?? {});
   const examDates: Partial<Record<ExamType, DayKey>> = {};
@@ -454,9 +479,12 @@ function parseSettings(value: unknown): { settings: BackupSettings; skippedTarge
     lastSubject: v.lastSubject === null || v.lastSubject === undefined ? null : str(v.lastSubject, SUBJECT, 40),
   };
   return {
-    settings: withGoalHistory(
-      withSubjectTargets(settings, parseSubjectTargets(v.subjectWeeklyTargets)),
-      parseGoalHistory(v.dailyGoalHistory),
+    settings: withAvailability(
+      withGoalHistory(
+        withSubjectTargets(settings, parseSubjectTargets(v.subjectWeeklyTargets)),
+        parseGoalHistory(v.dailyGoalHistory),
+      ),
+      parseAvailability(v.availability),
     ),
     skippedTargets: netTargets.skipped,
   };
@@ -492,6 +520,15 @@ function upgrade(file: Obj, version: number): Obj {
         : out.settings;
     out = { ...out, sessions, settings };
     v = 2;
+  }
+  if (v === 2) {
+    // Version 2 had no availability: one in a version 2 file was not written by this app.
+    const settings =
+      typeof out.settings === 'object' && out.settings !== null && !Array.isArray(out.settings)
+        ? (({ availability: _a, ...rest }: Obj) => rest)(out.settings as Obj)
+        : out.settings;
+    out = { ...out, settings };
+    v = 3;
   }
   if (v !== BACKUP_SCHEMA_VERSION) fail();
   return out;
@@ -608,9 +645,12 @@ export function mergeBackup(current: BackupData, incoming: BackupData, mode: Imp
     sessions: byId(current.sessions, incoming.sessions, (s) => s.id),
     exams: byId(current.exams, incoming.exams, (e) => e.id),
     topicProgress: [...progress.values()],
-    settings: withGoalHistory(
-      withSubjectTargets(settings, { ...i.subjectWeeklyTargets, ...c.subjectWeeklyTargets }),
-      mergeGoalHistory(c, i),
+    settings: withAvailability(
+      withGoalHistory(
+        withSubjectTargets(settings, { ...i.subjectWeeklyTargets, ...c.subjectWeeklyTargets }),
+        mergeGoalHistory(c, i),
+      ),
+      c.availability ?? i.availability,
     ),
   };
 }

@@ -308,6 +308,15 @@ async function runScenario(page, baseUrl) {
   await page.goBack();
   await visible('timer-start');
 
+  // 3c. Plan tab: this week's plan opens (7 days), then back to the timer.
+  log('step: plan tab');
+  await byId('tab-plan').click();
+  await visible('plan-week');
+  check(await byId('plan-day-6').isVisible(), 'the plan should show all seven days');
+  await screenshot('plan-week');
+  await byId('tab-timer').click();
+  await visible('timer-start');
+
   // 4. Mock exam: TYT, Türkçe 10 doğru 4 yanlış (= 9 net), Matematik 20 doğru 8 yanlış (= 18 net).
   log('step: mock exam');
   await byId('tab-exams').click();
@@ -408,7 +417,7 @@ async function runScenario(page, baseUrl) {
   const backupPath = path.join(OUT_DIR, backupDownload.suggestedFilename());
   await backupDownload.saveAs(backupPath);
   const backup = JSON.parse(readFileSync(backupPath, 'utf8'));
-  check(backup.format === 'etut-yedek' && backup.schemaVersion === 2, 'backup file has the wrong format');
+  check(backup.format === 'etut-yedek' && backup.schemaVersion === 3, 'backup file has the wrong format');
   check(backup.sessions.length === 1 && backup.exams.length === 1, 'backup must hold the session and the exam');
   await byId('backup-last').filter({ hasText: 'Son yedek: bugün' }).waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS });
   const [csvDownload] = await Promise.all([

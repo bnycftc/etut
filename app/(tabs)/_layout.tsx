@@ -25,6 +25,10 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>{tr.tabs.timer}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'stopwatch', selected: 'stopwatch.fill' }} md="timer" />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="plan" testID="tab-plan">
+        <NativeTabs.Trigger.Label>{tr.plan.tab}</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf={{ default: 'calendar', selected: 'calendar' }} md="calendar_month" />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="denemeler" testID="tab-exams">
         <NativeTabs.Trigger.Label>{tr.tabs.exams}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'doc.text', selected: 'doc.text.fill' }} md="description" />

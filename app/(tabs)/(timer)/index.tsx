@@ -55,6 +55,7 @@ import { subjectColor, subjectTint } from '@/ui/subject-colors';
 import { MAX_FONT_SCALE, ROUNDED_FONT, space, typography, useLargeText, usePalette } from '@/ui/theme';
 import { QuestionCount } from '@/ui/question-count';
 import { awayCardText, TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
+import { PlanCard, useTodaysPlan } from '@/ui/plan-card';
 import { FirstUseTips } from '@/ui/tips';
 import { TopicPicker } from '@/ui/topic-picker';
 import { noteFinishForWidgetTip, WidgetTip } from '@/ui/widget-tip';
@@ -145,6 +146,16 @@ export default function TimerScreen() {
   const pomodoro = active === null ? null : pomodoroStatus(active, shownNow);
   const onBreak = pomodoro !== null && pomodoro.phase !== 'work';
   const clockMs = active === null ? 0 : pomodoro !== null ? pomodoro.remainingMs : elapsedMs(active, shownNow);
+
+  // "Bugünün planı" under the hero card (hidden while a session runs).
+  const todaysPlan = useTodaysPlan(now);
+  const startPlanned = (plannedSubject: string, plannedTopic: string | null) => {
+    easeNextLayout(reduceMotion);
+    setFinished(null);
+    setSubjectId(plannedSubject);
+    hapticTap();
+    app.start(plannedSubject, { topicId: plannedTopic, pomodoro: mode === 'pomodoro' ? pomodoroConfig : null });
+  };
 
   // A short vibration when a pomodoro phase ends while the student is looking at the app (the
   // scheduled phase notification is not shown in the foreground). Not after returning from the
@@ -504,6 +515,8 @@ export default function TimerScreen() {
           </>
         )}
       </Card>
+
+      {active === null ? <PlanCard blocks={todaysPlan.blocks} onStart={startPlanned} /> : null}
 
       {away !== null && !finishCheck.open ? (
         <Card>
