@@ -621,6 +621,47 @@ export const tr = {
     percent: (p: number) => `%${p}`,
   },
 
+  /** Weekly study plan (`domain/study-plan.ts`): the Plan tab and the "Bugünün planı" card. */
+  plan: {
+    tab: 'Plan',
+    today: 'Bugünün planı',
+    /** Muted line under the card title: how many of today's blocks are covered by today's study. */
+    todayProgress: (done: number, total: number) => `${done}/${total} tamam`,
+    week: 'Bu hafta',
+    weekTotal: (duration: string) => `Haftalık toplam: ${duration}`,
+    dayTotal: (duration: string) => `${duration}`,
+    phaseLearn: 'Öğrenme dönemi',
+    phaseMixed: 'Karışık dönem',
+    phaseReview: 'Tekrar dönemi',
+    /** Days left to the exam, counted from the week's Monday; `null` = no date. */
+    daysLeft: (n: number) => (n < 0 ? 'Sınav tarihi geçti' : n === 0 ? 'Sınav bu hafta' : `Sınava ${n} gün`),
+    availability: 'Müsait olduğun süre',
+    availabilityInfo: 'Her gün çalışabileceğin süreyi seç; plan bu sürelere göre kurulur. 25 dakikanın altındaki gün dinlenme günü olur.',
+    availabilityValue: (minutes: number) => (minutes === 0 ? 'Dinlenme' : `${minutes} dk`),
+    availabilityA11y: (day: string) => `${day} müsait süre`,
+    refresh: 'Planı yenile',
+    refreshed: 'Plan yenilendi',
+    rest: 'Bugün dinlenme günü: planında bugün için çalışma yok. Yine de çalışmak istersen aşağıdan bir ders seçebilirsin.',
+    restDay: 'Dinlenme günü',
+    /** One block: `Matematik · 45 dk`. */
+    blockTitle: (subject: string, minutes: number) => `${subject} · ${minutes} dk`,
+    /** The block's second line: topic (if any) and why it is in the plan. */
+    blockDetail: (topic: string | null, reason: string) => (topic === null ? reason : `${topic} · ${reason}`),
+    blockDone: 'Tamam',
+    reason: {
+      review: 'tekrar lazım dediğin konu',
+      missed: 'denemelerde kaçırdığın konu',
+      next: 'sıradaki konu',
+      target: 'haftalık ders hedefin',
+      examDay: 'deneme günü: süre tutarak soru çöz',
+      balance: 'dersler arası denge',
+    },
+    start: 'Başlat',
+    startA11y: (subject: string, topic: string | null, minutes: number) =>
+      `${topic === null ? subject : `${subject}, ${topic}`}, ${minutes} dakika: sayacı başlat`,
+    doneA11y: 'tamamlandı',
+  },
+
   pomodoro: {
     mode: 'Sayaç türü',
     stopwatch: 'Kronometre',

@@ -44,6 +44,14 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="plan"
+        options={{
+          title: tr.plan.tab,
+          tabBarButtonTestID: 'tab-plan',
+          tabBarIcon: tabIcon('weekly', 'weekly'),
+        }}
+      />
+      <Tabs.Screen
         name="denemeler"
         options={{
           title: tr.tabs.exams,

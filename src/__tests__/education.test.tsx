@@ -197,6 +197,22 @@ jest.mock('../storage/mock-exams', () => ({
   saveExamAnalysis: () => {},
   sectionNetHistory: () => [],
 }));
+/** `kvStore()` rows (the study plan's availability). */
+const mockKvRows = new Map<string, string>();
+jest.mock('../storage/kv-store', () => ({
+  isDemo: () => false,
+  // Study plan availability (and anything else on `kvStore()`): an in-memory key-value store.
+  kvStore: () => ({
+    getItemSync: (key: string) => mockKvRows.get(key) ?? null,
+    setItemSync: (key: string, value: string) => {
+      mockKvRows.set(key, value);
+    },
+    removeItemSync: (key: string) => {
+      mockKvRows.delete(key);
+    },
+    clearSync: () => mockKvRows.clear(),
+  }),
+}));
 jest.mock('../storage/db', () => ({
   newId: () => 'test-id',
   getDb: () => {
