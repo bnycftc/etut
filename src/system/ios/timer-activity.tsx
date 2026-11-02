@@ -28,6 +28,11 @@
  * (`goalFrom`…`goalTo`), otherwise it shows `goalRatio`; it is left out once stale (a break or the
  * time away would have stopped it, which nothing can draw without the app). Fields an older
  * activity does not carry are checked with `typeof`, as the away fields are.
+ *
+ * A session started from a plan block also shows that block ("Plan bloğu · 45 dk") with a bar that
+ * fills by itself as study time reaches the block's minutes (`blockFrom`…`blockTo`), or the share at
+ * the update while paused (`blockRatio`). Like the ring it is left out once stale. Without a block
+ * (or from an older app version) the layout is as before.
  */
 
 import { Gauge, HStack, Image, ProgressView, Spacer, Text, VStack } from '@expo/ui/swift-ui';
@@ -113,6 +118,24 @@ export const TimerActivity = (props: TimerActivityProps, environment: LiveActivi
       <Gauge value={props.goalRatio} modifiers={[gaugeStyle('circularCapacity'), tint(accent)]} />
     );
 
+  const blockKnown =
+    typeof props.blockLine === 'string' && typeof props.blockFrom === 'number' && typeof props.blockTo === 'number';
+  const blockBar =
+    !blockKnown || environment.isStale === true ? null : (
+      <VStack alignment="leading" spacing={2}>
+        <Text modifiers={[font({ size: 12 }), secondary, lineLimit(1)]}>{props.blockLine ?? ''}</Text>
+        {typeof props.blockPausedAt === 'number' ? (
+          <ProgressView value={typeof props.blockRatio === 'number' ? props.blockRatio : 0} modifiers={[tint(accent)]} />
+        ) : (
+          <ProgressView
+            timerInterval={{ lower: new Date(props.blockFrom ?? props.from), upper: new Date(props.blockTo ?? props.to) }}
+            countsDown={false}
+            modifiers={[tint(accent)]}
+          />
+        )}
+      </VStack>
+    );
+
   return {
     banner: (
       <VStack alignment="leading" spacing={6} modifiers={[padding({ all: 16 })]}>
@@ -133,6 +156,7 @@ export const TimerActivity = (props: TimerActivityProps, environment: LiveActivi
         )}
         {awayKnown ? <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(2)]}>{status}</Text> : null}
         {progress}
+        {blockBar}
         {away ? <Text modifiers={[font({ size: 12 }), secondary, lineLimit(1)]}>{props.awayHint}</Text> : null}
       </VStack>
     ),
@@ -150,6 +174,7 @@ export const TimerActivity = (props: TimerActivityProps, environment: LiveActivi
       <VStack alignment="leading" spacing={4}>
         <Text modifiers={[font({ size: 13 }), secondary, lineLimit(2)]}>{status}</Text>
         {progress}
+        {blockBar}
         {away ? <Text modifiers={[font({ size: 12 }), secondary, lineLimit(1)]}>{props.awayHint}</Text> : null}
       </VStack>
     ),
