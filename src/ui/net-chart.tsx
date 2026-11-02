@@ -4,6 +4,7 @@ import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { chartScale, netTrend } from '../domain/exam-analysis';
 import { formatNet } from '../domain/net';
 import { tr } from '../strings';
+import { CONTENT_MAX_WIDTH } from './components';
 import { space, typography, usePalette } from './theme';
 
 export interface NetPoint {
@@ -65,9 +66,11 @@ export function NetChart({
 }) {
   const c = usePalette();
   const window = useWindowDimensions();
-  // Before the first layout (and in tests) assume the usual card width.
+  // The chart is as wide as its card (measured on layout). Before the first layout (and in tests)
+  // assume the usual card width: the screen's content column (at most CONTENT_MAX_WIDTH, the iPad
+  // column) less the screen's and the card's padding.
   const [measured, setMeasured] = useState(0);
-  const width = measured > 0 ? measured : Math.max(200, window.width - 4 * space.lg);
+  const width = measured > 0 ? measured : Math.max(200, Math.min(window.width, CONTENT_MAX_WIDTH) - 4 * space.lg);
   const { min, max } = chartScale(
     points.map((p) => p.value),
     target,
