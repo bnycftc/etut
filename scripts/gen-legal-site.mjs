@@ -202,8 +202,10 @@ export function buildGroupSite(outDir) {
   const pages = modules.map((m) => m.exports.page);
 
   // The archived device version: the in-app texts, frozen at the date the archive page names.
+  // Older versions (FROZEN_ARCHIVES) bring their own copy of the texts.
   const archive = modules.map((m) => m.exports.DEVICE_ARCHIVE).find(Boolean);
-  const archived = [];
+  const frozen = modules.map((m) => m.exports.FROZEN_ARCHIVES).find(Boolean) ?? [];
+  const versions = [];
   if (archive) {
     if (archive.updated !== LEGAL_UPDATED) {
       throw new Error(
@@ -211,8 +213,10 @@ export function buildGroupSite(outDir) {
           'An archived version must not change: keep the published files of that date and update src/legal/pages/gizlilik-arsiv.ts.',
       );
     }
-    for (const id of LEGAL_DOC_IDS) archived.push({ id, slug: `${archive.dir}/${id}` });
+    versions.push({ ...archive, legal: tr.legal });
   }
+  versions.push(...frozen);
+  const archived = versions.flatMap((v) => LEGAL_DOC_IDS.map((id) => ({ id, slug: `${v.dir}/${id}`, version: v })));
 
   const slugs = new Set([...pages.map((p) => p.slug), ...archived.map((a) => a.slug)]);
   const nav = pages
@@ -228,17 +232,17 @@ export function buildGroupSite(outDir) {
   for (const p of pages) write(p.slug, renderGroupPage(p, { slugs, nav, updatedLabel: tr.about.updated }));
 
   const archivePage = pages.find((p) => p.slug === 'gizlilik/arsiv');
-  for (const { id, slug } of archived) {
+  for (const { id, slug, version } of archived) {
     const from = path.posix.dirname(fileOfSlug(slug));
     const rel = (s) => escape(path.posix.relative(from, fileOfSlug(s)));
-    const doc = tr.legal[id];
+    const doc = version.legal[id];
     const archiveNav = [
       archivePage ? `<a href="${rel(archivePage.slug)}">${escape(archivePage.title)}</a>` : '',
-      ...archived.map((a) => `<a href="${rel(a.slug)}">${escape(tr.legal[a.id].title)}</a>`),
+      ...archived.filter((a) => a.version === version).map((a) => `<a href="${rel(a.slug)}">${escape(version.legal[a.id].title)}</a>`),
     ].join('');
     const current = slugs.has(id) ? ` Geçerli sürüm: <a href="${rel(id)}">${escape(pages.find((p) => p.slug === id).title)}</a>.` : '';
-    const body = `<p class="muted">Bu, ${escape(archive.updated)} tarihli eski sürümdür ve artık geçerli değildir.${current}</p>\n${deviceBody(doc)}`;
-    write(slug, page({ title: doc.title, updated: tr.about.updated(LEGAL_UPDATED), body, nav: archiveNav }));
+    const body = `<p class="muted">Bu, ${escape(version.updated)} tarihli eski sürümdür ve artık geçerli değildir.${current}</p>\n${deviceBody(doc)}`;
+    write(slug, page({ title: doc.title, updated: tr.about.updated(version.updated), body, nav: archiveNav }));
   }
   return pages.length + archived.length;
 }

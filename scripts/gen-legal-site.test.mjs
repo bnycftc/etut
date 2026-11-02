@@ -57,6 +57,8 @@ const text = (html) =>
 const groupSite = build('gruplar', ['--gruplar'], CONTROLLER);
 const deviceSite = build('cihaz', [], CONTROLLER);
 const pages = loadPages().map((m) => ({ file: m.file, ...m.exports.page }));
+const { DEVICE_ARCHIVE, FROZEN_ARCHIVES } = loadPages().find((m) => m.exports.DEVICE_ARCHIVE).exports;
+const archiveDirs = [DEVICE_ARCHIVE, ...FROZEN_ARCHIVES].map((a) => a.dir);
 const archiveFiles = htmlFiles(groupSite).filter((f) => f.startsWith('gizlilik/arsiv/'));
 const pageFiles = pages.map((p) => fileOfSlug(p.slug));
 
@@ -78,7 +80,11 @@ test('every module in src/legal/pages becomes a page', () => {
   }
   // Nothing else in the output: the page modules plus the archived device texts.
   assert.deepEqual(htmlFiles(groupSite).sort(), [...pageFiles, ...archiveFiles].sort());
-  assert.deepEqual(archiveFiles.map((f) => path.posix.basename(f)).sort(), ['aydinlatma.html', 'gizlilik.html', 'kullanim.html']);
+  // Each archived version: the three device texts, in its own folder.
+  assert.deepEqual(
+    archiveFiles.sort(),
+    archiveDirs.flatMap((d) => ['aydinlatma.html', 'gizlilik.html', 'kullanim.html'].map((f) => `${d}/${f}`)).sort(),
+  );
 });
 
 test('the device site is the four pages of the in-app texts, without the group pages', () => {
@@ -89,9 +95,9 @@ test('the device site is the four pages of the in-app texts, without the group p
     const html = read(deviceSite, f);
     assert.ok(!/veli\.html|cocuk-guvenligi|saklama\.html|iletisim\.html|gizlilik\/arsiv/.test(html), `${f} links a group page`);
   }
-  // The archive holds the same device texts as the device site.
+  // The newest archived version holds the same device texts as the device site.
   for (const f of ['aydinlatma.html', 'gizlilik.html', 'kullanim.html']) {
-    const archived = archiveFiles.find((a) => a.endsWith(`/${f}`));
+    const archived = `${DEVICE_ARCHIVE.dir}/${f}`;
     const body = (html) => html.slice(html.indexOf('<h2>'), html.indexOf('</article>'));
     assert.equal(body(read(groupSite, archived)), body(read(deviceSite, f)), `${archived} differs from the device ${f}`);
   }
