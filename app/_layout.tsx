@@ -47,6 +47,7 @@ function RootStack() {
           options={{ title: tr.exams.editTitle, presentation: 'modal' }}
         />
         <Stack.Screen name="konular" options={{ title: tr.topics.title }} />
+        <Stack.Screen name="konu/[id]" options={{ title: tr.topicDetail.title }} />
         <Stack.Screen name="elle-ekle" options={{ title: tr.manual.title }} />
         <Stack.Screen name="analiz/[id]" options={{ title: tr.analysis.title }} />
         <Stack.Screen name="haftalik" options={{ title: tr.weekly.title }} />
@@ -57,6 +58,8 @@ function RootStack() {
         {/* System sheets: grabber, half height first; a second detent for large text sizes. */}
         <Stack.Screen name="hedef" options={sheet} />
         <Stack.Screen name="tur" options={sheet} />
+        {/* Every section of a paper is a row of boxes: the sheet opens at full height. */}
+        <Stack.Screen name="net-hesapla" options={{ ...sheet, sheetAllowedDetents: [1] }} />
         {/* Pre-permission screen: left only through its button (HIG), so no swipe-down. */}
         <Stack.Screen
           name="bildirim-izni"
