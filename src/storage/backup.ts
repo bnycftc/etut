@@ -27,6 +27,7 @@ import {
 } from './kv';
 import { getExamMarks, getMockExam, listMockExams } from './mock-exams';
 import { allSessions } from './sessions';
+import { loadAvailability, saveAvailability } from './study-plan';
 import { loadSubjectTargets, storeSubjectTargets } from './subject-targets';
 
 function readSettings(): BackupSettings {
@@ -46,6 +47,8 @@ function readSettings(): BackupSettings {
   // Optional keys, left out when empty (as `parseSettings` returns them).
   const dailyGoalHistory = loadDailyGoalHistory();
   if (dailyGoalHistory.length > 0) settings.dailyGoalHistory = [...dailyGoalHistory];
+  const availability = loadAvailability();
+  if (availability !== null) settings.availability = availability;
   const subjectWeeklyTargets = loadSubjectTargets();
   return Object.keys(subjectWeeklyTargets).length === 0 ? settings : { ...settings, subjectWeeklyTargets };
 }
@@ -93,6 +96,7 @@ function writeSettings(s: BackupSettings): void {
   if (s.lastSubject === null) clearLastSubject();
   else storeLastSubject(s.lastSubject);
   storeSubjectTargets(s.subjectWeeklyTargets ?? {});
+  saveAvailability(s.availability ?? null);
 }
 
 /**
