@@ -437,6 +437,30 @@ export const tr = {
     start: 'Başla',
     ageBlocked: 'Bu doğum yılı bu cihazda kaydedilemiyor. Seçimini kontrol edip yeniden dene.',
     privacyLink: 'Bilgilerin nasıl saklanıyor?',
+    /** Four short steps: exam, countdown, daily goal, birth year. */
+    step: (n: number, total: number) => `Adım ${n}/${total}`,
+    next: 'İleri',
+    back: 'Geri',
+    countdownTitle: 'Sınavına kalan süre',
+    countdownHint: 'Tarihi sonra Ayarlar’dan da değiştirebilirsin.',
+    countdownNone: 'Bu sınav için hazır bir tarih yok. İstersen tarihini gir; geri sayım Sayaç ekranında görünür.',
+    changeDate: 'Tarihi değiştir',
+    /** Equal to Başla on the last step. */
+    demo: 'Örnek verilerle gez',
+    demoHint: 'Uygulamayı önce örnek verilerle tanıyabilirsin; kendi kayıtların ayrı kalır, istediğin an çıkarsın.',
+  },
+
+  /** Demo mode ("Örnek verilerle gez"): example data in files of its own; the student's own is never touched. */
+  demo: {
+    banner: 'Örnek veriler',
+    exit: 'Çık',
+    exitA11y: 'Örnek verilerden çık',
+    enter: 'Örnek verilerle gez',
+    enterInfo: 'Dolu bir uygulama nasıl görünür, örnek verilerle bak. Kendi kayıtların ayrı kalır, değişmez.',
+    leave: 'Örnek moddan çık',
+    leaveInfo: 'Şu an örnek verileri görüyorsun. Çıkınca kendi kayıtlarına dönersin; örnek veriler silinir.',
+    timerRunning: 'Sayaç çalışırken örnek verilere geçilemez. Önce oturumunu bitir.',
+    backupDisabled: 'Örnek modda yedek alınmaz.',
   },
 
   timer: {

@@ -85,7 +85,10 @@ const POMODORO_FIELDS: {
 ];
 
 export default function SettingsScreen() {
-  const { active, profile, resetAll, dataVersions, notifyDataChanged, updateExam, createBackup } = useAppState();
+  const { active, profile, resetAll, dataVersions, notifyDataChanged, updateExam, createBackup, demo, enterDemo, exitDemo } =
+    useAppState();
+  // "Örnek verilerle gez" was refused: the student's own timer runs.
+  const [demoRefused, setDemoRefused] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -439,6 +442,33 @@ export default function SettingsScreen() {
               ? tr.reminders.unsupported
               : tr.reminders.summaryOff}
         </Label>
+      </Section>
+
+      {/* Example data (demo mode): in, or back to the student's own data. */}
+      <Section title={tr.demo.banner}>
+        <Card>
+          <Label variant="muted">{demo ? tr.demo.leaveInfo : tr.demo.enterInfo}</Label>
+          {demo ? (
+            <Button testID="settings-demo-exit" kind="secondary" title={tr.demo.leave} onPress={exitDemo} />
+          ) : (
+            <Button
+              testID="settings-demo-enter"
+              kind="secondary"
+              title={tr.demo.enter}
+              onPress={() =>
+                void enterDemo().then((result) => {
+                  setDemoRefused(result === 'timer_running');
+                  if (result === 'ok') router.navigate('/');
+                })
+              }
+            />
+          )}
+          {demoRefused && !demo ? (
+            <Label testID="settings-demo-timer-running" variant="small" live style={{ color: c.danger }}>
+              {tr.demo.timerRunning}
+            </Label>
+          ) : null}
+        </Card>
       </Section>
 
       <Section title={tr.settings.dataTitle}>
