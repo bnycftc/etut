@@ -31,7 +31,7 @@ export const DATA_CONTROLLER = {
 };
 
 /** Date shown as "Son güncelleme" on the legal texts. */
-export const LEGAL_UPDATED = '31 Ekim 2026';
+export const LEGAL_UPDATED = '3 Kasım 2026';
 
 export interface LegalSection {
   heading: string;
@@ -51,8 +51,10 @@ const C = DATA_CONTROLLER;
  */
 // [AVUKAT TEYİDİ] Liste dosyanın gerçek içeriğine göre tamamlandı (alan, son ders, dosya bilgisi).
 // [AVUKAT TEYİDİ] 0.4.1: hedef geçmişi eklendi (hedefin değiştirildiği günler ve değerleri, `dailyGoalHistory`).
+// [AVUKAT TEYİDİ] 0.5.0: haftalık müsaitlik eklendi (haftanın her günü için kaç dakika çalışabileceğin,
+// `availability`, yedek şeması 3). Plan kendisi saklanmaz; bu dakikalardan her açılışta yeniden hesaplanır.
 const BACKUP_CONTENTS =
-  'Yedek dosyasında doğum yılın, sınav türün ve alanın, tüm çalışma kayıtların (soru sayıları dahil), deneme netlerin ve analizlerin, konu işaretlerin, günlük hedefin (ve hangi gün kaça değiştirdiğin), derslere koyduğun haftalık hedefler, hedef netlerin, sınav tarihlerin, sayacı en son başlattığın ders, sayaç türün ve pomodoro ayarların, bir de dosyanın oluşturulduğu zaman ve uygulama sürümü bulunur. CSV dosyaları çalışma kayıtlarını (girdiysen soru sayısıyla) ve denemeleri içerir.';
+  'Yedek dosyasında doğum yılın, sınav türün ve alanın, tüm çalışma kayıtların (soru sayıları dahil), deneme netlerin ve analizlerin, konu işaretlerin, günlük hedefin (ve hangi gün kaça değiştirdiğin), derslere koyduğun haftalık hedefler, hedef netlerin, sınav tarihlerin, haftanın hangi günü kaç dakika çalışabileceğin (plan için), sayacı en son başlattığın ders, sayaç türün ve pomodoro ayarların, bir de dosyanın oluşturulduğu zaman ve uygulama sürümü bulunur. CSV dosyaları çalışma kayıtlarını (girdiysen soru sayısıyla) ve denemeleri içerir.';
 
 const legalDocs = {
   aydinlatma: {
@@ -71,7 +73,13 @@ const legalDocs = {
           // [AVUKAT TEYİDİ] 0.4.1 (X-7): "uygulamanın App Store puanlama penceresini en son ne zaman istediği"
           // eklendi (Gizlilik §2'de de). Yalnız bu telefonda durur, yedeğe girmez; tek amacı pencereyi 120 günde
           // bir kezden sık istememek. "Ne için?" cümlesi bu amacı ayrıca anmıyor; yeterli mi.
-          'Doğum yılın (yalnız yıl), sınav türün ve alanın; çalışma oturumların (ders, konu, başlangıç ve bitiş zamanı, molalar ve uygulamadan çıktığın süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı); konu ilerlemen; deneme netlerin ve analizlerin; günlük hedefin ve hedefini hangi gün kaça değiştirdiğin, derslere koyduğun haftalık hedefler, hedef netlerin ve sınav tarihin; sayaç ayarların (pomodoro, ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihlerin, en son ne zaman yedek dosyası oluşturduğun, yedek hatırlatmasını ne zaman kapattığın ve uygulamanın App Store puanlama penceresini en son ne zaman istediği.',
+          // [AVUKAT TEYİDİ] 0.5.0: "haftanın hangi günü kaç dakika çalışabileceğin" eklendi (haftalık plan
+          // için; yedeğe girer). Haftalık plan saklanmaz, bu dakikalardan ve kayıtlarından yeniden hesaplanır.
+          // [AVUKAT TEYİDİ] 0.5.0: "Örnek verilerle gez" modu: uygulama kendi ürettiği örnek kayıtları ayrı
+          // dosyalarda tutar, bunlar öğrenciye ait değildir ve moddan çıkınca silinir; kişisel veri sayılmadığı
+          // varsayımıyla ayrı bir kategori olarak yazılmadı, yalnız bu cümleyle anıldı. Yeterli mi.
+          'Doğum yılın (yalnız yıl), sınav türün ve alanın; çalışma oturumların (ders, konu, başlangıç ve bitiş zamanı, molalar ve uygulamadan çıktığın süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı); konu ilerlemen; deneme netlerin ve analizlerin; günlük hedefin ve hedefini hangi gün kaça değiştirdiğin, derslere koyduğun haftalık hedefler, hedef netlerin ve sınav tarihin; haftanın hangi günü kaç dakika çalışabileceğin (haftalık planın bundan hesaplanır, planın kendisi saklanmaz); sayaç ayarların (pomodoro, ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihlerin, en son ne zaman yedek dosyası oluşturduğun, yedek hatırlatmasını ne zaman kapattığın ve uygulamanın App Store puanlama penceresini en son ne zaman istediği.',
+          '“Örnek verilerle gez” dersen uygulama kendi ürettiği örnek kayıtları ayrı dosyalarda tutar; bunlar sana ait bilgi değildir ve örnek moddan çıkınca silinir.',
           // [AVUKAT TEYİDİ] Toplama yöntemi (KVKK m.10/1-ç; `docs/hukuk/kvkk/01` zorunlu unsur): otomatik
           // (cihazda) ve otomatik olmayan (e-posta) ayrımı bu cümleyle yeterli mi.
           'Bu bilgiler, uygulamayı kullanırken senin girdiklerinden ve sayacın tuttuğu zamanlardan oluşur; uygulama onları otomatik olarak bu telefona kaydeder. Bize e-postayla yazarsan yazdıkların bize elektronik ortamda, kısmen otomatik yollarla ulaşır.',
@@ -163,7 +171,10 @@ const legalDocs = {
           // [AVUKAT TEYİDİ] 0.4.1: hedef geçmişi eklendi (hedefin değiştirildiği günler ve değerleri).
           // [AVUKAT TEYİDİ] 0.4.1 (X-7): puanlama penceresinin en son istendiği zaman eklendi; bkz. Aydınlatma
           // "Uygulama ne kaydediyor?" notu.
-          'Doğum yılı (yaş kuralı için), sınav türü ve alan (ders ve konu listesi için), çalışma oturumları (ders, konu, zamanlar, molalar ve uygulama dışında geçen süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı), konu ilerlemesi, deneme netleri ve analizleri, günlük hedef ve hedefin değiştirildiği günler ile değerleri, derslere koyduğun haftalık hedefler, hedef netler, sınav tarihi, pomodoro ve sayaç ayarları (ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihleri, son yedek dosyasının oluşturulma zamanı, yedek hatırlatmasının kapatıldığı zaman ve App Store puanlama penceresinin en son istendiği zaman.',
+          // [AVUKAT TEYİDİ] 0.5.0: haftalık müsaitlik (gün başına dakika) ve "Örnek verilerle gez" cümlesi
+          // eklendi; bkz. Aydınlatma "Uygulama ne kaydediyor?" notları.
+          'Doğum yılı (yaş kuralı için), sınav türü ve alan (ders ve konu listesi için), çalışma oturumları (ders, konu, zamanlar, molalar ve uygulama dışında geçen süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı), konu ilerlemesi, deneme netleri ve analizleri, günlük hedef ve hedefin değiştirildiği günler ile değerleri, derslere koyduğun haftalık hedefler, hedef netler, sınav tarihi, haftanın hangi günü kaç dakika çalışabileceğin (haftalık plan için; planın kendisi saklanmaz, her açılışta yeniden hesaplanır), pomodoro ve sayaç ayarları (ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihleri, son yedek dosyasının oluşturulma zamanı, yedek hatırlatmasının kapatıldığı zaman ve App Store puanlama penceresinin en son istendiği zaman.',
+          '“Örnek verilerle gez” modunda uygulamanın kendi ürettiği örnek kayıtlar ayrı dosyalarda durur; sana ait değildir ve moddan çıkınca silinir.',
           'Yedekten “Değiştir” ile yükleme yaparsan, geri alabilmen için önceki verilerinin bir kopyası bir gün boyunca bu telefonda kalır (5. bölüm).',
           // [AVUKAT TEYİDİ] Widget koşulu kaldırıldı (uygulama bu alana her değişiklikte yazar) ve kilit ekranı
           // sayacının gösterdiği ders ve konu adı eklendi.
