@@ -164,15 +164,15 @@ async function runScenario(page, baseUrl) {
   const visible = (id, timeout = STEP_TIMEOUT_MS) => byId(id).waitFor({ state: 'visible', timeout });
   const text = async (id) => ((await byId(id).textContent()) ?? '').trim();
 
-  // 1. First launch: onboarding, nothing pre-selected.
+  // 1. First launch: onboarding (four steps), nothing pre-selected.
   log('step: onboarding');
   await page.goto(baseUrl);
-  await visible('onboarding-start', FIRST_SCREEN_TIMEOUT_MS);
-  check(await page.getByText('Doğum yılın').isVisible(), 'onboarding title is missing');
+  await visible('onboarding-next', FIRST_SCREEN_TIMEOUT_MS);
+  check(await page.getByText('Hazırlandığın sınav').isVisible(), 'onboarding title is missing');
   check(await page.evaluate(() => self.crossOriginIsolated), 'page is not cross-origin isolated');
   check(
-    (await byId('onboarding-start').getAttribute('aria-disabled')) === 'true',
-    'start button must be disabled before answering',
+    (await byId('onboarding-next').getAttribute('aria-disabled')) === 'true',
+    'İleri must be disabled before answering',
   );
   await screenshot('onboarding');
 
@@ -181,14 +181,23 @@ async function runScenario(page, baseUrl) {
   await visible('legal-aydinlatma');
   await screenshot('onboarding-aydinlatma');
   await page.goBack();
-  await visible('onboarding-start');
+  await visible('onboarding-next');
 
   const birthYear = new Date().getFullYear() - 20;
   const onboard = async () => {
-    await byId(`birth-year-${birthYear}`).click();
     await byId('exam-type-YKS').click();
     await visible('yks-area-sayisal');
     await byId('yks-area-sayisal').click();
+    await byId('onboarding-next').click();
+    // Step 2: the countdown to the exam.
+    await visible('onboarding-countdown');
+    await byId('onboarding-next').click();
+    // Step 3: the optional daily goal (skipped).
+    await visible('onboarding-goal-120');
+    await byId('onboarding-next').click();
+    // Step 4: the birth year, then Başla (next to "Örnek verilerle gez").
+    await byId(`birth-year-${birthYear}`).click();
+    check(await byId('onboarding-demo').isVisible(), '"Örnek verilerle gez" is missing on the last step');
     await byId('onboarding-start').click();
   };
   await onboard();
@@ -472,10 +481,10 @@ async function runScenario(page, baseUrl) {
   );
   await screenshot('delete-all-backup-first');
   await byId('settings-delete-all-confirm').click();
-  await visible('onboarding-start');
+  await visible('onboarding-next');
   await screenshot('after-delete-all');
   await page.reload();
-  await visible('onboarding-start', FIRST_SCREEN_TIMEOUT_MS);
+  await visible('onboarding-next', FIRST_SCREEN_TIMEOUT_MS);
 
   // 7. "New phone": onboard again, empty states, then restore the backup (twice: no duplicates).
   log('step: empty states and restore');
@@ -503,6 +512,25 @@ async function runScenario(page, baseUrl) {
   await visible('exams-empty');
   check(await byId('exams-empty-action').isVisible(), 'the empty exam list should offer its own add button');
   await screenshot('empty-exams');
+
+  // 7b. "Örnek verilerle gez": the example data fills the lists; leaving it brings the empty ones back.
+  log('step: demo mode');
+  await byId('tab-settings').click();
+  await visible('settings-demo-enter');
+  await byId('settings-demo-enter').click();
+  await byId('tab-exams').click();
+  await visible('exam-item-0-net');
+  check((await byId('exams-empty').count()) === 0, 'the example data should fill the exam list');
+  check((await byId('demo-banner').count()) > 0, 'the "Örnek veriler" band is missing');
+  await screenshot('demo-exams');
+  await byId('tab-settings').click();
+  await visible('settings-demo-exit');
+  await byId('settings-demo-exit').click();
+  await visible('settings-demo-enter');
+  check((await byId('demo-banner').count()) === 0, 'the band should go with the demo mode');
+  await byId('tab-exams').click();
+  await visible('exams-empty');
+  check((await byId('exam-item-0').count()) === 0, 'the example exams should be gone after leaving');
 
   for (let round = 1; round <= 2; round++) {
     await byId('tab-settings').click();

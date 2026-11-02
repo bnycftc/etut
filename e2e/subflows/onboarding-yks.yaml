@@ -1,23 +1,15 @@
-# Completes the first-launch screen: birth year (current year - AGE), exam YKS, area Sayısal,
-# then closes the one-time tips. Called with runFlow + env AGE. Ends on the timer tab.
+# Completes the first launch in its four steps: exam YKS + area Sayısal, past the countdown and the
+# optional goal, birth year (current year - AGE), then Başla and the one-time tips. Called with
+# runFlow + env AGE. Ends on the timer tab.
 appId: com.bnycftc.etut
 ---
 - extendedWaitUntil:
     visible:
       id: onboarding-screen
     timeout: 60000
-# The brand band at the top and the fixed Başla bar at the bottom leave less of the year list on
-# the first screen: scroll to the year first (a no-op when it is already visible).
-# Centred: Maestro counts a chip under the fixed Başla bar as visible (it only checks the screen edges).
-- scrollUntilVisible:
-    element:
-      id: "birth-year-${new Date().getFullYear() - Number(AGE)}"
-    direction: DOWN
-    centerElement: true
-    timeout: 20000
-- tapOn:
-    id: "birth-year-${new Date().getFullYear() - Number(AGE)}"
-    retryTapIfNoChange: true
+# Step 1: exam and area. The brand band at the top and the fixed button bar at the bottom leave
+# less of the page on the first screen: scroll to each target (a no-op when it is already visible).
+# Centred: Maestro counts a chip under the fixed bar as visible (it only checks the screen edges).
 - scrollUntilVisible:
     element:
       id: exam-type-YKS
@@ -27,8 +19,6 @@ appId: com.bnycftc.etut
 - tapOn:
     id: exam-type-YKS
     retryTapIfNoChange: true
-# The screen is taller than the viewport (year list, exam, area, optional goal, start): scroll to
-# each target instead of a fixed swipe, which stops reaching the start button as cards are added.
 - scrollUntilVisible:
     element:
       id: yks-area-sayisal
@@ -38,13 +28,39 @@ appId: com.bnycftc.etut
 - tapOn:
     id: yks-area-sayisal
     retryTapIfNoChange: true
+# İleri turns on only once the app has handled the area tap; on a stalled CI simulator that can
+# come late, and a tap on the still disabled button does nothing (run 39114266438, g retry).
+- extendedWaitUntil:
+    visible:
+      id: onboarding-next
+      enabled: true
+    timeout: 30000
+- tapOn:
+    id: onboarding-next
+# Step 2: the countdown.
+- extendedWaitUntil:
+    visible:
+      id: onboarding-countdown
+    timeout: 15000
+- tapOn:
+    id: onboarding-next
+# Step 3: the optional daily goal (skipped).
+- extendedWaitUntil:
+    visible:
+      id: onboarding-goal-120
+    timeout: 15000
+- tapOn:
+    id: onboarding-next
+# Step 4: the birth year.
 - scrollUntilVisible:
     element:
-      id: onboarding-start
+      id: "birth-year-${new Date().getFullYear() - Number(AGE)}"
     direction: DOWN
+    centerElement: true
     timeout: 20000
-# Başla turns on only once the app has handled the area tap; on a stalled CI simulator that can
-# come late, and a tap on the still disabled button does nothing (run 39114266438, g retry).
+- tapOn:
+    id: "birth-year-${new Date().getFullYear() - Number(AGE)}"
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: onboarding-start

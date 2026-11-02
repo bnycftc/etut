@@ -73,13 +73,9 @@ tags:
       id: onboarding-screen
     timeout: 10000
 - takeScreenshot: g-sil-03-ilk-acilis
-- scrollUntilVisible:
-    element:
-      id: onboarding-start
-    direction: DOWN
-    timeout: 20000
+# Back at the first step, nothing chosen: İleri is off.
 - assertVisible:
-    id: onboarding-start
+    id: onboarding-next
     enabled: false
 # The deletion is persistent: a cold start opens onboarding again.
 - stopApp
