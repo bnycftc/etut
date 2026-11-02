@@ -1,17 +1,16 @@
 /**
  * Weekly target per subject (`domain/subject-targets.ts`), kept in the small key-value store next
  * to the daily goal. Deleted with "Tüm verileri sil" (the whole store is cleared) and part of the
- * backup file.
+ * backup file. Kept in the demo store in demo mode (`kvStore()`).
  */
 
-import Storage from 'expo-sqlite/kv-store';
-
 import { normalizeSubjectTarget, normalizeSubjectTargets, type SubjectTargets } from '../domain/subject-targets';
+import { kvStore } from './kv-store';
 
 const KEY = 'etut.subjectWeeklyTargets.v1';
 
 export function loadSubjectTargets(): SubjectTargets {
-  const raw = Storage.getItemSync(KEY);
+  const raw = kvStore().getItemSync(KEY);
   if (raw === null) return {};
   try {
     return normalizeSubjectTargets(JSON.parse(raw));
@@ -32,6 +31,6 @@ export function storeSubjectTarget(subjectId: string, minutes: number | null): v
 /** Replaces every target (backup restore). */
 export function storeSubjectTargets(targets: SubjectTargets): void {
   const clean = normalizeSubjectTargets(targets);
-  if (Object.keys(clean).length === 0) Storage.removeItemSync(KEY);
-  else Storage.setItemSync(KEY, JSON.stringify(clean));
+  if (Object.keys(clean).length === 0) kvStore().removeItemSync(KEY);
+  else kvStore().setItemSync(KEY, JSON.stringify(clean));
 }

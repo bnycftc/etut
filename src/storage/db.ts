@@ -5,10 +5,16 @@
 
 import * as SQLite from 'expo-sqlite';
 
+import { isDemo } from './kv-store';
 import { MIGRATIONS } from './migrations';
 
-const DB_NAME = 'etut.db';
+/** The student's own database file. Demo mode never opens, changes or deletes it. */
+export const REAL_DB_FILE = 'etut.db';
+/** Database file of demo mode (example data, deleted when demo mode ends). */
+export const DEMO_DB_FILE = 'etut-demo.db';
 
+/** File `getDb` opens; `null` = not chosen yet (the demo flag decides on first open). */
+let fileName: string | null = null;
 let db: SQLite.SQLiteDatabase | null = null;
 
 function migrate(database: SQLite.SQLiteDatabase): void {
@@ -25,9 +31,40 @@ function migrate(database: SQLite.SQLiteDatabase): void {
   }
 }
 
+/** Name of the database file in use (the demo flag decides until a file is chosen). */
+export function databaseFile(): string {
+  if (fileName === null) fileName = isDemo() ? DEMO_DB_FILE : REAL_DB_FILE;
+  return fileName;
+}
+
+/** Switches to another database file; the current one is closed, the new one opens on next use. */
+export function selectDatabaseFile(name: string): void {
+  if (fileName === name) return;
+  closeDb();
+  fileName = name;
+}
+
+/** Closes the open database file (it reopens on the next `getDb`). */
+export function closeDb(): void {
+  if (db === null) return;
+  const open = db;
+  db = null;
+  open.closeSync();
+}
+
+/** Deletes a database file (closed first if it is the one in use). A missing file is fine. */
+export function deleteDatabaseFile(name: string): void {
+  if (fileName === name) closeDb();
+  try {
+    SQLite.deleteDatabaseSync(name);
+  } catch {
+    // Not there (never opened): nothing to delete.
+  }
+}
+
 export function getDb(): SQLite.SQLiteDatabase {
   if (db === null) {
-    const opened = SQLite.openDatabaseSync(DB_NAME);
+    const opened = SQLite.openDatabaseSync(databaseFile());
     opened.execSync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
     migrate(opened);
     db = opened;

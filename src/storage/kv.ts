@@ -1,6 +1,9 @@
 /**
  * Small synchronous key-value store (expo-sqlite/kv-store, no extra native module).
  * Used for state that must be readable before the first render: profile and the running timer.
+ * The student's data (goal, targets, exam date, timer settings, running timer, reminders) goes
+ * through `kvStore()`, so demo mode keeps it in its own file; the profile and the device's own
+ * state (tips, backup reminder, Live Activity record…) stay in the default store.
  */
 
 import * as SQLite from 'expo-sqlite';
@@ -19,6 +22,7 @@ import { normalizeReminderPrefs, type ReminderPrefs } from '../domain/reminders'
 import { clampGoalMinutes, type GoalHistory, normalizeGoalHistory, withGoalChange } from '../domain/streak';
 import { type ActiveSession, type AwayRule, DEFAULT_AWAY_RULE, toActiveSession } from '../domain/timer';
 import { parseWidgetTipState, type WidgetTipState } from '../domain/widget-tip';
+import { kvStore } from './kv-store';
 
 const KEYS = {
   profile: 'etut.profile.v1',
@@ -44,8 +48,8 @@ const KEYS = {
 
 export type TimerMode = 'stopwatch' | 'pomodoro';
 
-function readJson(key: string): unknown {
-  const raw = Storage.getItemSync(key);
+function readJson(key: string, store: Pick<typeof Storage, 'getItemSync'> = Storage): unknown {
+  const raw = store.getItemSync(key);
   if (raw === null) return null;
   try {
     return JSON.parse(raw);
@@ -64,41 +68,41 @@ export function storeProfile(profile: Profile): void {
 }
 
 export function loadActiveSession(): ActiveSession | null {
-  return toActiveSession(readJson(KEYS.activeSession));
+  return toActiveSession(readJson(KEYS.activeSession, kvStore()));
 }
 
 export function storeActiveSession(session: ActiveSession | null): void {
-  if (session === null) Storage.removeItemSync(KEYS.activeSession);
-  else Storage.setItemSync(KEYS.activeSession, JSON.stringify(session));
+  if (session === null) kvStore().removeItemSync(KEYS.activeSession);
+  else kvStore().setItemSync(KEYS.activeSession, JSON.stringify(session));
 }
 
 export function loadLastSubject(): string | null {
-  return Storage.getItemSync(KEYS.lastSubject);
+  return kvStore().getItemSync(KEYS.lastSubject);
 }
 
 export function storeLastSubject(subjectId: string): void {
-  Storage.setItemSync(KEYS.lastSubject, subjectId);
+  kvStore().setItemSync(KEYS.lastSubject, subjectId);
 }
 
 /** Daily study goal in minutes; `null` = no goal. */
 export function loadDailyGoal(): number | null {
-  const value = readJson(KEYS.dailyGoal);
+  const value = readJson(KEYS.dailyGoal, kvStore());
   return typeof value === 'number' && Number.isFinite(value) ? clampGoalMinutes(value) : null;
 }
 
 /** Changes of the daily goal (`withGoalChange`); empty = none kept. */
 export function loadDailyGoalHistory(): GoalHistory {
-  return normalizeGoalHistory(readJson(KEYS.dailyGoalHistory));
+  return normalizeGoalHistory(readJson(KEYS.dailyGoalHistory, kvStore()));
 }
 
 function writeDailyGoal(minutes: number | null, history: GoalHistory): void {
   // The history first: if the app stops in between, the old goal stays in force for today (today
   // goes by the goal key, or by the history while a raise waits for tomorrow) and the days before
   // keep theirs; the other way round, a first change could judge every past day by the new goal.
-  if (history.length === 0) Storage.removeItemSync(KEYS.dailyGoalHistory);
-  else Storage.setItemSync(KEYS.dailyGoalHistory, JSON.stringify(history));
-  if (minutes === null) Storage.removeItemSync(KEYS.dailyGoal);
-  else Storage.setItemSync(KEYS.dailyGoal, JSON.stringify(minutes));
+  if (history.length === 0) kvStore().removeItemSync(KEYS.dailyGoalHistory);
+  else kvStore().setItemSync(KEYS.dailyGoalHistory, JSON.stringify(history));
+  if (minutes === null) kvStore().removeItemSync(KEYS.dailyGoal);
+  else kvStore().setItemSync(KEYS.dailyGoal, JSON.stringify(minutes));
 }
 
 /**
@@ -116,42 +120,42 @@ export function restoreDailyGoal(minutes: number | null, history: GoalHistory): 
 }
 
 export function loadPomodoroConfig(): PomodoroConfig {
-  const value = readJson(KEYS.pomodoroConfig);
+  const value = readJson(KEYS.pomodoroConfig, kvStore());
   return isPomodoroConfig(value) ? normalizePomodoroConfig(value) : DEFAULT_POMODORO;
 }
 
 export function storePomodoroConfig(config: PomodoroConfig): void {
-  Storage.setItemSync(KEYS.pomodoroConfig, JSON.stringify(normalizePomodoroConfig(config)));
+  kvStore().setItemSync(KEYS.pomodoroConfig, JSON.stringify(normalizePomodoroConfig(config)));
 }
 
 export function loadTimerMode(): TimerMode {
-  return Storage.getItemSync(KEYS.timerMode) === 'pomodoro' ? 'pomodoro' : 'stopwatch';
+  return kvStore().getItemSync(KEYS.timerMode) === 'pomodoro' ? 'pomodoro' : 'stopwatch';
 }
 
 export function storeTimerMode(mode: TimerMode): void {
-  Storage.setItemSync(KEYS.timerMode, mode);
+  kvStore().setItemSync(KEYS.timerMode, mode);
 }
 
 /** Exam date set by the student, per exam type (overrides the built-in estimate). */
 export function loadCustomExamDate(examType: ExamType): DayKey | null {
-  const value = readJson(KEYS.examDate);
+  const value = readJson(KEYS.examDate, kvStore());
   if (typeof value !== 'object' || value === null) return null;
   const day = (value as Record<string, unknown>)[examType];
   return typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
 }
 
 export function storeCustomExamDate(examType: ExamType, day: DayKey | null): void {
-  const current = readJson(KEYS.examDate);
+  const current = readJson(KEYS.examDate, kvStore());
   const next: Record<string, unknown> =
     typeof current === 'object' && current !== null ? { ...(current as Record<string, unknown>) } : {};
   if (day === null) delete next[examType];
   else next[examType] = day;
-  Storage.setItemSync(KEYS.examDate, JSON.stringify(next));
+  kvStore().setItemSync(KEYS.examDate, JSON.stringify(next));
 }
 
 /** Target nets keyed by `targetKey(kind, sectionId)`. */
 export function loadNetTargets(): Record<string, number> {
-  const value = readJson(KEYS.netTargets);
+  const value = readJson(KEYS.netTargets, kvStore());
   if (typeof value !== 'object' || value === null) return {};
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
@@ -164,36 +168,36 @@ export function storeNetTarget(key: string, target: number | null): void {
   const next = loadNetTargets();
   if (target === null) delete next[key];
   else next[key] = target;
-  Storage.setItemSync(KEYS.netTargets, JSON.stringify(next));
+  kvStore().setItemSync(KEYS.netTargets, JSON.stringify(next));
 }
 
 /** Replaces every target net (backup restore). */
 export function storeNetTargets(targets: Record<string, number>): void {
-  Storage.setItemSync(KEYS.netTargets, JSON.stringify(targets));
+  kvStore().setItemSync(KEYS.netTargets, JSON.stringify(targets));
 }
 
 /** Pomodoro lengths as stored; `null` = never changed (the defaults apply). */
 export function loadStoredPomodoroConfig(): PomodoroConfig | null {
-  const value = readJson(KEYS.pomodoroConfig);
+  const value = readJson(KEYS.pomodoroConfig, kvStore());
   return isPomodoroConfig(value) ? normalizePomodoroConfig(value) : null;
 }
 
 /** Timer mode as stored; `null` = never chosen. */
 export function loadStoredTimerMode(): TimerMode | null {
-  const value = Storage.getItemSync(KEYS.timerMode);
+  const value = kvStore().getItemSync(KEYS.timerMode);
   return value === 'pomodoro' || value === 'stopwatch' ? value : null;
 }
 
 /** `null` removes the stored values (backup restore). */
 export function restoreTimerSettings(mode: TimerMode | null, pomodoro: PomodoroConfig | null): void {
-  if (mode === null) Storage.removeItemSync(KEYS.timerMode);
-  else Storage.setItemSync(KEYS.timerMode, mode);
-  if (pomodoro === null) Storage.removeItemSync(KEYS.pomodoroConfig);
+  if (mode === null) kvStore().removeItemSync(KEYS.timerMode);
+  else kvStore().setItemSync(KEYS.timerMode, mode);
+  if (pomodoro === null) kvStore().removeItemSync(KEYS.pomodoroConfig);
   else storePomodoroConfig(pomodoro);
 }
 
 export function clearLastSubject(): void {
-  Storage.removeItemSync(KEYS.lastSubject);
+  kvStore().removeItemSync(KEYS.lastSubject);
 }
 
 /** The short first-use tips were shown and closed. */
@@ -211,11 +215,11 @@ export function clearTipsSeen(): void {
 }
 
 export function loadReminderPrefs(): ReminderPrefs {
-  return normalizeReminderPrefs(readJson(KEYS.reminderPrefs));
+  return normalizeReminderPrefs(readJson(KEYS.reminderPrefs, kvStore()));
 }
 
 export function storeReminderPrefs(prefs: ReminderPrefs): void {
-  Storage.setItemSync(KEYS.reminderPrefs, JSON.stringify(normalizeReminderPrefs(prefs)));
+  kvStore().setItemSync(KEYS.reminderPrefs, JSON.stringify(normalizeReminderPrefs(prefs)));
 }
 
 /** The student turned reminders on through the explanation screen (cleared by "Tüm verileri sil"). */
