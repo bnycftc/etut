@@ -107,6 +107,7 @@ type Modules = {
   sessions: typeof import('../sessions');
   subjectTargets: typeof import('../subject-targets');
   wipe: typeof import('../wipe');
+  studyPlan: typeof import('../study-plan');
 };
 
 /** A fresh set of modules over the same disk: what the app sees after a restart. */
@@ -121,6 +122,7 @@ function load(): Modules {
       sessions: require('../sessions'),
       subjectTargets: require('../subject-targets'),
       wipe: require('../wipe'),
+      studyPlan: require('../study-plan'),
     };
   });
   return m!;
@@ -213,6 +215,35 @@ it('keeps the real data the same through enter → use → exit and deletes the 
   expect([...disk().kv.get('ExpoSQLiteStorage')!.entries()]).toEqual(realKvBefore);
   expect(disk().sql.has('etut-demo.db')).toBe(false);
   expect(disk().kv.has('etut-demo-kv')).toBe(false);
+});
+
+it('a reminder turned on in demo mode stays in the demo files: none comes on in the real data', () => {
+  const { effectiveReminderPrefs } = jest.requireActual('../../domain/reminders');
+  const before = effectiveReminderPrefs(m.kv.loadReminderPrefs(), m.kv.loadRemindersConfirmed());
+  m.demo.enterDemo(PROFILE, NOW);
+  // Ayarlar → Hatırlatıcılar → "Günlük" → explanation screen → allowed (app/bildirim-izni.tsx).
+  const prefs = m.kv.loadReminderPrefs();
+  m.kv.storeReminderPrefs({ ...prefs, daily: { ...prefs.daily, enabled: true } });
+  m.kv.storeRemindersConfirmed();
+  expect(m.kv.loadRemindersConfirmed()).toBe(true);
+  m.demo.exitDemo();
+
+  expect(m.kv.loadRemindersConfirmed()).toBe(false);
+  const after = effectiveReminderPrefs(m.kv.loadReminderPrefs(), m.kv.loadRemindersConfirmed());
+  expect(after).toEqual(before);
+  for (const key of ['longSession', 'pomodoro', 'daily', 'examAnalysis'] as const) {
+    expect(after[key].enabled).toBe(false);
+  }
+  expect([...disk().kv.get('ExpoSQLiteStorage')!.entries()]).toEqual(realKvBefore);
+});
+
+it('the example plan has blocks on all seven days of the week, Sunday included', () => {
+  m.demo.enterDemo(PROFILE, NOW);
+  // NOW is a Monday (Istanbul): Monday … Sunday of the same week.
+  const counts = [0, 1, 2, 3, 4, 5, 6].map((d) => m.studyPlan.todaysPlan(PROFILE, NOW + d * 86_400_000).blocks.length);
+  expect(counts.every((n) => n > 0)).toBe(true);
+  expect(m.studyPlan.availabilityOrDefault()[6]).toBeGreaterThan(0);
+  m.demo.exitDemo();
 });
 
 it('refuses to start while the real timer runs', () => {

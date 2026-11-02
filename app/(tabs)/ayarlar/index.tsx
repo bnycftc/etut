@@ -164,7 +164,8 @@ export default function SettingsScreen() {
   // on this device) has nothing left to delete there and must not block the local wipe.
   const deleteAll = async () => {
     setDeleteError(false);
-    if (GROUPS_ENABLED && (loadGroupsAccount() || loadParentAccount())) {
+    // Demo mode deletes the example data only: the group account stays (app-state `resetAll`).
+    if (!demo && GROUPS_ENABLED && (loadGroupsAccount() || loadParentAccount())) {
       setDeleting(true);
       try {
         await groupApi().deleteMyAccount();
@@ -213,18 +214,22 @@ export default function SettingsScreen() {
     return note;
   };
 
+  // Demo mode: "delete all" only removes the example data and leaves demo mode, and says so.
+  const deleteAllTitle = demo ? tr.demo.deleteAll : tr.settings.deleteAll;
+  const deleteAllYes = demo ? tr.demo.deleteAllYes : tr.settings.deleteAllYes;
+
   // On the device the question is the system alert, its delete button marked destructive. The
   // backup's result is the alert's last paragraph when it comes back.
   const askDeleteAll = (note: BackupNote | null) => {
-    const body: string[] = [tr.settings.deleteAllConfirm, tr.settings.deleteAllAgeNote];
+    const body: string[] = demo ? [tr.demo.deleteAllConfirm] : [tr.settings.deleteAllConfirm, tr.settings.deleteAllAgeNote];
     if (note !== null) body.push('error' in note ? note.error : note.message);
-    Alert.alert(tr.settings.deleteAll, body.join('\n\n'), [
+    Alert.alert(deleteAllTitle, body.join('\n\n'), [
       {
         text: tr.settings.deleteAllBackupFirst,
         onPress: () => void backupFirst().then((shown) => askDeleteAll(shown)),
       },
       { text: tr.common.cancel, style: 'cancel' },
-      { text: tr.settings.deleteAllYes, style: 'destructive', onPress: () => void deleteAll() },
+      { text: deleteAllYes, style: 'destructive', onPress: () => void deleteAll() },
     ]);
   };
   // Offline or the server is down: retry, or delete the device data on its own (KVKK m.7).
@@ -255,6 +260,12 @@ export default function SettingsScreen() {
             {/* K-20: neither the birth year nor an age group is shown anywhere. */}
             <Label variant="heading">{tr.settings.examChangeTitle}</Label>
             <Label variant="small">{tr.settings.examChangeInfo}</Label>
+            {/* Example data (demo mode): the profile is the student's own; it is not changed from here. */}
+            {demo ? (
+              <Label testID="settings-exam-demo-locked" style={{ color: c.danger }}>
+                {tr.demo.examLocked}
+              </Label>
+            ) : null}
             <ChipRow>
               {EXAM_TYPES.map((t) => (
                 <Chip
@@ -262,6 +273,7 @@ export default function SettingsScreen() {
                   testID={`settings-exam-type-${t}`}
                   title={tr.examType(t)}
                   selected={t === draftExam}
+                  disabled={demo}
                   onPress={() => {
                     setDraftExam(t);
                     setExamSaved(false);
@@ -279,6 +291,7 @@ export default function SettingsScreen() {
                       testID={`settings-yks-area-${a}`}
                       title={tr.yksArea(a)}
                       selected={a === draftArea}
+                      disabled={demo}
                       onPress={() => {
                         setDraftArea(a);
                         setExamSaved(false);
@@ -292,7 +305,7 @@ export default function SettingsScreen() {
               testID="settings-exam-save"
               kind="secondary"
               title={tr.settings.examChangeSave}
-              disabled={!examChanged || (draftExam === 'YKS' && draftArea === null)}
+              disabled={demo || !examChanged || (draftExam === 'YKS' && draftArea === null)}
               onPress={saveExam}
             />
             {examSaved ? (
@@ -493,7 +506,7 @@ export default function SettingsScreen() {
           <Button
             kind="dangerSoft"
             testID="settings-delete-all"
-            title={tr.settings.deleteAll}
+            title={deleteAllTitle}
             onPress={() => {
               if (SYSTEM_ALERT) {
                 askDeleteAll(null);
@@ -532,9 +545,9 @@ export default function SettingsScreen() {
               testID="settings-delete-all-scroll"
               style={styles.dialogText}
               contentContainerStyle={styles.dialogTextContent}>
-              <Label variant="heading">{tr.settings.deleteAll}</Label>
-              <Label>{tr.settings.deleteAllConfirm}</Label>
-              <Label variant="small">{tr.settings.deleteAllAgeNote}</Label>
+              <Label variant="heading">{deleteAllTitle}</Label>
+              <Label testID="settings-delete-all-text">{demo ? tr.demo.deleteAllConfirm : tr.settings.deleteAllConfirm}</Label>
+              {demo ? null : <Label variant="small">{tr.settings.deleteAllAgeNote}</Label>}
               <Button
                 kind="secondary"
                 testID="settings-delete-all-backup"
@@ -581,7 +594,7 @@ export default function SettingsScreen() {
             <Button
               kind="danger"
               testID="settings-delete-all-confirm"
-              title={tr.settings.deleteAllYes}
+              title={deleteAllYes}
               disabled={deleting || backingUp}
               onPress={() => void deleteAll()}
             />

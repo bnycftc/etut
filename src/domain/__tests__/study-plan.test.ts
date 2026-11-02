@@ -3,6 +3,7 @@ import { addDays, istanbulWeekday } from '../istanbul-day';
 import type { YksArea } from '../net';
 import type { ExamType } from '../profile';
 import {
+  AVAILABILITY_MAX_MIN,
   type Availability,
   type BuildWeekPlanInput,
   buildWeekPlan,
@@ -132,6 +133,13 @@ describe('defaultAvailability', () => {
     const week = defaultAvailability(90);
     expect([0, 1, 2, 3, 4, 5].map((day) => week[day as Weekday])).toEqual([90, 90, 90, 90, 90, 90]);
     expect(week[6]).toBe(0);
+  });
+
+  it('caps a goal above 8 hours at the editor limit (480), so the week can be stored and edited', () => {
+    const week = defaultAvailability(600);
+    expect([0, 1, 2, 3, 4, 5].map((day) => week[day as Weekday])).toEqual([480, 480, 480, 480, 480, 480]);
+    expect(week[6]).toBe(0);
+    expect(AVAILABILITY_MAX_MIN).toBe(480);
   });
 
   it('falls back to 120 on school days and 180 at the weekend', () => {

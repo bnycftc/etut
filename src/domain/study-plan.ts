@@ -64,13 +64,17 @@ const MAX_BLOCK_MIN = 60;
 /** Days of a plan week, Monday first. */
 const WEEKDAYS: readonly Weekday[] = [0, 1, 2, 3, 4, 5, 6];
 
+/** Most minutes a day can hold (8 hours): the availability editor's and the stored value's limit. */
+export const AVAILABILITY_MAX_MIN = 480;
+
 /**
- * Default availability: a positive daily goal is used Monday–Saturday (Sunday off, a rest day).
+ * Default availability: a positive daily goal is used Monday–Saturday (Sunday off, a rest day),
+ * capped at `AVAILABILITY_MAX_MIN` (a goal above 8 hours would make every day invalid to store).
  * Without a goal the week falls back to 2 hours on school days and 3 hours at the weekend.
  */
 export function defaultAvailability(dailyGoalMin: number | null): Availability {
   if (dailyGoalMin !== null && Number.isFinite(dailyGoalMin) && dailyGoalMin > 0) {
-    const goal = Math.round(dailyGoalMin);
+    const goal = Math.min(AVAILABILITY_MAX_MIN, Math.round(dailyGoalMin));
     return { 0: goal, 1: goal, 2: goal, 3: goal, 4: goal, 5: goal, 6: 0 };
   }
   return { 0: 120, 1: 120, 2: 120, 3: 120, 4: 120, 5: 180, 6: 180 };

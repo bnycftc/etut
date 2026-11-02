@@ -11,6 +11,7 @@ import { resolveExamDate } from '../domain/exam-dates';
 import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey, istanbulWeekday } from '../domain/istanbul-day';
 import type { Profile } from '../domain/profile';
 import {
+  AVAILABILITY_MAX_MIN,
   type Availability,
   buildWeekPlan,
   type BuildWeekPlanInput,
@@ -30,7 +31,7 @@ import { loadTopicStatuses } from './topics';
 const KEY = 'etut.studyAvailability.v1';
 
 /** The editor's limits: 0 (rest day) to 8 hours a day, in 15 minute steps. */
-export const AVAILABILITY_MAX_MIN = 480;
+export { AVAILABILITY_MAX_MIN };
 export const AVAILABILITY_STEP_MIN = 15;
 
 export const WEEKDAYS: readonly Weekday[] = [0, 1, 2, 3, 4, 5, 6];
