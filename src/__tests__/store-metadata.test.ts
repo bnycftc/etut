@@ -91,6 +91,35 @@ it('support and marketing URLs are the public site', () => {
   }
 });
 
+it('no trial or other-platform wording anywhere in the listing or the review notes (Guidelines 2.3.7, 2.3.10)', () => {
+  for (const text of [name, subtitle, keywords, promotional, description, whatsNew, notes]) {
+    const lower = text.toLocaleLowerCase('tr');
+    for (const phrase of ['ücretsiz deneme', 'deneme sürümü', 'deneme süresi', 'free trial', 'android', 'google play']) {
+      expect(lower).not.toContain(phrase);
+    }
+  }
+});
+
+it('0.5.0 listing names the new features that exist: today’s plan, Plan tab, net calculator, topic detail, iPad', () => {
+  for (const feature of ['Bugünün planı', 'Plan sekmesi', 'Net hesapla', 'Konu detayı', 'iPad']) {
+    expect(description).toContain(feature);
+    expect(whatsNew).toContain(feature);
+  }
+});
+
+it('review notes: a short numbered demo path (1 to 9), no hidden Groups tab, no contact details', () => {
+  const lines = notes.split('\n');
+  expect(lines.length).toBeLessThanOrEqual(12);
+  const steps = lines.filter((l) => /^\d+\. /.test(l)).map((l) => Number(l.split('.')[0]));
+  expect(steps).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  expect(notes).toContain('Örnek verilerle gez');
+  expect(notes).toContain('Örnek moddan çık');
+  expect(notes).toContain('iPad');
+  expect(notes).not.toMatch(/gruplar|groups/i);
+  // Contact goes only in the App Review Information fields of App Store Connect.
+  expect(notes).not.toMatch(/@|https?:\/\/|\+?\d[\d ()-]{8,}\d/);
+});
+
 it('age-rating.json parses and uses only API value shapes', () => {
   const parsed = JSON.parse(read('age-rating.json')) as { attributes: Record<string, unknown> };
   const entries = Object.entries(parsed.attributes);
