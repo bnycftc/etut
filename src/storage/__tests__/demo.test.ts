@@ -9,6 +9,8 @@
  * the flag survives a restart (fresh modules over the same "disk") and reopens the demo files.
  */
 
+import { buildBackupFile, parseBackup, serializeBackup } from '../../domain/backup';
+import { type CsvLabels, examRows, sessionRows, toCsv } from '../../domain/csv';
 import { startSession } from '../../domain/timer';
 
 interface MockDisk {
@@ -264,4 +266,70 @@ it('builds the example data again when entered twice', () => {
   expect(m.backup.readBackupData().exams.every((e) => e.kind === 'LGS')).toBe(true);
   m.demo.exitDemo();
   expect(realRows()).toEqual(realRowsBefore);
+});
+
+describe('export after a demo visit (backup file and CSV)', () => {
+  const labels: CsvLabels = {
+    subject: (id) => id,
+    topic: (id) => id,
+    source: (s) => s,
+    examKind: (k) => k,
+    scope: (s) => s,
+    yesNo: (v) => (v ? 'evet' : 'hayır'),
+  };
+  /** What "Yedek al" and the CSV buttons of app/yedek.tsx build from the open data files. */
+  const exportNow = () => {
+    const data = m.backup.readBackupData();
+    const json = serializeBackup(buildBackupFile(data, m.kv.loadProfile(), NOW, '0.5.0'));
+    return {
+      json,
+      sessionsCsv: toCsv(['day'], sessionRows(data.sessions, labels)),
+      examsCsv: toCsv(['day'], examRows(data.exams, labels)),
+    };
+  };
+  const csvLines = (csv: string) => csv.trimEnd().split('\r\n');
+
+  it('reads the example data while demo mode is on (why the app refuses to export then)', () => {
+    m.demo.enterDemo(PROFILE, NOW);
+    const { json, sessionsCsv, examsCsv } = exportNow();
+    const parsed = parseBackup(json);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    // The open file is the demo one: none of the student's own rows, all of the example ones.
+    expect(parsed.file.sessions.some((s) => s.id === 'real-1')).toBe(false);
+    expect(parsed.file.sessions.length).toBeGreaterThan(60);
+    expect(parsed.file.settings.dailyGoalMinutes).toBe(150);
+    expect(csvLines(sessionsCsv).length - 1).toBe(parsed.file.sessions.length);
+    expect(csvLines(examsCsv).length).toBeGreaterThan(1);
+    m.demo.exitDemo();
+  });
+
+  it('exports only the student’s own data after leaving, nothing written in demo mode', () => {
+    const before = exportNow();
+    m.demo.enterDemo(PROFILE, NOW);
+    // Using the app in demo mode adds rows and changes settings in the demo files.
+    m.sessions.saveSession({ ...REAL_SESSION, id: 'demo-new', subjectId: 'fizik' }, NOW);
+    m.kv.storeDailyGoal(30, '2026-10-12');
+    m.subjectTargets.storeSubjectTarget('matematik', 600);
+    m.demo.exitDemo();
+
+    const after = exportNow();
+    // The same three files as before the visit (the export time is fixed here).
+    expect(after).toEqual(before);
+    const parsed = parseBackup(after.json);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.file.sessions.map((s) => s.id)).toEqual(['real-1']);
+    expect(parsed.file.exams).toEqual([]);
+    expect(parsed.file.topicProgress).toEqual([]);
+    expect(parsed.file.settings.dailyGoalMinutes).toBe(60);
+    expect(parsed.file.settings.subjectWeeklyTargets).toEqual({ tarih: 120 });
+    expect(parsed.file.profile).toEqual({ birthYear: 2008, examType: 'YKS', yksArea: 'esit_agirlik' });
+    // CSV: the header and the one real session; the exam file has the header only.
+    const rows = csvLines(after.sessionsCsv);
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toContain(';tarih;');
+    expect(after.sessionsCsv).not.toContain('fizik');
+    expect(csvLines(after.examsCsv)).toHaveLength(1);
+  });
 });

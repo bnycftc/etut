@@ -1,0 +1,104 @@
+# r. Haftalık plan: Sayaç'ta bugünün planı, Plan sekmesinde 7 gün, bir günün müsaitliği 0'a inince
+#    o gün dinlenme günü olur ve haftalık toplam değişir, "Planı yenile".
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+# No daily goal (step 3 skipped): the default availability is 120 min Mon-Fri, 180 min Sat-Sun.
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+# Sayaç: today's plan card below the timer (no session runs).
+- scrollUntilVisible:
+    element:
+      id: plan-card
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- takeScreenshot: r-plan-01-sayac-karti
+- tapOn:
+    id: tab-plan
+- extendedWaitUntil:
+    visible:
+      id: plan-summary
+    timeout: 15000
+- assertVisible:
+    id: plan-week-total
+- copyTextFrom:
+    id: plan-week-total
+- evalScript: ${output.weekBefore = maestro.copiedText}
+- scrollUntilVisible:
+    element:
+      id: plan-week
+    direction: DOWN
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: plan-day-0
+    direction: DOWN
+    timeout: 20000
+# Monday has 120 min by default: the day has study blocks.
+- assertNotVisible:
+    id: plan-day-total-0
+    text: "Dinlenme günü"
+- takeScreenshot: r-plan-02-hafta
+# Availability editor at the bottom: Monday down to 0 in 15-minute steps. The − button turns off
+# at 0; the loop stops there (40 taps at most, 120 / 15 = 8 are needed).
+- scrollUntilVisible:
+    element:
+      id: plan-availability-0-minus
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+- repeat:
+    while:
+      visible:
+        id: plan-availability-0-minus
+        enabled: true
+    times: 40
+    commands:
+      - tapOn:
+          id: plan-availability-0-minus
+- assertVisible:
+    id: plan-availability-0-minus
+    enabled: false
+- assertVisible:
+    id: plan-availability-0-plus
+    enabled: true
+- takeScreenshot: r-plan-03-musaitlik
+# Monday is now a rest day and the week total went down with it.
+- scrollUntilVisible:
+    element:
+      id: plan-day-0
+    direction: UP
+    timeout: 30000
+- assertVisible:
+    id: plan-day-total-0
+    text: "Dinlenme günü"
+- scrollUntilVisible:
+    element:
+      id: plan-week-total
+    direction: UP
+    timeout: 30000
+- copyTextFrom:
+    id: plan-week-total
+- evalScript: ${output.weekAfter = maestro.copiedText}
+- assertTrue:
+    condition: ${output.weekAfter != output.weekBefore}
+    label: Haftalık toplam müsaitlikle değişti
+# "Planı yenile" computes the plan again from the stored data: the change stays.
+- tapOn:
+    id: plan-refresh
+- extendedWaitUntil:
+    visible:
+      id: plan-week-total
+    timeout: 10000
+- copyTextFrom:
+    id: plan-week-total
+- assertTrue:
+    condition: ${maestro.copiedText == output.weekAfter}
+    label: Yenilenen plan aynı müsaitliği kullanıyor
+- takeScreenshot: r-plan-04-yenilendi

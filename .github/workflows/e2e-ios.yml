@@ -9,14 +9,16 @@ name: E2E iOS (simulator)
 # Every night on main, and by hand (Actions → "E2E iOS (simulator)" → Run workflow). A run takes
 # about an hour, so a push never starts it; the nightly run is the regular automatic check of the
 # Live Activity and the widget on iOS.
-# By hand with "ipad" on, a second job also runs the first-launch and timer flows
-# (a-ilk-acilis, b-sayac) on an iPad Air 11-inch (M3) simulator (app.json ios.supportsTablet).
+# By hand with "ipad" on, a second job also runs the first-launch, timer, example-data and plan
+# flows (a-ilk-acilis, b-sayac, q-ornek-veri, r-plan) on an iPad Air 11-inch (M3) simulator
+# (app.json ios.supportsTablet). The iPhone job runs every flow in e2e/ (e2e/config.yaml: "*"),
+# so new flows such as r-plan, s-net-hesapla and t-konu-detay are part of it without a list here.
 
 on:
   workflow_dispatch:
     inputs:
       ipad:
-        description: "Also run a-ilk-acilis and b-sayac on an iPad Air 11-inch (M3) simulator"
+        description: "Also run a-ilk-acilis, b-sayac, q-ornek-veri and r-plan on an iPad Air 11-inch (M3) simulator"
         type: boolean
         default: false
   schedule:
@@ -60,8 +62,9 @@ jobs:
         device: ${{ fromJSON(inputs.ipad && '["iphone","ipad"]' || '["iphone"]') }}
     env:
       DEVICE: ${{ matrix.device }}
-      # iPad runs only the first-launch and timer flows; iPhone runs every flow in e2e/.
-      FLOWS: ${{ matrix.device == 'ipad' && 'e2e/a-ilk-acilis.yaml e2e/b-sayac.yaml' || '' }}
+      # iPad runs the first-launch, timer, example-data and plan flows; iPhone runs every flow in
+      # e2e/ (r-plan, s-net-hesapla and t-konu-detay included).
+      FLOWS: ${{ matrix.device == 'ipad' && 'e2e/a-ilk-acilis.yaml e2e/b-sayac.yaml e2e/q-ornek-veri.yaml e2e/r-plan.yaml' || '' }}
       IPAD_MODEL: "iPad Air 11-inch (M3)"
     steps:
       - uses: actions/checkout@v4

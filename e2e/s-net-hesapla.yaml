@@ -1,0 +1,102 @@
+# s. Net hesapla: Denemeler → "Net hesapla" → TYT, Türkçe 30 doğru 8 yanlış = 28 net
+#    (net = doğru − yanlış/4) → "Deneme olarak kaydet" yeni deneme formunu aynı sayılarla açar.
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: subflows/onboarding-yks.yaml
+    env:
+      AGE: "20"
+- tapOn:
+    id: tab-exams
+- scrollUntilVisible:
+    element:
+      id: exams-net-calc
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: exams-net-calc
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: net-calc
+    timeout: 15000
+# Sayısal: TYT and AYT Sayısal; TYT is the first one.
+- tapOn:
+    id: net-calc-kind-TYT
+- assertVisible:
+    id: net-calc-kind-TYT
+    selected: true
+- tapOn:
+    id: net-calc-correct-turkce
+# Typing before the number pad is up can be lost (see e-deneme).
+- waitForAnimationToEnd:
+    timeout: 5000
+- inputText: "30"
+- tapOn:
+    id: net-calc-wrong-turkce
+- waitForAnimationToEnd:
+    timeout: 5000
+- inputText: "8"
+# The number pad has no return key: the system's own "Bitti" bar above it closes it.
+- runFlow:
+    when:
+      visible:
+        text: "Bitti"
+    commands:
+      - tapOn:
+          text: "Bitti"
+      - waitForAnimationToEnd:
+          timeout: 5000
+- assertVisible:
+    id: net-calc-net-turkce
+    text: "28"
+- scrollUntilVisible:
+    element:
+      id: net-calc-total
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- assertVisible:
+    id: net-calc-total
+    text: "28"
+- takeScreenshot: s-net-01-hesap
+- scrollUntilVisible:
+    element:
+      id: net-calc-save
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: net-calc-save
+    retryTapIfNoChange: true
+# The new-exam form opens filled in: the same paper and counts, so the same nets.
+- extendedWaitUntil:
+    visible:
+      id: exam-form
+    timeout: 15000
+- assertVisible:
+    id: exam-kind-TYT
+    selected: true
+- scrollUntilVisible:
+    element:
+      id: exam-net-turkce
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- assertVisible:
+    id: exam-net-turkce
+    text: "28"
+- scrollUntilVisible:
+    element:
+      id: exam-total-net
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: exam-total-net
+    text: "28"
+- takeScreenshot: s-net-02-deneme-formu
