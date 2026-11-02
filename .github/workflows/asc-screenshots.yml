@@ -1,8 +1,13 @@
-# Uploads the App Store screenshots of Etüt (App Store Connect app 6818980777): the PNGs of the
-# given run go to the tr localization of the editable App Store version, display type
-# APP_IPHONE_67. A store-frames.yml run gives the framed set (artifact
-# app-store-screenshots-6.9-framed), a store-screenshots.yml run the raw screens
-# (app-store-screenshots-6.9).
+# Uploads the App Store screenshots and app previews of Etüt (App Store Connect app 6818980777): the
+# files of the given run go to the tr localization of the editable App Store version. Input target:
+#   iphone          PNG, display type APP_IPHONE_67, 1320 × 2868. A store-frames.yml run gives the
+#                   framed set (artifact app-store-screenshots-6.9-framed), a store-screenshots.yml
+#                   run the raw screens (app-store-screenshots-6.9).
+#   ipad            PNG, display type APP_IPAD_PRO_3GEN_129 (13-inch iPad), 2064 × 2752, from the iPad
+#                   leg of a store-screenshots.yml run (artifact app-store-screenshots-ipad-13).
+#   preview-iphone  App preview video, preview type IPHONE_67: NN-name.mp4, H.264, 886 × 1920,
+#                   30 fps, 15 to 30 s, at most 3 (artifact app-store-preview-6.9 of the given run;
+#                   store/app-store/preview-storyboard.md says how it is recorded).
 # The editable version must be the version in app.json on the branch this workflow runs on
 # (release/<version> for a store set), otherwise it stops before any write, dry run included:
 # screenshots of one app version never land on another (0.4.0 in review, 0.4.1 in TestFlight).
@@ -10,13 +15,14 @@
 # ScreenshotDisplayType has no 6.9-inch value: APP_IPHONE_67 is the largest iPhone one, the slot
 # App Store Connect calls "iPhone with Dynamic Island (large display)", which takes 1320 × 2868
 # (iPhone 17 Pro Max, 16 Pro Max) next to 1290 × 2796 and 1260 × 2736.
-# Default is a dry run: it prints the screenshots in the set now, the files and their order, and
-# writes nothing. With apply=true it replaces the set: it uploads the first file, deletes the
-# screenshots that were there, uploads the rest in filename order (01-…), waits until App Store
+# Default is a dry run: it prints the screenshots (or previews) in the set now, the files and their
+# order, and writes nothing. With apply=true it replaces the set: it uploads the first file, deletes
+# the items that were there, uploads the rest in filename order (01-…), waits until App Store
 # Connect has processed each one and fixes the order. If nothing differs it writes nothing. It writes
-# only screenshot endpoints: never metadata, builds, review submission, pricing or availability.
+# only screenshot and preview endpoints: never metadata, builds, review submission, pricing or
+# availability.
 # Same API key secrets as asc-key-check.yml.
-# API 4.5.1 deprecated appScreenshotSets/appScreenshots in favour of the App Asset Library and its
+# API 4.5.1 deprecated appScreenshotSets/appScreenshots (and the preview sets) in favour of the App Asset Library and its
 # placements; this uses the set-based flow, which is still documented. The dry run also prints the
 # localization's library placements, read only, so a mismatch between the two shows before a write.
 name: ASC screenshots
@@ -25,16 +31,24 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: Run ID of a successful store-frames.yml (framed) or store-screenshots.yml (raw) run
+        description: Run ID of a successful store-frames.yml (framed), store-screenshots.yml (raw, iPhone or iPad) or preview run
         required: true
         type: string
+      target:
+        description: Which set (iphone = APP_IPHONE_67, ipad = APP_IPAD_PRO_3GEN_129, preview-iphone = app preview IPHONE_67)
+        type: choice
+        options:
+          - iphone
+          - ipad
+          - preview-iphone
+        default: iphone
       expect_version:
         description: App Store version the screenshots are for (optional; must equal app.json on this branch)
         required: false
         type: string
         default: ""
       apply:
-        description: Replace the screenshots (false = dry run, print only)
+        description: Replace the set (false = dry run, print only)
         type: boolean
         default: false
 
@@ -75,6 +89,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.run_id }}
+          TARGET: ${{ inputs.target }}
         run: |
           case "$RUN_ID" in
             ''|*[!0-9]*) echo "::error::run_id must be a number"; exit 1 ;;
@@ -83,10 +98,15 @@ jobs:
             --jq '[.path, (.conclusion // "none"), (.head_branch // "-"), .head_sha, .created_at] | @tsv')"
           IFS=$'\t' read -r path conclusion branch sha created <<< "$info"
           echo "run $RUN_ID: $path, $conclusion, branch $branch, commit $sha, $created"
-          case "$path" in
-            .github/workflows/store-frames.yml|.github/workflows/store-frames.yml@*) artifact=app-store-screenshots-6.9-framed ;;
-            .github/workflows/store-screenshots.yml|.github/workflows/store-screenshots.yml@*) artifact=app-store-screenshots-6.9 ;;
-            *) echo "::error::run $RUN_ID is not a store-frames.yml or store-screenshots.yml run"; exit 1 ;;
+          workflow="${path%%@*}"
+          case "$TARGET:$workflow" in
+            iphone:.github/workflows/store-frames.yml) artifact=app-store-screenshots-6.9-framed ;;
+            iphone:.github/workflows/store-screenshots.yml) artifact=app-store-screenshots-6.9 ;;
+            ipad:.github/workflows/store-screenshots.yml) artifact=app-store-screenshots-ipad-13 ;;
+            # No workflow records the preview yet (preview-storyboard.md): any run that uploaded
+            # app-store-preview-6.9; the download below fails if it has none.
+            preview-iphone:*) artifact=app-store-preview-6.9 ;;
+            *) echo "::error::target $TARGET does not take run $RUN_ID ($workflow)"; exit 1 ;;
           esac
           [ "$conclusion" = "success" ] || { echo "::error::run $RUN_ID did not succeed ($conclusion)"; exit 1; }
           echo "artifact: $artifact"
@@ -100,28 +120,41 @@ jobs:
           run-id: ${{ inputs.run_id }}
           github-token: ${{ github.token }}
 
+      # Size, codec, frame rate and length of each preview are read from the file before any API call.
+      - name: Install ffprobe (previews)
+        if: inputs.target == 'preview-iphone'
+        run: command -v ffprobe || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; }
+
       - name: Sync the screenshots with App Store Connect
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           APPLY: ${{ inputs.apply }}
+          TARGET: ${{ inputs.target }}
           EXPECT_VERSION: ${{ steps.version.outputs.version }}
           SHOTS_DIR: shots
         run: |
           pip install --quiet pyjwt cryptography requests
           python3 - <<'PY'
-          import base64, glob, hashlib, os, re, struct, sys, time, jwt, requests
+          import base64, glob, hashlib, json, os, re, struct, subprocess, sys, time, jwt, requests
           from urllib.parse import urlparse
 
           APP = "6818980777"
           LOCALE = "tr"
-          DISPLAY_TYPE = "APP_IPHONE_67"
-          WIDTH, HEIGHT = 1320, 2868
-          MAX_SHOTS = 10
+          TARGETS = {
+              # set resource, item resource, set type attribute and value, size, most items, file extension
+              "iphone": ("appScreenshotSets", "appScreenshots", "screenshotDisplayType", "APP_IPHONE_67", (1320, 2868), 10, "png"),
+              "ipad": ("appScreenshotSets", "appScreenshots", "screenshotDisplayType", "APP_IPAD_PRO_3GEN_129", (2064, 2752), 10, "png"),
+              "preview-iphone": ("appPreviewSets", "appPreviews", "previewType", "IPHONE_67", (886, 1920), 3, "mp4"),
+          }
+          TARGET = os.environ["TARGET"]
+          SETS, ITEMS, TYPE_ATTR, DISPLAY_TYPE, (WIDTH, HEIGHT), MAX_SHOTS, EXT = TARGETS[TARGET]
+          SET_REL = SETS[:-1]  # appScreenshotSet / appPreviewSet
+          VIDEO = EXT == "mp4"
           APPLY = os.environ.get("APPLY") == "true"
           API = "https://api.appstoreconnect.apple.com/v1"
-          print("mode:", "APPLY (writes)" if APPLY else "DRY RUN (no writes)")
+          print("mode:", "APPLY (writes)" if APPLY else "DRY RUN (no writes)", "| target:", TARGET, DISPLAY_TYPE)
 
           # ---- Files (checked before any API call) ----
           def png_size(data):
@@ -131,20 +164,46 @@ jobs:
               width, height = struct.unpack(">II", data[16:24])
               return width, height, data[25]
 
+          def video_info(path):
+              """(width, height, codec, frames per second, seconds) of the first video stream, by ffprobe."""
+              out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                                    "stream=width,height,codec_name,avg_frame_rate:format=duration", "-of", "json", path],
+                                   capture_output=True, text=True)
+              if out.returncode != 0:
+                  return None
+              probe = json.loads(out.stdout)
+              s = (probe.get("streams") or [{}])[0]
+              num, _, den = (s.get("avg_frame_rate") or "0/1").partition("/")
+              fps = float(num) / float(den) if float(den or 0) else 0.0
+              return s.get("width"), s.get("height"), s.get("codec_name"), fps, float(probe["format"]["duration"])
+
           files, problems = [], []
-          for path in sorted(glob.glob(os.path.join(os.environ["SHOTS_DIR"], "*.png"))):
+          for path in sorted(glob.glob(os.path.join(os.environ["SHOTS_DIR"], f"*.{EXT}"))):
               name = os.path.basename(path)
               with open(path, "rb") as f:
                   data = f.read()
-              info = png_size(data)
-              if not re.fullmatch(r"\d\d-[a-z0-9-]+\.png", name):
-                  problems.append(f"{name}: not an NN-name.png store image")
-              elif info is None:
-                  problems.append(f"{name}: not a PNG")
-              elif info[:2] != (WIDTH, HEIGHT):
-                  problems.append(f"{name}: {info[0]}x{info[1]}, expected {WIDTH}x{HEIGHT}")
-              elif info[2] in (4, 6):
-                  problems.append(f"{name}: has an alpha channel")
+              if not re.fullmatch(rf"\d\d-[a-z0-9-]+\.{EXT}", name):
+                  problems.append(f"{name}: not an NN-name.{EXT} store file")
+              elif VIDEO:
+                  info = video_info(path)
+                  if info is None:
+                      problems.append(f"{name}: ffprobe cannot read it")
+                  elif info[:2] != (WIDTH, HEIGHT):
+                      problems.append(f"{name}: {info[0]}x{info[1]}, expected {WIDTH}x{HEIGHT}")
+                  elif info[2] != "h264":
+                      problems.append(f"{name}: codec {info[2]}, expected h264")
+                  elif not 29 <= info[3] <= 30.01:
+                      problems.append(f"{name}: {info[3]:.2f} fps, expected 30")
+                  elif not 15 <= info[4] <= 30:
+                      problems.append(f"{name}: {info[4]:.1f} s, App Store Connect takes 15 to 30 s")
+              else:
+                  info = png_size(data)
+                  if info is None:
+                      problems.append(f"{name}: not a PNG")
+                  elif info[:2] != (WIDTH, HEIGHT):
+                      problems.append(f"{name}: {info[0]}x{info[1]}, expected {WIDTH}x{HEIGHT}")
+                  elif info[2] in (4, 6):
+                      problems.append(f"{name}: has an alpha channel")
               files.append({"name": name, "data": data, "size": len(data), "md5": hashlib.md5(data).hexdigest()})
           numbers = [f["name"][:2] for f in files]
           if len(set(numbers)) != len(numbers):
@@ -152,8 +211,9 @@ jobs:
           if not 1 <= len(files) <= MAX_SHOTS:
               problems.append(f"{len(files)} files, App Store Connect takes 1 to {MAX_SHOTS}")
           if problems:
-              sys.exit("screenshot files invalid:\n  " + "\n  ".join(problems))
-          print(f"\nfiles: {len(files)}, {WIDTH}x{HEIGHT} PNG without alpha, upload order:")
+              sys.exit("files invalid:\n  " + "\n  ".join(problems))
+          print(f"\nfiles: {len(files)}, {WIDTH}x{HEIGHT} " + ("H.264 30 fps, 15 to 30 s" if VIDEO else "PNG without alpha")
+                + ", upload order:")
           for i, f in enumerate(files, 1):
               print(f"  {i}. {f['name']}  {f['size']} bytes  md5 {f['md5']}")
 
@@ -190,12 +250,16 @@ jobs:
 
           # The only writes this workflow makes. Anything else (metadata, builds, submissions,
           # prices, availability, App Privacy) is refused before a request is made.
-          WRITABLE = (
-              ("POST", r"/appScreenshotSets"),
-              ("POST", r"/appScreenshots"),
-              ("PATCH", r"/appScreenshots/[\w-]+"),
-              ("DELETE", r"/appScreenshots/[\w-]+"),
-              ("PATCH", r"/appScreenshotSets/[\w-]+/relationships/appScreenshots"),
+          WRITABLE = tuple(
+              (method, pattern.format(sets=s, items=i))
+              for s, i in (("appScreenshotSets", "appScreenshots"), ("appPreviewSets", "appPreviews"))
+              for method, pattern in (
+                  ("POST", r"/{sets}"),
+                  ("POST", r"/{items}"),
+                  ("PATCH", r"/{items}/[\w-]+"),
+                  ("DELETE", r"/{items}/[\w-]+"),
+                  ("PATCH", r"/{sets}/[\w-]+/relationships/{items}"),
+              )
           )
 
           def write(method, path, body=None):
@@ -226,7 +290,7 @@ jobs:
               return shot["attributes"].get("assetDeliveryState") or {}
 
           def set_screenshots(set_id):
-              return get(f"/appScreenshotSets/{set_id}/appScreenshots", {"limit": "50"})["data"]
+              return get(f"/{SETS}/{set_id}/{ITEMS}", {"limit": "50"})["data"]
 
           # ---- Editable App Store version and its tr localization ----
           EDITABLE_VERSION = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED",
@@ -252,16 +316,16 @@ jobs:
               print(f"no {LOCALE} localization on this version (asc-metadata.yml with apply=true creates it)")
               sys.exit(1 if APPLY else 0)
 
-          # ---- Screenshot set and what it holds now ----
-          sets = get(f"/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets", {"limit": "50"})["data"]
-          print(f"\n[{LOCALE} screenshot sets]", sorted(str(s["attributes"].get("screenshotDisplayType")) for s in sets))
-          shot_set = next((s for s in sets if s["attributes"].get("screenshotDisplayType") == DISPLAY_TYPE), None)
+          # ---- Screenshot or preview set and what it holds now ----
+          sets = get(f"/appStoreVersionLocalizations/{loc['id']}/{SETS}", {"limit": "50"})["data"]
+          print(f"\n[{LOCALE} {SETS}]", sorted(str(s["attributes"].get(TYPE_ATTR)) for s in sets))
+          shot_set = next((s for s in sets if s["attributes"].get(TYPE_ATTR) == DISPLAY_TYPE), None)
           existing = set_screenshots(shot_set["id"]) if shot_set else []
           local_names = {f["md5"]: f["name"] for f in files}
           if shot_set is None:
               print(f"{DISPLAY_TYPE}: no set yet (apply creates it)")
           else:
-              print(f"{DISPLAY_TYPE}: set {shot_set['id']}, {len(existing)} screenshot(s) now:")
+              print(f"{DISPLAY_TYPE}: set {shot_set['id']}, {len(existing)} item(s) now:")
           for i, s in enumerate(existing, 1):
               a = s["attributes"]
               same = local_names.get(a.get("sourceFileChecksum"))
@@ -286,7 +350,7 @@ jobs:
               print("\nunchanged: the set already holds these files in this order")
               sys.exit(0)
 
-          print(f"\nplan: delete the {len(existing)} screenshot(s) above, upload {len(files)} in this order:")
+          print(f"\nplan: delete the {len(existing)} item(s) above, upload {len(files)} in this order:")
           for i, f in enumerate(files, 1):
               print(f"  {i}. {f['name']}")
           if not APPLY:
@@ -296,9 +360,9 @@ jobs:
           # ---- Apply ----
           if shot_set is None:
               print(f"\n[create set {DISPLAY_TYPE}]")
-              shot_set = write("POST", "/appScreenshotSets", {"data": {
-                  "type": "appScreenshotSets",
-                  "attributes": {"screenshotDisplayType": DISPLAY_TYPE},
+              shot_set = write("POST", f"/{SETS}", {"data": {
+                  "type": SETS,
+                  "attributes": {TYPE_ATTR: DISPLAY_TYPE},
                   "relationships": {"appStoreVersionLocalization": {
                       "data": {"type": "appStoreVersionLocalizations", "id": loc["id"]}}}}})["data"]
 
@@ -306,29 +370,32 @@ jobs:
           uploaded = []
           def upload(f):
               print(f"  {f['name']}")
-              shot = write("POST", "/appScreenshots", {"data": {
-                  "type": "appScreenshots",
-                  "attributes": {"fileName": f["name"], "fileSize": f["size"]},
-                  "relationships": {"appScreenshotSet": {"data": {"type": "appScreenshotSets", "id": shot_set["id"]}}}}})["data"]
+              attributes = {"fileName": f["name"], "fileSize": f["size"]}
+              if VIDEO:
+                  attributes["mimeType"] = "video/mp4"
+              shot = write("POST", f"/{ITEMS}", {"data": {
+                  "type": ITEMS,
+                  "attributes": attributes,
+                  "relationships": {SET_REL: {"data": {"type": SETS, "id": shot_set["id"]}}}}})["data"]
               ops = shot["attributes"].get("uploadOperations") or []
               if not ops:
                   sys.exit(f"{f['name']}: the reservation has no upload operations")
               for n, op in enumerate(ops, 1):
                   upload_part(op, f["data"], f"part {n}/{len(ops)}")
-              write("PATCH", f"/appScreenshots/{shot['id']}", {"data": {
-                  "type": "appScreenshots", "id": shot["id"],
+              write("PATCH", f"/{ITEMS}/{shot['id']}", {"data": {
+                  "type": ITEMS, "id": shot["id"],
                   "attributes": {"uploaded": True, "sourceFileChecksum": f["md5"]}}})
               uploaded.append((f["name"], shot["id"]))
 
           # The first file goes up before anything is deleted (if the set has room), so a refused
-          # write (deprecated resources) leaves the current screenshots in place.
+          # write (deprecated resources) leaves the current items in place.
           queue = list(files)
           if len(existing) < MAX_SHOTS:
               print("\n[upload, first file before deleting]")
               upload(queue.pop(0))
           print("\n[delete]")
           for s in existing:
-              write("DELETE", f"/appScreenshots/{s['id']}")
+              write("DELETE", f"/{ITEMS}/{s['id']}")
           print("\n[upload]")
           for f in queue:
               upload(f)
@@ -337,11 +404,11 @@ jobs:
           print("\n[processing]")
           failed = []
           pending = dict(uploaded)
-          deadline = time.time() + 900
+          deadline = time.time() + (1800 if VIDEO else 900)
           while pending and time.time() < deadline:
               time.sleep(5)
               for name, shot_id in list(pending.items()):
-                  state = delivery(get(f"/appScreenshots/{shot_id}")["data"])
+                  state = delivery(get(f"/{ITEMS}/{shot_id}")["data"])
                   if state.get("state") == "COMPLETE":
                       print(f"  {name}: COMPLETE")
                       del pending[name]
@@ -350,7 +417,7 @@ jobs:
                       failed.append(name)
                       del pending[name]
           for name in pending:
-              print(f"  {name}: not processed after 15 minutes")
+              print(f"  {name}: not processed in time")
               failed.append(name)
 
           print("\n[order]")
@@ -358,17 +425,17 @@ jobs:
           have = [s["id"] for s in set_screenshots(shot_set["id"])]
           if have != want:
               print("  differs from the file order: setting it")
-              write("PATCH", f"/appScreenshotSets/{shot_set['id']}/relationships/appScreenshots",
-                    {"data": [{"type": "appScreenshots", "id": shot_id} for shot_id in want]})
+              write("PATCH", f"/{SETS}/{shot_set['id']}/relationships/{ITEMS}",
+                    {"data": [{"type": ITEMS, "id": shot_id} for shot_id in want]})
               have = [s["id"] for s in set_screenshots(shot_set["id"])]
           names = {shot_id: name for name, shot_id in uploaded}
           for i, shot_id in enumerate(have, 1):
-              print(f"  {i}. {names.get(shot_id, 'unexpected screenshot ' + shot_id)}")
+              print(f"  {i}. {names.get(shot_id, 'unexpected item ' + shot_id)}")
           if have != want:
               failed.append("order")
 
           if failed:
               sys.exit("not finished: " + ", ".join(failed) + " (a rerun replaces the whole set again)")
-          print(f"\ndone: {len(files)} screenshots in {DISPLAY_TYPE} ({LOCALE})")
+          print(f"\ndone: {len(files)} {ITEMS} in {DISPLAY_TYPE} ({LOCALE})")
           print("not touched: metadata, builds, review submission, pricing, availability, App Privacy")
           PY

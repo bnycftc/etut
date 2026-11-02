@@ -1,11 +1,17 @@
-# App Store ekran görüntüleri (iPhone 6.9"): onboarding, demo yedeğini uygulamanın kendi "Yedekten
-# geri yükle" akışıyla yükleme, sonra mağaza görüntüleri. Yalnız .github/workflows/store-screenshots.yml
-# çalıştırır: o iş demo dosyasını (e2e/store/demo-backup.js) üretip simülatörün "iPhone'umda"
-# klasörüne etut-demo.json olarak koyar, durum çubuğunu 9:41'e sabitler, açık modu seçer.
-# Mağaza görüntüleri "NN-ad" adını taşır; "part-" olanlar kahraman karesi için gerçek Dynamic Island
-# ve Live Activity kırpmaları (Maestro cropOn), "tam-" olanlar aynı anların tam ekranı (cropOn
-# SpringBoard öğesini bulamazsa scripts/store-compose.mjs bunlardan kırpar); "debug-" olanlar
-# teşhis içindir. Koyu mod görüntüsü ayrı akışta: e2e/store/screenshots-dark.yaml.
+# App Store ekran görüntüleri (iPhone 6.9" ve iPad 13"; aynı akış iki cihazda): onboarding'in son
+# adımında "Örnek verilerle gez" ile demo moduna uygulamanın içinden girilir (yedek dosyası yok),
+# sonra mağaza görüntüleri alınır. Yalnız .github/workflows/store-screenshots.yml çalıştırır: o iş
+# durum çubuğunu 9:41'e sabitler, açık modu seçer, Pazar günü çalışmaz (örnek planda Pazar dinlenme
+# günü: "Bugünün planı" boş olur ve 04'teki "Başlat" bloğu bulunmaz).
+# Mağaza görüntüleri "NN-ad" adını taşır, dosya adı sırası mağaza sırasıdır:
+#   01 Bugünün planı · 02 net grafiği · 03 ders karnesi (en çok yanlış yapılan konular)
+#   04 çalışan sayaç (pomodoro, plandan başlatılmış) · 05 Net hesapla · 06 Konular · 07 Plan sekmesi
+# "part-" olanlar kahraman karesi için gerçek Dynamic Island ve Live Activity kırpmaları (Maestro
+# cropOn), "tam-" olanlar aynı anların tam ekranı (cropOn SpringBoard öğesini bulamazsa
+# scripts/store-compose.mjs bunlardan kırpar); "debug-" olanlar teşhis içindir. iPad'de Dynamic
+# Island yoktur, oradaki part-/tam- görüntüleri kullanılmaz. Akışın sonunda sayaç bitirilir ve
+# örnek moddan çıkılır: ardından koşan koyu mod akışı (e2e/store/screenshots-dark.yaml) "Yedekle ve
+# geri yükle" ekranını gerçek modda çeker ("Örnek modda yedek alınmaz" uyarısı olmadan).
 # Çerçeveli set (başlık, arka plan): scripts/store-compose.mjs, store/app-store/tr/screenshots.json.
 appId: com.bnycftc.etut
 tags:
@@ -13,122 +19,110 @@ tags:
 ---
 - launchApp:
     clearState: true
-- runFlow:
-    file: ../subflows/onboarding-yks.yaml
-    env:
-      AGE: "18"
 
-# --- Demo verisini yükle (Ayarlar → Yedekle ve geri yükle → Yedekten geri yükle) ---
-- tapOn:
-    id: tab-settings
-# Scroll past the button (to "Tüm verileri sil" below it): when the scroll stops as soon as the
-# button shows, it can sit under the tab bar and the tap lands there (run 38238796629).
+# --- Onboarding → "Örnek verilerle gez" (as e2e/q-ornek-veri.yaml) ---
+- extendedWaitUntil:
+    visible:
+      id: onboarding-screen
+    timeout: 60000
+# Centred: Maestro counts a chip under the fixed bar as visible.
 - scrollUntilVisible:
     element:
-      id: settings-delete-all
+      id: exam-type-YKS
     direction: DOWN
+    centerElement: true
     timeout: 20000
 - tapOn:
-    id: settings-open-backup
+    id: exam-type-YKS
+    retryTapIfNoChange: true
+- scrollUntilVisible:
+    element:
+      id: yks-area-sayisal
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: yks-area-sayisal
     retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
-      id: backup-import
+      id: onboarding-next
+      enabled: true
+    timeout: 30000
+- tapOn:
+    id: onboarding-next
+- extendedWaitUntil:
+    visible:
+      id: onboarding-countdown
     timeout: 15000
 - tapOn:
-    id: backup-import
-# The system document picker (Files UI, out of process). Where it opens differs between iOS
-# versions (iOS 26: the empty "Son Kullanılanlar", tab "Göz At"; or the last folder): reach
-# "iPhone'umda" step by step, each step only when the file is not shown yet.
+    id: onboarding-next
 - extendedWaitUntil:
     visible:
-      text: "etut-demo.*|Göz At|Gözat|Browse|Son Kullanılanlar|Recents|iPhone.umda|On My iPhone"
-    # The first picker of a fresh simulator can stay blank for more than 30 s (run 38299848466).
-    timeout: 90000
-- takeScreenshot: debug-picker-1
-- runFlow:
-    when:
-      notVisible:
-        text: "etut-demo.*"
-    commands:
-      - tapOn:
-          text: "Göz At|Gözat|Browse"
-          optional: true
-      - waitForAnimationToEnd:
-          timeout: 3000
-      - takeScreenshot: debug-picker-2
-- runFlow:
-    when:
-      notVisible:
-        text: "etut-demo.*"
-    commands:
-      - tapOn:
-          text: "iPhone.umda|On My iPhone"
-          optional: true
-      - waitForAnimationToEnd:
-          timeout: 3000
-      - takeScreenshot: debug-picker-3
+      id: onboarding-goal-120
+    timeout: 15000
+- tapOn:
+    id: onboarding-next
+- scrollUntilVisible:
+    element:
+      id: "birth-year-${new Date().getFullYear() - 18}"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "birth-year-${new Date().getFullYear() - 18}"
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
-      text: "etut-demo.*"
+      id: onboarding-demo
+      enabled: true
+    timeout: 30000
+- tapOn:
+    id: onboarding-demo
+    retryTapIfNoChange: true
+- runFlow:
+    file: ../subflows/ipucu-gec.yaml
+
+# --- 01 Bugünün planı (Sayaç) ---
+- extendedWaitUntil:
+    visible:
+      id: plan-card
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: plan-card
+    direction: DOWN
+    centerElement: true
     timeout: 20000
 - waitForAnimationToEnd:
-    timeout: 5000
-# The whole file cell (its accessibility id); a tap on the name label while the folder was still
-# settling did nothing (run 38245503752). One more tap if the picker is still up.
+    timeout: 3000
+- takeScreenshot: 01-bugunun-plani
+
+# --- 06 Konular (topic list with the TYT / AYT progress) ---
+- scrollUntilVisible:
+    element:
+      id: open-topics
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
 - tapOn:
-    id: "etut-demo.json.*"
+    id: open-topics
     retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
-      id: backup-preview
+      id: topics-screen
     timeout: 15000
-    optional: true
-- runFlow:
-    when:
-      visible:
-        text: "etut-demo.*"
-    commands:
-      - takeScreenshot: debug-picker-4
-      - tapOn:
-          id: "etut-demo.json.*"
-- extendedWaitUntil:
-    visible:
-      id: backup-preview
-    timeout: 30000
-- takeScreenshot: debug-onizleme
-# "Birleştir" is preselected: the onboarding profile (YKS Sayısal) stays, the file's goal, targets
-# and data are added.
-- scrollUntilVisible:
-    element:
-      id: backup-confirm
-    direction: DOWN
-    timeout: 20000
-- tapOn:
-    id: backup-confirm
-- scrollUntilVisible:
-    element:
-      id: backup-message
-    direction: UP
-    timeout: 20000
-- takeScreenshot: debug-yuklendi
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 06-konular
 
-# --- 01 Ana sayfa: geri sayım, bugün, seri, günlük hedef, dersler ---
-# A fresh launch drops the settings stack and opens on the timer tab with the restored data.
+# --- 02 Net grafiği ---
+# A fresh launch drops the pushed screens and opens on the timer tab; demo mode stays on.
 - launchApp
 - extendedWaitUntil:
     visible:
-      id: streak
+      id: timer-screen
     timeout: 30000
-- extendedWaitUntil:
-    visible:
-      id: countdown
-    timeout: 10000
-- waitForAnimationToEnd:
-    timeout: 3000
-- takeScreenshot: 01-ana-sayfa
-
-# --- 03 Deneme grafiği, 04 deneme analizi (son TYT) ---
 - tapOn:
     id: tab-exams
 - extendedWaitUntil:
@@ -137,23 +131,63 @@ tags:
     timeout: 20000
 - waitForAnimationToEnd:
     timeout: 3000
-- takeScreenshot: 03-deneme-grafigi
+- takeScreenshot: 02-net-grafigi
+
+# --- 05 Net hesapla (TYT, the first paper, is preselected) ---
 - scrollUntilVisible:
     element:
-      id: exam-item-0
-    direction: DOWN
-    timeout: 30000
+      id: exams-net-calc
+    direction: UP
+    timeout: 20000
 - tapOn:
-    id: exam-item-0
+    id: exams-net-calc
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
-      id: exam-detail-total
+      id: net-calc
     timeout: 15000
+- tapOn:
+    id: net-calc-correct-turkce
+- inputText: "31"
+- tapOn:
+    id: net-calc-wrong-turkce
+- inputText: "6"
+- scrollUntilVisible:
+    element:
+      id: net-calc-correct-matematik
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: net-calc-correct-matematik
+- inputText: "27"
+- tapOn:
+    id: net-calc-wrong-matematik
+- inputText: "7"
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: net-calc-net-matematik
+      text: "25.*"
+    timeout: 10000
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: net-calc-net-turkce
+    direction: UP
+    timeout: 20000
 - waitForAnimationToEnd:
     timeout: 3000
-- takeScreenshot: 04-deneme-analizi
+- takeScreenshot: 05-net-hesapla
+- scrollUntilVisible:
+    element:
+      id: net-calc-close
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: net-calc-close
 
-# --- 05 Ders karnesi (Matematik, son ders) ---
+# --- 03 Ders karnesi: net charts and the most missed topics (last subject) ---
 - launchApp
 - extendedWaitUntil:
     visible:
@@ -171,13 +205,9 @@ tags:
       id: report-screen
     timeout: 15000
 # Down to the net charts and the most missed topics: the "this week" figures above depend on the
-# weekday of the run (little on a Monday). Maestro scrolls in 40 % swipes (about 550 pt with the
-# fling on CI) and "centerElement" stops as soon as the card's centre is above 70 % of the screen,
-# so where the card lands is chance: run 38303014516 ended at the bottom with the card's top at
-# y = 7, its title under the 116 pt header. Instead: to the end of the screen (last card, one more
-# scroll), a position set only by the demo data of the two bottom cards (card top ≈ 7), then a
-# 17 % swipe back (≈ 160 pt, up to ≈ 330 with a fling): the card's top lands between ≈ 165 and
-# ≈ 340, its bottom above the home indicator.
+# weekday of the run. To the end of the screen (last card, one more scroll), then a 17 % swipe back:
+# the card's top lands well below the header and its bottom above the home indicator (see the
+# history of this flow, runs 38303014516 and after).
 - scrollUntilVisible:
     element:
       id: report-missed
@@ -191,60 +221,29 @@ tags:
     duration: 1000
 - waitForAnimationToEnd:
     timeout: 3000
-- takeScreenshot: 05-ders-karnesi
+- takeScreenshot: 03-ders-karnesi
 
-# --- 06 Haftalık özet (geçen hafta, her zaman tam), 07 aylık takvim ---
+# --- 07 Plan sekmesi: the week day by day ---
 - launchApp
 - extendedWaitUntil:
     visible:
-      id: today-total
+      id: timer-screen
     timeout: 30000
-- scrollUntilVisible:
-    element:
-      id: open-weekly
-    direction: DOWN
-    timeout: 20000
 - tapOn:
-    id: open-weekly
+    id: tab-plan
 - extendedWaitUntil:
     visible:
-      id: weekly-total
-    timeout: 15000
-# This week holds only the days so far; last week is a full one whatever the weekday of the run.
-- tapOn:
-    id: weekly-prev
-    retryTapIfNoChange: true
+      id: plan-week
+    timeout: 20000
 - waitForAnimationToEnd:
     timeout: 3000
-- takeScreenshot: 06-haftalik-ozet
-- scrollUntilVisible:
-    element:
-      id: monthly-grid
-    direction: DOWN
-    timeout: 30000
-# Early in a month this month has only a few days: show the previous one, full of data.
-- runFlow:
-    when:
-      true: "${new Date().getDate() < 10}"
-    commands:
-      - tapOn:
-          id: monthly-prev
-      - scrollUntilVisible:
-          element:
-            id: monthly-grid
-          direction: DOWN
-          timeout: 20000
-- waitForAnimationToEnd:
-    timeout: 3000
-- takeScreenshot: 07-aylik-takvim
+- takeScreenshot: 07-plan
 
-# The Lock Screen shots below need the away rule "Çalışmaya devam say": the Live Activity keeps
-# counting ("Çalışıyorsun") while the Notification Center is pulled down. Since 0.4.1 it is the
-# default (up to 3 h, src/domain/timer.ts DEFAULT_AWAY_RULE, AWAY_COUNT_MAX_MS) and clearState
-# above starts from it, so the flow no longer switches it in Ayarlar. Under "Sor" the activity would
-# say "Uygulamadan çıktın · mola sayılır" after 10 s (e2e/m-canli-sayac.yaml).
+# The Lock Screen shots below need the away rule "Çalışmaya devam say" (the default since 0.4.1,
+# src/domain/timer.ts DEFAULT_AWAY_RULE): the Live Activity keeps counting ("Çalışıyorsun") while
+# the Notification Center is pulled down.
 
-# --- 02 Çalışan sayaç (pomodoro; Matematik son ders olarak seçili) ---
+# --- 04 Running timer: pomodoro, started from the first block of today's plan ---
 - launchApp
 - extendedWaitUntil:
     visible:
@@ -260,11 +259,12 @@ tags:
     retryTapIfNoChange: true
 - scrollUntilVisible:
     element:
-      id: timer-start
+      id: plan-block-start-0
     direction: DOWN
+    centerElement: true
     timeout: 20000
 - tapOn:
-    id: timer-start
+    id: plan-block-start-0
     retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
@@ -276,20 +276,17 @@ tags:
     direction: UP
     timeout: 20000
 # About 400 s into the 25 min block (Maestro has no sleep: wait for an id that never exists), so
-# the clock shows about 18:xx, the session total about 6:40 and the Live Activity's progress bar
-# has moved.
+# the clock shows about 18:xx and the Live Activity's progress bar has moved.
 - extendedWaitUntil:
     visible:
       id: e2e-never-present
     timeout: 400000
     optional: true
-- takeScreenshot: 02-sayac
+- takeScreenshot: 04-sayac
 
-# --- Hero parts: the real Dynamic Island and Lock Screen presentation, cropped ---
-# Only real renders, never a drawn device or Lock Screen (App Review 2.3.3). cropOn keeps the
-# system notifications ("Ready for Apple Intelligence") and the simulator's wrong Lock Screen date
-# out of the image. cropOn on SpringBoard elements is untested: the crops are optional and the
-# full shots (tam-) are kept for the luma fallback of scripts/store-compose.mjs.
+# --- Hero parts: the real Dynamic Island and Lock Screen presentation, cropped (iPhone) ---
+# Only real renders, never a drawn device or Lock Screen (App Review 2.3.3). The crops are optional
+# and the full shots (tam-) are kept for the luma fallback of scripts/store-compose.mjs.
 - pressKey: Home
 - extendedWaitUntil:
     visible:
@@ -312,11 +309,12 @@ tags:
       id: e2e-never-present
     timeout: 2000
     optional: true
-# A swipe is lost now and then on the CI simulator (run e2e-ios-37-1, retry): pull once more.
+# A swipe is lost now and then on the CI simulator: pull once more. The subject of the first plan
+# block is not fixed, so look for the activity text or the first-activity permission prompt.
 - runFlow:
     when:
       notVisible:
-        text: "Matematik"
+        text: "Çalışıyorsun|İzin Ver|Allow"
     commands:
       - swipe:
           start: 15%, 0%
@@ -353,3 +351,44 @@ tags:
     start: 50%, 99%
     end: 50%, 20%
     duration: 400
+
+# --- Clean up: finish the session and leave the sample data (for the dark mode flow) ---
+- launchApp
+- scrollUntilVisible:
+    element:
+      id: timer-finish
+    direction: DOWN
+    timeout: 30000
+- tapOn:
+    id: timer-finish
+    retryTapIfNoChange: true
+# Asked only after a long absence or a very long session; answered so the session is saved.
+- runFlow:
+    when:
+      visible:
+        id: finish-check
+    commands:
+      - tapOn:
+          id: finish-away-credit
+          optional: true
+      - tapOn:
+          id: finish-long-all
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: timer-saved
+    timeout: 15000
+- tapOn:
+    id: tab-settings
+- scrollUntilVisible:
+    element:
+      id: settings-demo-exit
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: settings-demo-exit
+- extendedWaitUntil:
+    visible:
+      id: settings-demo-enter
+    timeout: 15000

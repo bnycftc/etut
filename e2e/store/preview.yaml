@@ -1,0 +1,237 @@
+# App Store önizleme videosu (App Preview, iPhone 6.9") için akış: storyboard
+# store/app-store/preview-storyboard.md. Ekran görüntüsü almaz; kaydı akışın dışında simülatör yapar
+# (`xcrun simctl io booted recordVideo --codec=h264 ...`, ayrıntı storyboard'da). Bekleme adımları
+# (görünmeyecek bir id için extendedWaitUntil + optional) her sahneye izleyicinin okuyacağı kadar
+# süre verir; kesim ve 886×1920 30 fps dönüşümü ffmpeg ile kayıttan sonra yapılır.
+# Pazartesi–Cumartesi koşulur: örnek planda Pazar dinlenme günüdür, "Bugünün planı" boş kalır.
+# Kilit ekranı / Dynamic Island bu videoda yok (simülatör kaydında güvenilir değil); inceleme
+# notlarının 4. adımı onu gerçek iPhone'da gösterir.
+appId: com.bnycftc.etut
+tags:
+  - store
+---
+- launchApp:
+    clearState: true
+
+# 0–4 s: onboarding, exam and area, then the countdown to YKS.
+- extendedWaitUntil:
+    visible:
+      id: onboarding-screen
+    timeout: 60000
+- scrollUntilVisible:
+    element:
+      id: exam-type-YKS
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: exam-type-YKS
+    retryTapIfNoChange: true
+- scrollUntilVisible:
+    element:
+      id: yks-area-sayisal
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: yks-area-sayisal
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-next
+      enabled: true
+    timeout: 30000
+- tapOn:
+    id: onboarding-next
+- extendedWaitUntil:
+    visible:
+      id: onboarding-countdown
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 2000
+    optional: true
+- tapOn:
+    id: onboarding-next
+- extendedWaitUntil:
+    visible:
+      id: onboarding-goal-120
+    timeout: 15000
+- tapOn:
+    id: onboarding-next
+
+# 4–9 s: any birth year, "Örnek verilerle gez", the filled-in timer screen.
+- scrollUntilVisible:
+    element:
+      id: "birth-year-${new Date().getFullYear() - 18}"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "birth-year-${new Date().getFullYear() - 18}"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-demo
+      enabled: true
+    timeout: 30000
+- tapOn:
+    id: onboarding-demo
+    retryTapIfNoChange: true
+- runFlow:
+    file: ../subflows/ipucu-gec.yaml
+- extendedWaitUntil:
+    visible:
+      id: timer-screen
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 1500
+    optional: true
+
+# 9–14 s: today's plan, "Başlat" on the first block, the timer runs.
+- scrollUntilVisible:
+    element:
+      id: plan-block-start-0
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 1500
+    optional: true
+- tapOn:
+    id: plan-block-start-0
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: timer-clock
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: timer-clock
+    direction: UP
+    centerElement: true
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 3000
+    optional: true
+
+# 14–20 s: Denemeler, the net chart, then the most missed topics.
+- tapOn:
+    id: tab-exams
+- extendedWaitUntil:
+    visible:
+      id: exams-chart
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 2500
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: missed-window
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 2500
+    optional: true
+
+# 20–25 s: Net hesapla, then the topic list and one topic's detail (through the subject report,
+# which is open while the timer runs).
+- scrollUntilVisible:
+    element:
+      id: exams-net-calc
+    direction: UP
+    timeout: 20000
+- tapOn:
+    id: exams-net-calc
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: net-calc
+    timeout: 15000
+- tapOn:
+    id: net-calc-correct-turkce
+- inputText: "31"
+- tapOn:
+    id: net-calc-wrong-turkce
+- inputText: "6"
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 1500
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: net-calc-close
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: net-calc-close
+- tapOn:
+    id: tab-timer
+- scrollUntilVisible:
+    element:
+      id: open-report
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: open-report
+- extendedWaitUntil:
+    visible:
+      id: report-screen
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: report-open-topics
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: report-open-topics
+- extendedWaitUntil:
+    visible:
+      id: topics-screen
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 1500
+    optional: true
+- tapOn:
+    id: "topic-row-.*"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: topic-detail
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 2000
+    optional: true
+
+# 25–28 s: the Plan tab, the week day by day.
+- tapOn:
+    id: tab-plan
+- extendedWaitUntil:
+    visible:
+      id: plan-week
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: e2e-never-present
+    timeout: 3000
+    optional: true

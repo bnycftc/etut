@@ -1,1 +1,1 @@
-Çalışma süreni, deneme netlerini ve konu ilerlemeni tek yerde tut. Hesap açman gerekmez; uygulama internete bağlanmaz, veriler telefonunda kalır.
+Yeni: bugünün planı, haftalık Plan sekmesi, net hesaplayıcı ve konu detayı. Örnek verilerle gezip tanı. Hesap yok; uygulama internete bağlanmaz, veriler cihazında kalır.

@@ -1,15 +1,10 @@
 Bu sürümde:
 
-- Uygulamadan çıktığın süre artık çalışma sayılır, en fazla 3 saate kadar. Daha uzun ayrı kalırsan döndüğünde bir kez sorulur. Ayarlar’dan değiştirebilirsin.
-- Sayaç ekranını açık tutma artık başta kapalı; istersen Ayarlar’dan açarsın.
-- Deneme analizi daha hızlı: “Yanlış” ya da “Boş”u seç, konuya dokun; her dokunuş bir ekler.
-- En çok yanlış yaptığın konular artık son 5 analizli denemene bakar ve o denemeden beri o konuya ne kadar çalıştığını gösterir.
-- Günlük hedefini değiştirince seri, geçmiş günleri o günkü hedefinle değerlendirir.
-- Bitir’den sonra seçtiğin konuyu “Bitti” ya da “Tekrar lazım” diye işaretleyebilirsin.
-- Ana sayfada bugün çözdüğün soru sayısı da görünür; kıyaslanacak gün henüz yoksa kıyas kartı gösterilmez.
-- iPhone’da widget’ı nasıl ekleyeceğin ilk oturumdan sonra bir kez gösterilir.
-- Pomodoro için 50/10 ve 90/15 hazır ayarları.
-- Elle eklerken 15, 30, 45, 60 ve 90 dakikalık süre seçenekleri.
-- Konular’da tekrar bekleyen konular üstte.
-- Sınava kalan gün, o yılın sınavı geçince sonraki yılın tahmini tarihine kendiliğinden geçer.
-- Ayarlar’a “Geri bildirim gönder” eklendi.
+- Bugünün planı: sayaç ekranında bugün çalışacağın dersler ve konular. Başlat’a dokununca sayaç o ders ve konuyla başlar.
+- Yeni Plan sekmesi: haftanın planı gün gün. Sınava kalan süreye, konu işaretlerine ve denemelerde yanlış yaptığın konulara göre kurulur; her güne ayırabileceğin süreyi sen belirlersin.
+- Net hesapla (Denemeler): doğru ve yanlışı yaz, her bölümün neti ve toplam net hemen çıkar; istersen deneme olarak kaydet.
+- Konu detayı: bir konudaki süren, son oturumun ve denemelerdeki yanlış ve boşların tek ekranda; oradan doğrudan başlatırsın.
+- Konular’da TYT ve AYT konuları ayrı listelenir, her birinin ilerlemesi görünür; “Yalnız tekrar lazım” ile süzebilirsin.
+- İlk açılış adım adım: sınav ve alan, sınava kalan gün, isteğe bağlı günlük hedef, doğum yılı.
+- Örnek verilerle gez: uygulamayı dolu hâliyle tanı. Kendi kayıtların ayrı kalır; Ayarlar’dan “Örnek moddan çık” ile dönersin.
+- iPad desteği: Etüt artık iPad’de de kendi yerleşimiyle çalışır.
