@@ -180,7 +180,8 @@ const legalDocs = {
           // sayacının gösterdiği ders ve konu adı eklendi.
           // [AVUKAT TEYİDİ] 0.5.0: ortak alana planın sıradaki bloğu (ders, konu, dakika) da yazılıyor; kilit
           // ekranı sayacında bloğun ilerlemesi görünüyor. "Örnek verilerle gez" modunda bu alana yazılmaz.
-          'iPhone’da uygulama, widget gösterebilsin diye bugünkü süre, hedef, seri, sınavına kalan gün ve planındaki sıradaki bloğun (ders, konu, dakika) bilgisini, widget eklemesen de, widget’ın okuyabildiği ortak bir alanda yine bu telefonda tutar. Sayaç açıkken kilit ekranında ve Dynamic Island’da ders ve konu adı, bir plan bloğundan başlattıysan bloğun ilerlemesi görünür. Örnek veri modunda bu alana yazılmaz.',
+          // [AVUKAT TEYİDİ] 0.5.0: iPad
+          'iPhone ve iPad’de uygulama, widget gösterebilsin diye bugünkü süre, hedef, seri, sınavına kalan gün ve planındaki sıradaki bloğun (ders, konu, dakika) bilgisini, widget eklemesen de, widget’ın okuyabildiği ortak bir alanda yine bu cihazda tutar. Sayaç açıkken kilit ekranında ve Dynamic Island’da ders ve konu adı, bir plan bloğundan başlattıysan bloğun ilerlemesi görünür. Örnek veri modunda bu alana yazılmaz.',
           'Uygulama ad, e-posta, telefon, okul, konum, rehber, fotoğraf ve reklam kimliği hiç sormaz ve toplamaz.',
         ],
       },

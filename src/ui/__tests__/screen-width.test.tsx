@@ -7,6 +7,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet, Text } from 'react-native';
 
+import OnboardingScreen from '../../../app/onboarding';
 import { CONTENT_MAX_WIDTH, Screen } from '../components';
 import { NetChart } from '../net-chart';
 import { ScreenTop, ScreenTopProvider } from '../screen-top';
@@ -27,6 +28,21 @@ it('Screen: content is a centred column at most 720 pt wide, the background is n
   const outer = StyleSheet.flatten(scroll.props.style);
   expect(outer.maxWidth).toBeUndefined();
   expect(outer.flex).toBe(1);
+});
+
+// Onboarding has no Screen (its buttons are fixed below the page): the page and the footer keep the
+// same centred column themselves, so on iPad they do not stretch over the whole window.
+jest.mock('../../state/app-state', () => ({
+  useAppState: () => ({ saveProfile: jest.fn(), notifyDataChanged: jest.fn(), enterDemo: jest.fn() }),
+}));
+
+it('Onboarding: page and footer are a centred column at most 720 pt wide', () => {
+  render(<OnboardingScreen />);
+  const column = { maxWidth: CONTENT_MAX_WIDTH, width: '100%', alignSelf: 'center' };
+  const page = screen.getByTestId('onboarding-screen');
+  expect(StyleSheet.flatten(page.props.contentContainerStyle)).toMatchObject(column);
+  expect(StyleSheet.flatten(page.props.style).maxWidth).toBeUndefined();
+  expect(StyleSheet.flatten(screen.getByTestId('onboarding-footer').props.style)).toMatchObject(column);
 });
 
 it('ScreenTop: renders nothing without a provider or with null', () => {

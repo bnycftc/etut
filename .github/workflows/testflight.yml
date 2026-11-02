@@ -214,7 +214,15 @@ jobs:
           done
           # iPad is a real target (app.json ios.supportsTablet, plugins/with-etut-ios.js): the app
           # target builds for iPhone and iPad, and iPad allows all four orientations (ITMS-90474).
-          grep -q 'TARGETED_DEVICE_FAMILY = "1,2"' "$project/project.pbxproj"             || { echo "::error::$project does not target iPhone and iPad (TARGETED_DEVICE_FAMILY 1,2)"; exit 1; }
+          # Only the app target's build configurations (INFOPLIST_FILE = $scheme/Info.plist): the widget
+          # extension always has "1,2" (expo-widgets), so a plain grep passed even with an iPhone-only app.
+          awk -v want="$scheme/Info.plist" '
+            /isa = XCBuildConfiguration;/ { inb = 1; app = 0; fam = 0; next }
+            inb && (index($0, "INFOPLIST_FILE = " want ";") || index($0, "INFOPLIST_FILE = \"" want "\";")) { app = 1 }
+            inb && /TARGETED_DEVICE_FAMILY = "1,2";/ { fam = 1 }
+            inb && /^[[:space:]]*name = / { if (app) { n++; if (!fam) bad++ } inb = 0 }
+            END { exit !(n > 0 && bad == 0) }' "$project/project.pbxproj" \
+            || { echo "::error::$project app target does not build for iPhone and iPad (TARGETED_DEVICE_FAMILY 1,2)"; exit 1; }
           for o in Portrait PortraitUpsideDown LandscapeLeft LandscapeRight; do
             /usr/libexec/PlistBuddy -c 'Print :UISupportedInterfaceOrientations~ipad' "$plist" | grep -qx "[[:space:]]*UIInterfaceOrientation$o"               || { echo "::error::$plist UISupportedInterfaceOrientations~ipad lacks UIInterfaceOrientation$o"; exit 1; }
           done
