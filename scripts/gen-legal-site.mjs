@@ -20,8 +20,8 @@ const babel = require('@babel/core');
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.resolve(process.argv[2] ?? path.join(root, 'test-results', 'legal-site'));
 
-function loadStrings() {
-  const file = path.join(root, 'src', 'strings.ts');
+// Loads a TypeScript module and, the same way, its relative imports (strings.ts imports ./domain/*).
+function loadTs(file) {
   const { code } = babel.transformSync(readFileSync(file, 'utf8'), {
     filename: file,
     babelrc: false,
@@ -29,10 +29,14 @@ function loadStrings() {
     presets: [require.resolve('@babel/preset-typescript')],
     plugins: [require.resolve('@babel/plugin-transform-modules-commonjs')],
   });
+  const localRequire = (spec) =>
+    spec.startsWith('.') ? loadTs(path.resolve(path.dirname(file), `${spec}.ts`)) : require(spec);
   const module = { exports: {} };
-  new Function('require', 'module', 'exports', 'process', code)(require, module, module.exports, process);
+  new Function('require', 'module', 'exports', 'process', code)(localRequire, module, module.exports, process);
   return module.exports;
 }
+
+const loadStrings = () => loadTs(path.join(root, 'src', 'strings.ts'));
 
 const escape = (text) =>
   String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
