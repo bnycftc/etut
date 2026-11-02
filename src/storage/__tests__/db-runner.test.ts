@@ -25,6 +25,9 @@ const mockOpened: Opened[] = [];
 /** SQL that makes the adapter's execSync throw (to simulate a locked file). */
 const mockFail: { exec: RegExp | null } = { exec: null };
 
+// Not in demo mode (storage/demo.ts): getDb opens the student's own file.
+jest.mock('../kv-store', () => ({ isDemo: () => false }));
+
 jest.mock('expo-sqlite', () => {
   const { DatabaseSync: Sqlite } = require('node:sqlite');
   const args = (p: unknown[]) => p.map((v) => (v === undefined ? null : v));

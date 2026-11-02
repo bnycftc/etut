@@ -20,6 +20,7 @@ import { UNDO_FINISH_MS } from '../domain/finish';
 import type { Profile } from '../domain/profile';
 import type { CompletedSession } from '../domain/timer';
 import { getDb } from '../storage/db';
+import { enterDemo, exitDemo, isDemo } from '../storage/demo';
 import * as kv from '../storage/kv';
 import { getExamMarks, getMockExam, listMockExams, saveExamAnalysis, saveMockExam } from '../storage/mock-exams';
 import { allSessions, saveSession } from '../storage/sessions';
@@ -64,6 +65,11 @@ jest.mock('expo-sqlite', () => {
         },
       };
     },
+    // Demo mode deletes its files (storage/demo.ts): the database and the kv-store file.
+    deleteDatabaseSync: (name: string) => {
+      files.delete(name);
+      jest.requireMock('expo-sqlite/kv-store').mockKvFiles.delete(name);
+    },
   };
 });
 
@@ -87,6 +93,7 @@ jest.mock('expo-sqlite/kv-store', () => {
     clearSync() {
       this.rows.clear();
     }
+    closeSync() {}
   }
   return { __esModule: true, default: new SQLiteStorage(), SQLiteStorage, mockKvFiles: files };
 });
@@ -1118,5 +1125,44 @@ describe('system surfaces are not rewritten with the same content', () => {
       updates: before.updates + 2,
       widget: before.widget + 2,
     });
+  });
+});
+
+describe('demo mode on the real storage', () => {
+  it('a session timed on example data stays there; the real sessions and goal are the same after leaving', () => {
+    const own = {
+      id: 'own',
+      subjectId: 'kimya',
+      topicId: null,
+      startedAt: T0 - 2 * HOUR,
+      endedAt: T0 - HOUR,
+      pauses: [],
+      durationMs: HOUR,
+      source: 'timer' as const,
+    };
+    saveSession(own, T0);
+    kv.storeDailyGoal(60, '2026-10-07');
+    const realKv = [...mainKv().entries()];
+
+    expect(enterDemo(ADULT, T0)).toBe('ok');
+    expect(allSessions().length).toBeGreaterThan(60);
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('subject-fizik'));
+    start();
+    at(T0 + 30 * MIN);
+    finish();
+    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 30 dk');
+    expect(allSessions().some((s) => s.subjectId === 'fizik' && s.startedAt === T0)).toBe(true);
+    expect(kv.loadDailyGoal()).toBe(150);
+
+    exitDemo();
+    expect(isDemo()).toBe(false);
+    expect(allSessions()).toEqual([own]);
+    expect(kv.loadDailyGoal()).toBe(60);
+    expect(kv.loadActiveSession()).toBeNull();
+    // The subject picked in demo mode was stored there, not here.
+    expect(kv.loadLastSubject()).toBeNull();
+    expect(Object.fromEntries(mainKv())).toMatchObject(Object.fromEntries(realKv));
+    expect(mockKvFiles.has('etut-demo-kv')).toBe(false);
   });
 });

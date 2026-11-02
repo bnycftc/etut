@@ -511,6 +511,11 @@ jest.mock('../storage/db', () => ({
     memory.sessions = [];
   },
 }));
+jest.mock('../storage/demo', () => ({
+  isDemo: () => false,
+  enterDemo: () => 'ok',
+  exitDemo: () => {},
+}));
 
 const APP_DIR = './app';
 
