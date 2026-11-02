@@ -175,6 +175,11 @@ jest.mock('../storage/db', () => ({
   },
   wipeDatabase: () => {},
 }));
+jest.mock('../storage/demo', () => ({
+  isDemo: () => false,
+  enterDemo: () => 'ok',
+  exitDemo: () => {},
+}));
 
 const APP_DIR = './app';
 let server: FakeServer;
