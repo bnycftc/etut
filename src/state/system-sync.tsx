@@ -222,7 +222,7 @@ function syncWidget(active: ActiveSession | null, data: SurfaceData | null, plan
 }
 
 // --- Study plan on the surfaces (0.5.0): the widget's next block, the Live Activity's block bar,
-// and the countdown widget. Kept apart from the sync above so the demo-mode rules stay in one place.
+// and the countdown widget.
 
 /**
  * Today's plan blocks, read like the timer screen's plan card does (`useTodaysPlan`): the week's
@@ -370,22 +370,20 @@ export function SystemSync(): null {
     return navigation.addListener('ready', open);
   }, [openUrl, profile, navigation]);
 
+  // Demo mode: the Live Activity and both widgets show the example data (what the reviewer is
+  // pointed to); leaving it reloads the real data (`switchedData`) and these write it again (no
+  // session there: the Live Activity ends). Reminders stay off in demo mode.
   useEffect(() => {
-    // Demo mode: as with no session, so nothing starts and one still showing ends.
-    if (demo) runLiveActivity(() => syncLiveActivity(null, null));
-    else runLiveActivity(() => syncLiveActivity(session, data, plan));
-  }, [session, data, plan, foreground, phaseEnds, demo]);
+    runLiveActivity(() => syncLiveActivity(session, data, plan));
+  }, [session, data, plan, foreground, phaseEnds]);
 
   useEffect(() => {
-    if (demo) return;
     syncWidget(session, data, plan);
-  }, [session, data, plan, foreground, phaseEnds, demo]);
+  }, [session, data, plan, foreground, phaseEnds]);
 
   useEffect(() => {
-    // Demo mode: the countdown widget keeps what the real data last wrote.
-    if (demo) return;
     syncCountdownWidget(data);
-  }, [data, foreground, demo]);
+  }, [data, foreground]);
 
   useEffect(() => {
     if (!notifications.supported || demo) return;

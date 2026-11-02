@@ -2906,6 +2906,33 @@ describe('Örnek verilerle gez (demo mode)', () => {
     expect(memory.sessions).toEqual([]);
   });
 
+  it('system surfaces show the example data in demo mode and the real data again after leaving', async () => {
+    memory.profile = ADULT_SAYISAL;
+    memory.dailyGoal = 60;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await act(async () => fireEvent.press(screen.getByTestId('settings-demo-enter')));
+    // The widget: the example goal (150 dk) and the example plan's next block.
+    const demoWidget = memory.widget[0].props;
+    expect(demoWidget.goalLine).not.toBeNull();
+    expect(demoWidget.goalLine).not.toMatch(/1 sa|60 dk/);
+    expect(demoWidget.nextBlockLine).not.toBeNull();
+    // A block started from the example plan shows as a Live Activity (review notes, steps 3–4).
+    await act(async () => fireEvent.press(screen.getByTestId('plan-block-start-0')));
+    expect(memory.active).not.toBeNull();
+    expect(memory.liveActivities).toHaveLength(1);
+    expect(memory.liveActivityRecord?.sessionId).toBe(memory.active?.id);
+
+    await act(async () => fireEvent.press(screen.getAllByTestId('demo-exit')[0]));
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+    expect(memory.active).toBeNull();
+    // No session in the real data: the Live Activity ends; the widget shows the real day again.
+    expect(memory.liveActivities).toEqual([]);
+    expect(memory.liveActivityRecord).toBeNull();
+    expect(memory.widget[0].props).not.toEqual(demoWidget);
+    expect(memory.widget[0].props.total).toBe('0 dk');
+    expect(memory.widget[0].props.goalLine).toMatch(/1 sa|60 dk/);
+  });
+
   it('a running timer of their own: "Örnek verilerle gez" is refused with a short note', async () => {
     memory.profile = ADULT_SAYISAL;
     const { startSession } = jest.requireActual('../domain/timer');
@@ -2932,15 +2959,45 @@ describe('Örnek verilerle gez (demo mode)', () => {
     expect(memory.shared).toEqual([]);
 
     await act(async () => router.push('/ayarlar'));
-    fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
+    expect(screen.queryByRole('button', { name: 'Tüm verileri sil' })).toBeNull();
+    fireEvent.press(screen.getByRole('button', { name: 'Örnek verileri sil ve örnek moddan çık' }));
+    // It says what happens in demo mode: the example data goes, the student's own stays.
+    expect(lastAlert().title).toBe('Örnek verileri sil ve örnek moddan çık');
+    expect(lastAlert().message).toBe(
+      'Örnek veriler bu cihazdan silinir ve kendi kayıtlarına dönersin. Kendi kayıtların silinmez.',
+    );
+    expect(lastAlert().message).not.toMatch(/profilin|geri alınamaz/);
     // "Önce yedek al" is refused too: the example data must not leave as a real-looking backup.
     await act(async () => pressAlert('Önce yedek al'));
     expect(memory.shared).toEqual([]);
     expect(lastAlert().message).toMatch(/Örnek modda yedek alınmaz\.$/);
-    pressAlert('Evet, hepsini sil');
+    pressAlert('Evet, örnek verileri sil');
     expect(screen.queryByTestId('demo-banner')).toBeNull();
     expect(memory.profile).toEqual(ADULT_SAYISAL);
     expect(screen.getByTestId('settings-demo-enter')).toBeTruthy();
+    // Out of demo mode the row is the real one again.
+    expect(screen.getByRole('button', { name: 'Tüm verileri sil' })).toBeTruthy();
+  });
+
+  it('the exam and area are not changed in demo mode: the choices are off, with a short note', async () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await act(async () => fireEvent.press(screen.getByTestId('settings-demo-enter')));
+    act(() => router.push('/ayarlar'));
+    expect(screen.getByTestId('settings-exam-demo-locked').props.children).toBe(
+      'Örnek modda sınav ve alan değiştirilmez; önce örnek moddan çık.',
+    );
+    for (const id of ['settings-exam-type-LGS', 'settings-yks-area-sozel', 'settings-exam-save']) {
+      expect(screen.getByTestId(id).props.accessibilityState.disabled).toBe(true);
+    }
+    fireEvent.press(screen.getByTestId('settings-exam-type-LGS'));
+    fireEvent.press(screen.getByTestId('settings-exam-save'));
+    expect(memory.profile).toEqual(ADULT_SAYISAL);
+    expect(screen.queryByTestId('settings-exam-saved')).toBeNull();
+
+    fireEvent.press(screen.getByTestId('settings-demo-exit'));
+    expect(screen.queryByTestId('settings-exam-demo-locked')).toBeNull();
+    expect(screen.getByTestId('settings-exam-type-LGS').props.accessibilityState.disabled).toBeFalsy();
   });
 });
 
@@ -5216,5 +5273,17 @@ describe('study plan (0.5.0)', () => {
     expect(screen.getByTestId('plan-week-total').props.children).toBe('Haftalık toplam: 16 sa 15 dk');
     fireEvent.press(screen.getByTestId('plan-availability-6-minus'));
     expect(screen.getByTestId('plan-week-total').props.children).toBe('Haftalık toplam: 16 sa 0 dk');
+  });
+
+  it('a daily goal above 8 hours: the default week is capped at 8 hours and "−" is stored', () => {
+    memory.dailyGoal = 600;
+    renderRouter(APP_DIR, { initialUrl: '/plan' });
+    // Mon–Sat 480 dk, Sunday off: 6 × 8 sa.
+    expect(screen.getByTestId('plan-week-total').props.children).toBe('Haftalık toplam: 48 sa 0 dk');
+    fireEvent.press(screen.getByTestId('plan-availability-0-minus'));
+    expect(JSON.parse(mockKvRows.get('etut.studyAvailability.v1') ?? 'null')).toEqual({
+      0: 465, 1: 480, 2: 480, 3: 480, 4: 480, 5: 480, 6: 0,
+    });
+    expect(screen.getByTestId('plan-week-total').props.children).toBe('Haftalık toplam: 47 sa 45 dk');
   });
 });

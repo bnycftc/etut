@@ -222,13 +222,16 @@ export function storeReminderPrefs(prefs: ReminderPrefs): void {
   kvStore().setItemSync(KEYS.reminderPrefs, JSON.stringify(normalizeReminderPrefs(prefs)));
 }
 
-/** The student turned reminders on through the explanation screen (cleared by "Tüm verileri sil"). */
+/**
+ * The student turned reminders on through the explanation screen (cleared by "Tüm verileri sil").
+ * Kept with the prefs in `kvStore()`: a confirmation given in demo mode goes with the demo file.
+ */
 export function loadRemindersConfirmed(): boolean {
-  return readJson(KEYS.remindersConfirmed) === true;
+  return readJson(KEYS.remindersConfirmed, kvStore()) === true;
 }
 
 export function storeRemindersConfirmed(): void {
-  Storage.setItemSync(KEYS.remindersConfirmed, 'true');
+  kvStore().setItemSync(KEYS.remindersConfirmed, 'true');
 }
 
 /** The Live Activity the app last started (iOS); `null` = none. */

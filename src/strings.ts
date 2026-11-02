@@ -179,8 +179,10 @@ const legalDocs = {
           // [AVUKAT TEYİDİ] Widget koşulu kaldırıldı (uygulama bu alana her değişiklikte yazar) ve kilit ekranı
           // sayacının gösterdiği ders ve konu adı eklendi.
           // [AVUKAT TEYİDİ] 0.5.0: ortak alana planın sıradaki bloğu (ders, konu, dakika) da yazılıyor; kilit
-          // ekranı sayacında bloğun ilerlemesi görünüyor. "Örnek verilerle gez" modunda bu alana yazılmaz.
-          'iPhone’da uygulama, widget gösterebilsin diye bugünkü süre, hedef, seri, sınavına kalan gün ve planındaki sıradaki bloğun (ders, konu, dakika) bilgisini, widget eklemesen de, widget’ın okuyabildiği ortak bir alanda yine bu telefonda tutar. Sayaç açıkken kilit ekranında ve Dynamic Island’da ders ve konu adı, bir plan bloğundan başlattıysan bloğun ilerlemesi görünür. Örnek veri modunda bu alana yazılmaz.',
+          // ekranı sayacında bloğun ilerlemesi görünüyor.
+          // [AVUKAT TEYİDİ] 0.5.0: demo yüzeyleri ("Örnek verilerle gez" açıkken widget ve kilit ekranı örnek
+          // verileri gösterir; moddan çıkınca kendi verin yeniden yazılır).
+          'iPhone’da uygulama, widget gösterebilsin diye bugünkü süre, hedef, seri, sınavına kalan gün ve planındaki sıradaki bloğun (ders, konu, dakika) bilgisini, widget eklemesen de, widget’ın okuyabildiği ortak bir alanda yine bu telefonda tutar. Sayaç açıkken kilit ekranında ve Dynamic Island’da ders ve konu adı, bir plan bloğundan başlattıysan bloğun ilerlemesi görünür. “Örnek verilerle gez” açıkken bu alana örnek veriler yazılır; örnek moddan çıkınca yerini yine kendi verin alır.',
           'Uygulama ad, e-posta, telefon, okul, konum, rehber, fotoğraf ve reklam kimliği hiç sormaz ve toplamaz.',
         ],
       },
@@ -474,6 +476,12 @@ export const tr = {
     leaveInfo: 'Şu an örnek verileri görüyorsun. Çıkınca kendi kayıtlarına dönersin; örnek veriler silinir.',
     timerRunning: 'Sayaç çalışırken örnek verilere geçilemez. Önce oturumunu bitir.',
     backupDisabled: 'Örnek modda yedek alınmaz.',
+    /** Ayarlar → profile: the exam and area are the student's own, not changed from the example data. */
+    examLocked: 'Örnek modda sınav ve alan değiştirilmez; önce örnek moddan çık.',
+    /** "Tüm verileri sil" in demo mode: only the example data goes (storage/wipe.ts). */
+    deleteAll: 'Örnek verileri sil ve örnek moddan çık',
+    deleteAllConfirm: 'Örnek veriler bu cihazdan silinir ve kendi kayıtlarına dönersin. Kendi kayıtların silinmez.',
+    deleteAllYes: 'Evet, örnek verileri sil',
   },
 
   timer: {

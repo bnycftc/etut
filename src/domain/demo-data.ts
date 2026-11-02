@@ -20,6 +20,7 @@ import { istanbulDayKey } from './istanbul-day';
 import { EXAM_SECTIONS, type ExamKind, examKindsFor } from './net';
 import type { Profile } from './profile';
 import { subjectsFor } from './subjects';
+import type { Availability } from './study-plan';
 import type { CompletedSession } from './timer';
 
 const HOUR = 3_600_000;
@@ -51,6 +52,12 @@ const SEED = 20270619;
 /** Days of history before today; daily goal 2 h 30 min. */
 const HISTORY_DAYS = 27;
 export const DEMO_GOAL_MIN = 150;
+/**
+ * Weekly availability of the example data (0 = Monday … 6 = Sunday): every day has some study, so
+ * "Bugünün planı" shows blocks to start whatever day the demo is opened (the default availability
+ * keeps Sunday off).
+ */
+export const DEMO_AVAILABILITY: Availability = { 0: 150, 1: 150, 2: 150, 3: 150, 4: 150, 5: 180, 6: 120 };
 const WEDNESDAY = 2;
 const SATURDAY = 5;
 const SUNDAY = 6;
@@ -323,6 +330,7 @@ export function buildDemoData(profile: Profile, now: number): BackupData {
       netTargets: buildNetTargets(plan),
       lastSubject: plan.weights[0][0],
       subjectWeeklyTargets: buildSubjectTargets(plan),
+      availability: DEMO_AVAILABILITY,
     },
   };
 }
