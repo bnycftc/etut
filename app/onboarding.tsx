@@ -9,7 +9,7 @@ import { buildProfile, type ExamType } from '@/domain/profile';
 import { useAppState } from '@/state/app-state';
 import { storeCustomExamDate, storeDailyGoal } from '@/storage/kv';
 import { tr } from '@/strings';
-import { Button, Label, Row } from '@/ui/components';
+import { Button, CONTENT_MAX_WIDTH, Label, Row } from '@/ui/components';
 import { Icon } from '@/ui/icon';
 import { BirthYearStep, CountdownStep, ExamStep, GoalStep, ONBOARDING_STEPS } from '@/ui/onboarding-steps';
 import { Ring } from '@/ui/ring';
@@ -147,7 +147,7 @@ export default function OnboardingScreen() {
       </ScrollView>
       {/* Always on screen, above the home indicator (SafeAreaView); the page scrolls above it. On
           the last step Başla and "Örnek verilerle gez" have the same size and weight. */}
-      <View style={[styles.footer, { backgroundColor: c.background, borderTopColor: c.border }]}>
+      <View testID="onboarding-footer" style={[styles.footer, { backgroundColor: c.background, borderTopColor: c.border }]}>
         {last ? (
           <>
             <Button
@@ -185,7 +185,8 @@ export default function OnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space.lg, gap: space.lg },
+  // iPad: the same centred column as Screen (at most CONTENT_MAX_WIDTH), not the whole window.
+  content: { padding: space.lg, gap: space.lg, width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' },
   brand: { borderRadius: 20, borderWidth: 1, padding: space.lg, gap: space.sm },
   footer: {
     paddingHorizontal: space.lg,
@@ -194,5 +195,8 @@ const styles = StyleSheet.create({
     paddingBottom: space.md,
     gap: space.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
   },
 });
