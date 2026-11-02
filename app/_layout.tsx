@@ -1,5 +1,6 @@
 import { DarkTheme, DefaultTheme, type ErrorBoundaryProps, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import type { ComponentProps } from 'react';
 import { useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,6 +17,13 @@ function RootStack() {
   const { profile } = useAppState();
   const c = usePalette();
   const reduceMotion = useReducedMotion();
+  const sheet: ComponentProps<typeof Stack.Screen>['options'] = {
+    presentation: 'formSheet',
+    sheetAllowedDetents: [0.45, 1],
+    sheetGrabberVisible: true,
+    headerShown: false,
+    contentStyle: { backgroundColor: c.surface },
+  };
   return (
     <Stack
       screenOptions={{
@@ -46,6 +54,9 @@ function RootStack() {
         <Stack.Screen name="paylas" options={{ title: tr.share.title }} />
         <Stack.Screen name="yedek" options={{ title: tr.backup.title }} />
         <Stack.Screen name="hatirlaticilar" options={{ title: tr.reminders.title }} />
+        {/* System sheets: grabber, half height first; a second detent for large text sizes. */}
+        <Stack.Screen name="hedef" options={sheet} />
+        <Stack.Screen name="tur" options={sheet} />
         {/* Pre-permission screen: left only through its button (HIG), so no swipe-down. */}
         <Stack.Screen
           name="bildirim-izni"
@@ -65,7 +76,7 @@ function RootStack() {
       <Stack.Screen name="hakkinda" options={{ title: tr.about.title }} />
       <Stack.Screen name="yasal/[doc]" options={{ title: tr.about.legalTitle }} />
       <Stack.Screen name="lisanslar" options={{ title: tr.about.licenses }} />
-      {/* Help text only (no data): a sheet, so a "Nedir?" link also works from the exam form modal. */}
+      {/* Help text only (no data): a sheet, so an (i) link also works from the exam form modal. */}
       <Stack.Screen name="nasil-calisir" options={{ title: tr.guide.title, presentation: 'modal' }} />
 
     </Stack>

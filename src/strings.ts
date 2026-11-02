@@ -341,6 +341,13 @@ const examTypes: Record<ExamType, string> = {
   DIGER: 'Diğer',
 };
 
+/** "YKS’ye 258 gün" — every built-in exam name ends in "S", so the suffix is "’ye". */
+const countdownDays = (examType: ExamType, days: number): string =>
+  examType === 'DIGER' ? `Sınavına ${days} gün` : `${examTypes[examType]}’ye ${days} gün`;
+
+/** The day's one celebration after Bitir: shown under the saved time and read out with it. */
+const finishGoalReached = 'Bugünkü hedef tamam';
+
 const yksAreas: Record<YksArea, string> = {
   sayisal: 'Sayısal',
   esit_agirlik: 'Eşit Ağırlık',
@@ -399,10 +406,8 @@ export const tr = {
     cancel: 'Vazgeç',
     save: 'Kaydet',
     delete: 'Sil',
-    /** The bar above the number pad (it has no return key). */
+    /** The button of the system bar above the number pad (it has no return key). */
     keyboardDone: 'Bitti',
-    /** Its screen-reader name: which box it closes the keyboard of (`Klavyeyi kapat: Süre, Saat`). */
-    keyboardDoneA11y: (field: string) => `Klavyeyi kapat: ${field}`,
   },
 
   /** Root error screen (app/_layout.tsx ErrorBoundary): nothing is deleted, nothing is sent. */
@@ -440,6 +445,9 @@ export const tr = {
     todayQuestions: (n: number) => `· ${n} soru`,
     history: 'Geçmiş',
     pickSubject: 'Ders seç',
+    /** After the recently studied subjects: shows the rest of the list. */
+    allSubjects: 'Tüm dersler',
+    allSubjectsHint: (more: number) => `${more} ders daha gösterir`,
     start: 'Başla',
     pause: 'Mola',
     resume: 'Devam',
@@ -524,6 +532,10 @@ export const tr = {
     met: 'Bugünkü hedefini tutturdun.',
     set: 'Günlük hedef koy',
     streak: (days: number) => `Seri: ${days} gün`,
+    /** The compact streak badge on the timer's "Bugün" card (read out as `streak`). */
+    streakBadge: (days: number) => `${days} gün`,
+    /** Under the badge: the rule, never a warning (one missed day a week keeps the streak). */
+    restRule: 'Haftada 1 dinlenme günü hakkın var',
     restUsed: 'Bu haftaki dinlenme günün kullanıldı.',
     restFree: 'Bu hafta 1 dinlenme günü hakkın var.',
     turnOff: 'Hedefi kapat',
@@ -534,10 +546,17 @@ export const tr = {
   },
 
   countdown: {
-    /** "YKS'ye 258 gün" — every built-in exam name ends in "S", so the suffix is "'ye". */
-    days: (examType: ExamType, days: number) =>
-      examType === 'DIGER' ? `Sınavına ${days} gün` : `${examTypes[examType]}’ye ${days} gün`,
+    /** "YKS’ye 258 gün" (the widget). */
+    days: countdownDays,
+    /** The one muted line on the timer's "Bugün" card: "YKS · 258 gün · tahmini". */
+    line: (examType: ExamType, days: number, estimated: boolean) =>
+      `${examType === 'DIGER' ? 'Sınav' : examTypes[examType]} · ${days} gün${estimated ? ' · tahmini' : ''}`,
+    /** What a screen reader says for `line`: "YKS’ye 258 gün, tahmini tarih". */
+    lineA11y: (examType: ExamType, days: number, estimated: boolean) =>
+      `${countdownDays(examType, days)}${estimated ? ', tahmini tarih' : ''}`,
     today: 'Sınav günü bugün. Başarılar!',
+    /** The exam day by the built-in estimate: it may not be the real day. */
+    todayEstimated: 'Tahmini sınav günü bugün. Başarılar!',
     estimated: 'tahmini',
     custom: 'senin girdiğin tarih',
     settingsTitle: 'Sınav tarihi',
@@ -578,8 +597,9 @@ export const tr = {
   weekly: {
     title: 'Haftalık özet',
     range: (from: string, to: string) => `${from} – ${to}`,
-    prev: '‹ Önceki hafta',
-    next: 'Sonraki hafta ›',
+    /** Screen-reader names of the ‹ › buttons around the week. */
+    prev: 'Önceki hafta',
+    next: 'Sonraki hafta',
     total: 'Toplam',
     previousWeek: (duration: string) => `Önceki hafta: ${duration}`,
     subjects: 'Ders dağılımı',
@@ -587,6 +607,16 @@ export const tr = {
     streak: 'Seri',
     goalDays: (n: number) => `Hedefi tutturduğun gün: ${n}/7`,
     activeDays: (n: number) => `Çalıştığın gün: ${n}/7`,
+    /** The 2 × 2 tiles at the top of the week; each is read as one "label: value" (`activeDays` for the days). */
+    tileDays: 'Çalıştığın gün',
+    tileDaysValue: (n: number) => `${n}/7`,
+    tileAverage: 'Ortalama',
+    tileAverageA11y: (duration: string) => `Çalıştığın günlerde ortalama: ${duration}`,
+    tileBest: 'En çok',
+    tileBestA11y: (day: string, duration: string) => `En çok: ${day} · ${duration}`,
+    tileA11y: (label: string, value: string) => `${label}: ${value}`,
+    /** An empty week's average and best day. */
+    tileNone: '–',
     manual: (duration: string) => `Elle eklenen: ${duration}`,
     percent: (p: number) => `%${p}`,
   },
@@ -624,6 +654,8 @@ export const tr = {
     preset: (work: number, short: number) => `${work}/${short}`,
     presetA11y: (work: number, short: number) => `${work} dakika çalışma, ${short} dakika mola`,
     reset: 'Varsayılana dön',
+    /** Opens the durations under the presets (a closed group, like iOS's disclosure). */
+    details: 'Ayrıntı',
   },
 
   topicPicker: {
@@ -705,8 +737,9 @@ export const tr = {
     scope: 'Deneme türü',
     section: 'Ders',
     date: 'Deneme tarihi',
-    prevDay: '‹ Önceki gün',
-    nextDay: 'Sonraki gün ›',
+    /** Screen-reader names of the ‹ › buttons around the day. */
+    prevDay: 'Önceki gün',
+    nextDay: 'Sonraki gün',
     correct: 'Doğru',
     wrong: 'Yanlış',
     /** Screen-reader name of a count box: which section it belongs to. */
@@ -746,7 +779,10 @@ export const tr = {
     chartSingle: (last: string) => `Son deneme: ${last} net. Bir deneme daha ekleyince eğilim görünür.`,
     chartChange: (last: string, change: string) => `Son deneme: ${last} net · öncekinden ${change}`,
     chartBransLegend: 'Dolu nokta genel, içi boş nokta branş denemesi.',
-    chartTargetLegend: 'Kesik çizgi: hedef net.',
+    /** The target band in a net chart, written at its right end. */
+    chartTarget: (net: string) => `Hedef ${net}`,
+    /** The target in the chart's spoken summary. */
+    chartTargetA11y: (net: string) => `hedef ${net} net`,
     /** Confirmation on the list right after "Kaydet" in the new-exam form. */
     saved: (net: string) => `${net} net kaydedildi`,
     savedAnalysisHint: 'Kitapçık elindeyse şimdi analize başla; değilse sonra bu sekmeden de başlayabilirsin.',
@@ -845,7 +881,8 @@ export const tr = {
    */
   reminders: {
     title: 'Hatırlatıcılar',
-    open: 'Hatırlatıcılar',
+    /** The row under the "Hatırlatıcılar" section title in Ayarlar. */
+    open: 'Hatırlatıcıları ayarla',
     summaryOff: 'Bildirim izni verilmedi; hatırlatıcılar gelmez.',
     summaryOn: (count: number) => (count === 0 ? 'Açık hatırlatıcı yok.' : `${count} hatırlatıcı açık.`),
     info: 'Hatırlatıcılar bu cihazda kurulur; hiçbir sunucuya bir şey gönderilmez. Uygulama açıkken yalnız uzun oturum uyarısı gösterilir.',
@@ -855,8 +892,6 @@ export const tr = {
       'Bildirim izni kapalı. Telefonun Ayarlar uygulamasından Etüt’ün bildirimlerini açabilirsin.',
     openSettings: 'Ayarları aç',
     unsupported: 'Bu cihazda hatırlatıcı yok.',
-    on: 'Açık',
-    off: 'Kapalı',
     longSession: 'Uzun oturum uyarısı',
     longSessionInfo: (hours: number) =>
       `Sayaç ${hours} saat boyunca duraklatılmadan açık kalırsa “Hâlâ çalışıyor musun?” diye sorar. Pomodoro molaları sayacı duraklatmaz.`,
@@ -1433,17 +1468,21 @@ export const tr = {
   /** Timer screen layout (shortcuts, goal on the home card). */
   home: {
     shortcuts: 'Kısayollar',
-    goalEdit: 'Değiştir',
+    /** Hint of the goal line (and ring) on the "Bugün" card: a tap opens the goal sheet. */
     goalEditA11y: 'Günlük hedefi değiştir',
   },
 
   /** The short summary after "Bitir". */
   finish: {
+    /** Small line above the saved time (the time itself is the big number). */
+    savedTitle: 'Kaydedildi',
     studied: (subject: string) => `${subject} çalıştın`,
     studiedTopic: (subject: string, topic: string) => `${subject} · ${topic}`,
     goalStep: (before: number, after: number) => `Hedef: %${before} → %${after}`,
-    goalReached: 'Bugünkü hedefe ulaştın, tebrikler!',
-    streak: (days: number) => `Serin ${days} gün oldu.`,
+    /** Once, in the summary of the session that reached the daily goal: positive, no streak talk. */
+    goalReached: finishGoalReached,
+    /** After today's total on the summary's muted line: "Bugün 3 sa 5 dk · hedef 3 sa 0 dk". */
+    todayGoal: (goal: string) => `· hedef ${goal}`,
     undo: 'Geri al',
     undoHint: 'Kaydı siler, sayaç kaldığı yerden devam eder.',
     /** "Geri al" after a topic chip below was tapped: the mark goes back too. */
@@ -1451,7 +1490,8 @@ export const tr = {
     undone: 'Geri alındı. Sayaç kaldığı yerden devam ediyor.',
     /** "Bitti" / "Tekrar lazım" (topics.done / topics.review) for the session's topic. */
     topicMark: 'Konuyu işaretle (isteğe bağlı)',
-    announce: (saved: string, today: string) => `${saved}. Bugün toplam ${today}.`,
+    announce: (saved: string, today: string, goalReached: boolean) =>
+      `${saved}. Bugün toplam ${today}.${goalReached ? ` ${finishGoalReached}.` : ''}`,
     /** The session started before midnight: it counts whole towards that day. */
     addedToYesterday: 'Dünün çalışmasına eklendi.',
   },
@@ -1567,9 +1607,8 @@ export const tr = {
     showTips: 'Turu yeniden göster',
   },
 
-  /** "Nedir?" next to a term; opens its section of "Nasıl çalışır". */
+  /** The (i) button next to a term; opens its section of "Nasıl çalışır". */
   infoLink: {
-    title: 'Nedir?',
     a11y: (term: string) => `${term} nedir?`,
     estimated: '“Tahmini” tarih',
     manual: '“Elle” etiketi',
@@ -1580,7 +1619,7 @@ export const tr = {
   /** "Nasıl çalışır": short, plain explanations of the rules (each matches its domain module). */
   guide: {
     title: 'Nasıl çalışır',
-    intro: 'Etüt’ün kuralları kısaca. Bir terimin yanındaki “Nedir?” seni buradaki ilgili bölüme getirir.',
+    intro: 'Etüt’ün kuralları kısaca. Bir terimin yanındaki “i” simgesi seni buradaki ilgili bölüme getirir.',
     close: 'Kapat',
     timer: {
       title: 'Sayaç ve uzakta kuralı',
@@ -1643,7 +1682,7 @@ export const tr = {
     goal: {
       title: 'Günlük hedef',
       paragraphs: (minMinutes: number, maxHours: number) => [
-        `Günlük hedefi istersen koyarsın: ${minMinutes} dakika ile ${maxHours} saat arasında. Sayaç ekranındaki çubuk bugünkü sürenin hedefe oranını gösterir; elle eklediğin süre de sayılır.`,
+        `Günlük hedefi istersen koyarsın: ${minMinutes} dakika ile ${maxHours} saat arasında. Sayaç ekranındaki halka bugünkü sürenin hedefe oranını gösterir; halkaya ya da altındaki hedef satırına dokunarak hedefi değiştirebilirsin. Elle eklediğin süre de sayılır.`,
         'Hedefi değiştirirsen yeni hedef bugünden itibaren geçerli olur; önceki her gün, o gün geçerli olan hedefle sayılır. Böylece hedefini yükseltmek serini bozmaz. Hedefi kapatırsan seri gösterilmez.',
       ],
     },
@@ -1800,8 +1839,9 @@ export const tr = {
   /** Monthly calendar on the weekly screen. */
   monthly: {
     title: 'Aylık görünüm',
-    prev: '‹ Önceki ay',
-    next: 'Sonraki ay ›',
+    /** Screen-reader names of the ‹ › buttons around the month. */
+    prev: 'Önceki ay',
+    next: 'Sonraki ay',
     month: (year: number, month: number) => `${months[month - 1] ?? ''} ${year}`,
     total: (duration: string) => `Toplam: ${duration}`,
     studyDays: (n: number, of: number) => `Çalıştığın gün: ${n}/${of}`,
@@ -1820,5 +1860,7 @@ export const tr = {
   /** Exam countdown line on the Home Screen widget (the days text is `countdown.days`). */
   widgetCountdown: {
     today: 'Sınav bugün',
+    /** The exam day by the built-in estimate, worded as on the timer's card (`countdown.todayEstimated`). */
+    todayEstimated: 'Tahmini sınav günü bugün',
   },
 } as const;

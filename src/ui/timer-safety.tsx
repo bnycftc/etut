@@ -23,7 +23,7 @@ import {
 import { type FinishOptions, useAppState, useStored } from '../state/app-state';
 import { loadAwayRule, loadKeepAwake, storeAwayRule, storeKeepAwake } from '../storage/kv';
 import { tr } from '../strings';
-import { Button, Card, Chip, ChipRow, Label } from './components';
+import { Button, Card, Chip, ChipRow, Label, Section } from './components';
 import { formatDuration } from './format';
 
 const KEEP_AWAKE_TAG = 'etut-timer';
@@ -202,47 +202,50 @@ export function TimerSettingsCard() {
     storeAwayRule(rule);
     notifyDataChanged('settings');
   };
+  // Keep-awake stays two chips (Açık / Kapalı) rather than a switch: the device and web tests
+  // pick and read each choice by its own testID.
   return (
-    <Card testID="settings-timer">
-      <Label variant="heading">{s.title}</Label>
-      <Label variant="muted">{s.keepAwake}</Label>
-      <ChipRow>
-        <Chip
-          testID="settings-keep-awake-on"
-          title={s.on}
-          accessibilityLabel={`${s.keepAwake}: ${s.on}`}
-          selected={keepAwake}
-          onPress={() => setKeepAwake(true)}
-        />
-        <Chip
-          testID="settings-keep-awake-off"
-          title={s.off}
-          accessibilityLabel={`${s.keepAwake}: ${s.off}`}
-          selected={!keepAwake}
-          onPress={() => setKeepAwake(false)}
-        />
-      </ChipRow>
-      <Label variant="small">{s.keepAwakeInfo}</Label>
-      <Label variant="muted">{s.awayTitle}</Label>
-      <ChipRow>
-        <Chip
-          testID="settings-away-ask"
-          title={s.awayAsk}
-          accessibilityLabel={`${s.awayTitle}: ${s.awayAsk}`}
-          selected={awayRule === 'ask'}
-          onPress={() => setAwayRule('ask')}
-        />
-        <Chip
-          testID="settings-away-count"
-          title={s.awayCount}
-          accessibilityLabel={`${s.awayTitle}: ${s.awayCount}`}
-          selected={awayRule === 'count'}
-          onPress={() => setAwayRule('count')}
-        />
-      </ChipRow>
-      <Label testID="settings-away-info" variant="small">
-        {awayRule === 'ask' ? s.awayAskInfo : s.awayCountInfo(AWAY_COUNT_HOURS)}
-      </Label>
-    </Card>
+    <Section title={s.title} testID="settings-timer">
+      <Card>
+        <Label variant="muted">{s.keepAwake}</Label>
+        <ChipRow>
+          <Chip
+            testID="settings-keep-awake-on"
+            title={s.on}
+            accessibilityLabel={`${s.keepAwake}: ${s.on}`}
+            selected={keepAwake}
+            onPress={() => setKeepAwake(true)}
+          />
+          <Chip
+            testID="settings-keep-awake-off"
+            title={s.off}
+            accessibilityLabel={`${s.keepAwake}: ${s.off}`}
+            selected={!keepAwake}
+            onPress={() => setKeepAwake(false)}
+          />
+        </ChipRow>
+        <Label variant="small">{s.keepAwakeInfo}</Label>
+        <Label variant="muted">{s.awayTitle}</Label>
+        <ChipRow>
+          <Chip
+            testID="settings-away-ask"
+            title={s.awayAsk}
+            accessibilityLabel={`${s.awayTitle}: ${s.awayAsk}`}
+            selected={awayRule === 'ask'}
+            onPress={() => setAwayRule('ask')}
+          />
+          <Chip
+            testID="settings-away-count"
+            title={s.awayCount}
+            accessibilityLabel={`${s.awayTitle}: ${s.awayCount}`}
+            selected={awayRule === 'count'}
+            onPress={() => setAwayRule('count')}
+          />
+        </ChipRow>
+        <Label testID="settings-away-info" variant="small">
+          {awayRule === 'ask' ? s.awayAskInfo : s.awayCountInfo(AWAY_COUNT_HOURS)}
+        </Label>
+        </Card>
+    </Section>
   );
 }

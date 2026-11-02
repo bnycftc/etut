@@ -13,7 +13,13 @@ describe('Live Activity props', () => {
     expect(timerActivityProps(s, liveTimerView(s, T0 + MIN))).toMatchObject({
       title: 'Fizik · Basınç',
       status: 'Çalışıyorsun',
-      icon: 'book.fill',
+      icon: 'stopwatch.fill',
+      // Fizik's colour, light and dark (subject-colors.ts); no goal data: no ring.
+      iconColor: '#7C3AED',
+      iconColorDark: '#A78BFA',
+      goalRatio: null,
+      goalFrom: null,
+      goalTo: null,
       from: T0,
       countsDown: false,
       pausedAt: null,
@@ -33,7 +39,7 @@ describe('Live Activity props', () => {
     expect(props).toMatchObject({
       // The clock still runs (the tolerance); the status no longer says "Çalışıyorsun".
       status: 'Uygulamadan çıktın · 10 sn sonra mola sayılır',
-      icon: 'book.fill',
+      icon: 'stopwatch.fill',
       pausedAt: null,
       awayAt: T0 + 20 * MIN,
       awayStatus: 'Uygulamadan çıktın · mola sayılıyor',
@@ -79,6 +85,52 @@ describe('Live Activity props', () => {
   });
 });
 
+describe('Live Activity goal ring', () => {
+  const s = startSession('s', 'matematik', T0);
+  const view = liveTimerView(s, T0 + 10 * MIN);
+  const entry: WidgetEntry = {
+    at: T0 + 10 * MIN,
+    day: '2026-10-04',
+    todayMs: 40 * MIN,
+    counting: true,
+    goalMinutes: 60,
+    goalMet: false,
+    goalRatio: 40 / 60,
+    goalReachedAt: T0 + 30 * MIN,
+    streakDays: null,
+  };
+
+  it('fills by itself while study time counts towards the goal (same range as the widget bar)', () => {
+    expect(timerActivityProps(s, view, entry)).toMatchObject({
+      goalRatio: 40 / 60,
+      goalFrom: T0 - 30 * MIN,
+      goalTo: T0 + 30 * MIN,
+    });
+    expect(todayWidgetProps(entry)).toMatchObject({ goalFrom: T0 - 30 * MIN, goalTo: T0 + 30 * MIN });
+  });
+
+  it('shows the share at the update when nothing counts, and no ring without a goal', () => {
+    expect(timerActivityProps(s, view, { ...entry, counting: false, goalReachedAt: null })).toMatchObject({
+      goalRatio: 40 / 60,
+      goalFrom: null,
+      goalTo: null,
+    });
+    expect(timerActivityProps(s, view, { ...entry, goalMinutes: null, goalRatio: 0, goalReachedAt: null })).toMatchObject({
+      goalRatio: null,
+      goalFrom: null,
+      goalTo: null,
+    });
+  });
+
+  it('an unknown subject gets the "Diğer" grey', () => {
+    const other = startSession('o', 'nope', T0);
+    expect(timerActivityProps(other, liveTimerView(other, T0 + MIN))).toMatchObject({
+      iconColor: '#64748B',
+      iconColorDark: '#94A3B8',
+    });
+  });
+});
+
 describe('widget props', () => {
   const base: WidgetEntry = {
     at: T0,
@@ -107,10 +159,17 @@ describe('widget props', () => {
     });
   });
 
-  it('exam countdown line: days left, the exam day, and none', () => {
+  it('exam countdown line: days left, the exam day (estimated or not), and none', () => {
     expect(todayWidgetProps({ ...base, countdown: { examType: 'YKS', daysLeft: 255 } }).countdownLine).toBe('YKS’ye 255 gün');
     expect(todayWidgetProps({ ...base, countdown: { examType: 'DIGER', daysLeft: 3 } }).countdownLine).toBe('Sınavına 3 gün');
     expect(todayWidgetProps({ ...base, countdown: { examType: 'LGS', daysLeft: 0 } }).countdownLine).toBe('Sınav bugün');
+    // The built-in estimate says so, as the timer's card does ("Tahmini sınav günü bugün").
+    expect(todayWidgetProps({ ...base, countdown: { examType: 'YKS', daysLeft: 0, estimated: true } }).countdownLine).toBe(
+      'Tahmini sınav günü bugün',
+    );
+    expect(todayWidgetProps({ ...base, countdown: { examType: 'YKS', daysLeft: 3, estimated: true } }).countdownLine).toBe(
+      'YKS’ye 3 gün',
+    );
     expect(todayWidgetProps({ ...base, countdown: null }).countdownLine).toBeNull();
     expect(emptyWidgetProps().countdownLine).toBeNull();
   });

@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { AppState, type ScrollView, StyleSheet, Text, Vibration, View } from 'react-native';
+import { Fragment, use, useEffect, useRef, useState } from 'react';
+import { HeaderHeightContext } from 'expo-router/react-navigation';
+import { AppState, Platform, Pressable, type ScrollView, StyleSheet, Text, Vibration, View } from 'react-native';
 
 import { clockParts, formatClock } from '@/domain/clock';
 import { comparisonLine, type ComparisonLine } from '@/domain/compare';
@@ -12,7 +13,7 @@ import { istanbulDayKey } from '@/domain/istanbul-day';
 import { pomodoroStatus, type PomodoroStatus } from '@/domain/pomodoro';
 import { canShareCard } from '@/domain/share-card';
 import { goalRatio } from '@/domain/streak';
-import { defaultSubject, subjectsFor } from '@/domain/subjects';
+import { defaultSubject, quickSubjects, subjectsFor } from '@/domain/subjects';
 import { elapsedMs, isPaused } from '@/domain/timer';
 import { type TimedTopicStatus, toggleStatus, type TopicStatus } from '@/domain/topics';
 import { type FinishOptions, useAppState, useNow, useStored } from '@/state/app-state';
@@ -23,7 +24,6 @@ import {
   loadLastSubject,
   loadPomodoroConfig,
   loadTimerMode,
-  storeDailyGoal,
   storeTimerMode,
   type TimerMode,
 } from '@/storage/kv';
@@ -37,24 +37,22 @@ import {
   Chip,
   ChipRow,
   Dot,
-  fillText,
   Label,
   ListRow,
-  ProgressBar,
   ResponsiveRow,
-  Row,
   Screen,
-  Tag,
+  Section,
 } from '@/ui/components';
 import { BackupNudge } from '@/ui/backup-reminder';
 import { announce, hapticSuccess, hapticTap } from '@/ui/feedback';
+import { SavedMark } from '@/ui/finish-moment';
 import { formatDuration, formatStudyTime, topicLabel } from '@/ui/format';
-import { GoalSheet } from '@/ui/goal-sheet';
 import { Icon } from '@/ui/icon';
 import { InfoLink } from '@/ui/info-link';
-import { useReducedMotion } from '@/ui/motion';
-import { subjectColor } from '@/ui/subject-colors';
-import { MAX_FONT_SCALE, space, usePalette } from '@/ui/theme';
+import { easeNextLayout, useReducedMotion } from '@/ui/motion';
+import { Ring } from '@/ui/ring';
+import { subjectColor, subjectTint } from '@/ui/subject-colors';
+import { MAX_FONT_SCALE, ROUNDED_FONT, space, typography, useLargeText, usePalette } from '@/ui/theme';
 import { QuestionCount } from '@/ui/question-count';
 import { awayCardText, TimerKeepAwake, useFinishCheck } from '@/ui/timer-safety';
 import { FirstUseTips } from '@/ui/tips';
@@ -64,12 +62,17 @@ import { noteFinishForWidgetTip, WidgetTip } from '@/ui/widget-tip';
 /** A phase change seen within this time of the previous render tick happened on screen. */
 const PHASE_SIGNAL_MAX_GAP_MS = 3_000;
 
+/** Around the goal line on the "Bugün" card (13 pt text, 15–16 pt tall): a touch target of 44 pt or more. */
+const GOAL_LINE_SLOP = { top: 15, bottom: 15 };
+
 /** What the summary after "Bitir" shows; frozen at that moment. */
 interface Finished {
   /** The saved session (for the optional question count). */
   id: string;
-  /** "Kaydedildi: 45 dk" (E2E reads this text). */
+  /** "Kaydedildi: 45 dk": what VoiceOver says for the saved time (E2E reads this label). */
   saved: string;
+  /** The big number on screen: "45 dk". */
+  duration: string;
   subjectId: string;
   topicId: string | null;
   durationMs: number;
@@ -92,6 +95,7 @@ export default function TimerScreen() {
   const app = useAppState();
   const { active, profile } = app;
   const c = usePalette();
+  const reduceMotion = useReducedMotion();
   const running = active !== null && !isPaused(active);
   const now = useNow(running);
 
@@ -108,9 +112,12 @@ export default function TimerScreen() {
   const [pickedTopic, setTopicId] = useState<string | null>(null);
   const topicId = topicOfSubject(examType, yksArea, subjectId, pickedTopic);
   const [finished, setFinished] = useState<Finished | null>(null);
-  const [goalOpen, setGoalOpen] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-  const reduceMotion = useReducedMotion();
+  // iOS: the content starts under the transparent large-title bar (`Screen`'s automatic insets), so
+  // the top of the screen is at minus the bar's height, not at 0 (that would leave the summary's
+  // first lines under the bar). Elsewhere the header is not over the content.
+  const headerHeight = use(HeaderHeightContext) ?? 0;
+  const topOffset = Platform.OS === 'ios' ? -headerHeight : 0;
   // Stored, not screen state: a restored backup brings its own timer mode.
   const mode = useStored(`timerMode|${app.dataVersions.settings}`, loadTimerMode);
   const setSubjectId = (id: string) => {
@@ -123,8 +130,9 @@ export default function TimerScreen() {
   };
   const pomodoroConfig = useStored(`pomodoro|${app.dataVersions.settings}`, loadPomodoroConfig);
 
-  const { today, todayTotal, todayManual, todayQuestions, comparison, goal, todayGoal, streak, studyDays } =
+  const { today, todayTotal, todayManual, todayQuestions, comparison, todayGoal, streak, studyDays, recentSubjects } =
     useStudyStats(now);
+  const large = useLargeText();
   const compare = comparisonLine(comparison);
   const customExamDay = useStored(`examDate|${examType}|${app.dataVersions.settings}`, () =>
     loadCustomExamDate(examType),
@@ -190,28 +198,33 @@ export default function TimerScreen() {
       const runningTodayMs = active === null ? 0 : dailyTotals([activeSpan(active, now)], [today])[0].totalMs;
       const sessionTodayMs = dailyTotals([done], [today])[0].totalMs;
       const todayAfterMs = Math.max(0, todayTotal - runningTodayMs) + sessionTodayMs;
-      const saved = tr.timer.saved(
-        done.durationMs < 60_000 ? tr.timer.lessThanMinute : formatDuration(done.durationMs),
-      );
+      const duration = done.durationMs < 60_000 ? tr.timer.lessThanMinute : formatDuration(done.durationMs);
+      const saved = tr.timer.saved(duration);
+      const addedToYesterday = istanbulDayKey(done.startedAt) < today;
+      const reached =
+        todayGoal !== null && !addedToYesterday && goalStep(todayAfterMs, sessionTodayMs, todayGoal).reached;
+      // Running card out, summary in: one eased layout change instead of a jump.
+      easeNextLayout(reduceMotion);
       setFinished({
         id: done.id,
         saved,
+        duration,
         subjectId: done.subjectId,
         topicId: done.topicId,
         durationMs: done.durationMs,
         todayAfterMs,
         sessionTodayMs,
-        addedToYesterday: istanbulDayKey(done.startedAt) < today,
+        addedToYesterday,
         at: Date.now(),
         undoable: done.durationMs > 0 && !isSyncActive(),
       });
       // The summary ("Kaydedildi", "Geri al", the goal) is at the top of the screen and Bitir further
       // down, where the student may have scrolled to: bring the summary into view (V-01).
-      scrollRef.current?.scrollTo({ y: 0, animated: !reduceMotion });
+      scrollRef.current?.scrollTo({ y: topOffset, animated: !reduceMotion });
       setSubjectId(done.subjectId);
       noteFinishForWidgetTip(done.durationMs);
       hapticSuccess();
-      announce(tr.finish.announce(saved, formatStudyTime(todayAfterMs)));
+      announce(tr.finish.announce(saved, formatStudyTime(todayAfterMs), reached));
     }
   };
   const finishCheck = useFinishCheck(finish);
@@ -241,6 +254,7 @@ export default function TimerScreen() {
         setTopicStatus(marked.topicId, restore.status, restore.at);
         app.notifyDataChanged('topics');
       }
+      easeNextLayout(reduceMotion);
       setFinished(null);
       hapticTap();
       announce(tr.finish.undone);
@@ -249,75 +263,150 @@ export default function TimerScreen() {
     }
   };
 
-  const setGoal = (minutes: number | null) => {
-    // The day of the tap, not of the render clock (it ticks once a minute while idle). Today's total
-    // as shown decides whether a raise waits for tomorrow (a met goal stays met).
-    storeDailyGoal(minutes, istanbulDayKey(Date.now()), todayTotal);
-    app.notifyDataChanged('settings');
-  };
-
+  // Today is judged by its own goal: the old one after a raise that starts tomorrow (V-03).
   const goalStreak = todayGoal !== null && streak !== null ? { goal: todayGoal, streak } : null;
   // A session that went to yesterday moved nothing of today's goal: no "%40 → %40".
   const step =
     finished !== null && todayGoal !== null && !finished.addedToYesterday
       ? goalStep(finished.todayAfterMs, finished.sessionTodayMs, todayGoal)
       : null;
+  // The summary of the session that reached the goal: the day's one celebration (K-14).
+  const stepReached = step?.reached === true;
+  const goalShare = goalStreak === null ? 0 : goalRatio(todayTotal, goalStreak.goal);
+  const goalPercent = Math.floor(goalShare * 100);
+  const goalLine =
+    goalStreak === null
+      ? ''
+      : goalStreak.streak.todayMet
+        ? tr.goal.met
+        : tr.goal.progress(formatDuration(goalStreak.goal * 60_000), goalPercent);
+  const openGoal = () => router.push('/hedef');
+  // No badge before the first day that meets the goal: never a "0" (and no loss to read into it).
+  const streakDays = goalStreak !== null && goalStreak.streak.current > 0 ? goalStreak.streak.current : null;
+
+  // The card's top line: the exam countdown (or that its date has passed), muted.
+  const estimated = examDate?.estimated === true;
+  const countdown =
+    examDate !== null && daysLeft !== null && daysLeft >= 0 ? (
+      <View style={[styles.inline, styles.grow]}>
+        <Text
+          testID="countdown"
+          accessibilityLabel={daysLeft === 0 ? undefined : tr.countdown.lineA11y(examType, daysLeft, estimated)}
+          style={[styles.countdown, { color: c.textMuted }]}>
+          {daysLeft === 0
+            ? estimated
+              ? tr.countdown.todayEstimated
+              : tr.countdown.today
+            : tr.countdown.line(examType, daysLeft, estimated)}
+        </Text>
+        {estimated ? <InfoLink testID="countdown-info" section="tarih" term={tr.infoLink.estimated} /> : null}
+      </View>
+    ) : daysLeft !== null ? (
+      // The date (built-in estimate or the student's) is behind us: say so instead of hiding it.
+      <Label testID="countdown-passed" variant="muted" style={styles.grow}>
+        {tr.countdownPassed}
+      </Label>
+    ) : null;
+
+  // The card's one ring: today's share of the goal, idle and after Bitir. In the summary of the
+  // session that reached the goal it fills from where the day stood to 100 % once, in the success
+  // colour with the seal. It opens the goal sheet, as the goal line does (both are announced:
+  // every touch target is a named control). Without a goal: the button that sets one.
+  const ring =
+    goalStreak !== null ? (
+      <Pressable
+        testID="goal-ring"
+        accessibilityRole="button"
+        accessibilityLabel={tr.goal.title}
+        accessibilityValue={{ text: `%${stepReached ? 100 : goalPercent}` }}
+        accessibilityHint={tr.home.goalEditA11y}
+        onPress={openGoal}
+        style={({ pressed }) => [{ alignSelf: large ? 'flex-start' : 'center', opacity: pressed ? 0.6 : 1 }]}>
+        <Ring
+          testID="goal-ring-progress"
+          ratio={stepReached ? 1 : goalShare}
+          color={stepReached || goalStreak.streak.todayMet ? c.success : c.accent}
+          track={c.barSoft}
+          fillFrom={stepReached && step !== null ? step.beforePercent / 100 : undefined}>
+          {stepReached ? <Icon name="goalDone" color={c.success} size={28} /> : null}
+        </Ring>
+      </Pressable>
+    ) : (
+      <Button compact testID="goal-set" kind="secondary" title={tr.goal.set} onPress={openGoal} />
+    );
 
   return (
     <Screen testID="timer-screen" ref={scrollRef}>
       <TimerKeepAwake running={running} />
       <FirstUseTips />
-      <GoalSheet
-        visible={goalOpen}
-        goal={goal}
-        startsTomorrow={goal !== todayGoal}
-        onChange={setGoal}
-        onClose={() => setGoalOpen(false)}
-      />
 
-      {/* Today: exam countdown, today's total, goal and streak; the summary after Bitir lives here too. */}
-      <Card tone="accent">
-        {examDate !== null && daysLeft !== null && daysLeft >= 0 ? (
-          // Wraps at large text: "tahmini · Nedir?" moves below instead of breaking "YKS’ye" (IOS-04).
-          <Row wrap>
-            <Label testID="countdown" style={{ ...fillText, fontWeight: '700', color: c.accent }}>
-              {daysLeft === 0 ? tr.countdown.today : tr.countdown.days(examType, daysLeft)}
-            </Label>
-            {examDate.estimated ? (
-              <View style={styles.inline}>
-                <Tag title={tr.countdown.estimated} />
-                <InfoLink testID="countdown-info" section="tarih" term={tr.infoLink.estimated} />
+      {/* Today, the one hero of the screen: one big number and one ring under a muted countdown
+          line and the streak badge. Idle the number is today's total; right after Bitir it is the
+          time just saved, and today's total steps down to a muted line. */}
+      <Card tone="hero" testID="today-card">
+        {countdown !== null || streakDays !== null ? (
+          <View style={styles.heroHead}>
+            <View style={large ? styles.heroTopStack : styles.heroTop}>
+              {countdown}
+              {streakDays !== null ? (
+                <View
+                  testID="streak"
+                  accessible
+                  accessibilityLabel={tr.goal.streak(streakDays)}
+                  style={[styles.badge, large ? null : styles.badgeEnd, { backgroundColor: c.surface }]}>
+                  <Icon name="streak" color={c.streak} size={16} />
+                  <Text style={[styles.badgeText, { color: c.streak }]}>{tr.goal.streakBadge(streakDays)}</Text>
+                </View>
+              ) : null}
+            </View>
+            {streakDays !== null ? (
+              <View style={[styles.inline, large ? null : styles.toEnd]}>
+                <Label variant="small" testID="streak-rest" style={{ flexShrink: 1, textAlign: large ? 'left' : 'right' }}>
+                  {tr.goal.restRule}
+                </Label>
+                <InfoLink testID="streak-info" section="seri" term={tr.infoLink.streak} />
               </View>
             ) : null}
-          </Row>
-        ) : daysLeft !== null ? (
-          // The date (built-in estimate or the student's) is behind us: say so instead of hiding it.
-          <Label testID="countdown-passed" variant="muted">
-            {tr.countdownPassed}
-          </Label>
+          </View>
         ) : null}
 
         {finished !== null ? (
-          <View testID="finish-summary" style={{ gap: space.xs }}>
+          <View testID="finish-summary" style={{ gap: space.sm }}>
             <ResponsiveRow>
-              <View style={[styles.inline, styles.grow]}>
-                <Icon name="saved" color={c.success} />
-                <Label variant="heading" testID="timer-saved" style={{ color: c.success, flexShrink: 1 }}>
-                  {finished.saved}
-                </Label>
+              <View style={[styles.grow, { gap: space.xs }]}>
+                <View style={styles.inline}>
+                  <SavedMark />
+                  <View testID="timer-saved" accessible accessibilityLabel={finished.saved} style={styles.grow}>
+                    <Label variant="muted">{tr.finish.savedTitle}</Label>
+                    {/* Under a minute the time is words ("1 dakikadan az"): at the hero size they took three
+                        lines beside the ring and broke "dakika/dan" (IOS-05), so they get the smaller size. */}
+                    <Label variant={finished.durationMs < 60_000 ? 'displaySmall' : 'display'}>{finished.duration}</Label>
+                  </View>
+                </View>
+                {stepReached ? (
+                  <Text testID="finish-goal-reached" style={[typography.heading, { color: c.text, flexShrink: 1 }]}>
+                    {tr.finish.goalReached}
+                  </Text>
+                ) : null}
+                {/* Separate texts, not one sentence: E2E finds today-total by its id on iOS too. */}
+                <View testID="finish-today" style={styles.todayLine}>
+                  <Label variant="muted">{tr.timer.today}</Label>
+                  <Label variant="muted" testID="today-total">
+                    {formatStudyTime(todayTotal)}
+                  </Label>
+                  {todayQuestions > 0 ? (
+                    <Label variant="muted" testID="today-questions">
+                      {tr.timer.todayQuestions(todayQuestions)}
+                    </Label>
+                  ) : null}
+                  {goalStreak !== null ? (
+                    <Label variant="muted">{tr.finish.todayGoal(formatDuration(goalStreak.goal * 60_000))}</Label>
+                  ) : null}
+                </View>
               </View>
-              {finished.undoable ? (
-                <Button
-                  compact
-                  testID="finish-undo"
-                  kind="secondary"
-                  title={tr.finish.undo}
-                  accessibilityHint={finished.topicBefore !== undefined ? tr.finish.undoHintTopic : tr.finish.undoHint}
-                  onPress={undo}
-                />
-              ) : null}
+              {ring}
             </ResponsiveRow>
-            <Label variant="small" testID="finish-detail">
+            <Label variant="muted" testID="finish-detail">
               {(topicLabel(finished.topicId)
                 ? tr.finish.studiedTopic(tr.subject(finished.subjectId), topicLabel(finished.topicId) ?? '')
                 : tr.finish.studied(tr.subject(finished.subjectId))) +
@@ -326,12 +415,6 @@ export default function TimerScreen() {
             {finished.addedToYesterday ? (
               <Label variant="small" testID="finish-yesterday">
                 {tr.finish.addedToYesterday}
-              </Label>
-            ) : null}
-            {step?.reached ? (
-              <Label variant="small" testID="finish-goal-reached" style={{ color: c.success, fontWeight: '600' }}>
-                {tr.finish.goalReached}
-                {streak !== null && streak.current > 0 ? ` ${tr.finish.streak(streak.current)}` : ''}
               </Label>
             ) : null}
             {finishedTopicId !== null ? (
@@ -367,68 +450,59 @@ export default function TimerScreen() {
                 }}
               />
             ) : null}
-          </View>
-        ) : null}
-
-        <ResponsiveRow>
-          <View style={styles.grow}>
-            <Label variant="muted">{tr.timer.today}</Label>
-            <View style={styles.totalLine}>
-              <Label variant="title" testID="today-total">
-                {formatStudyTime(todayTotal)}
-              </Label>
-              {todayQuestions > 0 ? (
-                <Label variant="muted" testID="today-questions">
-                  {tr.timer.todayQuestions(todayQuestions)}
-                </Label>
-              ) : null}
-            </View>
-            {todayManual > 0 ? (
-              <Label variant="small">{tr.timer.manualPart(formatDuration(todayManual))}</Label>
+            {finished.undoable ? (
+              // A tonal red step back (it deletes the record), last and at the end of the line.
+              <View style={[styles.inline, styles.toEnd]}>
+                <Button
+                  compact
+                  testID="finish-undo"
+                  kind="dangerSoft"
+                  title={tr.finish.undo}
+                  accessibilityHint={finished.topicBefore !== undefined ? tr.finish.undoHintTopic : tr.finish.undoHint}
+                  onPress={undo}
+                />
+              </View>
             ) : null}
           </View>
-          {goalStreak !== null ? (
-            <View style={styles.inline}>
-              <Icon name="streak" color={c.streak} size={20} />
-              <Label testID="streak" style={{ color: c.streak, fontWeight: '700' }}>
-                {tr.goal.streak(goalStreak.streak.current)}
-              </Label>
-              <InfoLink testID="streak-info" section="seri" term={tr.infoLink.streak} />
-            </View>
-          ) : (
-            <Button
-              compact
-              testID="goal-set"
-              kind="secondary"
-              title={tr.goal.set}
-              onPress={() => setGoalOpen(true)}
-            />
-          )}
-        </ResponsiveRow>
-        {compare !== null ? <CompareLine line={compare} /> : null}
-        {goalStreak !== null ? (
+        ) : (
           <>
-            <ProgressBar ratio={goalRatio(todayTotal, goalStreak.goal)} label={tr.goal.title} />
             <ResponsiveRow>
-              <Label testID="goal-progress" variant="small" style={styles.grow}>
-                {goalStreak.streak.todayMet
-                  ? tr.goal.met
-                  : tr.goal.progress(
-                      formatDuration(goalStreak.goal * 60_000),
-                      Math.floor(goalRatio(todayTotal, goalStreak.goal) * 100),
-                    )}
-              </Label>
-              <Button
-                compact
-                testID="goal-edit"
-                kind="secondary"
-                title={tr.home.goalEdit}
-                accessibilityLabel={tr.home.goalEditA11y}
-                onPress={() => setGoalOpen(true)}
-              />
+              <View style={styles.grow}>
+                <Label variant="muted">{tr.timer.today}</Label>
+                <View style={styles.totalLine}>
+                  <Label variant="display" testID="today-total">
+                    {formatStudyTime(todayTotal)}
+                  </Label>
+                  {todayQuestions > 0 ? (
+                    <Label variant="muted" testID="today-questions">
+                      {tr.timer.todayQuestions(todayQuestions)}
+                    </Label>
+                  ) : null}
+                </View>
+                {todayManual > 0 ? (
+                  <Label variant="small">{tr.timer.manualPart(formatDuration(todayManual))}</Label>
+                ) : null}
+              </View>
+              {ring}
             </ResponsiveRow>
+            {goalStreak !== null ? (
+              <Pressable
+                testID="goal-edit"
+                accessibilityRole="button"
+                accessibilityLabel={goalLine}
+                accessibilityHint={tr.home.goalEditA11y}
+                onPress={openGoal}
+                hitSlop={GOAL_LINE_SLOP}
+                style={({ pressed }) => [styles.goalLine, { opacity: pressed ? 0.6 : 1 }]}>
+                <Label testID="goal-progress" variant="small" style={{ flexShrink: 1 }}>
+                  {goalLine}
+                </Label>
+                <Icon name="chevron" color={c.accent} size={14} />
+              </Pressable>
+            ) : null}
+            {compare !== null ? <CompareLine line={compare} /> : null}
           </>
-        ) : null}
+        )}
       </Card>
 
       {away !== null && !finishCheck.open ? (
@@ -452,18 +526,7 @@ export default function TimerScreen() {
           {/* Core loop: pick a subject (last one is pre-selected), tap Başla. Topic and mode are optional. */}
           <Card>
             <Label variant="heading">{tr.timer.pickSubject}</Label>
-            <ChipRow>
-              {subjects.map((id) => (
-                <Chip
-                  key={id}
-                  testID={`subject-${id}`}
-                  title={tr.subject(id)}
-                  color={subjectColor(id, c)}
-                  selected={id === subjectId}
-                  onPress={() => setSubjectId(id)}
-                />
-              ))}
-            </ChipRow>
+            <SubjectChips subjects={subjects} recent={recentSubjects} selected={subjectId} onPick={setSubjectId} />
             <TopicPicker
               examType={examType}
               yksArea={yksArea}
@@ -502,6 +565,8 @@ export default function TimerScreen() {
             testID="timer-start"
             title={tr.timer.start}
             onPress={() => {
+              // The subject card makes way for the running card.
+              easeNextLayout(reduceMotion);
               setFinished(null);
               hapticTap();
               app.start(subjectId, { topicId, pomodoro: mode === 'pomodoro' ? pomodoroConfig : null });
@@ -509,7 +574,11 @@ export default function TimerScreen() {
           />
         </>
       ) : (
-        <Card outline={running && !onBreak ? subjectColor(active.subjectId, c) : c.controlBorder}>
+        // Tinted with the subject's colour (8 %); the 2 pt outline in it while the time counts.
+        <Card
+          testID="timer-card"
+          tint={subjectTint(active.subjectId, c)}
+          outline={running && !onBreak ? subjectColor(active.subjectId, c) : c.controlBorder}>
           <View style={[styles.inline, { justifyContent: 'center' }]}>
             <Dot color={subjectColor(active.subjectId, c)} />
             <Label variant="muted" testID="timer-subject" style={{ textAlign: 'center', flexShrink: 1 }}>
@@ -534,17 +603,18 @@ export default function TimerScreen() {
             adjustsFontSizeToFit>
             {formatClock(clockMs)}
           </Text>
-          <View
-            style={[
-              styles.pill,
-              { backgroundColor: running && !onBreak ? c.successSoft : 'transparent' },
-            ]}>
+          {/* Plain text, no pill: "• Çalışıyorsun" / "• Moladasın" with a dot in the state's colour;
+              pomodoro's running total ("Toplam çalışma: 0:08") is a muted fact. */}
+          <View style={styles.status}>
+            {!running || pomodoro === null ? <Dot color={running ? c.success : c.warning} size={6} /> : null}
             <Label
+              variant="small"
               testID="timer-status"
               style={{
                 textAlign: 'center',
                 fontWeight: '600',
-                color: !running ? c.warning : onBreak ? c.textMuted : c.success,
+                flexShrink: 1,
+                color: !running ? c.warning : pomodoro !== null ? c.textMuted : c.success,
               }}>
               {pomodoro !== null
                 ? running
@@ -586,15 +656,15 @@ export default function TimerScreen() {
                 }}
               />
             )}
-            <Button large testID="timer-finish" kind="danger" title={tr.timer.finish} onPress={finishCheck.request} />
+            {/* Same weight as Duraklat/Mola: tonal red, not a full red fill (that is only for deleting data). */}
+            <Button large testID="timer-finish" kind="dangerSoft" title={tr.timer.finish} onPress={finishCheck.request} />
           </ResponsiveRow>
           {finishCheck.prompt}
         </Card>
       )}
 
       {/* Secondary: everything that is not "pick a subject and start". Geçmiş is in the header. */}
-      <Card>
-        <Label variant="heading">{tr.home.shortcuts}</Label>
+      <Section title={tr.home.shortcuts}>
         {active === null ? (
           <>
             <ListRow
@@ -618,12 +688,57 @@ export default function TimerScreen() {
             router.push({ pathname: '/karne/[subject]', params: { subject: active?.subjectId ?? subjectId } })
           }
         />
-      </Card>
+      </Section>
 
       {active === null ? <BackupNudge studyDays={studyDays} now={now} /> : null}
 
       {active === null ? <WidgetTip finishedAt={finished?.at ?? null} /> : null}
     </Screen>
+  );
+}
+
+/**
+ * "Ders seç": the recently studied subjects (and the selected one) as chips, the rest of the list
+ * behind "Tüm dersler". The selected chip is filled with its subject colour; its name stays the
+ * cue. Opened, the whole list stays until the card goes (Başla), so a pick never jumps away.
+ */
+function SubjectChips({
+  subjects,
+  recent,
+  selected,
+  onPick,
+}: {
+  subjects: readonly string[];
+  recent: readonly string[];
+  selected: string;
+  onPick: (id: string) => void;
+}) {
+  const c = usePalette();
+  const [all, setAll] = useState(false);
+  const quick = quickSubjects(subjects, recent, selected);
+  const more = subjects.length - quick.length;
+  return (
+    <ChipRow>
+      {(all ? subjects : quick).map((id) => (
+        <Chip
+          key={id}
+          testID={`subject-${id}`}
+          title={tr.subject(id)}
+          color={subjectColor(id, c)}
+          selected={id === selected}
+          onPress={() => onPick(id)}
+        />
+      ))}
+      {!all && more > 0 ? (
+        <Chip
+          testID="subjects-all"
+          title={tr.timer.allSubjects}
+          accessibilityHint={tr.timer.allSubjectsHint(more)}
+          selected={false}
+          onPress={() => setAll(true)}
+        />
+      ) : null}
+    </ChipRow>
   );
 }
 
@@ -656,15 +771,31 @@ function CompareLine({ line }: { line: ComparisonLine }) {
 }
 
 const styles = StyleSheet.create({
-  clock: {
-    fontSize: 80,
-    fontWeight: '200',
-    textAlign: 'center',
-    fontVariant: ['tabular-nums'],
-  },
+  // SF Rounded 72/700 with tabular digits: the same "clock voice" as the Live Activity and widget.
+  clock: { ...typography.clock, textAlign: 'center' },
   grow: { flexGrow: 1, flexShrink: 1 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  heroHead: { gap: space.xs },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  // Accessibility text sizes: the countdown, the badge and its hint one under the other.
+  heroTopStack: { flexDirection: 'column', alignItems: 'flex-start', gap: space.xs },
+  countdown: { ...typography.small, fontWeight: '600', flexShrink: 1 },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: space.xs,
+  },
+  // Top right, also when there is no countdown on its left.
+  badgeEnd: { marginLeft: 'auto' },
+  badgeText: { fontFamily: ROUNDED_FONT, fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  toEnd: { justifyContent: 'flex-end' },
+  goalLine: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'flex-start' },
   modeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
   totalLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: space.sm },
-  pill: { alignSelf: 'center', borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 2 },
+  // After Bitir: "Bugün 3 sa 5 dk · hedef 3 sa 0 dk", muted, wrapping between its parts.
+  todayLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: space.xs },
+  status: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
 });

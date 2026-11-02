@@ -9,18 +9,18 @@ import { DARK, type Palette } from './theme';
  */
 export const HEAT_COLORS: Record<'light' | 'dark', readonly { fill: string; text: string }[]> = {
   light: [
-    { fill: '#EEF1F5', text: '#111418' },
-    { fill: '#D6DEFB', text: '#111418' },
-    { fill: '#A3B4F2', text: '#111418' },
+    { fill: '#EEF1F5', text: '#111827' },
+    { fill: '#C9D4F9', text: '#111827' },
+    { fill: '#8FA4F0', text: '#111827' },
     { fill: '#3B5BDB', text: '#FFFFFF' },
-    { fill: '#22378F', text: '#FFFFFF' },
+    { fill: '#1E2F7A', text: '#FFFFFF' },
   ],
   dark: [
-    { fill: '#21262D', text: '#E6EDF3' },
-    { fill: '#1F2B57', text: '#E6EDF3' },
-    { fill: '#2F4BB0', text: '#FFFFFF' },
-    { fill: '#6E8BFF', text: '#0D1117' },
-    { fill: '#B4C2FF', text: '#0D1117' },
+    { fill: '#1A2136', text: '#E9EDF6' },
+    { fill: '#233366', text: '#E9EDF6' },
+    { fill: '#3A56C4', text: '#FFFFFF' },
+    { fill: '#7F9BFF', text: '#0B0F1A' },
+    { fill: '#C6D2FF', text: '#0B0F1A' },
   ],
 };
 

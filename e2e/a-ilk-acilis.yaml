@@ -10,7 +10,7 @@ tags:
       id: onboarding-screen
     timeout: 60000
 - takeScreenshot: a-ilk-acilis-01-bos
-# K-15: nothing is pre-selected, so the start button (below the cards) is disabled.
+# K-15: nothing is pre-selected, so the start button (fixed at the bottom) is disabled.
 - scrollUntilVisible:
     element:
       id: onboarding-start
@@ -28,10 +28,12 @@ tags:
 - tapOn:
     id: "birth-year-${new Date().getFullYear() - 20}"
     retryTapIfNoChange: true
+# Centred: Maestro counts a chip under the fixed Başla bar as visible (it only checks the screen edges).
 - scrollUntilVisible:
     element:
       id: exam-type-YKS
     direction: DOWN
+    centerElement: true
     timeout: 20000
 - tapOn:
     id: exam-type-YKS
@@ -41,6 +43,7 @@ tags:
     element:
       id: yks-area-sayisal
     direction: DOWN
+    centerElement: true
     timeout: 20000
 - tapOn:
     id: yks-area-sayisal

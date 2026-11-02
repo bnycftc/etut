@@ -7,7 +7,8 @@ import type { Profile } from '../domain/profile';
 import { tr } from '../strings';
 import { Card, Label, Screen } from './components';
 import { Icon, type IconName } from './icon';
-import { space, usePalette } from './theme';
+import { Ring } from './ring';
+import { space, useLargeText, usePalette } from './theme';
 
 const t = tr.groupsTeaser;
 
@@ -29,9 +30,10 @@ export function GroupsTeaser({ profile }: { profile: Profile }) {
   // The year as the screen opens (a birthday mid-visit changes nothing that matters here).
   const [year] = useState(() => istanbulYear(Date.now()));
   const teen = ageBandFor(profile.birthYear, year) === '15_17';
+  const large = useLargeText();
   return (
     <Screen testID="groups-teaser">
-      <Card tone="accent">
+      <Card tone="hero">
         <View style={{ alignItems: 'center', gap: space.md }}>
           <Hero />
           <View
@@ -41,7 +43,7 @@ export function GroupsTeaser({ profile }: { profile: Profile }) {
               {t.badge}
             </Label>
           </View>
-          <Label variant="title" style={{ textAlign: 'center' }}>
+          <Label variant="largeTitle" style={{ textAlign: 'center' }}>
             {t.title}
           </Label>
           <Label variant="muted" style={{ textAlign: 'center' }}>
@@ -68,7 +70,7 @@ export function GroupsTeaser({ profile }: { profile: Profile }) {
             {t.parent.kicker}
           </Label>
           <Feature icon="home" title={t.parent.title} body={t.parent.body} />
-          <View style={{ gap: space.xs, paddingLeft: 48 }}>
+          <View style={{ gap: space.xs, paddingLeft: large ? 0 : 48 }}>
             {t.parent.sees.map((line) => (
               <Label key={line}>{`• ${line}`}</Label>
             ))}
@@ -87,44 +89,28 @@ export function GroupsTeaser({ profile }: { profile: Profile }) {
   );
 }
 
-/** The app's ring ("halka") around the groups symbol. Decorative: the title says what this is. */
+/** The app's ring ("halka"), not yet closed, around the groups symbol. Decorative: the title says what this is. */
 function Hero() {
   const c = usePalette();
   return (
-    <View
-      accessible={false}
-      importantForAccessibility="no-hide-descendants"
-      accessibilityElementsHidden
-      style={{
-        width: 96,
-        height: 96,
-        borderRadius: 48,
-        borderWidth: 3,
-        borderColor: c.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-      <View
-        style={{
-          width: 76,
-          height: 76,
-          borderRadius: 38,
-          borderWidth: 8,
-          borderColor: c.accent,
-          backgroundColor: c.surface,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-        <Icon name="groupsFill" color={c.accent} size={30} />
-      </View>
-    </View>
+    <Ring ratio={0.75} color={c.accent} track={c.barSoft} size={88} thickness={10}>
+      <Icon name="groupsFill" color={c.accent} size={32} />
+    </Ring>
   );
 }
 
+/**
+ * A symbol and its text. At accessibility text sizes the symbol goes above the text, which then
+ * has the card's whole width: beside a 36 pt symbol in a `flex: 1` column the last line of a body
+ * was cut at the right edge ("görünmez çalışırs") with an empty line left under it.
+ */
 function Feature({ icon, title, body, testID }: { icon: IconName; title: string; body: string; testID?: string }) {
   const c = usePalette();
+  const large = useLargeText();
   return (
-    <View testID={testID} style={{ flexDirection: 'row', gap: space.md, alignItems: 'flex-start' }}>
+    <View
+      testID={testID}
+      style={large ? { gap: space.sm } : { flexDirection: 'row', gap: space.md, alignItems: 'flex-start' }}>
       <View
         style={{
           width: 36,
@@ -136,7 +122,7 @@ function Feature({ icon, title, body, testID }: { icon: IconName; title: string;
         }}>
         <Icon name={icon} color={c.accent} size={18} />
       </View>
-      <View style={{ flex: 1, gap: 2 }}>
+      <View style={large ? { gap: 2 } : { flex: 1, gap: 2 }}>
         <Label variant="heading">{title}</Label>
         <Label variant="muted">{body}</Label>
       </View>

@@ -154,7 +154,7 @@ export default function ExamsScreen() {
           {tr.exams.noFormNote}
         </Label>
       ) : (
-        <Button large testID="exams-add" title={tr.exams.add} onPress={() => router.push('/deneme/yeni')} />
+        <Button tall testID="exams-add" title={tr.exams.add} onPress={() => router.push('/deneme/yeni')} />
       )}
 
       {saved !== null ? (
@@ -270,7 +270,6 @@ export default function ExamsScreen() {
                 {sectionPoints.some((p) => p.scope === 'brans') ? (
                   <Label variant="small">{tr.exams.chartBransLegend}</Label>
                 ) : null}
-                {target !== null ? <Label variant="small">{tr.exams.chartTargetLegend}</Label> : null}
               </>
             )}
 

@@ -25,8 +25,8 @@ import {
   EmptyState,
   fillText,
   Label,
+  PeriodNav,
   ProgressBar,
-  ResponsiveRow,
   Row,
   Screen,
   Tag,
@@ -35,7 +35,7 @@ import { formatDay, formatDuration, formatStudyTime } from '@/ui/format';
 import { Icon } from '@/ui/icon';
 import { MonthCalendar } from '@/ui/month-calendar';
 import { subjectColor } from '@/ui/subject-colors';
-import { space, useLargeText, usePalette } from '@/ui/theme';
+import { space, typography, useLargeText, usePalette } from '@/ui/theme';
 
 /** Weekly summary (Monday–Sunday, Istanbul): own numbers only, no comparison with others. */
 export default function WeeklyScreen() {
@@ -85,29 +85,44 @@ export default function WeeklyScreen() {
 
   return (
     <Screen>
-      <ResponsiveRow>
-        <Button testID="weekly-prev" kind="secondary" title={tr.weekly.prev} onPress={() => setOffset(offset - 1)} />
-        <Button
-          testID="weekly-next"
-          kind="secondary"
-          title={tr.weekly.next}
-          disabled={offset >= 0}
-          onPress={() => setOffset(offset + 1)}
-        />
-      </ResponsiveRow>
-      <Label variant="muted">{tr.weekly.range(formatDay(weekStart), formatDay(addDays(weekStart, 6)))}</Label>
+      <PeriodNav
+        label={tr.weekly.range(formatDay(weekStart), formatDay(addDays(weekStart, 6)))}
+        prev={{ testID: 'weekly-prev', title: tr.weekly.prev, onPress: () => setOffset(offset - 1) }}
+        next={{ testID: 'weekly-next', title: tr.weekly.next, disabled: offset >= 0, onPress: () => setOffset(offset + 1) }}
+      />
 
       <Card>
-        <Row>
-          <Label variant="heading" style={{ flex: 1 }}>
-            {tr.weekly.total}
-          </Label>
-          <Label testID="weekly-total" variant="heading">
-            {formatStudyTime(week.totalMs)}
-          </Label>
-        </Row>
+        <View style={large ? styles.tilesStacked : styles.tiles}>
+          <StatTile
+            label={tr.weekly.total}
+            value={formatStudyTime(week.totalMs)}
+            valueTestID="weekly-total"
+            a11y={tr.weekly.tileA11y(tr.weekly.total, formatStudyTime(week.totalMs))}
+          />
+          <StatTile
+            label={tr.weekly.tileDays}
+            value={tr.weekly.tileDaysValue(week.activeDays)}
+            a11y={tr.weekly.activeDays(week.activeDays)}
+          />
+          <StatTile
+            label={tr.weekly.tileAverage}
+            value={week.activeDays === 0 ? tr.weekly.tileNone : formatStudyTime(week.averageActiveDayMs)}
+            a11y={tr.weekly.tileAverageA11y(
+              week.activeDays === 0 ? tr.weekly.tileNone : formatStudyTime(week.averageActiveDayMs),
+            )}
+          />
+          <StatTile
+            label={tr.weekly.tileBest}
+            value={week.bestDay === null ? tr.weekly.tileNone : formatStudyTime(week.bestDay.ms)}
+            caption={week.bestDay === null ? undefined : tr.weekdayShort(istanbulWeekday(week.bestDay.day))}
+            a11y={
+              week.bestDay === null
+                ? tr.weekly.tileA11y(tr.weekly.tileBest, tr.weekly.tileNone)
+                : tr.weekly.tileBestA11y(formatDay(week.bestDay.day), formatStudyTime(week.bestDay.ms))
+            }
+          />
+        </View>
         <Label variant="muted">{tr.weekly.previousWeek(formatStudyTime(previous.totalMs))}</Label>
-        <Label variant="muted">{tr.weekly.activeDays(week.activeDays)}</Label>
         {week.goalDays !== null ? <Label variant="muted">{tr.weekly.goalDays(week.goalDays)}</Label> : null}
         {week.manualMs > 0 ? (
           <Row>
@@ -254,24 +269,18 @@ export default function WeeklyScreen() {
 
       <Card testID="monthly-card">
         <Label variant="heading">{tr.monthly.title}</Label>
-        <ResponsiveRow>
-          <Button
-            testID="monthly-prev"
-            kind="secondary"
-            title={tr.monthly.prev}
-            onPress={() => setMonthOffset(monthOffset - 1)}
-          />
-          <Button
-            testID="monthly-next"
-            kind="secondary"
-            title={tr.monthly.next}
-            disabled={monthOffset >= 0}
-            onPress={() => setMonthOffset(monthOffset + 1)}
-          />
-        </ResponsiveRow>
-        <Label variant="heading" testID="monthly-month">
-          {tr.monthly.month(monthly.year, monthly.month)}
-        </Label>
+        <PeriodNav
+          heading
+          label={tr.monthly.month(monthly.year, monthly.month)}
+          labelTestID="monthly-month"
+          prev={{ testID: 'monthly-prev', title: tr.monthly.prev, onPress: () => setMonthOffset(monthOffset - 1) }}
+          next={{
+            testID: 'monthly-next',
+            title: tr.monthly.next,
+            disabled: monthOffset >= 0,
+            onPress: () => setMonthOffset(monthOffset + 1),
+          }}
+        />
         {monthly.studyDays === 0 ? (
           <Label variant="muted" testID="monthly-empty">
             {tr.monthly.empty}
@@ -295,8 +304,41 @@ export default function WeeklyScreen() {
   );
 }
 
+/**
+ * One of the four numbers at the top of the week: a muted name over a large rounded number
+ * (and an optional caption), read as one "name: value" element.
+ */
+function StatTile({
+  label,
+  value,
+  caption,
+  a11y,
+  valueTestID,
+}: {
+  label: string;
+  value: string;
+  caption?: string;
+  a11y: string;
+  valueTestID?: string;
+}) {
+  const c = usePalette();
+  return (
+    <View accessible accessibilityLabel={a11y} style={[styles.tile, { backgroundColor: c.background }]}>
+      <Label variant="small">{label}</Label>
+      <Text testID={valueTestID} style={[typography.displaySmall, { color: c.text }]}>
+        {value}
+      </Text>
+      {caption ? <Label variant="small">{caption}</Label> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   grow: { flex: 1 },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  tilesStacked: { gap: space.sm },
+  // Two to a row: each takes just under half, the gap the rest.
+  tile: { flexGrow: 1, flexBasis: '45%', borderRadius: 12, padding: space.md, gap: 2 },
   subjectRow: { flexDirection: 'row', gap: space.md, alignItems: 'center', minHeight: 44 },
   dayRow: { flexDirection: 'row', gap: space.xs },
   dayCell: { flex: 1, alignItems: 'center' },

@@ -300,7 +300,6 @@ export default function ReportCardScreen() {
         {data.nets.some((s) => s.history.some((p) => p.scope === 'brans')) ? (
           <Label variant="small">{tr.exams.chartBransLegend}</Label>
         ) : null}
-        {data.nets.some((s) => s.target !== null) ? <Label variant="small">{tr.exams.chartTargetLegend}</Label> : null}
       </Card>
 
       <Card testID="report-missed">

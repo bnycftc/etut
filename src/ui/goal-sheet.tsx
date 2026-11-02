@@ -1,10 +1,9 @@
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 
 import { GOAL_MAX_MINUTES, GOAL_MIN_MINUTES } from '../domain/streak';
 import { tr } from '../strings';
 import { Button, Chip, ChipRow, Label, ResponsiveRow, Stepper } from './components';
 import { formatDuration } from './format';
-import { useReducedMotion } from './motion';
 import { space, usePalette } from './theme';
 
 /** Ready-made daily goals in hours (one tap instead of many 15 min steps). */
@@ -38,79 +37,64 @@ export function GoalPresets({
 }
 
 /**
- * Daily goal picker on the timer screen: presets, a 15 min fine tune and "turn off". Every change
- * is saved at once (like Settings); the same goal is edited in Settings too. `startsTomorrow`: the
- * goal shown was raised after today's goal was met and starts tomorrow (`goalFromTomorrow`).
+ * Daily goal picker on the timer screen (`app/hedef.tsx`, a system form sheet): presets, a 15 min
+ * fine tune and "turn off". Every change is saved at once (like Settings); the same goal is edited
+ * in Settings too. `startsTomorrow`: the goal shown was raised after today's goal was met and
+ * starts tomorrow (`goalFromTomorrow`).
+ *
+ * The scroll view is the sheet's root (IOS-02). react-native-screens gives a form sheet's content
+ * no height of its own (no `bottom: 0`) and sizes the scroll view it finds to the sheet: as the
+ * first child of the content it fills the sheet; nested in a padded `flex: 1` view it was set to
+ * the screen's frame instead, so at the half-height detent the presets were off the sheet (only
+ * "Tamam" showed) and text lost its margins. The padding is the scroll content's; the buttons
+ * follow the choices.
  */
 export function GoalSheet({
-  visible,
   goal,
   startsTomorrow = false,
   onChange,
   onClose,
 }: {
-  visible: boolean;
   goal: number | null;
   startsTomorrow?: boolean;
   onChange: (minutes: number | null) => void;
   onClose: () => void;
 }) {
   const c = usePalette();
-  const reduceMotion = useReducedMotion();
-  if (!visible) return null;
   return (
-    <Modal transparent visible animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        {/* Tapping the dimmed area closes the sheet (decorative for screen readers: "Tamam" does the same). */}
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessible={false} importantForAccessibility="no" />
-        <View
+    <ScrollView
+      testID="goal-sheet"
+      style={{ backgroundColor: c.surface }}
+      contentContainerStyle={styles.content}>
+      <Label variant="heading">{tr.goalSheet.title}</Label>
+      <Label variant="small">{tr.goal.info}</Label>
+      <GoalPresets goal={goal} onPick={onChange} testIDPrefix="goal-preset" />
+      {goal !== null ? (
+        <Stepper
           testID="goal-sheet"
-          accessibilityViewIsModal
-          style={[styles.sheet, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <ScrollView contentContainerStyle={{ gap: space.md }}>
-            <Label variant="heading">{tr.goalSheet.title}</Label>
-            <Label variant="small">{tr.goal.info}</Label>
-            <GoalPresets goal={goal} onPick={onChange} testIDPrefix="goal-preset" />
-            {goal !== null ? (
-              <Stepper
-                testID="goal-sheet"
-                label={tr.goalSheet.fineTune}
-                value={formatDuration(goal * 60_000)}
-                onMinus={() => onChange(goal - STEP_MINUTES)}
-                onPlus={() => onChange(goal + STEP_MINUTES)}
-                minusDisabled={goal <= GOAL_MIN_MINUTES}
-                plusDisabled={goal >= GOAL_MAX_MINUTES}
-              />
-            ) : null}
-            {goal !== null && startsTomorrow ? (
-              <Label variant="small" testID="goal-starts-tomorrow">
-                {tr.goal.startsTomorrow}
-              </Label>
-            ) : null}
-            <ResponsiveRow>
-              {goal !== null ? (
-                <Button testID="goal-sheet-off" kind="secondary" title={tr.goal.turnOff} onPress={() => onChange(null)} />
-              ) : null}
-              <Button testID="goal-sheet-done" title={tr.goalSheet.done} onPress={onClose} />
-            </ResponsiveRow>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+          label={tr.goalSheet.fineTune}
+          value={formatDuration(goal * 60_000)}
+          onMinus={() => onChange(goal - STEP_MINUTES)}
+          onPlus={() => onChange(goal + STEP_MINUTES)}
+          minusDisabled={goal <= GOAL_MIN_MINUTES}
+          plusDisabled={goal >= GOAL_MAX_MINUTES}
+        />
+      ) : null}
+      {goal !== null && startsTomorrow ? (
+        <Label variant="small" testID="goal-starts-tomorrow">
+          {tr.goal.startsTomorrow}
+        </Label>
+      ) : null}
+      <ResponsiveRow>
+        {goal !== null ? (
+          <Button testID="goal-sheet-off" kind="secondary" title={tr.goal.turnOff} onPress={() => onChange(null)} />
+        ) : null}
+        <Button testID="goal-sheet-done" title={tr.goalSheet.done} onPress={onClose} />
+      </ResponsiveRow>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: space.xl,
-    paddingBottom: space.xl * 2,
-    maxHeight: '85%',
-    width: '100%',
-    maxWidth: 560,
-    alignSelf: 'center',
-  },
+  content: { padding: space.xl, paddingTop: space.xxl, gap: space.md },
 });

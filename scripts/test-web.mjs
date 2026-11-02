@@ -209,10 +209,17 @@ async function runScenario(page, baseUrl) {
   await visible('timer-start');
   // The group module is off (no server yet): a 15+ profile has the Groups tab with the "Yakında" preview (2b).
   check((await byId('tab-groups').count()) === 1, 'a 15+ profile has the groups tab');
-  // Sayısal: no literature and no foreign language among the subjects.
+  await screenshot('timer-idle');
+  // Sayısal: no literature and no foreign language among the subjects. The card shows the recent
+  // six and folds the rest behind "Tüm dersler": open the whole list first, so a folded subject
+  // cannot pass for a missing one.
+  if ((await byId('subjects-all').count()) > 0) {
+    await byId('subjects-all').click();
+    await byId('subjects-all').waitFor({ state: 'detached', timeout: STEP_TIMEOUT_MS });
+  }
+  check(await byId('subject-tarih').isVisible(), 'the whole Sayısal list must be open');
   check((await byId('subject-edebiyat').count()) === 0, 'Sayısal must not offer Türk Dili ve Edebiyatı');
   check((await byId('subject-yabanci_dil').count()) === 0, 'Sayısal must not offer Yabancı Dil');
-  await screenshot('timer-idle');
   await byId('subject-fizik').click();
   await byId('timer-start').click();
   await visible('timer-clock');
@@ -359,7 +366,11 @@ async function runScenario(page, baseUrl) {
   // colour: a selected chip has the primary colour, the same as the selected "Çalışmaya devam say"
   // chip (whose explanation text below proves it is the selected one).
   const background = (id) => byId(id).evaluate((el) => getComputedStyle(el).backgroundColor);
-  check(await byId('settings-timer').getByText('Sayaç çalışırken').isVisible(), 'timer settings card title is missing');
+  // The section title stands above the card in capitals; its accessible name is the title as written.
+  check(
+    await byId('settings-timer').getByRole('heading', { name: 'Sayaç çalışırken' }).isVisible(),
+    'timer settings section title is missing',
+  );
   check(
     (await text('settings-away-info')).includes('3 saate kadar çalışma sayılır'),
     '"Çalışmaya devam say" (3 hours) must be the default away rule',
@@ -437,7 +448,8 @@ async function runScenario(page, baseUrl) {
   await visible('settings-reminders');
   await byId('settings-reminders').click();
   await visible('reminder-daily-toggle');
-  check((await text('reminder-daily-toggle')) === 'Kapalı', 'daily reminder must be off by default');
+  // A switch (react-native-web: a checkbox input with role=switch inside the testID element).
+  check(!(await byId('reminder-daily-toggle').getByRole('switch').isChecked()), 'daily reminder must be off by default');
   check(
     await byId('reminders-screen').getByText('Bu cihazda hatırlatıcı yok.').isVisible(),
     'web must say reminders are unsupported',

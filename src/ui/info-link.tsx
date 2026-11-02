@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
-import { Pressable, Text } from 'react-native';
+import { Pressable } from 'react-native';
 
 import { tr } from '../strings';
+import { Icon } from './icon';
 import { usePalette } from './theme';
 
 /** Sections of the "Nasıl çalışır" screen, in screen order (the `bolum` route parameter). */
@@ -31,9 +32,9 @@ export function openGuide(section?: GuideSection): void {
 }
 
 /**
- * Small "Nedir?" link next to a term ("tahmini", "elle", Seri, the net formula). Text, not an
- * icon, so it reads the same everywhere; the touch area grows to about 44 pt without moving the
- * layout around it.
+ * Small (i) button next to a term ("tahmini", "elle", Seri, the net formula), as iOS draws it:
+ * a 20 pt `info.circle` whose touch area grows to 44 pt without moving the layout around it.
+ * Screen readers hear it as a link that names the term ("“Tahmini” tarih nedir?").
  */
 export function InfoLink({ section, term, testID }: { section: GuideSection; term: string; testID?: string }) {
   const c = usePalette();
@@ -42,12 +43,10 @@ export function InfoLink({ section, term, testID }: { section: GuideSection; ter
       testID={testID}
       accessibilityRole="link"
       accessibilityLabel={tr.infoLink.a11y(term)}
-      hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}
+      hitSlop={12}
       onPress={() => openGuide(section)}
       style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
-      <Text style={{ color: c.accent, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' }}>
-        {tr.infoLink.title}
-      </Text>
+      <Icon name="info" color={c.accent} size={20} />
     </Pressable>
   );
 }
