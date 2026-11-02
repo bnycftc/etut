@@ -1151,7 +1151,7 @@ describe('demo mode on the real storage', () => {
     start();
     at(T0 + 30 * MIN);
     finish();
-    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 30 dk');
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 30 dk');
     expect(allSessions().some((s) => s.subjectId === 'fizik' && s.startedAt === T0)).toBe(true);
     expect(kv.loadDailyGoal()).toBe(150);
 
