@@ -8,7 +8,8 @@
  * in the props. While study time grows (running timer) the widget draws the clock and the goal
  * bar itself from time ranges; otherwise it shows the static values of the timeline entry.
  * The small widget shows the goal as a ring next to the title (the bar's twin: the same ranges and
- * values), the medium one as a bar.
+ * values), the medium one as a bar. Only the medium widget names today's next plan block
+ * ("Sıradaki: Matematik · Türev 45 dk", `nextBlockLine`); without one it looks as before.
  */
 
 import { Gauge, HStack, ProgressView, Spacer, Text, VStack } from '@expo/ui/swift-ui';
@@ -55,6 +56,7 @@ export const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironm
     goalTo: time(props.goalTo),
     streakLine: line(props.streakLine),
     countdownLine: line(props.countdownLine),
+    nextBlockLine: line(props.nextBlockLine),
   });
   const countingFrom = props.countingFrom;
 
@@ -112,6 +114,9 @@ export const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironm
           {total(30)}
           {small(props.runningNote)}
           <Spacer />
+          {props.nextBlockLine === null ? null : (
+            <Text modifiers={[font({ size: 12 }), secondary, lineLimit(2)]}>{props.nextBlockLine}</Text>
+          )}
         </VStack>
         <Spacer />
         <VStack alignment="leading" spacing={6}>

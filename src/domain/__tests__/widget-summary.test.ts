@@ -10,7 +10,15 @@ import {
   provisionalAwayAt,
   startSession,
 } from '../timer';
-import { MAX_WIDGET_ENTRIES, PHASE_CHANGES_AHEAD, savedTotalsLookup, widgetTimeline } from '../widget-summary';
+import {
+  COUNTDOWN_MIDNIGHTS,
+  countdownTimeline,
+  MAX_WIDGET_ENTRIES,
+  nextPlanBlock,
+  PHASE_CHANGES_AHEAD,
+  savedTotalsLookup,
+  widgetTimeline,
+} from '../widget-summary';
 
 const HOUR = 3_600_000;
 const MIN = 60_000;
@@ -331,5 +339,83 @@ describe('widgetTimeline: exam countdown', () => {
     }
     // After the first midnight it says one day less.
     expect(entries.find((e) => e.at === midnight(TODAY, 1))?.countdown?.daysLeft).toBe(LEFT_TODAY - 1);
+  });
+});
+
+describe('widgetTimeline: next plan block (0.5.0)', () => {
+  const next = { subjectId: 'matematik', topicId: 'tyt.matematik.turev', minutes: 45 };
+
+  it('only the entries of today name the block; later days have their own plan', () => {
+    const entries = widgetTimeline({ now: NOW, savedTotal: () => 0, active: null, goalMinutes: 60, nextBlock: next });
+    expect(entries.length).toBeGreaterThan(1);
+    for (const e of entries) {
+      if (e.day === TODAY) expect(e.nextBlock).toEqual(next);
+      else expect(e.nextBlock ?? null).toBeNull();
+    }
+    expect(entries[0].nextBlock).toEqual(next);
+  });
+
+  it('without a block the entries are as before (no field)', () => {
+    const entries = widgetTimeline({ now: NOW, savedTotal: () => 0, active: null, goalMinutes: 60 });
+    expect(entries.every((e) => !('nextBlock' in e))).toBe(true);
+    const withNull = widgetTimeline({ now: NOW, savedTotal: () => 0, active: null, goalMinutes: 60, nextBlock: null });
+    expect(withNull).toEqual(entries);
+  });
+});
+
+describe('nextPlanBlock', () => {
+  const blocks = [
+    { subjectId: 'fizik', topicId: null, minutes: 30, done: true },
+    { subjectId: 'matematik', topicId: 'tyt.matematik.turev', minutes: 45, done: false },
+    { subjectId: 'kimya', topicId: null, minutes: 25, done: false },
+  ];
+
+  it('the first block not done yet', () => {
+    expect(nextPlanBlock(blocks, null)).toEqual({ subjectId: 'matematik', topicId: 'tyt.matematik.turev', minutes: 45 });
+  });
+
+  it('leaves out the block the running session studies now', () => {
+    expect(nextPlanBlock(blocks, { subjectId: 'matematik', topicId: 'tyt.matematik.turev' })).toEqual({
+      subjectId: 'kimya',
+      topicId: null,
+      minutes: 25,
+    });
+    // A session on something else: the next block stays the first open one.
+    expect(nextPlanBlock(blocks, { subjectId: 'biyoloji', topicId: null })?.subjectId).toBe('matematik');
+  });
+
+  it('nothing left, or a rest day', () => {
+    expect(nextPlanBlock(blocks.map((b) => ({ ...b, done: true })), null)).toBeNull();
+    expect(nextPlanBlock([], null)).toBeNull();
+  });
+});
+
+describe('countdownTimeline', () => {
+  it('no exam date: one entry that says so', () => {
+    expect(countdownTimeline(NOW, null)).toEqual([{ at: NOW, examType: null, daysLeft: null, estimated: false }]);
+  });
+
+  it('now and every midnight ahead; the last entry (in effect for good) carries no number', () => {
+    const entries = countdownTimeline(NOW, { examType: 'YKS', day: '2027-06-19', estimated: true });
+    expect(entries).toHaveLength(COUNTDOWN_MIDNIGHTS + 1);
+    expect(entries.length).toBeLessThanOrEqual(MAX_WIDGET_ENTRIES);
+    expect(entries[0]).toEqual({ at: NOW, examType: 'YKS', daysLeft: 255, estimated: true });
+    expect(entries[1]).toEqual({ at: midnight(TODAY, 1), examType: 'YKS', daysLeft: 254, estimated: true });
+    expect(entries[COUNTDOWN_MIDNIGHTS]).toEqual({
+      at: midnight(TODAY, COUNTDOWN_MIDNIGHTS),
+      examType: 'YKS',
+      daysLeft: null,
+      estimated: true,
+    });
+  });
+
+  it('the exam days count as 0; after them, no exam (for good)', () => {
+    const entries = countdownTimeline(NOW, { examType: 'KPSS', day: '2026-10-09', days: 2 });
+    expect(entries.map((e) => e.daysLeft)).toEqual([2, 1, 0, 0, null]);
+    expect(entries[4]).toEqual({ at: midnight(TODAY, 4), examType: null, daysLeft: null, estimated: false });
+    // Already passed: "no exam date" right away.
+    expect(countdownTimeline(NOW, { examType: 'LGS', day: '2026-06-01' })).toEqual([
+      { at: NOW, examType: null, daysLeft: null, estimated: false },
+    ]);
   });
 });

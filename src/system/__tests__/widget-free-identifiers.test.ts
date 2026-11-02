@@ -137,7 +137,7 @@ function freeIdentifiers(code: string): string[] {
 
 describe('widget layouts only use what the extension runtime defines', () => {
   it('finds the layout files', () => {
-    expect(LAYOUT_FILES).toEqual(expect.arrayContaining(['timer-activity.tsx', 'today-widget.tsx']));
+    expect(LAYOUT_FILES).toEqual(expect.arrayContaining(['countdown-widget.tsx', 'timer-activity.tsx', 'today-widget.tsx']));
   });
 
   it.each(LAYOUT_FILES)('%s', (name) => {

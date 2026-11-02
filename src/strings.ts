@@ -178,7 +178,9 @@ const legalDocs = {
           'Yedekten “Değiştir” ile yükleme yaparsan, geri alabilmen için önceki verilerinin bir kopyası bir gün boyunca bu telefonda kalır (5. bölüm).',
           // [AVUKAT TEYİDİ] Widget koşulu kaldırıldı (uygulama bu alana her değişiklikte yazar) ve kilit ekranı
           // sayacının gösterdiği ders ve konu adı eklendi.
-          'iPhone’da uygulama, widget gösterebilsin diye bugünkü süre, hedef, seri ve sınavına kalan gün bilgisini, widget eklemesen de, widget’ın okuyabildiği ortak bir alanda yine bu telefonda tutar. Sayaç açıkken kilit ekranında ve Dynamic Island’da ders ve konu adı görünür.',
+          // [AVUKAT TEYİDİ] 0.5.0: ortak alana planın sıradaki bloğu (ders, konu, dakika) da yazılıyor; kilit
+          // ekranı sayacında bloğun ilerlemesi görünüyor. "Örnek verilerle gez" modunda bu alana yazılmaz.
+          'iPhone’da uygulama, widget gösterebilsin diye bugünkü süre, hedef, seri, sınavına kalan gün ve planındaki sıradaki bloğun (ders, konu, dakika) bilgisini, widget eklemesen de, widget’ın okuyabildiği ortak bir alanda yine bu telefonda tutar. Sayaç açıkken kilit ekranında ve Dynamic Island’da ders ve konu adı, bir plan bloğundan başlattıysan bloğun ilerlemesi görünür. Örnek veri modunda bu alana yazılmaz.',
           'Uygulama ad, e-posta, telefon, okul, konum, rehber, fotoğraf ve reklam kimliği hiç sormaz ve toplamaz.',
         ],
       },
@@ -1101,6 +1103,21 @@ export const tr = {
     goal: (goal: string) => `Hedef ${goal}`,
     goalMet: 'Hedef tamam',
     running: 'Sayaç açık',
+    /** Medium widget: the first plan block not done yet ("Sıradaki: Matematik · Türev 45 dk"). */
+    next: (subject: string, topic: string | null, minutes: number) =>
+      `Sıradaki: ${topic === null ? subject : `${subject} · ${topic}`} ${minutes} dk`,
+    /** Live Activity, a session started from a plan block: the label of the block bar. */
+    block: (minutes: number) => `Plan bloğu · ${minutes} dk`,
+    /** Countdown widget "EtutCountdown": the days under the exam name ("255 gün"). */
+    countdown: (days: number) => `${days} gün`,
+    /** Countdown widget title above the days: "YKS’ye", "Sınavına". */
+    countdownTo: (examType: ExamType) => (examType === 'DIGER' ? 'Sınavına' : `${examTypes[examType]}’ye`),
+    /** Countdown widget title without an exam date. */
+    countdownNoExam: 'Sınav',
+    /** Countdown widget without an exam date (none set, or the exam has passed). */
+    addExamDate: 'Sınav tarihi ekle',
+    /** Countdown widget after the last day the app wrote ahead: the number would be stale. */
+    countdownOpen: 'Güncel sayı için Etüt’ü aç',
   },
 
   /** One-time card on the timer screen after the first Bitir (iOS); steps: guide.lockScreen.widgetSteps. */

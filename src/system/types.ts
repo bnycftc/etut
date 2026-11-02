@@ -6,7 +6,7 @@
  */
 
 import type { PlannedNotification } from '../domain/reminders';
-import type { TimerActivityProps, TodayWidgetProps } from './surface-props';
+import type { CountdownWidgetProps, TimerActivityProps, TodayWidgetProps } from './surface-props';
 
 export type NotificationPermission = 'granted' | 'denied' | 'undetermined' | 'unsupported';
 
@@ -42,6 +42,8 @@ export interface LiveActivityAdapter {
 export interface HomeWidgetAdapter {
   readonly supported: boolean;
   setTimeline(entries: { at: number; props: TodayWidgetProps }[]): void;
+  /** The countdown widget "EtutCountdown"; missing where there is none (Android, web). */
+  setCountdownTimeline?(entries: { at: number; props: CountdownWidgetProps }[]): void;
 }
 
 export interface StoreReviewAdapter {

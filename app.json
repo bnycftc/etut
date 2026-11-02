@@ -87,6 +87,18 @@
                   "accessoryRectangular"
                 ]
               }
+            },
+            {
+              "name": "EtutCountdown",
+              "displayName": "Etüt: Sınav",
+              "description": "Sınavına kalan gün sayısı.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "accessoryCircular",
+                  "accessoryInline"
+                ]
+              }
             }
           ]
         }
