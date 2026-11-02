@@ -9,13 +9,13 @@
 
 import { topicName } from '../domain/curriculum';
 import { istanbulTimeOfDay } from '../domain/istanbul-day';
-import type { LiveTimerView } from '../domain/live-timer';
+import type { BlockProgress, LiveTimerView } from '../domain/live-timer';
 import type { PomodoroPhase } from '../domain/pomodoro';
 import type { PlannedNotification } from '../domain/reminders';
 import { type ActiveSession, BACKGROUND_TOLERANCE_MS } from '../domain/timer';
-import type { WidgetEntry } from '../domain/widget-summary';
+import type { CountdownEntry, WidgetEntry } from '../domain/widget-summary';
 import { tr } from '../strings';
-import { formatDuration } from '../ui/format';
+import { formatDuration, topicLabel } from '../ui/format';
 import { SUBJECT_COLORS } from '../ui/subject-colors';
 import type { NotificationText } from './types';
 
@@ -65,6 +65,16 @@ export interface TimerActivityProps {
   awayHint: string | null;
   awayFrom: number | null;
   awayTo: number | null;
+  /**
+   * A session started from a plan block (`blockProgress`): `blockLine` ("Plan bloğu · 45 dk") and a
+   * bar that fills by itself from `blockFrom` to `blockTo`, frozen at `blockPausedAt` while paused
+   * (then it shows `blockRatio`). All `null` without a block; an older activity has none at all.
+   */
+  blockLine: string | null;
+  blockFrom: number | null;
+  blockTo: number | null;
+  blockPausedAt: number | null;
+  blockRatio: number | null;
 }
 
 export interface TodayWidgetProps {
@@ -82,6 +92,22 @@ export interface TodayWidgetProps {
   streakLine: string | null;
   /** "YKS’ye 255 gün"; `null` = no exam date, passed, or not certain for this entry. */
   countdownLine: string | null;
+  /** Medium widget: "Sıradaki: Matematik · Türev 45 dk"; `null` = no plan block left today. */
+  nextBlockLine: string | null;
+}
+
+/** Props of the countdown widget "EtutCountdown" (`countdown-widget.tsx`). */
+export interface CountdownWidgetProps {
+  /** Above the days: "YKS’ye"; "Sınav" without an exam date. */
+  title: string;
+  /** Days left (the circular Lock Screen widget); `null` = no number to show. */
+  daysLeft: number | null;
+  /** "255 gün"; `null` = no number to show (`message` instead). */
+  daysText: string | null;
+  /** Instead of the days: "Sınav tarihi ekle", "Sınav bugün", "Güncel sayı için Etüt’ü aç". */
+  message: string | null;
+  /** The one line of the inline Lock Screen widget: "YKS’ye 255 gün", or the message. */
+  inline: string;
 }
 
 function phaseLabel(phase: PomodoroPhase, blockInSet: number, longEvery: number): string {
@@ -111,11 +137,29 @@ function goalRing(today: WidgetEntry | null): Pick<TimerActivityProps, 'goalRati
   };
 }
 
-/** `today`: the widget timeline's entry for now; `null` (no data yet) shows no goal ring. */
+/** The plan block bar; all `null` without a block. */
+function blockBar(
+  block: BlockProgress | null,
+): Pick<TimerActivityProps, 'blockLine' | 'blockFrom' | 'blockTo' | 'blockPausedAt' | 'blockRatio'> {
+  if (block === null) return { blockLine: null, blockFrom: null, blockTo: null, blockPausedAt: null, blockRatio: null };
+  return {
+    blockLine: tr.widget.block(block.minutes),
+    blockFrom: block.from,
+    blockTo: block.to,
+    blockPausedAt: block.pausedAt,
+    blockRatio: block.ratio,
+  };
+}
+
+/**
+ * `today`: the widget timeline's entry for now; `null` (no data yet) shows no goal ring.
+ * `block`: the plan block the session was started from (`blockProgress`); `null` = none.
+ */
 export function timerActivityProps(
   session: ActiveSession,
   view: LiveTimerView,
   today: WidgetEntry | null = null,
+  block: BlockProgress | null = null,
 ): TimerActivityProps {
   const topic = topicName(session.topicId);
   const title = topic ? `${tr.subject(session.subjectId)} · ${topic}` : tr.subject(session.subjectId);
@@ -164,6 +208,7 @@ export function timerActivityProps(
     awayHint: view.away === null ? null : tr.liveActivity.awayHint,
     awayFrom: view.away?.clock.from ?? null,
     awayTo: view.away?.clock.to ?? null,
+    ...blockBar(block),
   };
 }
 
@@ -188,6 +233,39 @@ export function todayWidgetProps(entry: WidgetEntry): TodayWidgetProps {
           ? tr.widgetCountdown.todayEstimated
           : tr.widgetCountdown.today
         : tr.countdown.days(entry.countdown.examType, entry.countdown.daysLeft),
+    nextBlockLine: !entry.nextBlock
+      ? null
+      : tr.widget.next(tr.subject(entry.nextBlock.subjectId), topicLabel(entry.nextBlock.topicId), entry.nextBlock.minutes),
+  };
+}
+
+export function countdownWidgetProps(entry: CountdownEntry): CountdownWidgetProps {
+  if (entry.examType === null) return emptyCountdownProps();
+  const title = tr.widget.countdownTo(entry.examType);
+  if (entry.daysLeft === null) {
+    return { title, daysLeft: null, daysText: null, message: tr.widget.countdownOpen, inline: tr.widget.countdownOpen };
+  }
+  if (entry.daysLeft === 0) {
+    const today = entry.estimated ? tr.widgetCountdown.todayEstimated : tr.widgetCountdown.today;
+    return { title, daysLeft: 0, daysText: null, message: today, inline: today };
+  }
+  return {
+    title,
+    daysLeft: entry.daysLeft,
+    daysText: tr.widget.countdown(entry.daysLeft),
+    message: null,
+    inline: tr.countdown.days(entry.examType, entry.daysLeft),
+  };
+}
+
+/** No exam date (none set, the exam has passed, no profile yet, or after "Tüm verileri sil"). */
+export function emptyCountdownProps(): CountdownWidgetProps {
+  return {
+    title: tr.widget.countdownNoExam,
+    daysLeft: null,
+    daysText: null,
+    message: tr.widget.addExamDate,
+    inline: tr.widget.addExamDate,
   };
 }
 
@@ -221,5 +299,6 @@ export function emptyWidgetProps(): TodayWidgetProps {
     goalTo: null,
     streakLine: null,
     countdownLine: null,
+    nextBlockLine: null,
   };
 }

@@ -216,3 +216,54 @@ export function liveActivityAction(input: {
   if (instances > 1 || ours === null) return 'restart';
   return now - ours.startedAt >= LIVE_ACTIVITY_REFRESH_MS ? 'restart' : 'update';
 }
+
+/** What the Live Activity needs of a block of today's study plan (`storage/study-plan.ts`). */
+export interface PlanBlockRef {
+  subjectId: string;
+  topicId: string | null;
+  minutes: number;
+  done: boolean;
+}
+
+/**
+ * The plan block a session was started from: the first block of today not done yet with the
+ * session's subject and topic (the plan card's "Başlat" starts exactly that pair). The session does
+ * not store the block; today's `done` flags come from saved study only, so the running session's own
+ * block is still open. `-1` = none (a session started some other way).
+ */
+export function planBlockIndex(
+  blocks: readonly PlanBlockRef[],
+  session: Pick<ActiveSession, 'subjectId' | 'topicId'>,
+): number {
+  return blocks.findIndex((b) => !b.done && b.subjectId === session.subjectId && b.topicId === session.topicId);
+}
+
+/**
+ * Progress of the session through its plan block: the bar fills by itself from `from` to `to` (the
+ * session's study time reaching the block's minutes), frozen at `pausedAt` while paused; `ratio` is
+ * the share at the update (shown while paused). Pomodoro breaks count as the daily total counts them.
+ */
+export interface BlockProgress {
+  minutes: number;
+  from: number;
+  to: number;
+  pausedAt: number | null;
+  ratio: number;
+}
+
+/** `minutes`: the block's length; `null` (no block) gives `null`. */
+export function blockProgress(session: ActiveSession, now: number, minutes: number | null): BlockProgress | null {
+  if (minutes === null || !(minutes > 0)) return null;
+  const paused = isPaused(session);
+  const at = Math.max(session.startedAt, paused ? (openPauseStart(session) ?? now) : now);
+  const studied = elapsedMs(session, at);
+  const blockMs = minutes * 60_000;
+  const from = at - studied;
+  return {
+    minutes,
+    from,
+    to: from + blockMs,
+    pausedAt: paused ? at : null,
+    ratio: Math.min(1, Math.max(0, studied / blockMs)),
+  };
+}

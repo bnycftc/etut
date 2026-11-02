@@ -1,8 +1,15 @@
-import { liveTimerView } from '../../domain/live-timer';
+import { blockProgress, liveTimerView } from '../../domain/live-timer';
 import { DEFAULT_POMODORO } from '../../domain/pomodoro';
 import { AWAY_COUNT_MAX_MS, onAppBackground, pauseSession, provisionalAwayAt, startSession } from '../../domain/timer';
 import type { WidgetEntry } from '../../domain/widget-summary';
-import { emptyWidgetProps, notificationText, timerActivityProps, todayWidgetProps } from '../surface-props';
+import {
+  countdownWidgetProps,
+  emptyCountdownProps,
+  emptyWidgetProps,
+  notificationText,
+  timerActivityProps,
+  todayWidgetProps,
+} from '../surface-props';
 
 const T0 = Date.parse('2026-10-04T07:00:00Z');
 const MIN = 60_000;
@@ -156,6 +163,7 @@ describe('widget props', () => {
       goalTo: null,
       streakLine: 'Seri: 3 gün',
       countdownLine: null,
+      nextBlockLine: null,
     });
   });
 
@@ -219,5 +227,92 @@ describe('notification texts (neutral for every age)', () => {
       body: 'Analizi bekleyen 2 deneme var.',
       url: '/denemeler',
     });
+  });
+});
+
+describe('plan on the surfaces (0.5.0)', () => {
+  const s = startSession('s', 'matematik', T0, { topicId: 'ayt.matematik.turev' });
+
+  it('Live Activity: no block, no bar (all null)', () => {
+    expect(timerActivityProps(s, liveTimerView(s, T0 + MIN))).toMatchObject({
+      blockLine: null,
+      blockFrom: null,
+      blockTo: null,
+      blockPausedAt: null,
+      blockRatio: null,
+    });
+  });
+
+  it('Live Activity: a session started from a 45 min block fills its bar by itself', () => {
+    const props = timerActivityProps(s, liveTimerView(s, T0 + 15 * MIN), null, blockProgress(s, T0 + 15 * MIN, 45));
+    expect(props).toMatchObject({
+      blockLine: 'Plan bloğu · 45 dk',
+      blockFrom: T0,
+      blockTo: T0 + 45 * MIN,
+      blockPausedAt: null,
+      blockRatio: 15 / 45,
+    });
+    // Plain JSON: what ActivityKit gets survives a round trip unchanged.
+    expect(JSON.parse(JSON.stringify(props))).toEqual(props);
+  });
+
+  it('Live Activity: paused, the bar is frozen at the pause', () => {
+    const paused = pauseSession(s, T0 + 9 * MIN);
+    const props = timerActivityProps(paused, liveTimerView(paused, T0 + 20 * MIN), null, blockProgress(paused, T0 + 20 * MIN, 45));
+    expect(props).toMatchObject({ blockPausedAt: T0 + 9 * MIN, blockRatio: 9 / 45 });
+  });
+
+  const base: WidgetEntry = {
+    at: T0,
+    day: '2026-10-04',
+    todayMs: 0,
+    counting: false,
+    goalMinutes: null,
+    goalMet: false,
+    goalRatio: 0,
+    goalReachedAt: null,
+    streakDays: null,
+  };
+
+  it('widget: the next block line, with and without a topic', () => {
+    expect(
+      todayWidgetProps({ ...base, nextBlock: { subjectId: 'matematik', topicId: 'ayt.matematik.turev', minutes: 45 } })
+        .nextBlockLine,
+    ).toBe('Sıradaki: Matematik · Türev 45 dk');
+    expect(todayWidgetProps({ ...base, nextBlock: { subjectId: 'fizik', topicId: null, minutes: 30 } }).nextBlockLine).toBe(
+      'Sıradaki: Fizik 30 dk',
+    );
+    expect(todayWidgetProps({ ...base, nextBlock: null }).nextBlockLine).toBeNull();
+    expect(todayWidgetProps(base).nextBlockLine).toBeNull();
+    expect(emptyWidgetProps().nextBlockLine).toBeNull();
+  });
+
+  it('countdown widget: days, the exam day, unknown, and no date', () => {
+    expect(countdownWidgetProps({ at: T0, examType: 'YKS', daysLeft: 255, estimated: false })).toEqual({
+      title: 'YKS’ye',
+      daysLeft: 255,
+      daysText: '255 gün',
+      message: null,
+      inline: 'YKS’ye 255 gün',
+    });
+    expect(countdownWidgetProps({ at: T0, examType: 'DIGER', daysLeft: 3, estimated: false })).toMatchObject({
+      title: 'Sınavına',
+      inline: 'Sınavına 3 gün',
+    });
+    expect(countdownWidgetProps({ at: T0, examType: 'LGS', daysLeft: 0, estimated: false })).toMatchObject({
+      daysText: null,
+      message: 'Sınav bugün',
+    });
+    expect(countdownWidgetProps({ at: T0, examType: 'YKS', daysLeft: 0, estimated: true }).message).toBe(
+      'Tahmini sınav günü bugün',
+    );
+    expect(countdownWidgetProps({ at: T0, examType: 'YKS', daysLeft: null, estimated: false })).toMatchObject({
+      title: 'YKS’ye',
+      daysLeft: null,
+      message: 'Güncel sayı için Etüt’ü aç',
+    });
+    const none = countdownWidgetProps({ at: T0, examType: null, daysLeft: null, estimated: false });
+    expect(none).toEqual(emptyCountdownProps());
+    expect(none).toMatchObject({ title: 'Sınav', message: 'Sınav tarihi ekle', inline: 'Sınav tarihi ekle' });
   });
 });

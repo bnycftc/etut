@@ -30,6 +30,7 @@
 import { activeSpan, dailyTotals, type SessionSpan, spanStudyMs } from './daily-totals';
 import { examDaysLeft } from './exam-dates';
 import { addDays, DAY_MS, type DayKey, dayStartMs, istanbulDayKey } from './istanbul-day';
+import { type PlanBlockRef, planBlockIndex } from './live-timer';
 import { pomodoroStatus, upcomingPhaseChanges } from './pomodoro';
 import type { ExamType } from './profile';
 import { computeStreak, type GoalHistory, goalMet, type GoalOf, goalOfDay, goalRatio } from './streak';
@@ -81,6 +82,15 @@ export interface WidgetEntry {
    * for sure. `estimated`: the date is the built-in estimate (missing = official or the student's).
    */
   countdown?: { examType: ExamType; daysLeft: number; estimated?: boolean } | null;
+  /** Today's next plan block (medium widget); missing/`null` = none, or `day` is not today. */
+  nextBlock?: WidgetPlanBlock | null;
+}
+
+/** A block of today's study plan as the widget shows it ("Sıradaki: Matematik · Türev 45 dk"). */
+export interface WidgetPlanBlock {
+  subjectId: string;
+  topicId: string | null;
+  minutes: number;
 }
 
 export interface WidgetExam {
@@ -106,6 +116,8 @@ export interface WidgetTimelineInput {
   exam?: WidgetExam | null;
   /** In the background: from when the time away costs study time (`provisionalAwayAt`; may lie ahead). */
   awayAt?: number | null;
+  /** Today's next plan block (`nextPlanBlock`); shown only by entries of today. */
+  nextBlock?: WidgetPlanBlock | null;
 }
 
 /** With `awayAt`, the running session as if the automatic away break had begun then. */
@@ -210,6 +222,9 @@ export function widgetTimeline(timelineInput: WidgetTimelineInput): WidgetEntry[
     }
   }
   const kept = entries.slice(0, MAX_WIDGET_ENTRIES);
+  // The plan block is today's: a later day has its own plan, which the app writes when it opens.
+  const nextBlock = input.nextBlock ?? null;
+  if (nextBlock !== null) for (const entry of kept) if (entry.day === today) entry.nextBlock = nextBlock;
   // The countdown only while the next entry comes by the next midnight (it changes there).
   for (let i = 0; i < kept.length; i++) {
     const nextAt = i + 1 < kept.length ? kept[i + 1].at : Number.POSITIVE_INFINITY;
@@ -222,4 +237,54 @@ export function widgetTimeline(timelineInput: WidgetTimelineInput): WidgetEntry[
 export function savedTotalsLookup(sessions: SessionSpan[], days: DayKey[]): (day: DayKey) => number {
   const map = new Map(dailyTotals(sessions, days).map((t) => [t.day, t.totalMs]));
   return (day) => map.get(day) ?? 0;
+}
+
+/**
+ * The block the medium widget names as next: the first of today's blocks not done yet, leaving out
+ * the one the running session was started from (`planBlockIndex`; it is being studied now). `null`
+ * = nothing left today (or a rest day).
+ */
+export function nextPlanBlock(
+  blocks: readonly PlanBlockRef[],
+  active: Pick<ActiveSession, 'subjectId' | 'topicId'> | null,
+): WidgetPlanBlock | null {
+  const running = active === null ? -1 : planBlockIndex(blocks, active);
+  const next = blocks.find((b, i) => !b.done && i !== running);
+  return next === undefined ? null : { subjectId: next.subjectId, topicId: next.topicId, minutes: next.minutes };
+}
+
+/**
+ * One entry of the countdown widget "EtutCountdown". `examType` `null`: no exam date, or the exam
+ * has passed ("Sınav tarihi ekle"). `daysLeft` `null` with an exam: the entry stays in effect past
+ * the last midnight the app wrote ahead, so no number is certain.
+ */
+export interface CountdownEntry {
+  at: number;
+  examType: ExamType | null;
+  daysLeft: number | null;
+  estimated: boolean;
+}
+
+/**
+ * The countdown widget's timeline: now and every Istanbul midnight for `COUNTDOWN_MIDNIGHTS` days
+ * (the number changes there). The last entry stays in effect for good, so it carries no number;
+ * once the exam has passed nothing changes any more.
+ */
+export function countdownTimeline(now: number, exam: WidgetExam | null): CountdownEntry[] {
+  const none = (at: number): CountdownEntry => ({ at, examType: null, daysLeft: null, estimated: false });
+  if (exam === null) return [none(now)];
+  const today = istanbulDayKey(now);
+  const out: CountdownEntry[] = [];
+  for (let i = 0; i <= COUNTDOWN_MIDNIGHTS; i++) {
+    const day = addDays(today, i);
+    const at = i === 0 ? now : dayStartMs(day);
+    const daysLeft = examDaysLeft(exam, day);
+    if (daysLeft < 0) {
+      out.push(none(at));
+      return out;
+    }
+    const last = i === COUNTDOWN_MIDNIGHTS;
+    out.push({ at, examType: exam.examType, daysLeft: last ? null : daysLeft, estimated: exam.estimated === true });
+  }
+  return out;
 }

@@ -1,9 +1,11 @@
 import {
+  blockProgress,
   COUNT_UP_SPAN_MS,
   LIVE_ACTIVITY_MAX_MS,
   LIVE_ACTIVITY_REFRESH_MS,
   liveActivityAction,
   liveTimerView,
+  planBlockIndex,
 } from '../live-timer';
 import { DEFAULT_POMODORO, upcomingPhaseChanges } from '../pomodoro';
 import {
@@ -296,5 +298,59 @@ describe('liveActivityAction', () => {
   it('ends what is left once no session runs', () => {
     expect(liveActivityAction({ sessionId: null, instances: 1, record, now: T0 })).toBe('end');
     expect(liveActivityAction({ sessionId: null, instances: 0, record: null, now: T0 })).toBe('none');
+  });
+});
+
+describe('plan block of the session (0.5.0)', () => {
+  const blocks = [
+    { subjectId: 'matematik', topicId: 'tyt.matematik.turev', minutes: 45, done: true },
+    { subjectId: 'fizik', topicId: null, minutes: 30, done: false },
+    { subjectId: 'matematik', topicId: 'tyt.matematik.turev', minutes: 40, done: false },
+  ];
+
+  it('finds the first open block with the same subject and topic', () => {
+    expect(planBlockIndex(blocks, { subjectId: 'matematik', topicId: 'tyt.matematik.turev' })).toBe(2);
+    expect(planBlockIndex(blocks, { subjectId: 'fizik', topicId: null })).toBe(1);
+    // Another topic, or no topic where the block has one: not started from the plan.
+    expect(planBlockIndex(blocks, { subjectId: 'fizik', topicId: 'tyt.fizik.basinc' })).toBe(-1);
+    expect(planBlockIndex(blocks, { subjectId: 'matematik', topicId: null })).toBe(-1);
+    expect(planBlockIndex([], { subjectId: 'fizik', topicId: null })).toBe(-1);
+  });
+
+  it('no block: nothing to show', () => {
+    const s = startSession('s', 'fizik', T0);
+    expect(blockProgress(s, at(5), null)).toBeNull();
+    expect(blockProgress(s, at(5), 0)).toBeNull();
+  });
+
+  it('running: the bar fills from the study start to the block length', () => {
+    const s = startSession('s', 'fizik', T0);
+    expect(blockProgress(s, at(15), 45)).toEqual({ minutes: 45, from: T0, to: at(45), pausedAt: null, ratio: 15 / 45 });
+  });
+
+  it('a pause moves the range by its length; paused, it freezes with the share at the pause', () => {
+    const paused = pauseSession(startSession('s', 'fizik', T0), at(10));
+    const frozen = blockProgress(paused, at(20), 40);
+    expect(frozen).toEqual({ minutes: 40, from: T0, to: at(40), pausedAt: at(10), ratio: 10 / 40 });
+    // The same at any later sync while paused (nothing to send).
+    expect(blockProgress(paused, at(30), 40)).toEqual(frozen);
+    const resumed = resumeSession(paused, at(20));
+    const live = blockProgress(resumed, at(25), 40);
+    expect(live).toMatchObject({ from: at(10), to: at(50), pausedAt: null });
+    expect(live!.ratio).toBeCloseTo(15 / 40);
+  });
+
+  it('past the block: full, the range stays valid', () => {
+    const s = startSession('s', 'fizik', T0);
+    const p = blockProgress(s, at(90), 45)!;
+    expect(p.ratio).toBe(1);
+    expect(p.from).toBeLessThanOrEqual(p.to);
+  });
+
+  it('pomodoro: the block counts study time as the daily total does', () => {
+    const s = startSession('p', 'kimya', T0, { pomodoro: DEFAULT_POMODORO });
+    const p = blockProgress(s, at(27), 50)!;
+    expect(p.ratio).toBeCloseTo(elapsedMs(s, at(27)) / min(50));
+    expect(p.from).toBe(at(27) - elapsedMs(s, at(27)));
   });
 });
