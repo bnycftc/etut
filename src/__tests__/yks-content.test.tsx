@@ -72,6 +72,12 @@ jest.mock('../system/home-widget', () => ({
   homeWidget: { supported: false, setTimeline: () => {} },
 }));
 
+/** Demo mode (storage/demo.ts) is off here: the student's own data only. */
+jest.mock('../storage/demo', () => ({
+  isDemo: () => false,
+  enterDemo: () => 'ok',
+  exitDemo: () => {},
+}));
 jest.mock('../storage/kv', () => ({
   loadProfile: () => memory.profile,
   storeProfile: (p: Profile) => {

@@ -527,13 +527,46 @@ jest.mock('../storage/kv-store', () => ({
     clearSync: () => mockKvRows.clear(),
   }),
 }));
+/**
+ * Demo mode (storage/demo.ts) on the in-memory store: entering keeps the student's own data aside
+ * and writes the real example data (domain/demo-data.ts) in its place; leaving puts it back.
+ */
+const mockDemo: { saved: Record<string, unknown> | null } = { saved: null };
 jest.mock('../storage/demo', () => ({
-  isDemo: () => false,
-  enterDemo: () => 'ok',
-  exitDemo: () => {},
+  isDemo: () => mockDemo.saved !== null,
+  enterDemo: (profile: Profile, now: number) => {
+    if (mockDemo.saved === null && memory.active !== null) return 'timer_running';
+    if (mockDemo.saved === null) {
+      const { sessions, exams, marks, topicStatuses, dailyGoal, netTargets, examDates, active } = memory;
+      mockDemo.saved = { sessions, exams, marks, topicStatuses, dailyGoal, netTargets, examDates, active };
+    }
+    const { buildDemoData } = jest.requireActual('../domain/demo-data');
+    jest.requireMock('../storage/backup').writeBackupData(buildDemoData(profile, now));
+    memory.active = null;
+    return 'ok';
+  },
+  exitDemo: () => {
+    if (mockDemo.saved === null) return;
+    Object.assign(memory, mockDemo.saved);
+    mockDemo.saved = null;
+  },
 }));
+beforeEach(() => {
+  mockDemo.saved = null;
+});
 
 const APP_DIR = './app';
+
+/**
+ * Onboarding (four steps): the exam (and YKS area), past the countdown and the daily goal, then
+ * the birth year (`null`: none picked yet) on the last step, where Başla and "Örnek verilerle gez" are.
+ */
+function onboardTo(exam: string, birthYear: number | null, area?: string) {
+  fireEvent.press(screen.getByText(exam));
+  if (area !== undefined) fireEvent.press(screen.getByTestId(`yks-area-${area}`));
+  for (let i = 0; i < 3; i++) fireEvent.press(screen.getByTestId('onboarding-next'));
+  if (birthYear !== null) fireEvent.press(screen.getByText(String(birthYear)));
+}
 
 /**
  * On the device "Tüm verileri sil" asks with the system alert (`Alert.alert`): a spy stands in for
@@ -599,6 +632,9 @@ beforeEach(() => {
 
 it('first launch shows onboarding with no birth year pre-selected', () => {
   renderRouter(APP_DIR, { initialUrl: '/' });
+  expect(screen.getByText('Hazırlandığın sınav')).toBeTruthy();
+  expect(screen.getByTestId('onboarding-step').props.children).toBe('Adım 1/4');
+  onboardTo('YKS', null, 'sayisal');
   expect(screen.getByText('Doğum yılın')).toBeTruthy();
   const start = screen.getByRole('button', { name: 'Başla' });
   expect(start.props.accessibilityState?.disabled ?? start.props['aria-disabled']).toBeTruthy();
@@ -607,8 +643,7 @@ it('first launch shows onboarding with no birth year pre-selected', () => {
 it('completing onboarding opens the timer; an under-15 profile has no groups tab', () => {
   const year = new Date().getUTCFullYear() - 12;
   renderRouter(APP_DIR, { initialUrl: '/' });
-  fireEvent.press(screen.getByText(String(year)));
-  fireEvent.press(screen.getByText('LGS'));
+  onboardTo('LGS', year);
   fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
   expect(memory.profile?.soloOnly).toBe(true);
   // The daily goal was skipped (nothing is pre-selected).
@@ -623,17 +658,31 @@ it('completing onboarding opens the timer; an under-15 profile has no groups tab
 it('onboarding: a daily goal can be picked (optional) and Başla says what is missing', () => {
   const year = new Date().getUTCFullYear() - 20;
   renderRouter(APP_DIR, { initialUrl: '/' });
-  expect(screen.getByTestId('onboarding-missing').props.children).toBe('Başlamak için önce doğduğun yılı seç.');
-  fireEvent.press(screen.getByText(String(year)));
+  const next = () => screen.getByTestId('onboarding-next');
   expect(screen.getByTestId('onboarding-missing').props.children).toBe('Başlamak için sınavını seç.');
+  expect(next().props.accessibilityState.disabled).toBe(true);
   fireEvent.press(screen.getByText('YKS'));
   expect(screen.getByTestId('onboarding-missing').props.children).toBe('Başlamak için alanını seç.');
   fireEvent.press(screen.getByTestId('yks-area-sayisal'));
   expect(screen.queryByTestId('onboarding-missing')).toBeNull();
-  // Tapping the chosen goal again clears it.
+  fireEvent.press(next());
+  // Step 2: the countdown to the exam, an estimate until the official date is out.
+  expect(screen.getByTestId('onboarding-step').props.children).toBe('Adım 2/4');
+  expect(screen.getByTestId('onboarding-countdown').props.children).toMatch(/^YKS’ye \d+ gün$/);
+  fireEvent.press(next());
+  // Step 3: tapping the chosen goal again clears it.
   fireEvent.press(screen.getByTestId('onboarding-goal-120'));
   fireEvent.press(screen.getByTestId('onboarding-goal-120'));
   fireEvent.press(screen.getByTestId('onboarding-goal-240'));
+  fireEvent.press(next());
+  // Step 4: the birth year; Başla says what is missing until it is picked.
+  expect(screen.getByTestId('onboarding-missing').props.children).toBe('Başlamak için önce doğduğun yılı seç.');
+  // Back and forth keeps the answers.
+  fireEvent.press(screen.getByTestId('onboarding-back'));
+  expect(screen.getByTestId('onboarding-goal-240').props.accessibilityState).toMatchObject({ selected: true });
+  fireEvent.press(next());
+  fireEvent.press(screen.getByText(String(year)));
+  expect(screen.queryByTestId('onboarding-missing')).toBeNull();
   fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
   expect(memory.dailyGoal).toBe(240);
   expect(screen.getByTestId('goal-progress').props.children).toBe('Hedef 4 sa 0 dk · %0');
@@ -2306,8 +2355,7 @@ describe('K-17: age declaration after deleting all data', () => {
   it('the under-15 record survives "delete all" and blocks a 15+ declaration', () => {
     const year = new Date().getUTCFullYear();
     renderRouter(APP_DIR, { initialUrl: '/' });
-    fireEvent.press(screen.getByText(String(year - 12)));
-    fireEvent.press(screen.getByText('LGS'));
+    onboardTo('LGS', year - 12);
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     expect(memory.youngestBirthYear).toBe(year - 12);
     act(() => router.push('/ayarlar'));
@@ -2316,8 +2364,7 @@ describe('K-17: age declaration after deleting all data', () => {
     expect(memory.profile).toBeNull();
     expect(memory.youngestBirthYear).toBe(year - 12);
 
-    fireEvent.press(screen.getByText(String(year - 20)));
-    fireEvent.press(screen.getByText('LGS'));
+    onboardTo('LGS', year - 20);
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     expect(memory.profile).toBeNull();
     expect(screen.getByTestId('onboarding-age-blocked')).toBeTruthy();
@@ -2332,6 +2379,7 @@ describe('K-17: age declaration after deleting all data', () => {
   it('birth years are part of the page; older ones one tap away; nothing pre-selected (K-15)', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     const year = new Date().getUTCFullYear();
+    onboardTo('KPSS', null);
     expect(screen.getByTestId(`birth-year-${year - 8}`)).toBeTruthy();
     expect(screen.getByTestId(`birth-year-${year - 30}`)).toBeTruthy();
     expect(screen.queryByTestId(`birth-year-${year - 31}`)).toBeNull();
@@ -2341,7 +2389,6 @@ describe('K-17: age declaration after deleting all data', () => {
     fireEvent.press(screen.getByTestId('birth-year-more'));
     expect(screen.queryByTestId('birth-year-more')).toBeNull();
     fireEvent.press(screen.getByTestId(`birth-year-${year - 45}`));
-    fireEvent.press(screen.getByText('KPSS'));
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     expect(memory.profile).toMatchObject({ birthYear: year - 45, examType: 'KPSS' });
   });
@@ -2354,8 +2401,7 @@ describe('K-17: age declaration after deleting all data', () => {
       pressAlert('Evet, hepsini sil');
     };
     const declare = (birthYear: number) => {
-      fireEvent.press(screen.getByText(String(birthYear)));
-      fireEvent.press(screen.getByText('KPSS'));
+      onboardTo('KPSS', birthYear);
       fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     };
     renderRouter(APP_DIR, { initialUrl: '/' });
@@ -2425,7 +2471,7 @@ describe('other screens render', () => {
   fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
   pressAlert('Evet, hepsini sil');
     expect(memory.profile).toBeNull();
-    expect(screen.getByText('Doğum yılın')).toBeTruthy();
+    expect(screen.getByText('Hazırlandığın sınav')).toBeTruthy();
   });
 
   it('"Önce yedek al" in the delete dialog shares the backup and deletes nothing; deleting stays a choice of its own', async () => {
@@ -2814,6 +2860,86 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
   });
 });
 
+describe('Örnek verilerle gez (demo mode)', () => {
+  const year = new Date().getUTCFullYear();
+
+  it('from onboarding: the profile is saved, Denemeler, Haftalık and Karne are full, the band shows; Çık empties them', async () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    onboardTo('YKS', year - 18, 'sayisal');
+    // Same size and weight as Başla.
+    expect(screen.getByTestId('onboarding-demo').props.style).toEqual(screen.getByTestId('onboarding-start').props.style);
+    await act(async () => fireEvent.press(screen.getByTestId('onboarding-demo')));
+    expect(memory.profile).toMatchObject({ examType: 'YKS', yksArea: 'sayisal', birthYear: year - 18 });
+    expect(memory.sessions.length).toBeGreaterThan(0);
+
+    act(() => router.push('/denemeler'));
+    expect(screen.getAllByTestId('demo-banner').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('exam-item-0')).toBeTruthy();
+    expect(screen.queryByTestId('exams-empty')).toBeNull();
+    act(() => router.push('/haftalik'));
+    expect(screen.queryByTestId('weekly-empty')).toBeNull();
+    act(() => router.push('/karne/matematik'));
+    expect(screen.getByTestId('report-total').props.children).not.toBe('0 dk');
+
+    act(() => router.push('/denemeler'));
+    fireEvent.press(screen.getAllByTestId('demo-exit')[0]);
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+    expect(screen.getByTestId('exams-empty')).toBeTruthy();
+    expect(memory.sessions).toEqual([]);
+    // The profile stays: only the example data went.
+    expect(memory.profile).toMatchObject({ examType: 'YKS', birthYear: year - 18 });
+  });
+
+  it('settings: in and out; the band only in demo mode', async () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+    expect(screen.queryByTestId('settings-demo-exit')).toBeNull();
+    await act(async () => fireEvent.press(screen.getByTestId('settings-demo-enter')));
+    // It opens the timer on the example data.
+    expect(screen.getByTestId('timer-start')).toBeTruthy();
+    act(() => router.push('/ayarlar'));
+    expect(screen.getAllByTestId('demo-banner').length).toBeGreaterThan(0);
+    fireEvent.press(screen.getByTestId('settings-demo-exit'));
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+    expect(screen.getByTestId('settings-demo-enter')).toBeTruthy();
+    expect(memory.sessions).toEqual([]);
+  });
+
+  it('a running timer of their own: "Örnek verilerle gez" is refused with a short note', async () => {
+    memory.profile = ADULT_SAYISAL;
+    const { startSession } = jest.requireActual('../domain/timer');
+    memory.active = startSession('own', 'fizik', Date.now() - 60_000);
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await act(async () => fireEvent.press(screen.getByTestId('settings-demo-enter')));
+    expect(screen.getByTestId('settings-demo-timer-running').props.children).toBe(
+      'Sayaç çalışırken örnek verilere geçilemez. Önce oturumunu bitir.',
+    );
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+    expect(memory.active?.id).toBe('own');
+  });
+
+  it('backup is off in demo mode; "delete all" leaves demo mode and keeps the profile', async () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await act(async () => fireEvent.press(screen.getByTestId('settings-demo-enter')));
+    act(() => router.push('/yedek'));
+    expect(screen.getByTestId('backup-demo-disabled').props.children).toBe('Örnek modda yedek alınmaz.');
+    for (const id of ['backup-export', 'backup-import', 'csv-sessions', 'csv-exams']) {
+      expect(screen.getByTestId(id).props.accessibilityState.disabled).toBe(true);
+    }
+    fireEvent.press(screen.getByTestId('backup-export'));
+    expect(memory.shared).toEqual([]);
+
+    await act(async () => router.push('/ayarlar'));
+    fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
+    pressAlert('Evet, hepsini sil');
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+    expect(memory.profile).toEqual(ADULT_SAYISAL);
+    expect(screen.getByTestId('settings-demo-enter')).toBeTruthy();
+  });
+});
+
 describe('empty states', () => {
   beforeEach(() => {
     memory.profile = ADULT_SAYISAL;
@@ -3134,8 +3260,12 @@ describe('about and legal texts', () => {
 
   it('the short notice is reachable from onboarding before anything is saved', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
-    // It sits right above Başla.
-    const buttons = screen.getAllByRole('button').map((b) => b.props.testID);
+    // On every step; on the first one right above İleri.
+    let buttons = screen.getAllByRole('button').map((b) => b.props.testID);
+    expect(buttons.indexOf('onboarding-privacy')).toBe(buttons.indexOf('onboarding-next') - 1);
+    onboardTo('KPSS', null);
+    // On the last step right above Başla.
+    buttons = screen.getAllByRole('button').map((b) => b.props.testID);
     expect(buttons.indexOf('onboarding-privacy')).toBe(buttons.indexOf('onboarding-start') - 1);
     fireEvent.press(screen.getByTestId('onboarding-privacy'));
     expect(screen.getByTestId('legal-aydinlatma')).toBeTruthy();
@@ -4694,8 +4824,7 @@ describe('accessibility names on key screens', () => {
     memory.profile = null;
     memory.youngestBirthYear = year - 12;
     renderRouter(APP_DIR, { initialUrl: '/' });
-    fireEvent.press(screen.getByText(String(year - 20)));
-    fireEvent.press(screen.getByText('KPSS'));
+    onboardTo('KPSS', year - 20);
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     const blocked = screen.getByTestId('onboarding-age-blocked').props.children;
@@ -5012,13 +5141,19 @@ describe('Halka screens: settings rows, weekly tiles, onboarding brand', () => {
 
   it('onboarding: the ring brand band on top, Başla fixed under the scrolling page, nothing pre-selected (K-15)', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
-    const page = screen.getByTestId('onboarding-screen');
+    let page = screen.getByTestId('onboarding-screen');
     expect(within(page).getByTestId('onboarding-brand')).toBeTruthy();
     // The title grows like a header, not without limit: at accessibility sizes it left no question
     // on the first screen (IOS-10).
     expect(within(page).getByRole('header', { name: 'Etüt’e hoş geldin' }).props.maxFontSizeMultiplier).toBe(1.3);
+    expect(within(page).queryByTestId('onboarding-next')).toBeNull();
+    expect(screen.getAllByRole('button').filter((b) => b.props.accessibilityState?.selected === true)).toEqual([]);
+    onboardTo('KPSS', null);
+    page = screen.getByTestId('onboarding-screen');
     expect(within(page).queryByTestId('onboarding-start')).toBeNull();
+    expect(within(page).queryByTestId('onboarding-demo')).toBeNull();
     expect(screen.getByTestId('onboarding-start').props.accessibilityState.disabled).toBe(true);
+    expect(screen.getByTestId('onboarding-demo').props.accessibilityState.disabled).toBe(true);
     expect(screen.getAllByRole('button').filter((b) => b.props.accessibilityState?.selected === true)).toEqual([]);
   });
 });

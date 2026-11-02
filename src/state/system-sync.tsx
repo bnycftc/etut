@@ -10,6 +10,12 @@
  * once with "Sor", after 3 hours with "Çalışmaya devam say"): the Live Activity freezes there by
  * itself once stale, the widget's timeline stops counting there.
  * Never ticks.
+ *
+ * Demo mode (example data): nothing is written to the widget or the Live Activity and the reminder
+ * plan is left as the student's own data made it, so the real Lock Screen and Home Screen stay
+ * the student's. A Live Activity still showing is ended (no real timer can run then: entering demo
+ * mode is refused while one does). Leaving demo mode reloads everything, so all three follow the
+ * student's own data and reminder settings again.
  */
 
 import { router, useNavigationContainerRef } from 'expo-router';
@@ -234,7 +240,7 @@ function usePhaseEnds(session: ActiveSession | null, foreground: number): number
 }
 
 export function SystemSync(): null {
-  const { active, profile, dataVersions } = useAppState();
+  const { active, profile, dataVersions, demo } = useAppState();
   // Minute ticks only matter for the day key (a new day reloads the data).
   const today = istanbulDayKey(useNow(false));
   const [foreground, setForeground] = useState(0);
@@ -287,17 +293,20 @@ export function SystemSync(): null {
   }, [openUrl, profile, navigation]);
 
   useEffect(() => {
-    runLiveActivity(() => syncLiveActivity(session, data));
-  }, [session, data, foreground, phaseEnds]);
+    // Demo mode: as with no session, so nothing starts and one still showing ends.
+    if (demo) runLiveActivity(() => syncLiveActivity(null, null));
+    else runLiveActivity(() => syncLiveActivity(session, data));
+  }, [session, data, foreground, phaseEnds, demo]);
 
   useEffect(() => {
+    if (demo) return;
     syncWidget(session, data);
-  }, [session, data, foreground, phaseEnds]);
+  }, [session, data, foreground, phaseEnds, demo]);
 
   useEffect(() => {
-    if (!notifications.supported) return;
+    if (!notifications.supported || demo) return;
     void syncReminders(session, data);
-  }, [session, data, foreground, phaseEnds]);
+  }, [session, data, foreground, phaseEnds, demo]);
 
   return null;
 }

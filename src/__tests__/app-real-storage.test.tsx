@@ -312,7 +312,7 @@ describe('"Tüm verileri sil" on the real storage', () => {
     pressAlert('Evet, hepsini sil');
     await settle();
 
-    expect(screen.getByTestId('onboarding-start')).toBeTruthy();
+    expect(screen.getByTestId('onboarding-screen')).toBeTruthy();
     // kv-store: every key gone (Storage.clearSync), file compacted on its own connection.
     expect([...mainKv().keys()]).toEqual([]);
     const kvConnection = mockOpened.find((o) => o.name === 'ExpoSQLiteStorage');

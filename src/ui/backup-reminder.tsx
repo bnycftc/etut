@@ -38,16 +38,17 @@ export function LastBackupLabel({ testID, note = false }: { testID?: string; not
 /**
  * Quiet card on the timer screen when the data is worth keeping and no backup was made for a
  * while (rule: domain/backup-reminder.ts). In the app only, never a notification; "Şimdi değil"
- * hides it for a month.
+ * hides it for a month. Not with example data (demo mode): nothing of it is backed up.
  */
 export function BackupNudge({ studyDays, now }: { studyDays: number; now: number }) {
-  const { dataVersions } = useAppState();
+  const { dataVersions, demo } = useAppState();
   const stored = useStored(`backupNudge|${dataVersions.settings}`, () => ({
     last: loadLastBackupAt(),
     dismissed: loadBackupNudgeDismissedAt(),
   }));
   const [dismissedNow, setDismissedNow] = useState<number | null>(null);
   const dismissedAt = dismissedNow ?? stored.dismissed;
+  if (demo) return null;
   if (!shouldShowBackupNudge({ studyDays, lastBackupAt: stored.last, dismissedAt, now })) return null;
   const days = stored.last === null ? null : daysSince(stored.last, now);
   return (

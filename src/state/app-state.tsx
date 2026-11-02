@@ -53,6 +53,7 @@ import {
 import { loadYoungestDeclaredBirthYear, storeYoungestDeclaredBirthYear } from '../storage/age-guard';
 import { readBackupData, writeBackupData } from '../storage/backup';
 import { newId } from '../storage/db';
+import { enterDemo as enterDemoStorage, exitDemo as exitDemoStorage, isDemo } from '../storage/demo';
 import {
   loadActiveSession,
   loadAwayRule,
@@ -66,9 +67,14 @@ import {
 import { deleteSessionForUndo, saveSession } from '../storage/sessions';
 import { wipeAllData } from '../storage/wipe';
 import { flushPending, isSyncActive, stopSync, syncFinishedSession, syncPresence } from '../sync/session-sync';
+import { DemoBand } from '../ui/demo-banner';
+import { ScreenTopProvider } from '../ui/screen-top';
 import { bumpVersions, type ChangedKinds, DATA_KINDS, type DataVersions, NO_CHANGES } from './data-kinds';
 
 export type SaveProfileResult = 'ok' | 'age_blocked';
+
+/** `timer_running`: the student's own timer runs (its session would be hidden behind the demo). */
+export type EnterDemoResult = 'ok' | 'timer_running';
 
 export type ImportResult =
   | { kind: 'done'; counts: BackupCounts }
@@ -127,6 +133,15 @@ interface AppStateValue {
   importBackup: (file: BackupFile, mode: ImportMode) => ImportResult;
   /** Puts back the data from before the last replace; `null` = no copy (or an unreadable one). */
   undoReplace: () => UndoReplaceResult | null;
+  /** The app shows example data ("Örnek verilerle gez"), not the student's own (storage/demo.ts). */
+  demo: boolean;
+  /**
+   * Switches to example data built for the saved profile (`profile`: the one just saved, before
+   * React state has it). Refused while the student's own timer runs.
+   */
+  enterDemo: (profile?: Profile) => Promise<EnterDemoResult>;
+  /** Back to the student's own data; the example data is deleted. */
+  exitDemo: () => void;
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null);
@@ -173,6 +188,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(initialProfile);
   const [active, setActiveState] = useState<ActiveSession | null>(initialActive);
   const [dataVersions, setDataVersions] = useState<DataVersions>(NO_CHANGES);
+  // Read once on a cold start: the flag survives a restart (the demo files are opened again).
+  const [demo, setDemo] = useState(isDemo);
   const activeRef = useRef(active);
   const lastFinish = useRef<{ previous: ActiveSession; completed: CompletedSession; at: number } | null>(null);
 
@@ -211,11 +228,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (status === 'background') update((s) => onAppBackground(s, Date.now()));
       else if (status === 'active') {
         update((s) => onAppForeground(s, Date.now(), loadAwayRule()));
-        flushPending();
+        // Nothing of the example data leaves the device.
+        if (!isDemo()) flushPending();
       }
     });
     // Group module only (no-op otherwise): send sessions that were finished offline.
-    flushPending();
+    if (!isDemo()) flushPending();
     return () => subscription.remove();
   }, []);
 
@@ -238,8 +256,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   // Live status for the group module (no-op unless it is on and an account exists).
   const activeId = active?.id ?? null;
   useEffect(() => {
-    syncPresence(activeRef.current);
-  }, [activeId, running]);
+    if (!demo) syncPresence(activeRef.current);
+  }, [activeId, running, demo]);
 
   const value: AppStateValue = {
     profile,
@@ -278,11 +296,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const completed = options?.maxStudyMs === undefined ? finished : capStudyTime(finished, options.maxStudyMs);
       if (completed.durationMs > 0) {
         saveSession(completed, now);
-        syncFinishedSession(completed, now);
+        if (!demo) syncFinishedSession(completed, now);
       }
       setActive(null);
-      // Undo only while nothing left the device (group module off or no account).
-      lastFinish.current = isSyncActive() ? null : { previous: current, completed, at: now };
+      // Undo only while nothing left the device (group module off or no account, or example data).
+      lastFinish.current = !demo && isSyncActive() ? null : { previous: current, completed, at: now };
       notifyDataChanged('sessions');
       return completed;
     },
@@ -301,6 +319,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     dataVersions,
     notifyDataChanged,
     resetAll: () => {
+      // In demo mode "delete all" deletes the example data only (storage/wipe.ts): the student's
+      // own data, profile and group account stay.
+      if (demo) {
+        wipeAllData();
+        switchedData(false);
+        return;
+      }
       // No heartbeat or retry may outlive the data (and the group account) it belongs to.
       stopSync();
       wipeAllData();
@@ -341,7 +366,33 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (replaceUndoComplete(copy)) storeReplaceUndo(null);
       return { counts, lostExams: copy.lostExams, lostTargets: copy.lostTargets };
     },
+    demo,
+    enterDemo: async (saved) => {
+      const p = saved ?? profile ?? loadProfile();
+      if (p === null) return 'ok';
+      const result = enterDemoStorage(p, Date.now());
+      if (result === 'ok') switchedData(true);
+      return result;
+    },
+    exitDemo: () => {
+      if (!isDemo()) return;
+      exitDemoStorage();
+      switchedData(false);
+    },
   };
+
+  /**
+   * After the data files changed under the app (into or out of demo mode): the running session is
+   * the one stored in the files now open (not written back), and every read loads again.
+   */
+  function switchedData(on: boolean) {
+    lastFinish.current = null;
+    const next = initialActive();
+    activeRef.current = next;
+    setActiveState(next);
+    setDemo(on);
+    notifyDataChanged(...DATA_KINDS);
+  }
 
   function importData(current: BackupData, file: BackupFile, mode: ImportMode): BackupCounts {
     const merged = mergeBackup(current, file, mode);
@@ -358,7 +409,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     return backupCounts(merged);
   }
 
-  return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
+  // Demo mode: the "Örnek veriler · Çık" band at the top of every screen.
+  return (
+    <AppStateContext.Provider value={value}>
+      <ScreenTopProvider value={demo ? <DemoBand onExit={value.exitDemo} /> : null}>{children}</ScreenTopProvider>
+    </AppStateContext.Provider>
+  );
 }
 
 export function useAppState(): AppStateValue {
