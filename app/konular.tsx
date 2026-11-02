@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { topicGroupsForSubject } from '@/domain/curriculum';
 import { subjectsFor } from '@/domain/subjects';
@@ -23,6 +23,8 @@ export default function TopicsScreen() {
   );
   // Opened from a report card: start on its subject.
   const params = useLocalSearchParams<{ subject?: string }>();
+  // "Tekrar lazım" filter: only the topics marked for review.
+  const [reviewOnly, setReviewOnly] = useState(false);
   const [pickedSubject, setSubjectId] = useState<string | null>(() => {
     if (typeof params.subject === 'string' && subjects.includes(params.subject)) return params.subject;
     const last = loadLastSubject();
@@ -79,6 +81,14 @@ export default function TopicsScreen() {
         </Label>
         <ProgressBar ratio={progress.total === 0 ? 0 : progress.done / progress.total} />
         {progress.review > 0 ? <Label variant="muted">{tr.topics.reviewCount(progress.review)}</Label> : null}
+        <ChipRow>
+          <Chip
+            testID="topics-filter-review"
+            title={tr.topicDetail.filterReview}
+            selected={reviewOnly}
+            onPress={() => setReviewOnly((on) => !on)}
+          />
+        </ChipRow>
         <Button
           testID="topics-open-report"
           kind="secondary"
@@ -87,27 +97,51 @@ export default function TopicsScreen() {
         />
       </Card>
 
+      {reviewOnly && progress.review === 0 ? (
+        <Label variant="muted" testID="topics-filter-empty">
+          {tr.topicDetail.filterReviewEmpty}
+        </Label>
+      ) : null}
+
       {groups.map((g) => {
         const p = topicProgress(g.topics, data.statuses);
+        // The filter reads the current marks: a topic unmarked here leaves the filtered list.
+        const shown = reviewFirst(g.topics, orderBy).filter((t) => !reviewOnly || data.statuses[t.id] === 'review');
+        if (shown.length === 0) return null;
         return (
           <Card key={g.paper ?? 'all'}>
             {g.paper ? (
-              <Row>
-                <Label variant="heading" style={{ flex: 1 }}>
-                  {g.paper}
-                </Label>
-                <Label variant="muted">{tr.topics.percent(p.percent)}</Label>
-              </Row>
+              <>
+                <Row>
+                  <Label variant="heading" style={{ flex: 1 }}>
+                    {g.paper}
+                  </Label>
+                  <Label variant="muted">{tr.topics.percent(p.percent)}</Label>
+                </Row>
+                <ProgressBar
+                  testID={`topics-paper-progress-${g.paper}`}
+                  label={tr.topicDetail.paperProgressA11y(g.paper)}
+                  ratio={p.total === 0 ? 0 : p.done / p.total}
+                />
+              </>
             ) : null}
-            {reviewFirst(g.topics, orderBy).map((t) => {
+            {shown.map((t) => {
               const status = data.statuses[t.id];
               const ms = data.totals[t.id] ?? 0;
               return (
                 <View key={t.id} style={{ gap: 6, paddingVertical: 4 }}>
-                  <Row>
-                    <Label style={{ flex: 1 }}>{t.name}</Label>
-                    <Label variant="small">{ms > 0 ? formatStudyTime(ms) : tr.topics.noTime}</Label>
-                  </Row>
+                  <Pressable
+                    testID={`topic-row-${t.id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={tr.topics.withPaper(t.name, g.paper)}
+                    accessibilityHint={tr.topicDetail.openHint}
+                    onPress={() => router.push({ pathname: '/konu/[id]', params: { id: t.id } })}
+                    style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+                    <Row>
+                      <Label style={{ flex: 1 }}>{t.name}</Label>
+                      <Label variant="small">{ms > 0 ? formatStudyTime(ms) : tr.topics.noTime}</Label>
+                    </Row>
+                  </Pressable>
                   <ChipRow>
                     <Chip
                       testID={`topic-done-${t.id}`}
