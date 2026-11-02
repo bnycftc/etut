@@ -1,0 +1,61 @@
+name: Legal site (build)
+
+# Builds the public web copy of the in-app legal texts (gizlilik/aydinlatma/kullanim/index) from
+# src/strings.ts with the data controller from the repository secrets, checks that no placeholder
+# or internal review marker is left, and uploads the four HTML files as an artifact. Publishing to
+# bnycftc.github.io/etut/ is a separate, human-approved step (the pages are public content).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Generate and check legal pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate pages
+        env:
+          EXPO_PUBLIC_DATA_CONTROLLER_NAME: ${{ secrets.DATA_CONTROLLER_NAME }}
+          EXPO_PUBLIC_DATA_CONTROLLER_CONTACT: ${{ secrets.DATA_CONTROLLER_CONTACT }}
+        run: |
+          [ -n "$EXPO_PUBLIC_DATA_CONTROLLER_NAME" ] || { echo "::error::DATA_CONTROLLER_NAME secret is empty"; exit 1; }
+          [ -n "$EXPO_PUBLIC_DATA_CONTROLLER_CONTACT" ] || { echo "::error::DATA_CONTROLLER_CONTACT secret is empty"; exit 1; }
+          node scripts/gen-legal-site.mjs legal-site
+          ls -la legal-site
+
+      - name: Check for placeholders and internal markers
+        run: |
+          set -e
+          for f in index aydinlatma gizlilik kullanim; do
+            [ -s "legal-site/$f.html" ] || { echo "::error::legal-site/$f.html missing or empty"; exit 1; }
+          done
+          # The placeholder shown when the secrets did not reach the generator.
+          ! grep -rl 'DOLDURULACAK' legal-site || { echo "::error::placeholder left in the pages"; exit 1; }
+          # Internal review markers must never reach the public pages.
+          ! grep -rli 'AVUKAT TEY' legal-site || { echo "::error::review marker left in the pages"; exit 1; }
+          ! grep -rl 'TODO\|FIXME\|\[DOLDUR' legal-site || { echo "::error::internal marker left in the pages"; exit 1; }
+          # The pages must carry the in-app LEGAL_UPDATED date.
+          upd=$(node -e "const s=require('fs').readFileSync('src/strings.ts','utf8');console.log(/LEGAL_UPDATED = '([^']+)'/.exec(s)[1])")
+          grep -q "$upd" legal-site/gizlilik.html || { echo "::error::gizlilik.html does not carry LEGAL_UPDATED ($upd)"; exit 1; }
+          echo "ok: 4 pages, updated $upd"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: legal-site
+          path: legal-site
+          if-no-files-found: error
+          retention-days: 14
