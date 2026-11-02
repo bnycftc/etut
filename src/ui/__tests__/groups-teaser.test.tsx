@@ -2,7 +2,7 @@
  * The "Yakında" preview of the Groups tab (src/ui/groups-teaser.tsx) while GROUPS_ENABLED is off.
  * It must not be able to reach the network or the group account (no src/sync, no device storage,
  * no supabase), and its words stay within the design rules (K-09, K-13; no date, no pressure).
- * Rendering, the tab for 15+ and its absence under 15: src/__tests__/groups-screens.test.tsx.
+ * Rendering, and the tab's absence while the module is off (0.5.0): src/__tests__/groups-screens.test.tsx.
  */
 
 import { existsSync, readFileSync } from 'node:fs';

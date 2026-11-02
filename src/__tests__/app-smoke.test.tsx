@@ -23,6 +23,7 @@ import {
 } from 'react-native';
 
 import { UNDO_FINISH_MS } from '../domain/finish';
+import { GroupsTeaser } from '../ui/groups-teaser';
 import { useReducedMotion } from '../ui/motion';
 import { subjectColor, subjectTint } from '../ui/subject-colors';
 import { LIGHT } from '../ui/theme';
@@ -997,7 +998,7 @@ describe('root error screen (V-15)', () => {
   });
 });
 
-it('with the group module off a 15+ profile sees the Groups tab (preview only); start, pause, finish saves a session', () => {
+it('with the group module off a 15+ profile does not see the Groups tab; start, pause, finish saves a session', () => {
   memory.profile = {
     birthYear: 2000,
     examType: 'YKS',
@@ -1006,9 +1007,9 @@ it('with the group module off a 15+ profile sees the Groups tab (preview only); 
     createdAt: 0,
   };
   renderRouter(APP_DIR, { initialUrl: '/' });
-  // Native tabs: each tab item is an `RNSTabsScreenIOS` in tests.
+  // Native tabs: each tab item is an `RNSTabsScreenIOS` in tests; the groups one is hidden, if there at all (0.5.0).
   const groupsTab = screen.root.findAll((n) => String(n.type) === 'RNSTabsScreenIOS' && n.props.tabBarItemTestID === 'tab-groups');
-  expect(groupsTab.map((n) => n.props.hidden)).toEqual([false]);
+  expect(groupsTab.filter((n) => n.props.hidden !== true)).toEqual([]);
   fireEvent.press(screen.getByText('Fizik'));
   fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
   expect(memory.active?.subjectId).toBe('fizik');
@@ -2629,10 +2630,10 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
   it.each([
     [1, 'row'],
     [3, 'column'],
-  ])('text size %d: a "Yakında" feature on Gruplar puts its symbol beside / above its text: %s', (fontScale, direction) => {
+  ])('text size %d: a "Yakında" feature puts its symbol beside / above its text: %s', (fontScale, direction) => {
     textSize(fontScale);
-    memory.profile = ADULT_SAYISAL;
-    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+    // The preview has no tab while the module is off (0.5.0): rendered on its own.
+    render(<GroupsTeaser profile={ADULT_SAYISAL} />);
     for (const key of ['invite', 'live', 'weekly', 'cheers']) {
       const feature = screen.getByTestId(`groups-teaser-${key}`);
       expect(RN.StyleSheet.flatten(feature.props.style).flexDirection ?? 'column').toBe(direction);
@@ -4553,9 +4554,9 @@ describe('accessibility names on key screens', () => {
   it.each([
     ['an adult', 2000],
     ['a 15–17 student (with the parent part)', 2009],
-  ])('/gruplar, the "Yakında" preview for %s: nothing to press, every heading its own', (_who, birthYear) => {
-    memory.profile = { ...ADULT_SAYISAL, birthYear };
-    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+  ])('the "Yakında" preview for %s: nothing to press, every heading its own', (_who, birthYear) => {
+    // The preview has no tab while the module is off (0.5.0): rendered on its own.
+    render(<GroupsTeaser profile={{ ...ADULT_SAYISAL, birthYear }} />);
     const teaser = screen.getByTestId('groups-teaser');
     const own = (node: Node) => typeof node.type === 'string' && (isInput(node) || ACTIONABLE.has(roleOf(node) as string));
     expect(teaser.findAll(own).map(idOf)).toEqual([]);

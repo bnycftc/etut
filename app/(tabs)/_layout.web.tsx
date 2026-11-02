@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router/js-tabs';
 import type { ColorValue } from 'react-native';
 
+import { GROUPS_ENABLED } from '@/config/features';
 import { useAppState } from '@/state/app-state';
 import { tr } from '@/strings';
 import { Icon, type IconName } from '@/ui/icon';
@@ -22,7 +23,8 @@ export default function TabsLayout() {
   const { profile } = useAppState();
   const c = usePalette();
   // K-01/K-02: the personal timer is always the first tab; groups are optional and hidden
-  // entirely for solo-only (under 15) profiles (K-16).
+  // entirely for solo-only (under 15) profiles (K-16). While the module is off the tab is hidden
+  // for everyone (0.5.0; the "Yakında" preview stays in src/ui/groups-teaser.tsx, unused).
   const showGroups = profile !== null && !profile.soloOnly;
   return (
     <Tabs
@@ -49,12 +51,10 @@ export default function TabsLayout() {
           tabBarIcon: tabIcon('exams', 'examsFill'),
         }}
       />
-      <Tabs.Protected guard={showGroups}>
+      <Tabs.Protected guard={GROUPS_ENABLED && showGroups}>
         <Tabs.Screen
           name="gruplar"
           options={{
-            // While the module is off (no server yet) the tab shows the "Yakında" preview
-            // (bny, 2026-10-18; it replaced the 2026-10-11 "no tab" decision).
             title: tr.tabs.groups,
             tabBarButtonTestID: 'tab-groups',
             tabBarIcon: tabIcon('groups', 'groupsFill'),

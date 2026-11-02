@@ -1,5 +1,6 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
+import { GROUPS_ENABLED } from '@/config/features';
 import { useAppState } from '@/state/app-state';
 import { tr } from '@/strings';
 import { usePalette } from '@/ui/theme';
@@ -14,8 +15,8 @@ export default function TabsLayout() {
   const c = usePalette();
   // K-01/K-02: the personal timer is always the first tab; groups are optional and hidden
   // entirely for solo-only (under 15) profiles (K-16). Native tabs have no `Protected`: a hidden
-  // tab cannot be navigated to at all. While the module is off (no server yet) the tab shows the
-  // "Yakında" preview (bny, 2026-10-18; it replaced the 2026-10-11 "no tab" decision).
+  // tab cannot be navigated to at all. While the module is off (no server yet) the tab is hidden
+  // for everyone (0.5.0, Guideline 4.2; the "Yakında" preview stays in src/ui/groups-teaser.tsx, unused).
   const showGroups = profile !== null && !profile.soloOnly;
   return (
     // Both icon states coloured: with `tintColor` alone the two would render in different modes.
@@ -28,7 +29,7 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>{tr.tabs.exams}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'doc.text', selected: 'doc.text.fill' }} md="description" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="gruplar" testID="tab-groups" hidden={!showGroups}>
+      <NativeTabs.Trigger name="gruplar" testID="tab-groups" hidden={!(GROUPS_ENABLED && showGroups)}>
         <NativeTabs.Trigger.Label>{tr.tabs.groups}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'person.3', selected: 'person.3.fill' }} md="groups" />
       </NativeTabs.Trigger>
