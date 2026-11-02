@@ -115,6 +115,12 @@ export default function GuideScreen() {
             );
           })}
           {paragraphs(g.net.more)}
+          <Button
+            testID="guide-net-calc"
+            kind="secondary"
+            title={tr.netCalc.guideLink}
+            onPress={() => router.push('/net-hesapla')}
+          />
         </>,
       ),
     ],

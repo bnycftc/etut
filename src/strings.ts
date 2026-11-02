@@ -792,6 +792,54 @@ export const tr = {
     showMore: 'Daha fazla göster',
   },
 
+  netCalc: {
+    title: 'Net hesapla',
+    /** The button on the exams tab and the line in "Nasıl çalışır". */
+    open: 'Net hesapla',
+    guideLink: 'Net nasıl hesaplanır?',
+    kind: 'Sınav',
+    correct: 'Doğru',
+    wrong: 'Yanlış',
+    net: 'net',
+    total: 'Toplam net',
+    saveAsExam: 'Deneme olarak kaydet',
+    /** The rule in one line, read from net.ts (4 for YKS/KPSS, 3 for LGS). */
+    hint: (wrongsPerCorrect: number) =>
+      `Her derste net = doğru − yanlış/${wrongsPerCorrect}. Boş bıraktığın sorular neti etkilemez. Burada hiçbir şey kaydedilmez.`,
+    /** Screen-reader name of a count box: which section it belongs to. */
+    countLabel: (section: string, what: string) => `${section}, ${what}`,
+    sectionA11y: (section: string, net: string) => `${section}: ${net} net`,
+    close: 'Kapat',
+  },
+
+  topicDetail: {
+    title: 'Konu',
+    /** `Matematik · TYT` */
+    source: (subject: string, paper: string) => `${subject} · ${paper}`,
+    totalTime: 'Toplam süre',
+    sessionCount: (n: number) => `${n} oturum`,
+    lastStudied: 'Son çalışma',
+    never: 'Henüz çalışılmadı',
+    wrongBlank: 'Denemelerde yanlış · boş',
+    wrongBlankValue: (wrong: number, blank: number) => `${wrong} yanlış · ${blank} boş`,
+    examCount: (n: number) => (n === 0 ? 'Analizlerde bu konu henüz işaretlenmedi.' : `${n} denemenin analizinden`),
+    mark: 'Durum',
+    sessions: 'Son oturumlar',
+    sessionsEmpty: 'Bu konuda kayıtlı oturum yok.',
+    /** `4 Kasım 2026 · 45 dk` */
+    sessionLine: (day: string, duration: string) => `${day} · ${duration}`,
+    study: 'Bu konuyu çalış',
+    studyBusy: 'Sayaç çalışırken yeni bir oturum başlatılamaz.',
+    notFound: 'Konu bulunamadı.',
+    /** Konular: only the "tekrar lazım" topics. */
+    filterReview: 'Yalnız tekrar lazım',
+    filterReviewEmpty: 'Bu derste “Tekrar lazım” işaretli konu yok.',
+    /** Screen-reader hint of a topic row on Konular. */
+    openHint: 'Konunun ayrıntısını açar',
+    /** Progress of one paper on Konular: `TYT: %40`. */
+    paperProgressA11y: (paper: string) => `${paper} ilerlemesi`,
+  },
+
   analysis: {
     title: 'Deneme analizi',
     pendingTitle: (n: number) => `Analizi bekleyen ${n} deneme var`,
