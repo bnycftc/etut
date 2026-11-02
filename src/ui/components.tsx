@@ -14,7 +14,14 @@ import {
 import { tr } from '../strings';
 import { announce } from './feedback';
 import { Icon, type IconName } from './icon';
+import { ScreenTop } from './screen-top';
 import { MAX_FONT_SCALE, space, typography, useLargeText, usePalette } from './theme';
+
+/**
+ * Widest a screen's content gets (pt). On iPad (and any wide window) the content is centred in a
+ * column this wide; the screen background still fills the window.
+ */
+export const CONTENT_MAX_WIDTH = 720;
 
 export function Screen({
   children,
@@ -42,6 +49,7 @@ export function Screen({
       // iOS: under the transparent bar the top of the content is at a negative offset (minus the
       // bar's height); without this a `scrollTo` there would be cut to 0, under the bar.
       scrollToOverflowEnabled>
+      <ScreenTop />
       {children}
     </ScrollView>
   );
@@ -826,7 +834,14 @@ export function BarChart({ bars, height = 140 }: { bars: Bar[]; height?: number 
 
 const styles = StyleSheet.create({
   // Cards 16 apart; a `Section` adds its own space above to make 32 between sections.
-  screen: { padding: space.lg, gap: space.lg, paddingBottom: space.xl * 2 },
+  screen: {
+    padding: space.lg,
+    gap: space.lg,
+    paddingBottom: space.xl * 2,
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+  },
   card: { borderRadius: 16, padding: space.lg, gap: space.md },
   cardHero: { borderRadius: 20 },
   section: { marginTop: space.xxl - space.lg, gap: space.xs },
