@@ -9,9 +9,18 @@ name: E2E iOS (simulator)
 # Every night on main, and by hand (Actions → "E2E iOS (simulator)" → Run workflow). A run takes
 # about an hour, so a push never starts it; the nightly run is the regular automatic check of the
 # Live Activity and the widget on iOS.
+# By hand with "ipad" on, a second job also runs the first-launch, timer, example-data and plan
+# flows (a-ilk-acilis, b-sayac, q-ornek-veri, r-plan) on an iPad Air 11-inch (M3) simulator
+# (app.json ios.supportsTablet). The iPhone job runs every flow in e2e/ (e2e/config.yaml: "*"),
+# so new flows such as r-plan, s-net-hesapla and t-konu-detay are part of it without a list here.
 
 on:
   workflow_dispatch:
+    inputs:
+      ipad:
+        description: "Also run a-ilk-acilis, b-sayac, q-ornek-veri and r-plan on an iPad Air 11-inch (M3) simulator"
+        type: boolean
+        default: false
   schedule:
     # 03:00 UTC (06:00 Istanbul); scheduled runs use the default branch, main.
     - cron: "0 3 * * *"
@@ -43,9 +52,20 @@ env:
 
 jobs:
   e2e:
-    name: Build for simulator and run Maestro flows
+    name: Build for simulator and run Maestro flows (${{ matrix.device }})
     runs-on: macos-26
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        # iPhone always (nightly and by hand); iPad only when the "ipad" input is on.
+        device: ${{ fromJSON(inputs.ipad && '["iphone","ipad"]' || '["iphone"]') }}
+    env:
+      DEVICE: ${{ matrix.device }}
+      # iPad runs the first-launch, timer, example-data and plan flows; iPhone runs every flow in
+      # e2e/ (r-plan, s-net-hesapla and t-konu-detay included).
+      FLOWS: ${{ matrix.device == 'ipad' && 'e2e/a-ilk-acilis.yaml e2e/b-sayac.yaml e2e/q-ornek-veri.yaml e2e/r-plan.yaml' || '' }}
+      IPAD_MODEL: "iPad Air 11-inch (M3)"
     steps:
       - uses: actions/checkout@v4
 
@@ -180,7 +200,7 @@ jobs:
             || sudo ln -sf "/usr/share/zoneinfo/$SIM_TIMEZONE" /etc/localtime
           date
 
-      - name: Create iPhone simulator (newest iOS runtime)
+      - name: Create ${{ matrix.device }} simulator (newest iOS runtime)
         run: |
           xcrun simctl list runtimes available
           python3 - <<'PY'
@@ -200,17 +220,27 @@ jobs:
               raise SystemExit("::error::No available iOS simulator runtime")
           runtime = max(runtimes, key=lambda r: version_key(r["version"]))
 
-          device_types = [t for t in runtime.get("supportedDeviceTypes", []) if t.get("productFamily") == "iPhone"]
+          family = "iPad" if os.environ["DEVICE"] == "ipad" else "iPhone"
+          device_types = [t for t in runtime.get("supportedDeviceTypes", []) if t.get("productFamily") == family]
           if not device_types:
-              device_types = [t for t in simctl_json("devicetypes")["devicetypes"] if t.get("productFamily") == "iPhone"]
+              device_types = [t for t in simctl_json("devicetypes")["devicetypes"] if t.get("productFamily") == family]
           if not device_types:
-              raise SystemExit("::error::No iPhone device type for " + runtime["name"])
+              raise SystemExit(f"::error::No {family} device type for " + runtime["name"])
 
-          # Prefer the newest regular-size "iPhone N", then "iPhone N Pro", else the last listed one.
           def pick(pattern):
               matches = [t for t in device_types if re.fullmatch(pattern, t["name"])]
               return max(matches, key=lambda t: version_key(t["name"])) if matches else None
-          device_type = pick(r"iPhone \d+") or pick(r"iPhone \d+ Pro") or device_types[-1]
+          if family == "iPad":
+              # The App Review device (iPad Air 11-inch (M3)); else the newest iPad Air 11-inch.
+              model = os.environ["IPAD_MODEL"]
+              device_type = next((t for t in device_types if t["name"] == model), None)                   or pick(r"iPad Air 11-inch.*")
+              if device_type is None:
+                  raise SystemExit(f"::error::No {model} simulator for " + runtime["name"])
+              if device_type["name"] != model:
+                  print(f"::warning::{model} not available, using {device_type['name']}")
+          else:
+              # Prefer the newest regular-size "iPhone N", then "iPhone N Pro", else the last listed one.
+              device_type = pick(r"iPhone \d+") or pick(r"iPhone \d+ Pro") or device_types[-1]
 
           with open(os.environ["GITHUB_ENV"], "a") as env:
               env.write(f"SIM_RUNTIME={runtime['identifier']}\n")
@@ -288,7 +318,8 @@ jobs:
             return "${PIPESTATUS[0]}"
           }
           set +e
-          run_maestro 1
+          # shellcheck disable=SC2086
+          run_maestro 1 $FLOWS
           status=$?
           cp "$RESULTS/report-1.xml" "$RESULTS/report.xml" 2>/dev/null
           # Maestro's XCTest driver sometimes does not come up on a cold CI simulator
@@ -299,7 +330,8 @@ jobs:
             # Maestro exits without stopping the xcodebuild that launches its runner; left alive, it
             # competes with the second attempt's runner for the same simulator.
             pkill -f 'xcodebuild test-without-building' || true
-            run_maestro 2
+            # shellcheck disable=SC2086
+            run_maestro 2 $FLOWS
             status=$?
             cp "$RESULTS/report-2.xml" "$RESULTS/report.xml" 2>/dev/null
           fi
@@ -377,7 +409,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-ios-${{ github.run_number }}-${{ github.run_attempt }}
+          name: e2e-ios-${{ matrix.device }}-${{ github.run_number }}-${{ github.run_attempt }}
           path: ${{ env.RESULTS }}
           if-no-files-found: warn
           retention-days: 14

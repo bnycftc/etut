@@ -8,8 +8,8 @@
  *
  * Checks: page is cross-origin isolated, no console errors / uncaught exceptions, no network
  * request outside the dev server; onboarding (+ short notice) → first-use tips → timer (start,
- * pause, resume, finish, summary and "Geri al"; Sayısal subjects only) → the groups tab shows only the
- * "Yakında" preview → reload keeps the profile → share card (1080x1920 PNG) → mock exam with the right
+ * pause, resume, finish, summary and "Geri al"; Sayısal subjects only) → no groups tab while the module
+ * is off → reload keeps the profile → share card (1080x1920 PNG) → mock exam with the right
  * net (area papers only) and the save confirmation → reload keeps the exam → area change → "Sayaç çalışırken" settings
  * (kept across a reload) → backup + CSV download → about / legal / licenses → reminders screen
  * renders → "delete all data" offers a backup first (deletes nothing), then returns to
@@ -164,15 +164,15 @@ async function runScenario(page, baseUrl) {
   const visible = (id, timeout = STEP_TIMEOUT_MS) => byId(id).waitFor({ state: 'visible', timeout });
   const text = async (id) => ((await byId(id).textContent()) ?? '').trim();
 
-  // 1. First launch: onboarding, nothing pre-selected.
+  // 1. First launch: onboarding (four steps), nothing pre-selected.
   log('step: onboarding');
   await page.goto(baseUrl);
-  await visible('onboarding-start', FIRST_SCREEN_TIMEOUT_MS);
-  check(await page.getByText('Doğum yılın').isVisible(), 'onboarding title is missing');
+  await visible('onboarding-next', FIRST_SCREEN_TIMEOUT_MS);
+  check(await page.getByText('Hazırlandığın sınav').isVisible(), 'onboarding title is missing');
   check(await page.evaluate(() => self.crossOriginIsolated), 'page is not cross-origin isolated');
   check(
-    (await byId('onboarding-start').getAttribute('aria-disabled')) === 'true',
-    'start button must be disabled before answering',
+    (await byId('onboarding-next').getAttribute('aria-disabled')) === 'true',
+    'İleri must be disabled before answering',
   );
   await screenshot('onboarding');
 
@@ -181,14 +181,23 @@ async function runScenario(page, baseUrl) {
   await visible('legal-aydinlatma');
   await screenshot('onboarding-aydinlatma');
   await page.goBack();
-  await visible('onboarding-start');
+  await visible('onboarding-next');
 
   const birthYear = new Date().getFullYear() - 20;
   const onboard = async () => {
-    await byId(`birth-year-${birthYear}`).click();
     await byId('exam-type-YKS').click();
     await visible('yks-area-sayisal');
     await byId('yks-area-sayisal').click();
+    await byId('onboarding-next').click();
+    // Step 2: the countdown to the exam.
+    await visible('onboarding-countdown');
+    await byId('onboarding-next').click();
+    // Step 3: the optional daily goal (skipped).
+    await visible('onboarding-goal-120');
+    await byId('onboarding-next').click();
+    // Step 4: the birth year, then Başla (next to "Örnek verilerle gez").
+    await byId(`birth-year-${birthYear}`).click();
+    check(await byId('onboarding-demo').isVisible(), '"Örnek verilerle gez" is missing on the last step');
     await byId('onboarding-start').click();
   };
   await onboard();
@@ -207,12 +216,19 @@ async function runScenario(page, baseUrl) {
   // 2. Timer: start, runs, pause, resume, finish.
   log('step: timer');
   await visible('timer-start');
-  // The group module is off (no server yet): a 15+ profile has the Groups tab with the "Yakında" preview (2b).
-  check((await byId('tab-groups').count()) === 1, 'a 15+ profile has the groups tab');
-  // Sayısal: no literature and no foreign language among the subjects.
+  // The group module is off (no server yet): even a 15+ profile has no Groups tab (0.5.0, 2b).
+  check((await byId('tab-groups').count()) === 0, 'no groups tab while the module is off');
+  await screenshot('timer-idle');
+  // Sayısal: no literature and no foreign language among the subjects. The card shows the recent
+  // six and folds the rest behind "Tüm dersler": open the whole list first, so a folded subject
+  // cannot pass for a missing one.
+  if ((await byId('subjects-all').count()) > 0) {
+    await byId('subjects-all').click();
+    await byId('subjects-all').waitFor({ state: 'detached', timeout: STEP_TIMEOUT_MS });
+  }
+  check(await byId('subject-tarih').isVisible(), 'the whole Sayısal list must be open');
   check((await byId('subject-edebiyat').count()) === 0, 'Sayısal must not offer Türk Dili ve Edebiyatı');
   check((await byId('subject-yabanci_dil').count()) === 0, 'Sayısal must not offer Yabancı Dil');
-  await screenshot('timer-idle');
   await byId('subject-fizik').click();
   await byId('timer-start').click();
   await visible('timer-clock');
@@ -261,18 +277,15 @@ async function runScenario(page, baseUrl) {
   await page.goBack();
   await visible('timer-start');
 
-  // 2b. The group module is off (src/config/features.ts): the groups tab shows only the "Yakında"
-  //     preview, and no request ever leaves the dev server (checked in main()).
-  log('step: groups preview (module off)');
-  await byId('tab-groups').click();
-  await visible('groups-teaser');
+  // 2b. The group module is off (src/config/features.ts): no groups tab (0.5.0), a link to it
+  //     opens no group screen, and no request ever leaves the dev server (checked in main()).
+  log('step: no groups tab (module off)');
+  await page.goto(baseUrl + 'gruplar');
+  await visible('timer-start', FIRST_SCREEN_TIMEOUT_MS);
+  check((await byId('tab-groups').count()) === 0, 'no groups tab while the module is off');
+  check((await byId('groups-teaser').count()) === 0, 'the "Yakında" preview is not reachable');
   check((await byId('groups-intro').count()) === 0, 'the group module must stay off');
   check((await byId('groups-nickname').count()) === 0, 'no group account form while the module is off');
-  await screenshot('groups-teaser');
-  await page.goto(baseUrl + 'gruplar');
-  await visible('groups-teaser', FIRST_SCREEN_TIMEOUT_MS);
-  await byId('tab-timer').click();
-  await visible('timer-start');
 
   // 3. Reload: the profile comes back from the kv-store (no onboarding).
   log('step: reload keeps profile');
@@ -302,6 +315,15 @@ async function runScenario(page, baseUrl) {
   const png = readFileSync(cardPath);
   check(png.readUInt32BE(16) === 1080 && png.readUInt32BE(20) === 1920, 'card image must be 1080x1920');
   await page.goBack();
+  await visible('timer-start');
+
+  // 3c. Plan tab: this week's plan opens (7 days), then back to the timer.
+  log('step: plan tab');
+  await byId('tab-plan').click();
+  await visible('plan-week');
+  check(await byId('plan-day-6').isVisible(), 'the plan should show all seven days');
+  await screenshot('plan-week');
+  await byId('tab-timer').click();
   await visible('timer-start');
 
   // 4. Mock exam: TYT, Türkçe 10 doğru 4 yanlış (= 9 net), Matematik 20 doğru 8 yanlış (= 18 net).
@@ -336,6 +358,27 @@ async function runScenario(page, baseUrl) {
   await visible('exam-item-0-net', FIRST_SCREEN_TIMEOUT_MS);
   check((await text('exam-item-0-net')) === '27 net', 'exam lost after reload');
 
+  // 5a. Net calculator: TYT, Türkçe 30 doğru 8 yanlış (= 28 net); "Deneme olarak kaydet" opens the
+  //     new-exam form with the same counts. Nothing is saved: the list still has the one exam.
+  log('step: net calculator');
+  await byId('exams-net-calc').click();
+  await visible('net-calc');
+  check(await byId('net-calc-kind-AYT_SAY').isVisible(), 'AYT Sayısal must be offered in the calculator');
+  await byId('net-calc-kind-TYT').click();
+  await byId('net-calc-correct-turkce').fill('30');
+  await byId('net-calc-wrong-turkce').fill('8');
+  await waitUntil(() => text('net-calc-net-turkce'), (v) => v === '28', 'calculator Türkçe net 28');
+  await waitUntil(() => text('net-calc-total'), (v) => v === '28', 'calculator total net 28');
+  await screenshot('net-calc');
+  await byId('net-calc-save').click();
+  await visible('exam-form');
+  await waitUntil(() => text('exam-net-turkce'), (v) => v === '28', 'prefilled exam form Türkçe net 28');
+  check((await text('exam-total-net')) === '28', 'prefilled exam form total should be 28');
+  await screenshot('net-calc-prefill');
+  await page.goto(baseUrl + 'denemeler');
+  await visible('exam-item-0-net', FIRST_SCREEN_TIMEOUT_MS);
+  check((await byId('exam-item-1').count()) === 0, 'the calculator must not save an exam by itself');
+
   // 5b. Settings: change the area (Sayısal → Eşit Ağırlık); the timer subjects follow.
   log('step: change area');
   await byId('tab-settings').click();
@@ -359,7 +402,11 @@ async function runScenario(page, baseUrl) {
   // colour: a selected chip has the primary colour, the same as the selected "Çalışmaya devam say"
   // chip (whose explanation text below proves it is the selected one).
   const background = (id) => byId(id).evaluate((el) => getComputedStyle(el).backgroundColor);
-  check(await byId('settings-timer').getByText('Sayaç çalışırken').isVisible(), 'timer settings card title is missing');
+  // The section title stands above the card in capitals; its accessible name is the title as written.
+  check(
+    await byId('settings-timer').getByRole('heading', { name: 'Sayaç çalışırken' }).isVisible(),
+    'timer settings section title is missing',
+  );
   check(
     (await text('settings-away-info')).includes('3 saate kadar çalışma sayılır'),
     '"Çalışmaya devam say" (3 hours) must be the default away rule',
@@ -400,7 +447,7 @@ async function runScenario(page, baseUrl) {
   const backupPath = path.join(OUT_DIR, backupDownload.suggestedFilename());
   await backupDownload.saveAs(backupPath);
   const backup = JSON.parse(readFileSync(backupPath, 'utf8'));
-  check(backup.format === 'etut-yedek' && backup.schemaVersion === 2, 'backup file has the wrong format');
+  check(backup.format === 'etut-yedek' && backup.schemaVersion === 3, 'backup file has the wrong format');
   check(backup.sessions.length === 1 && backup.exams.length === 1, 'backup must hold the session and the exam');
   await byId('backup-last').filter({ hasText: 'Son yedek: bugün' }).waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS });
   const [csvDownload] = await Promise.all([
@@ -437,7 +484,8 @@ async function runScenario(page, baseUrl) {
   await visible('settings-reminders');
   await byId('settings-reminders').click();
   await visible('reminder-daily-toggle');
-  check((await text('reminder-daily-toggle')) === 'Kapalı', 'daily reminder must be off by default');
+  // A switch (react-native-web: a checkbox input with role=switch inside the testID element).
+  check(!(await byId('reminder-daily-toggle').getByRole('switch').isChecked()), 'daily reminder must be off by default');
   check(
     await byId('reminders-screen').getByText('Bu cihazda hatırlatıcı yok.').isVisible(),
     'web must say reminders are unsupported',
@@ -463,10 +511,10 @@ async function runScenario(page, baseUrl) {
   );
   await screenshot('delete-all-backup-first');
   await byId('settings-delete-all-confirm').click();
-  await visible('onboarding-start');
+  await visible('onboarding-next');
   await screenshot('after-delete-all');
   await page.reload();
-  await visible('onboarding-start', FIRST_SCREEN_TIMEOUT_MS);
+  await visible('onboarding-next', FIRST_SCREEN_TIMEOUT_MS);
 
   // 7. "New phone": onboard again, empty states, then restore the backup (twice: no duplicates).
   log('step: empty states and restore');
@@ -494,6 +542,25 @@ async function runScenario(page, baseUrl) {
   await visible('exams-empty');
   check(await byId('exams-empty-action').isVisible(), 'the empty exam list should offer its own add button');
   await screenshot('empty-exams');
+
+  // 7b. "Örnek verilerle gez": the example data fills the lists; leaving it brings the empty ones back.
+  log('step: demo mode');
+  await byId('tab-settings').click();
+  await visible('settings-demo-enter');
+  await byId('settings-demo-enter').click();
+  await byId('tab-exams').click();
+  await visible('exam-item-0-net');
+  check((await byId('exams-empty').count()) === 0, 'the example data should fill the exam list');
+  check((await byId('demo-banner').count()) > 0, 'the "Örnek veriler" band is missing');
+  await screenshot('demo-exams');
+  await byId('tab-settings').click();
+  await visible('settings-demo-exit');
+  await byId('settings-demo-exit').click();
+  await visible('settings-demo-enter');
+  check((await byId('demo-banner').count()) === 0, 'the band should go with the demo mode');
+  await byId('tab-exams').click();
+  await visible('exams-empty');
+  check((await byId('exam-item-0').count()) === 0, 'the example exams should be gone after leaving');
 
   for (let round = 1; round <= 2; round++) {
     await byId('tab-settings').click();

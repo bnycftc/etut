@@ -10,47 +10,70 @@ tags:
       id: onboarding-screen
     timeout: 60000
 - takeScreenshot: a-ilk-acilis-01-bos
-# K-15: nothing is pre-selected, so the start button (below the cards) is disabled.
-- scrollUntilVisible:
-    element:
-      id: onboarding-start
-    direction: DOWN
-    timeout: 20000
+# K-15: nothing is pre-selected, so İleri (fixed at the bottom) is disabled on the first step.
 - assertVisible:
-    id: onboarding-start
+    id: onboarding-next
     enabled: false
-- scrollUntilVisible:
-    element:
-      id: "birth-year-${new Date().getFullYear() - 20}"
-    direction: UP
-    timeout: 20000
-# Born 20 years ago: certainly 15 or older.
-- tapOn:
-    id: "birth-year-${new Date().getFullYear() - 20}"
-    retryTapIfNoChange: true
+# Step 1: exam and area. Centred: Maestro counts a chip under the fixed bar as visible.
 - scrollUntilVisible:
     element:
       id: exam-type-YKS
     direction: DOWN
+    centerElement: true
     timeout: 20000
 - tapOn:
     id: exam-type-YKS
     retryTapIfNoChange: true
-# The screen is taller than the viewport: scroll to each target instead of a fixed swipe.
 - scrollUntilVisible:
     element:
       id: yks-area-sayisal
     direction: DOWN
+    centerElement: true
     timeout: 20000
 - tapOn:
     id: yks-area-sayisal
     retryTapIfNoChange: true
 - takeScreenshot: a-ilk-acilis-02-secimler
+- extendedWaitUntil:
+    visible:
+      id: onboarding-next
+      enabled: true
+    timeout: 30000
+- tapOn:
+    id: onboarding-next
+# Step 2: the countdown to the exam.
+- extendedWaitUntil:
+    visible:
+      id: onboarding-countdown
+    timeout: 15000
+- tapOn:
+    id: onboarding-next
+# Step 3: the optional daily goal (skipped).
+- extendedWaitUntil:
+    visible:
+      id: onboarding-goal-120
+    timeout: 15000
+- tapOn:
+    id: onboarding-next
+# Step 4: born 20 years ago, certainly 15 or older.
+# Centred: Maestro counts a chip under the fixed bar as visible (it only checks the screen edges).
 - scrollUntilVisible:
     element:
-      id: onboarding-start
+      id: "birth-year-${new Date().getFullYear() - 20}"
     direction: DOWN
+    centerElement: true
     timeout: 20000
+- tapOn:
+    id: "birth-year-${new Date().getFullYear() - 20}"
+    retryTapIfNoChange: true
+# Başla and "Örnek verilerle gez" side by side in weight.
+- assertVisible:
+    id: onboarding-demo
+- extendedWaitUntil:
+    visible:
+      id: onboarding-start
+      enabled: true
+    timeout: 30000
 - tapOn:
     id: onboarding-start
     retryTapIfNoChange: true
@@ -76,28 +99,7 @@ tags:
     id: tips-card
 - assertVisible:
     id: today-total
-# The group module is off (no server yet): a 15+ profile has the Groups tab, which only shows
-# the "Yakında" preview (no account, no network).
-- assertVisible:
+# The group module is off (no server yet): no Groups tab, even for a 15+ profile (0.5.0).
+- assertNotVisible:
     id: tab-groups
 - takeScreenshot: a-ilk-acilis-03-sayac
-- tapOn:
-    id: tab-groups
-- extendedWaitUntil:
-    visible:
-      text: "Sessiz etüt odası"
-    timeout: 15000
-- assertNotVisible:
-    id: groups-nickname
-- takeScreenshot: a-ilk-acilis-04-gruplar-yakinda
-- scrollUntilVisible:
-    element:
-      text: "Henüz açık değil"
-    direction: DOWN
-    timeout: 20000
-- tapOn:
-    id: tab-timer
-- extendedWaitUntil:
-    visible:
-      id: timer-start
-    timeout: 15000

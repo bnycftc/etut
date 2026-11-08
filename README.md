@@ -60,12 +60,14 @@ Web verisini sıfırlamak için uygulamadaki "Tüm verileri sil" ya da tarayıc�
 app/                    Ekranlar (expo-router)
   _layout.tsx           Kök yığın; profil yoksa yalnız onboarding açılır
   onboarding.tsx        İlk açılış: doğum yılı, sınav türü, YKS alanı
-  (tabs)/index.tsx      Sayaç (ana ekran, ilk sekme)
-  (tabs)/denemeler.tsx  Deneme listesi ve net grafiği
-  (tabs)/gruplar.tsx    Grup ana ekranı; sekme yalnız 15+ profillerde, bayrak kapalıyken "Yakında" ön izlemesi
+  (tabs)/_layout.tsx    Yerel sekmeler (NativeTabs); web önizleme `_layout.web.tsx` (JS sekmeleri, testID'li).
+                        Her sekme kendi yığınıyla bir klasör (`_layout.tsx` = büyük başlık, src/ui/tab-stack.tsx)
+  (tabs)/(timer)/index.tsx  Sayaç (ana ekran, ilk sekme)
+  (tabs)/denemeler/index.tsx  Deneme listesi ve net grafiği
+  (tabs)/gruplar/index.tsx  Grup ana ekranı; sekme yalnız 15+ profillerde, bayrak kapalıyken "Yakında" ön izlemesi
   grup/[id].tsx         Grup: şu an çalışanlar, sıralama, hazır tepkiler, bildir/engelle, kurucu araçları
   veli.tsx              Veli modu (velinin kendi cihazında, yetişkin profille)
-  (tabs)/ayarlar.tsx    Sınav/alan değiştirme, günlük hedef, pomodoro, sınav tarihi (düğmesiz: yazılınca ya da alandan
+  (tabs)/ayarlar/index.tsx  Sınav/alan değiştirme, günlük hedef, pomodoro, sınav tarihi (düğmesiz: yazılınca ya da alandan
                         çıkınca kaydedilir), yedek, tüm verileri sil ("Önce yedek al" ile), hakkında
   gecmis.tsx            Günlük toplamlar, ders dağılımı, son 7 gün ("elle" kısmı)
   haftalik.tsx          Haftalık özet (toplam, ders dağılımı, en uzun oturum, seri)
@@ -99,7 +101,7 @@ index.ts / index.web.ts Giriş noktası (web: SQLite worker'ını ısıtıp expo
 scripts/test-web.mjs    Web duman testi (npm run test:web)
 scripts/jest-react-compiler.js Jest'in react-compiler projesinin dönüştürücüsü (uygulama kodu React Compiler'la)
 eslint.config.js        Yalnız eslint-plugin-react-hooks, hepsi uyarı (npm run lint)
-scripts/gen-icons.mjs   Simge ve açılış ekranı (SVG -> PNG, simge alfa kanalsız)
+scripts/gen-icons.mjs   Simge (iOS açık/koyu/renklendirilmiş görünümler) ve açılış ekranı (SVG -> PNG, simgeler alfa kanalsız)
 scripts/store-compose.mjs Çerçeveli App Store görüntüleri (resvg, store/fonts Inter OFL, store/app-store/tr/screenshots.json)
 scripts/gen-licenses.mjs Lisans listesi üretici; scripts/native-licenses/ yerel kütüphane metinleri, scripts/package-licenses/ LICENSE dosyasız yayımlanan npm paketlerinin depo metni (upstream, birebir; eksik metin betiği hatayla bitirir)
 e2e/                    Maestro akışları (iOS simülatörü, e2e-ios.yml)
@@ -388,20 +390,19 @@ Sürüm numarası (`CFBundleShortVersionString`) `app.json` → `expo.version` a
 (şu an `0.4.1`). Derleme numarası `<çalıştırma numarası>.<deneme numarası>` biçimindedir (ör. `12.1`); "Re-run jobs" deneme numarasını artırdığı için aynı numara iki kez yüklenmez.
 
 ### `store-screenshots.yml` (elle ya da `store-screenshots` dalına push)
-6.9" iPhone (1320 × 2868) App Store ekran görüntüleri, simülatörde ve gerçekçi demo verisiyle.
-Derleme `e2e-ios.yml` ile aynıdır (Release, gömülü JS paketi, ad-hoc imza); `.app` uygulama
-kaynaklarının özetine göre önbelleklenir; yalnız akışlar ya da bu iş akışı değiştiyse derleme atlanır.
-`e2e/store/demo-backup.js` çalıştırma gününe göre tarihli bir yedek üretir, iş akışı onu simülatörün
-"iPhone'umda" klasörüne kopyalar, `e2e/store/screenshots.yaml` uygulamanın "Yedekten geri yükle"
-ekranından geri yükleyip görüntüleri alır (düşen deneme bir kez baştan çalışır). Demo verisi her
-hafta bir dinlenme günü (pazar) ve daha hafif günler içerir; seri uygulamanın kendi kuralıyla
-(haftada 1 dinlenme günü) sürer (`src/domain/__tests__/store-demo-backup.test.ts`). Akış ayrıca
-varsayılan "Çalışmaya devam say" kuralıyla (0.4.1'den beri; ayar değiştirilmez) pomodoroyu ~400 sn çalıştırır, sonra gerçek Dynamic Island ve Live
-Activity görüntülerini Maestro `cropOn` ile kırpar (`part-*`; tam ekranları `tam-*`). Ardından
-simülatör koyu moda alınır ve `e2e/store/screenshots-dark.yaml` "Yedekle ve geri yükle" ekranını
-çeker (`koyu-yedek`). Alfa kanalı atılır, boyut denetlenir; çıktı `app-store-screenshots-6.9`
-(ham `NN-ad.png` ekranlar) ve `app-store-screenshots-6.9-parts` (`part-*`, `tam-*`, `koyu-*`)
-artifact'larıdır. App Store Connect'e hiçbir şey gönderilmez, gizli değer gerekmez.
+App Store ekran görüntüleri, simülatörde, her ekran boyutu için bir matris kolu: 6.9" iPhone
+(1320 × 2868, `APP_IPHONE_67`) ve 13" iPad (iPad Pro 13-inch M4, 2064 × 2752,
+`APP_IPAD_PRO_3GEN_129`). Derleme `e2e-ios.yml` ile aynıdır (Release, gömülü JS paketi, ad-hoc imza);
+evrensel `.app` uygulama kaynaklarının özetine göre önbelleklenir. İki kol da aynı Maestro akışını
+(`e2e/store/screenshots.yaml`) koşar: akış onboarding'in son adımından "Örnek verilerle gez" ile
+uygulamanın kendi örnek verisine (`src/domain/demo-data.ts`) girer, görüntüleri alır, sonunda örnek
+moddan çıkar; düşen deneme bir kez baştan çalışır. iPhone kolu ayrıca Dynamic Island ve Live Activity
+kırpmalarını (`part-*`, tam ekranları `tam-*`) ve koyu mod ekranını (`e2e/store/screenshots-dark.yaml`,
+`koyu-*`) alır. Alfa kanalı atılır, boyut denetlenir. Artifact'lar: `app-store-screenshots-6.9`
+(ham `NN-ad.png`), `app-store-screenshots-6.9-parts` ve `app-store-screenshots-ipad-13`. App Store
+Connect'e hiçbir şey gönderilmez, gizli değer gerekmez. Önizleme videosu (App Preview, iPhone 6.9")
+bu iş akışında değil: `e2e/store/preview.yaml` akışıyla simülatörde kaydedilir
+(`store/app-store/preview-storyboard.md`).
 
 ### `store-frames.yml` (elle, ubuntu, ~2 dk)
 Başarılı bir `store-screenshots.yml` çalıştırmasının (`run_id`) iki artifact'ını
@@ -436,14 +437,16 @@ derleme bağlamaz, fiyat ya da erişilebilirliğe dokunmaz.
   çalıştırılır. Sürüm adını gerçekten değiştirmek için `allow_version_change=true`.
 - `asc-privacy-url.yml`: düzenlenebilir uygulama bilgisinin her dilinde Gizlilik Politikası URL'sini
   yazar (varsayılan `https://bnycftc.github.io/etut/gizlilik.html`). Kuru çalıştırması yoktur.
-- `asc-screenshots.yml`: başarılı bir `store-frames.yml` (çerçeveli set) ya da `store-screenshots.yml`
-  (ham ekranlar) çalıştırmasının (`run_id`) görüntülerini düzenlenebilir sürümün tr `APP_IPHONE_67`
-  setine koyar. Düzenlenebilir sürüm, iş akışının çalıştığı dalın `app.json` sürümü değilse kuru
-  çalıştırmada da hiçbir şey yazmadan durur (mağaza seti `release/<sürüm>` dalından yüklenir);
-  isteğe bağlı `expect_version` girdisi de o sürümle aynı olmalıdır. Varsayılan **kuru çalıştırma** (setteki ve
-  yüklenecek dosyaları, sıralarını yazdırır); `apply=true` seti değiştirir: ilk dosyayı yükler,
-  eskileri siler, kalanları dosya adı sırasıyla yükler, işlenmelerini bekler ve sırayı düzeltir.
-  Fark yoksa yazmaz; yalnız ekran görüntüsü uçlarına yazar.
+- `asc-screenshots.yml`: bir çalıştırmanın (`run_id`) dosyalarını düzenlenebilir sürümün tr setine
+  koyar; `target` girdisi seti seçer: `iphone` (`APP_IPHONE_67`; `store-frames.yml` çerçeveli set ya da
+  `store-screenshots.yml` ham ekranlar), `ipad` (`APP_IPAD_PRO_3GEN_129`; `store-screenshots.yml`
+  iPad kolu, `app-store-screenshots-ipad-13`), `preview-iphone` (önizleme videosu `IPHONE_67`,
+  `app-store-preview-6.9` artifact'ı). Düzenlenebilir sürüm, iş akışının çalıştığı dalın `app.json`
+  sürümü değilse kuru çalıştırmada da hiçbir şey yazmadan durur (mağaza seti `release/<sürüm>`
+  dalından yüklenir); isteğe bağlı `expect_version` girdisi de o sürümle aynı olmalıdır. Varsayılan
+  **kuru çalıştırma** (setteki ve yüklenecek dosyaları, sıralarını yazdırır); `apply=true` seti
+  değiştirir: ilk dosyayı yükler, eskileri siler, kalanları dosya adı sırasıyla yükler, işlenmelerini
+  bekler ve sırayı düzeltir. Fark yoksa yazmaz; yalnız ekran görüntüsü ve önizleme uçlarına yazar.
 
 ### GitHub gizli değişkenleri (Settings → Secrets and variables → Actions)
 

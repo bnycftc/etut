@@ -51,7 +51,7 @@ export default function HistoryScreen() {
   const questions = questionTotals(stored, days);
   const week = totals.slice(-7);
   const listed = [...totals].reverse().filter((t) => t.totalMs > 0);
-  // "Nedir?" once, on the newest day with an "elle" part, not on every card.
+  // The (i) link once, on the newest day with an "elle" part, not on every card.
   const firstManualDay = listed.find((t) => (manualByDay.get(t.day) ?? 0) > 0)?.day;
   // Timer sessions by the day they started (manual ones are deleted in Elle ekle).
   const timerByDay = new Map<DayKey, CompletedSession[]>();

@@ -1,6 +1,10 @@
-Ücretsiz, reklamsız, hesapsız. Sayaç kilit ekranında ve Dynamic Island’da çalışır; deneme netlerin ve en çok yanlış yaptığın konular aynı yerde. Uygulama internete bağlanmaz.
+Ücretsiz, reklamsız, hesapsız. Bugünün planı sayaç ekranında hazır: derse dokun, sayaç başlasın. Sayaç kilit ekranında ve Dynamic Island’da çalışır; deneme netlerin ve en çok yanlış yaptığın konular aynı yerde. Uygulama internete bağlanmaz.
 
-Etüt, sınava hazırlanan öğrenciler için bir çalışma sayacı ve deneme net takibidir. Ne kadar çalıştığını, hangi konuda olduğunu ve denemelerde nerede yanlış yaptığını tek yerde görürsün. YKS (TYT, AYT; sayısal, eşit ağırlık, sözel, dil) ve KPSS için ders ve konu listeleri hazır gelir. Başka bir sınava hazırlanıyorsan sayacı ve hedefleri yine kullanabilirsin.
+Etüt, sınava hazırlanan öğrenciler için bir çalışma sayacı, haftalık çalışma planı ve deneme net takibidir. Ne kadar çalıştığını, hangi konuda olduğunu ve denemelerde nerede yanlış yaptığını tek yerde görürsün. YKS (TYT, AYT; sayısal, eşit ağırlık, sözel, dil) ve KPSS için ders ve konu listeleri hazır gelir. Başka bir sınava hazırlanıyorsan sayacı ve hedefleri yine kullanabilirsin. İlk açılışta “Örnek verilerle gez” ile uygulamayı dolu hâliyle tanıyabilirsin; kendi kayıtların ayrı kalır. Etüt iPhone’da ve iPad’de çalışır.
+
+PLAN
+- Bugünün planı: sayaç ekranında bugün hangi derse, hangi konuya kaç dakika çalışacağın. Başlat’a dokununca sayaç o ders ve konuyla başlar.
+- Plan sekmesi: haftanın planı gün gün. Sınava kalan süreye, konu işaretlerine ve denemelerde yanlış yaptığın konulara göre kurulur; her güne ayırabileceğin süreyi sen belirlersin.
 
 ÇALIŞMA SAYACI
 - Kronometre ya da pomodoro. Pomodoro sürelerini ve uzun molanın aralığını sen ayarlarsın.
@@ -17,7 +21,9 @@ HEDEF VE GEÇMİŞ
 
 KONULAR VE DENEMELER
 - Konu takibi: konu başına süre, "bitti" ve "tekrar lazım" işaretleri, ilerleme yüzdesi.
+- Konu detayı: bir konuya ne kadar çalıştığın, son oturumun ve denemelerde o konudaki yanlış ve boşların; oradan doğrudan başlatırsın.
 - Genel ve branş deneme netlerini gir, net grafiğinde gelişimini izle.
+- Net hesapla: doğru ve yanlış sayılarını yaz, her bölümün neti ve toplam net hemen çıkar; istersen deneme olarak kaydedersin.
 - Derslere hedef net koy; son denemelerinin ortalamasıyla aradaki farkı gör.
 - Deneme analizi: yanlış ve boş soruların konularını işaretle, en çok yanlış yaptığın konuları gör.
 - Ders karnesi: bir dersteki süren, konuların ve netlerin bir arada.

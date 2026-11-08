@@ -1,17 +1,19 @@
 /**
  * Group screens with the flag ON, against the in-memory fake server (src/sync/testing). Storage
  * is replaced by in-memory fakes like in app-smoke.test.tsx. A second block checks that with the
- * flag OFF the tab shows only the "Yakında" preview to 15+ (none under 15) and nothing reaches
- * the network.
+ * flag OFF there is no Groups tab at any age (0.5.0), the unused "Yakında" preview still renders,
+ * and nothing reaches the network.
  */
 
-import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
+import { Alert } from 'react-native';
 
 import type { Profile } from '../domain/profile';
 import type { ActiveSession } from '../domain/timer';
 import { setGroupApiForTests } from '../sync/api';
 import { createFakeServer, type FakeServer, ME_ID } from '../sync/testing/fake-api';
+import { GroupsTeaser } from '../ui/groups-teaser';
 
 // The first renderRouter of a cold run (fresh CI runner, empty transform cache) loads and
 // transforms every route and can take well over Jest's default 5 s.
@@ -175,8 +177,50 @@ jest.mock('../storage/db', () => ({
   },
   wipeDatabase: () => {},
 }));
+/** `kvStore()` rows (the study plan's availability). */
+const mockKvRows = new Map<string, string>();
+jest.mock('../storage/kv-store', () => ({
+  isDemo: () => false,
+  // Study plan availability (and anything else on `kvStore()`): an in-memory key-value store.
+  kvStore: () => ({
+    getItemSync: (key: string) => mockKvRows.get(key) ?? null,
+    setItemSync: (key: string, value: string) => {
+      mockKvRows.set(key, value);
+    },
+    removeItemSync: (key: string) => {
+      mockKvRows.delete(key);
+    },
+    clearSync: () => mockKvRows.clear(),
+  }),
+}));
+jest.mock('../storage/demo', () => ({
+  isDemo: () => false,
+  enterDemo: () => 'ok',
+  exitDemo: () => {},
+}));
 
 const APP_DIR = './app';
+
+/**
+ * On the device "Tüm verileri sil" asks with the system alert (`Alert.alert`): a spy stands in for
+ * it and its buttons are pressed by their text.
+ */
+const systemAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+beforeEach(() => systemAlert.mockClear());
+function lastAlert() {
+  const call = systemAlert.mock.calls.at(-1);
+  if (call === undefined) throw new Error('no system alert');
+  return { title: call[0], message: call[1], buttons: call[2] ?? [] };
+}
+function alertButton(text: string) {
+  const button = lastAlert().buttons.find((b) => b.text === text);
+  if (button?.onPress === undefined) throw new Error(`no alert button "${text}"`);
+  return button.onPress;
+}
+function pressAlert(text: string) {
+  const onPress = alertButton(text);
+  act(() => onPress());
+}
 let server: FakeServer;
 
 function profile(birthYear: number): Profile {
@@ -394,11 +438,11 @@ describe('group module ON', () => {
     const { ApiError } = jest.requireActual('../sync/api');
     server.failNext = new ApiError('network');
     fireEvent.press(screen.getByTestId('settings-delete-all'));
-    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    pressAlert('Evet, hepsini sil');
     await flush();
     expect(memory.profile).not.toBeNull();
-    expect(screen.getByText(/silinemedi/)).toBeTruthy();
-    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    expect(lastAlert().message).toMatch(/silinemedi/);
+    pressAlert('Evet, hepsini sil');
     await flush();
     expect(server.calls.filter((c) => c === 'deleteMyAccount')).toHaveLength(2);
     expect(memory.profile).toBeNull();
@@ -413,7 +457,7 @@ describe('group module ON', () => {
     const { ApiError } = jest.requireActual('../sync/api');
     server.failNext = new ApiError('not_authenticated');
     fireEvent.press(screen.getByTestId('settings-delete-all'));
-    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    pressAlert('Evet, hepsini sil');
     await flush();
     expect(server.calls).toContain('deleteMyAccount');
     expect(memory.profile).toBeNull();
@@ -427,10 +471,10 @@ describe('group module ON', () => {
     const { ApiError } = jest.requireActual('../sync/api');
     server.failNext = new ApiError('network');
     fireEvent.press(screen.getByTestId('settings-delete-all'));
-    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    pressAlert('Evet, hepsini sil');
     await flush();
     expect(memory.profile).not.toBeNull();
-    fireEvent.press(screen.getByTestId('settings-delete-local-only'));
+    pressAlert('Yalnız bu cihazdan sil');
     await flush();
     expect(memory.profile).toBeNull();
     expect(server.calls.filter((c) => c === 'deleteMyAccount')).toHaveLength(1);
@@ -673,27 +717,26 @@ function studentMe(over: Partial<import('../sync/api').Me>): import('../sync/api
   };
 }
 
+/** Native tabs render each tab item as `RNSTabsScreenIOS` in tests: is the one with this testID shown? */
+function tabShown(testID: string): boolean {
+  const items = screen.root.findAll((n) => String(n.type) === 'RNSTabsScreenIOS' && n.props.tabBarItemTestID === testID);
+  return items.length === 1 && items[0].props.hidden !== true;
+}
+
 describe('group module OFF', () => {
-  it('a 15+ profile has a Groups tab with the "Yakında" preview only; nothing touches the server API', async () => {
+  it('a 15+ profile has no Groups tab either, a link to it opens the timer; nothing touches the server API (0.5.0)', async () => {
     flags.enabled = false;
     memory.groupsAccount = true; // even with a stale account flag
     const fetchSpy = jest.fn();
     const originalFetch = global.fetch;
     global.fetch = fetchSpy as unknown as typeof fetch;
     try {
-      renderRouter(APP_DIR, { initialUrl: '/' });
+      renderRouter(APP_DIR, { initialUrl: '/gruplar' });
       await flush();
-      expect(screen.getByTestId('tab-groups')).toBeTruthy();
-      fireEvent.press(screen.getByTestId('tab-groups'));
-      await flush();
-      expect(screen.getByTestId('groups-teaser')).toBeTruthy();
-      expect(screen.getByText('Yakında')).toBeTruthy();
-      expect(screen.getByText('Sessiz etüt odası')).toBeTruthy();
-      expect(screen.getByText('Henüz açık değil')).toBeTruthy();
-      // An adult: no parent part, no 15–17 line; no account form of the real module.
-      expect(screen.queryByTestId('groups-teaser-parent')).toBeNull();
-      expect(screen.queryByText(/15–17 yaşta/)).toBeNull();
-      expect(screen.queryByTestId('groups-teaser-lgs')).toBeNull();
+      expect(tabShown('tab-groups')).toBe(false);
+      expect(screen.queryByTestId('groups-teaser')).toBeNull();
+      expect(screen.getByTestId('timer-screen')).toBeTruthy();
+      // No account form of the real module.
       expect(screen.queryByTestId('groups-intro')).toBeNull();
       expect(screen.queryByTestId('groups-nickname')).toBeNull();
       expect(fetchSpy).not.toHaveBeenCalled();
@@ -703,23 +746,28 @@ describe('group module OFF', () => {
     }
   });
 
-  it('a 15–17 profile also sees the parent part ("Rahatsız etmeden bak") and the parent-code line', async () => {
-    flags.enabled = false;
-    memory.profile = profile(teenYear);
-    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
-    await flush();
+  // The "Yakında" preview is not reachable while its tab is hidden (0.5.0); it stays in the tree
+  // and is rendered on its own here.
+  it('the "Yakında" preview for an adult: no parent part, no 15–17 line', () => {
+    render(<GroupsTeaser profile={profile(adultYear)} />);
     expect(screen.getByTestId('groups-teaser')).toBeTruthy();
+    expect(screen.getByText('Yakında')).toBeTruthy();
+    expect(screen.getByText('Sessiz etüt odası')).toBeTruthy();
+    expect(screen.getByText('Henüz açık değil')).toBeTruthy();
+    expect(screen.queryByTestId('groups-teaser-parent')).toBeNull();
+    expect(screen.queryByText(/15–17 yaşta/)).toBeNull();
+    expect(screen.queryByTestId('groups-teaser-lgs')).toBeNull();
+  });
+
+  it('the preview for a 15–17 profile also has the parent part ("Rahatsız etmeden bak") and the parent-code line', () => {
+    render(<GroupsTeaser profile={profile(teenYear)} />);
     expect(screen.getByTestId('groups-teaser-parent')).toBeTruthy();
     expect(screen.getByText('Rahatsız etmeden bak')).toBeTruthy();
     expect(screen.getByText('Gruplara 15–17 yaşta velinin onayıyla, veli koduyla katılırsın.')).toBeTruthy();
-    expect(server.calls).toEqual([]);
   });
 
-  it('an LGS profile is told groups are for the other exams', async () => {
-    flags.enabled = false;
-    memory.profile = { ...profile(adultYear), examType: 'LGS', yksArea: null };
-    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
-    await flush();
+  it('the preview tells an LGS profile groups are for the other exams', () => {
+    render(<GroupsTeaser profile={{ ...profile(adultYear), examType: 'LGS', yksArea: null }} />);
     expect(screen.getByTestId('groups-teaser-lgs')).toBeTruthy();
   });
 
@@ -728,8 +776,7 @@ describe('group module OFF', () => {
     memory.profile = { ...profile(new Date().getUTCFullYear() - 12), examType: 'LGS', yksArea: null, soloOnly: true };
     renderRouter(APP_DIR, { initialUrl: '/gruplar' });
     await flush();
-    expect(screen.queryByTestId('tab-groups')).toBeNull();
-    expect(screen.queryByText('Gruplar')).toBeNull();
+    expect(tabShown('tab-groups')).toBe(false);
     expect(screen.queryByTestId('groups-teaser')).toBeNull();
     expect(screen.getByTestId('timer-screen')).toBeTruthy();
     expect(server.calls).toEqual([]);
@@ -742,7 +789,7 @@ describe('group module OFF', () => {
     await flush();
     expect(screen.queryByTestId('settings-parent-mode')).toBeNull();
     fireEvent.press(screen.getByTestId('settings-delete-all'));
-    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    pressAlert('Evet, hepsini sil');
     await flush();
     expect(server.calls).toEqual([]);
     expect(memory.profile).toBeNull();

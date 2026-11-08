@@ -10,6 +10,12 @@
  * once with "Sor", after 3 hours with "Çalışmaya devam say"): the Live Activity freezes there by
  * itself once stale, the widget's timeline stops counting there.
  * Never ticks.
+ *
+ * Demo mode (example data): nothing is written to the widget or the Live Activity and the reminder
+ * plan is left as the student's own data made it, so the real Lock Screen and Home Screen stay
+ * the student's. A Live Activity still showing is ended (no real timer can run then: entering demo
+ * mode is refused while one does). Leaving demo mode reloads everything, so all three follow the
+ * student's own data and reminder settings again.
  */
 
 import { router, useNavigationContainerRef } from 'expo-router';
@@ -18,7 +24,13 @@ import { AppState } from 'react-native';
 
 import { resolveExamDate } from '../domain/exam-dates';
 import { addDays, type DayKey, dayStartMs, istanbulDayKey, lastDays } from '../domain/istanbul-day';
-import { liveActivityAction, type LiveActivityRecord, liveTimerView } from '../domain/live-timer';
+import {
+  blockProgress,
+  liveActivityAction,
+  type LiveActivityRecord,
+  liveTimerView,
+  planBlockIndex,
+} from '../domain/live-timer';
 import {
   effectiveReminderPrefs,
   type PendingExam,
@@ -27,8 +39,14 @@ import {
 } from '../domain/reminders';
 import { type GoalHistory, STREAK_LOOKBACK_DAYS } from '../domain/streak';
 import { type ActiveSession, provisionalAwayAt } from '../domain/timer';
-import type { ExamType } from '../domain/profile';
-import { savedTotalsLookup, type WidgetExam, widgetTimeline } from '../domain/widget-summary';
+import type { ExamType, Profile } from '../domain/profile';
+import {
+  countdownTimeline,
+  nextPlanBlock,
+  savedTotalsLookup,
+  type WidgetExam,
+  widgetTimeline,
+} from '../domain/widget-summary';
 import {
   loadAwayRule,
   loadCustomExamDate,
@@ -41,10 +59,13 @@ import {
 } from '../storage/kv';
 import { listExamsNeedingAnalysis } from '../storage/mock-exams';
 import { sessionsOverlapping } from '../storage/sessions';
+import { type StudiedThisWeek, studiedThisWeek, type TodayPlanBlock, todaysPlan } from '../storage/study-plan';
 import { homeWidget } from '../system/home-widget';
 import { liveActivity } from '../system/live-activity';
 import { notifications } from '../system/notifications';
 import {
+  countdownWidgetProps,
+  emptyCountdownProps,
   emptyWidgetProps,
   notificationText,
   timerActivityProps,
@@ -82,7 +103,7 @@ function loadSurfaceData(savedTotal: (day: DayKey) => number, examType: ExamType
 
 function examFor(examType: ExamType, today: DayKey): WidgetExam | null {
   const date = resolveExamDate(examType, loadCustomExamDate(examType), today);
-  return date === null ? null : { examType, day: date.day, days: date.days };
+  return date === null ? null : { examType, day: date.day, days: date.days, estimated: date.estimated };
 }
 
 /** Runs async jobs one at a time; a job queued while another runs replaces the older queued one. */
@@ -120,7 +141,11 @@ const recordKey = (record: LiveActivityRecord) => `${record.sessionId}|${record.
  * Starts, updates, refreshes or ends the Live Activity. ActivityKit starts one only while the app
  * is in the foreground; updating and ending also work while it goes to the background.
  */
-async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
+async function syncLiveActivity(
+  active: ActiveSession | null,
+  data: SurfaceData | null,
+  plan: readonly TodayPlanBlock[] = [],
+): Promise<void> {
   if (!liveActivity.supported) return;
   const now = Date.now();
   const record = loadLiveActivityRecord();
@@ -148,7 +173,9 @@ async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
   }
   if (active === null || action === 'none' || action === 'end') return;
   const view = liveTimerView(active, now, provisionalAwayAt(active, loadAwayRule()));
-  const props = timerActivityProps(active, view);
+  // The goal ring: the widget timeline's entry for now (same numbers as the widget).
+  const today = data === null ? null : timeline(active, data, now)[0];
+  const props = timerActivityProps(active, view, today, planBlock(active, plan, now));
   const key = JSON.stringify([active.id, props, view.staleAt]);
   if (action === 'update') {
     if (key === lastLiveKey) return;
@@ -167,27 +194,82 @@ async function syncLiveActivity(active: ActiveSession | null): Promise<void> {
 
 let lastWidgetKey: string | null = null;
 
-function syncWidget(active: ActiveSession | null, data: SurfaceData | null): void {
+function timeline(active: ActiveSession | null, data: SurfaceData, now: number, plan: readonly TodayPlanBlock[] = []) {
+  return widgetTimeline({
+    now,
+    savedTotal: data.savedTotal,
+    active,
+    goalMinutes: data.goalMinutes,
+    goalHistory: data.goalHistory,
+    exam: data.exam,
+    awayAt: active === null ? null : provisionalAwayAt(active, loadAwayRule()),
+    nextBlock: nextPlanBlock(plan, active),
+  });
+}
+
+function syncWidget(active: ActiveSession | null, data: SurfaceData | null, plan: readonly TodayPlanBlock[] = []): void {
   if (!homeWidget.supported) return;
   const now = Date.now();
-  const awayAt = active === null ? null : provisionalAwayAt(active, loadAwayRule());
   const entries =
     data === null
       ? [{ at: now, props: emptyWidgetProps() }]
-      : widgetTimeline({
-          now,
-          savedTotal: data.savedTotal,
-          active,
-          goalMinutes: data.goalMinutes,
-          goalHistory: data.goalHistory,
-          exam: data.exam,
-          awayAt,
-        }).map((e) => ({ at: e.at, props: todayWidgetProps(e) }));
+      : timeline(active, data, now, plan).map((e) => ({ at: e.at, props: todayWidgetProps(e) }));
   // The first entry always starts "now"; only a different picture needs a reload.
   const key = JSON.stringify(entries.map((e, i) => [i === 0 ? 0 : e.at, e.props]));
   if (key === lastWidgetKey) return;
   homeWidget.setTimeline(entries);
   lastWidgetKey = key;
+}
+
+// --- Study plan on the surfaces (0.5.0): the widget's next block, the Live Activity's block bar,
+// and the countdown widget.
+
+/**
+ * Today's plan blocks, read like the timer screen's plan card does (`useTodaysPlan`): the week's
+ * study per subject is read only when sessions change, so a topic mark or a setting reads no
+ * sessions. `[]` without a profile.
+ */
+function loadPlanBlocks(
+  profile: Pick<Profile, 'examType' | 'yksArea'> | null,
+  now: number,
+  studied: StudiedThisWeek | null,
+): TodayPlanBlock[] {
+  if (profile === null || studied === null) return [];
+  try {
+    return todaysPlan(profile, now, studied).blocks;
+  } catch {
+    return [];
+  }
+}
+
+function loadStudied(today: DayKey): StudiedThisWeek | null {
+  try {
+    return studiedThisWeek(today);
+  } catch {
+    return null;
+  }
+}
+
+/** The plan block the running session was started from, as the Live Activity's bar. */
+function planBlock(active: ActiveSession, plan: readonly TodayPlanBlock[], now: number) {
+  const index = planBlockIndex(plan, active);
+  return blockProgress(active, now, index < 0 ? null : plan[index].minutes);
+}
+
+let lastCountdownKey: string | null = null;
+
+/** The countdown widget "EtutCountdown": one entry per Istanbul midnight ahead. */
+function syncCountdownWidget(data: SurfaceData | null): void {
+  if (!homeWidget.supported || homeWidget.setCountdownTimeline === undefined) return;
+  const now = Date.now();
+  const entries =
+    data === null
+      ? [{ at: now, props: emptyCountdownProps() }]
+      : countdownTimeline(now, data.exam).map((e) => ({ at: e.at, props: countdownWidgetProps(e) }));
+  const key = JSON.stringify(entries.map((e, i) => [i === 0 ? 0 : e.at, e.props]));
+  if (key === lastCountdownKey) return;
+  homeWidget.setCountdownTimeline(entries);
+  lastCountdownKey = key;
 }
 
 /** `notifications.sync` queues by itself (latest plan wins). */
@@ -229,7 +311,7 @@ function usePhaseEnds(session: ActiveSession | null, foreground: number): number
 }
 
 export function SystemSync(): null {
-  const { active, profile, dataVersions } = useAppState();
+  const { active, profile, dataVersions, demo } = useAppState();
   // Minute ticks only matter for the day key (a new day reloads the data).
   const today = istanbulDayKey(useNow(false));
   const [foreground, setForeground] = useState(0);
@@ -245,6 +327,13 @@ export function SystemSync(): null {
     () => (examType === null || savedTotal === null ? null : loadSurfaceData(savedTotal, examType, today)),
   );
   const session = profile === null ? null : active;
+  const studied = useStored(`planStudied|${today}|${dataVersions.sessions}|${examType === null}`, () =>
+    examType === null ? null : loadStudied(today),
+  );
+  const plan = useStored(
+    `plan|${today}|${dataVersions.sessions}|${dataVersions.exams}|${dataVersions.topics}|${dataVersions.settings}|${examType ?? 'none'}|${profile?.yksArea ?? 'none'}`,
+    () => loadPlanBlocks(profile, Date.now(), studied),
+  );
   const phaseEnds = usePhaseEnds(session, foreground);
   const navigation = useNavigationContainerRef();
   // Route of a tapped notification, opened once the navigator can (a tap that launched the app
@@ -281,18 +370,25 @@ export function SystemSync(): null {
     return navigation.addListener('ready', open);
   }, [openUrl, profile, navigation]);
 
+  // Demo mode: the Live Activity and both widgets show the example data (what the reviewer is
+  // pointed to); leaving it reloads the real data (`switchedData`) and these write it again (no
+  // session there: the Live Activity ends). Reminders stay off in demo mode.
   useEffect(() => {
-    runLiveActivity(() => syncLiveActivity(session));
-  }, [session, foreground, phaseEnds]);
+    runLiveActivity(() => syncLiveActivity(session, data, plan));
+  }, [session, data, plan, foreground, phaseEnds]);
 
   useEffect(() => {
-    syncWidget(session, data);
-  }, [session, data, foreground, phaseEnds]);
+    syncWidget(session, data, plan);
+  }, [session, data, plan, foreground, phaseEnds]);
 
   useEffect(() => {
-    if (!notifications.supported) return;
+    syncCountdownWidget(data);
+  }, [data, foreground]);
+
+  useEffect(() => {
+    if (!notifications.supported || demo) return;
     void syncReminders(session, data);
-  }, [session, data, foreground, phaseEnds]);
+  }, [session, data, foreground, phaseEnds, demo]);
 
   return null;
 }

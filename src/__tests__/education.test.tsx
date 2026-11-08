@@ -1,5 +1,5 @@
 /**
- * In-app guidance: the tips again from Ayarlar, "Nasıl çalışır" and its "Nedir?" links, the
+ * In-app guidance: the tips again from Ayarlar, "Nasıl çalışır" and its (i) links, the
  * "Son yedek" line with the quiet backup card, and the contact row. Real screens through
  * expo-router's test renderer; storage is an in-memory fake as in app-smoke.test.tsx.
  */
@@ -81,6 +81,12 @@ jest.mock('../system/home-widget', () => ({
   homeWidget: { supported: false, setTimeline: () => {} },
 }));
 
+/** Demo mode (storage/demo.ts) is off here: the student's own data only. */
+jest.mock('../storage/demo', () => ({
+  isDemo: () => false,
+  enterDemo: () => 'ok',
+  exitDemo: () => {},
+}));
 jest.mock('../storage/kv', () => ({
   loadProfile: () => memory.profile,
   storeProfile: (p: Profile) => {
@@ -196,6 +202,22 @@ jest.mock('../storage/mock-exams', () => ({
   listAllMarks: () => [],
   saveExamAnalysis: () => {},
   sectionNetHistory: () => [],
+}));
+/** `kvStore()` rows (the study plan's availability). */
+const mockKvRows = new Map<string, string>();
+jest.mock('../storage/kv-store', () => ({
+  isDemo: () => false,
+  // Study plan availability (and anything else on `kvStore()`): an in-memory key-value store.
+  kvStore: () => ({
+    getItemSync: (key: string) => mockKvRows.get(key) ?? null,
+    setItemSync: (key: string, value: string) => {
+      mockKvRows.set(key, value);
+    },
+    removeItemSync: (key: string) => {
+      mockKvRows.delete(key);
+    },
+    clearSync: () => mockKvRows.clear(),
+  }),
 }));
 jest.mock('../storage/db', () => ({
   newId: () => 'test-id',
@@ -317,6 +339,9 @@ describe('"Nasıl çalışır"', () => {
     // iOS Focus is only explained; the app never turns it on.
     expect(screen.getByText('iPhone’da Odak ile çalışmak')).toBeTruthy();
     expect(screen.getByText(/Etüt Odak’ı kendisi açıp kapatmaz/)).toBeTruthy();
+    // The daily goal as the timer's card shows it: the ring (the bar is gone since 0.4.2).
+    expect(screen.getByTestId('guide-section-hedef')).toHaveTextContent(/Sayaç ekranındaki halka/);
+    expect(screen.getByTestId('guide-section-hedef')).not.toHaveTextContent(/çubuk/);
     // Nothing is outlined without a section.
     expect(outlined('guide-section-seri')).toBe(false);
   });
@@ -333,7 +358,7 @@ describe('"Nasıl çalışır"', () => {
   });
 });
 
-describe('"Nedir?" next to a term', () => {
+describe('the (i) link next to a term', () => {
   it('"tahmini" on the countdown opens the exam date section; a date of your own has neither', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     fireEvent.press(screen.getByTestId('countdown-info'));
@@ -349,7 +374,9 @@ describe('"Nedir?" next to a term', () => {
   });
 
   it('the streak on the home card opens the streak and rest day rule', () => {
-    memory.dailyGoal = 60;
+    // Two days that met the goal: the badge shows (a streak of 0 has none).
+    memory.dailyGoal = 30;
+    memory.sessions = studiedOnPastDays(2);
     renderRouter(APP_DIR, { initialUrl: '/' });
     expect(screen.getByTestId('streak')).toBeTruthy();
     fireEvent.press(screen.getByTestId('streak-info'));

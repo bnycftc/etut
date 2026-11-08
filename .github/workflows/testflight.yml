@@ -212,6 +212,20 @@ jobs:
             [ -f "$manifest" ] || { echo "::error::Privacy manifest missing: $manifest"; exit 1; }
             plutil -p "$manifest" | grep -q '1C8F\.1' || { echo "::error::$manifest lacks the UserDefaults reason 1C8F.1"; exit 1; }
           done
+          # iPad is a real target (app.json ios.supportsTablet, plugins/with-etut-ios.js): the app
+          # target builds for iPhone and iPad, and iPad allows all four orientations (ITMS-90474).
+          # Only the app target's build configurations (INFOPLIST_FILE = $scheme/Info.plist): the widget
+          # extension always has "1,2" (expo-widgets), so a plain grep passed even with an iPhone-only app.
+          awk -v want="$scheme/Info.plist" '
+            /isa = XCBuildConfiguration;/ { inb = 1; app = 0; fam = 0; next }
+            inb && (index($0, "INFOPLIST_FILE = " want ";") || index($0, "INFOPLIST_FILE = \"" want "\";")) { app = 1 }
+            inb && /TARGETED_DEVICE_FAMILY = "1,2";/ { fam = 1 }
+            inb && /^[[:space:]]*name = / { if (app) { n++; if (!fam) bad++ } inb = 0 }
+            END { exit !(n > 0 && bad == 0) }' "$project/project.pbxproj" \
+            || { echo "::error::$project app target does not build for iPhone and iPad (TARGETED_DEVICE_FAMILY 1,2)"; exit 1; }
+          for o in Portrait PortraitUpsideDown LandscapeLeft LandscapeRight; do
+            /usr/libexec/PlistBuddy -c 'Print :UISupportedInterfaceOrientations~ipad' "$plist" | grep -qx "[[:space:]]*UIInterfaceOrientation$o"               || { echo "::error::$plist UISupportedInterfaceOrientations~ipad lacks UIInterfaceOrientation$o"; exit 1; }
+          done
           {
             echo "WORKSPACE=$workspace"
             echo "SCHEME=$scheme"
@@ -336,6 +350,16 @@ jobs:
           [ "$bundle_id" = "com.bnycftc.etut" ] || { echo "::error::Unexpected bundle id $bundle_id"; exit 1; }
           [ "$build_number" = "$BUILD_NUMBER" ] || { echo "::error::CFBundleVersion is $build_number, expected $BUILD_NUMBER"; exit 1; }
           app_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist")"
+          # The built app runs on iPhone and iPad (Xcode writes UIDeviceFamily from
+          # TARGETED_DEVICE_FAMILY) and iPad allows all four orientations.
+          families="$(/usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily' "$app/Info.plist")"
+          echo "UIDeviceFamily: $families"
+          for f in 1 2; do
+            echo "$families" | grep -qx "[[:space:]]*$f" || { echo "::error::$app UIDeviceFamily lacks $f"; exit 1; }
+          done
+          for o in Portrait PortraitUpsideDown LandscapeLeft LandscapeRight; do
+            /usr/libexec/PlistBuddy -c 'Print :UISupportedInterfaceOrientations~ipad' "$app/Info.plist" | grep -qx "[[:space:]]*UIInterfaceOrientation$o"               || { echo "::error::$app UISupportedInterfaceOrientations~ipad lacks UIInterfaceOrientation$o"; exit 1; }
+          done
 
           # Signed entitlements: App Group on the app and every extension, never aps-environment.
           check_entitlements() {

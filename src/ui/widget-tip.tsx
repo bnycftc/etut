@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { widgetTipAfterFinish } from '../domain/widget-tip';
 import { useAppState, useStored } from '../state/app-state';
+import { isDemo } from '../storage/demo';
 import { loadWidgetTip, storeWidgetTip } from '../storage/kv';
 import { tr } from '../strings';
 import { homeWidget } from '../system/home-widget';
@@ -9,7 +10,8 @@ import { Button, Card, Label, ResponsiveRow } from './components';
 
 /** After Bitir: the first session that saved study time makes the widget card due (iOS only). */
 export function noteFinishForWidgetTip(savedMs: number): void {
-  if (!homeWidget.supported) return;
+  // A session on example data (demo mode) is not the student's first.
+  if (!homeWidget.supported || isDemo()) return;
   const state = loadWidgetTip();
   const next = widgetTipAfterFinish(state, savedMs);
   if (next !== state) storeWidgetTip(next);
@@ -19,9 +21,11 @@ export function noteFinishForWidgetTip(savedMs: number): void {
  * One-time card on the timer screen: the three steps to add the Home Screen widget (rule:
  * domain/widget-tip.ts). Only where the widget exists; "Gösterme" hides it for good.
  * `finishedAt` (the last Bitir) re-reads the stored state, so the card appears right after it.
+ * Not with example data (demo mode).
  */
 export function WidgetTip({ finishedAt }: { finishedAt: number | null }) {
-  if (!homeWidget.supported) return null;
+  const { demo } = useAppState();
+  if (!homeWidget.supported || demo) return null;
   return <WidgetTipCard finishedAt={finishedAt} />;
 }
 

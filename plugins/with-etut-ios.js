@@ -24,11 +24,17 @@
  *    - FileTimestamp C617.1 and SystemBootTime 35F9.1 (React Native core).
  *    No tracking, no collected data. The app's own manifest gets 1C8F.1 from app.json
  *    `ios.privacyManifests` (the app writes the App Group suite the widget reads).
+ * 4. iPad is a real target (`ios.supportsTablet`): full screen in all four orientations
+ *    (`UISupportedInterfaceOrientations~ipad`, which iPad multitasking requires, ITMS-90474).
+ *    Expo's RequiresFullScreen plugin writes the same list; it is set here explicitly so it can
+ *    never shrink. The iPhone list (`UISupportedInterfaceOrientations`, from app.json
+ *    "orientation": "portrait") is left alone. `UIRequiresFullScreen` (deprecated in iPadOS 26;
+ *    Expo writes it as false, the default) is removed.
  */
 
 const fs = require('fs');
 const path = require('path');
-const { withDangerousMod, withEntitlementsPlist, withXcodeProject } = require('expo/config-plugins');
+const { withDangerousMod, withEntitlementsPlist, withInfoPlist, withXcodeProject } = require('expo/config-plugins');
 
 const WIDGET_TARGET = 'ExpoWidgetsTarget';
 const PRIVACY_MANIFEST = 'PrivacyInfo.xcprivacy';
@@ -64,6 +70,21 @@ ${[
 </dict>
 </plist>
 `;
+
+const IPAD_ORIENTATIONS = [
+  'UIInterfaceOrientationPortrait',
+  'UIInterfaceOrientationPortraitUpsideDown',
+  'UIInterfaceOrientationLandscapeLeft',
+  'UIInterfaceOrientationLandscapeRight',
+];
+
+const withIpadOrientations = (config) =>
+  withInfoPlist(config, (mod) => {
+    mod.modResults['UISupportedInterfaceOrientations~ipad'] = [...IPAD_ORIENTATIONS];
+    // Expo writes `UIRequiresFullScreen: false`; false is the default and the key is deprecated.
+    delete mod.modResults.UIRequiresFullScreen;
+    return mod;
+  });
 
 const withoutPushEntitlement = (config) =>
   withEntitlementsPlist(config, (mod) => {
@@ -138,5 +159,6 @@ const withExtensionPrivacyInProject = (config) =>
 
 module.exports = (config) =>
   withExtensionPrivacyInProject(
-    withExtensionPrivacyFile(withExtensionBuildNumber(withoutPushEntitlement(config))),
+    withExtensionPrivacyFile(withExtensionBuildNumber(withoutPushEntitlement(withIpadOrientations(config)))),
   );
+module.exports.IPAD_ORIENTATIONS = IPAD_ORIENTATIONS;

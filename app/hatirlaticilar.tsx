@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Linking, View } from 'react-native';
+import { Linking } from 'react-native';
 
 import {
   DAILY_MINUTE_STEP,
@@ -12,7 +12,7 @@ import { useAppState, useStored } from '@/state/app-state';
 import { useNotificationPermission } from '@/state/notification-permission';
 import { loadReminderPrefs, loadRemindersConfirmed, storeReminderPrefs } from '@/storage/kv';
 import { tr } from '@/strings';
-import { Button, Card, Chip, Label, Row, Screen, Stepper } from '@/ui/components';
+import { Button, Card, Label, Screen, Stepper, SwitchRow } from '@/ui/components';
 import { usePalette } from '@/ui/theme';
 
 export default function RemindersScreen() {
@@ -77,12 +77,12 @@ export default function RemindersScreen() {
       </Card>
 
       <Card>
-        <ToggleRow
-          testID="reminder-long"
+        <SwitchRow
+          testID="reminder-long-toggle"
           label={tr.reminders.longSession}
           info={tr.reminders.longSessionInfo(prefs.longSession.hours)}
-          on={prefs.longSession.enabled}
-          onToggle={() => setEnabled('longSession', !prefs.longSession.enabled)}
+          value={prefs.longSession.enabled}
+          onChange={(on) => setEnabled('longSession', on)}
         />
         {prefs.longSession.enabled ? (
           <Stepper
@@ -98,22 +98,22 @@ export default function RemindersScreen() {
       </Card>
 
       <Card>
-        <ToggleRow
-          testID="reminder-pomodoro"
+        <SwitchRow
+          testID="reminder-pomodoro-toggle"
           label={tr.reminders.pomodoro}
           info={tr.reminders.pomodoroInfo}
-          on={prefs.pomodoro.enabled}
-          onToggle={() => setEnabled('pomodoro', !prefs.pomodoro.enabled)}
+          value={prefs.pomodoro.enabled}
+          onChange={(on) => setEnabled('pomodoro', on)}
         />
       </Card>
 
       <Card>
-        <ToggleRow
-          testID="reminder-daily"
+        <SwitchRow
+          testID="reminder-daily-toggle"
           label={tr.reminders.daily}
           info={tr.reminders.dailyInfo}
-          on={daily.enabled}
-          onToggle={() => setEnabled('daily', !daily.enabled)}
+          value={daily.enabled}
+          onChange={(on) => setEnabled('daily', on)}
         />
         {daily.enabled ? (
           <>
@@ -139,48 +139,14 @@ export default function RemindersScreen() {
       </Card>
 
       <Card>
-        <ToggleRow
-          testID="reminder-exam"
+        <SwitchRow
+          testID="reminder-exam-toggle"
           label={tr.reminders.examAnalysis}
           info={tr.reminders.examAnalysisInfo}
-          on={prefs.examAnalysis.enabled}
-          onToggle={() => setEnabled('examAnalysis', !prefs.examAnalysis.enabled)}
+          value={prefs.examAnalysis.enabled}
+          onChange={(on) => setEnabled('examAnalysis', on)}
         />
       </Card>
     </Screen>
-  );
-}
-
-function ToggleRow({
-  label,
-  info,
-  on,
-  onToggle,
-  testID,
-}: {
-  label: string;
-  info: string;
-  on: boolean;
-  onToggle: () => void;
-  testID: string;
-}) {
-  return (
-    <View style={{ gap: 4 }}>
-      <Row>
-        <Label variant="heading" style={{ flex: 1 }}>
-          {label}
-        </Label>
-        {/* An on/off switch named by the reminder (not a "Kapalı" button). */}
-        <Chip
-          testID={`${testID}-toggle`}
-          title={on ? tr.reminders.on : tr.reminders.off}
-          accessibilityLabel={label}
-          toggle
-          selected={on}
-          onPress={onToggle}
-        />
-      </Row>
-      <Label variant="small">{info}</Label>
-    </View>
   );
 }

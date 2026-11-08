@@ -1,17 +1,18 @@
-name: Store screenshots (iPhone 6.9")
+name: Store screenshots (iPhone 6.9" + iPad 13")
 
-# App Store screenshots for the 6.9" iPhone display (1320 × 2868 portrait, PNG without alpha),
-# made on a simulator by the Maestro flow e2e/store/screenshots.yaml with realistic demo data:
-# e2e/store/demo-backup.js writes a backup dated relative to this run, the file is placed in the
-# simulator's "On My iPhone" folder, and the flow restores it through the app's own
-# "Yedekten geri yükle" screen. Nothing is uploaded to App Store Connect: the PNGs are an artifact
-# (app-store-screenshots-6.9, the raw screens). The sources of the framed set that only
-# store-frames.yml uses (real Dynamic Island and Live Activity crops part-*, their full shots
-# tam-*, the dark mode screen koyu-* from e2e/store/screenshots-dark.yaml) are a second artifact,
-# app-store-screenshots-6.9-parts. Needs no secrets.
+# App Store screenshots, one matrix leg per display: the 6.9" iPhone (1320 × 2868 portrait) and the
+# 13" iPad, "iPad Pro 13-inch (M4)" (2064 × 2752 portrait), PNG without alpha. Both legs run the
+# same Maestro flow e2e/store/screenshots.yaml on a simulator: it enters the app's own example data
+# from the last onboarding step ("Örnek verilerle gez", demo mode; built relative to the run by
+# src/domain/demo-data.ts), takes the store screens and at the end leaves demo mode again.
+# Nothing is uploaded to App Store Connect: the PNGs are artifacts. iPhone: app-store-screenshots-6.9
+# (the raw screens, framed by store-frames.yml) and app-store-screenshots-6.9-parts (real Dynamic
+# Island and Live Activity crops part-*, their full shots tam-*, the dark mode screen koyu-* from
+# e2e/store/screenshots-dark.yaml). iPad: app-store-screenshots-ipad-13, the raw screens as they
+# are (asc-screenshots.yml target ipad). Needs no secrets.
 # The simulator build steps are copied from e2e-ios.yml (Release, embedded JS bundle, ad-hoc
-# signed); the built .app is cached by a hash of the app sources, so a run that only changes the
-# flows or this file skips the build.
+# signed); the built .app (universal: supportsTablet) is cached by a hash of the app sources, so a
+# run that only changes the flows or this file skips the build.
 
 on:
   workflow_dispatch:
@@ -38,32 +39,61 @@ env:
   SIM_LANGUAGE: tr
   SIM_LOCALE: tr_TR
   SIM_TIMEZONE: Europe/Istanbul
-  # App Store Connect 6.9" iPhone display, portrait.
-  SHOT_WIDTH: "1320"
-  SHOT_HEIGHT: "2868"
   RESULTS: test-results/store
-  SHOTS: app-store-screenshots-6.9
-  PARTS: app-store-screenshots-6.9-parts
   APP_CACHE_DIR: build/app-cache
 
 jobs:
   screenshots:
-    name: Build for simulator and take store screenshots
+    name: Store screenshots (${{ matrix.label }})
     runs-on: macos-26
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # App Store Connect 6.9" iPhone display (APP_IPHONE_67), portrait.
+          - device: iphone
+            label: iPhone 6.9"
+            sim_names: '["iPhone 17 Pro Max", "iPhone 16 Pro Max"]'
+            width: "1320"
+            height: "2868"
+            shots: app-store-screenshots-6.9
+            parts: app-store-screenshots-6.9-parts
+          # App Store Connect 13" iPad display (APP_IPAD_PRO_3GEN_129), portrait.
+          - device: ipad
+            label: iPad 13"
+            sim_names: '["iPad Pro 13-inch (M4)", "iPad Pro 13-inch (M5)"]'
+            width: "2064"
+            height: "2752"
+            shots: app-store-screenshots-ipad-13
+            parts: ""
+    env:
+      DEVICE: ${{ matrix.device }}
+      SIM_NAMES: ${{ matrix.sim_names }}
+      SHOT_WIDTH: ${{ matrix.width }}
+      SHOT_HEIGHT: ${{ matrix.height }}
+      SHOTS: ${{ matrix.shots }}
+      PARTS: ${{ matrix.parts }}
     steps:
-      # The demo backup gives "today" about 2 h 50 min of study that ended 15 min before the run
-      # (e2e/store/demo-backup.js). Shortly after midnight Istanbul time there is no room for it and
+      # The example data gives "today" about two hours of study that ended 15 min before the run
+      # (src/domain/demo-data.ts). Shortly after midnight Istanbul time there is no room for it and
       # the first shots show "Bugün 0 dk" (run 38807345569, 00:24). Refuse to run before 04:00.
-      - name: Daytime guard (Europe/Istanbul)
+      # The example plan (daily goal 150 min) leaves Sunday free: "Bugünün planı" is then a rest
+      # day without a block, and the flow starts the timer from the plan's first block.
+      - name: Daytime and weekday guard (Europe/Istanbul)
         run: |
           hour="$(TZ=Europe/Istanbul date +%H)"
           hour=$((10#$hour))
+          weekday="$(TZ=Europe/Istanbul date +%u)"
           if [ "$hour" -lt 4 ]; then
             echo "::error::It is $hour:xx in Istanbul. Run the store screenshots between 04:00 and 24:00 Istanbul time, otherwise today's demo study does not fit and the shots show 0 dk."
             exit 1
           fi
-          echo "Istanbul hour $hour: ok"
+          if [ "$weekday" = "7" ]; then
+            echo "::error::It is Sunday in Istanbul: the example plan has no blocks today. Run the store screenshots Monday to Saturday."
+            exit 1
+          fi
+          echo "Istanbul hour $hour, weekday $weekday: ok"
       - uses: actions/checkout@v4
 
       - name: Toolchain
@@ -185,9 +215,10 @@ jobs:
             || sudo ln -sf "/usr/share/zoneinfo/$SIM_TIMEZONE" /etc/localtime
           date
 
-      # 6.9" display: iPhone 17 Pro Max / 16 Pro Max (1320 × 2868). Any other device would give
-      # screenshots App Store Connect does not take for this slot, so fail instead of falling back.
-      - name: Pick a 6.9" iPhone simulator (newest iOS runtime)
+      # iPhone: 17 Pro Max / 16 Pro Max (1320 × 2868). iPad: iPad Pro 13-inch (M4), or the M5 of
+      # the same size (2064 × 2752). Any other device would give screenshots App Store Connect does
+      # not take for the slot, so fail instead of falling back.
+      - name: Pick the ${{ matrix.label }} simulator (newest iOS runtime)
         run: |
           xcrun simctl list runtimes available
           python3 - <<'PY'
@@ -205,15 +236,16 @@ jobs:
           ]
           if not runtimes:
               raise SystemExit("::error::No available iOS simulator runtime")
-          wanted = ["iPhone 17 Pro Max", "iPhone 16 Pro Max"]
+          wanted = json.loads(os.environ["SIM_NAMES"])
+          family = "iPad" if os.environ["DEVICE"] == "ipad" else "iPhone"
           for runtime in sorted(runtimes, key=lambda r: version_key(r["version"]), reverse=True):
               types = {t["name"]: t for t in runtime.get("supportedDeviceTypes", [])}
               device = next((types[n] for n in wanted if n in types), None)
               if device is not None:
                   break
           else:
-              names = sorted({t["name"] for r in runtimes for t in r.get("supportedDeviceTypes", []) if "iPhone" in t["name"]})
-              raise SystemExit(f"::error::No 6.9-inch iPhone simulator ({', '.join(wanted)}). iPhone types: {', '.join(names)}")
+              names = sorted({t["name"] for r in runtimes for t in r.get("supportedDeviceTypes", []) if family in t["name"]})
+              raise SystemExit(f"::error::No simulator of {', '.join(wanted)}. {family} types: {', '.join(names)}")
           with open(os.environ["GITHUB_ENV"], "a") as env:
               env.write(f"SIM_RUNTIME={runtime['identifier']}\n")
               env.write(f"SIM_DEVICE_TYPE={device['identifier']}\n")
@@ -235,7 +267,7 @@ jobs:
           xcrun simctl ui "$udid" appearance light
           xcrun simctl ui "$udid" appearance
           xcrun simctl list devices booted
-          # The device must render at the 6.9" size.
+          # The device must render at the size of its App Store slot.
           xcrun simctl io "$udid" screenshot "$RUNNER_TEMP/probe.png"
           w="$(sips -g pixelWidth "$RUNNER_TEMP/probe.png" | awk '/pixelWidth/ {print $2}')"
           h="$(sips -g pixelHeight "$RUNNER_TEMP/probe.png" | awk '/pixelHeight/ {print $2}')"
@@ -248,11 +280,10 @@ jobs:
           xcrun simctl install "$SIM_UDID" "$APP_PATH"
           xcrun simctl get_app_container "$SIM_UDID" com.bnycftc.etut app
 
-      # As in e2e-ios.yml: the first launches after boot can take minutes on the runner. Files
-      # (com.apple.DocumentsApp) is launched once too, so its "On My iPhone" storage exists.
+      # As in e2e-ios.yml: the first launches after boot can take minutes on the runner.
       - name: Wait until the simulator launches apps
         run: |
-          for bid in com.apple.Preferences com.apple.DocumentsApp com.bnycftc.etut; do
+          for bid in com.apple.Preferences com.bnycftc.etut; do
             start=$(date +%s)
             xcrun simctl launch "$SIM_UDID" "$bid" &
             pid=$!
@@ -265,27 +296,6 @@ jobs:
             sleep 3
             xcrun simctl terminate "$SIM_UDID" "$bid" || true
           done
-
-      # Generated now: every session and exam date is relative to this run.
-      - name: Put the demo backup in "On My iPhone"
-        run: |
-          node e2e/store/demo-backup.js "$RUNNER_TEMP/etut-demo.json"
-          ls -la "$RUNNER_TEMP/etut-demo.json"
-          python3 - <<'PY'
-          import glob, os, plistlib, shutil
-          root = os.path.expanduser(f"~/Library/Developer/CoreSimulator/Devices/{os.environ['SIM_UDID']}/data/Containers/Shared/AppGroup")
-          for meta in glob.glob(os.path.join(root, "*", ".com.apple.mobile_container_manager.metadata.plist")):
-              with open(meta, "rb") as f:
-                  ident = plistlib.load(f).get("MCMMetadataIdentifier")
-              if ident == "group.com.apple.FileProvider.LocalStorage":
-                  storage = os.path.join(os.path.dirname(meta), "File Provider Storage")
-                  os.makedirs(storage, exist_ok=True)
-                  shutil.copy(os.path.join(os.environ["RUNNER_TEMP"], "etut-demo.json"), os.path.join(storage, "etut-demo.json"))
-                  print("Copied to", storage, os.listdir(storage))
-                  break
-          else:
-              raise SystemExit("::error::The simulator has no Files local storage (group.com.apple.FileProvider.LocalStorage)")
-          PY
 
       - name: Clean status bar
         run: |
@@ -333,9 +343,11 @@ jobs:
           echo "PASSED_ATTEMPT=$attempt" >> "$GITHUB_ENV"
           exit "$status"
 
-      # The dark mode frame: same simulator and app state (onboarding and demo data from the flow
-      # above), the system switched to dark. Two attempts like the flow above.
+      # The dark mode frame (iPhone only, the framed set): same simulator and app state (onboarding
+      # from the flow above, which leaves demo mode at its end), the system switched to dark. Two
+      # attempts like the flow above.
       - name: Run the dark mode flow
+        if: matrix.device == 'iphone'
         env:
           SIMCTL_CHILD_TZ: ${{ env.SIM_TIMEZONE }}
         run: |
@@ -366,19 +378,20 @@ jobs:
 
       # From the passing attempts: the store images ("NN-name.png") into $SHOTS, the sources of the
       # framed set into $PARTS: full screens (tam-*, koyu-*) and the cropped real renders (part-*,
-      # any size). Alpha is removed; full screens must have the 6.9" size (App Store Connect
-      # rejects anything else for that slot).
+      # any size). iPad: only the store images. Alpha is removed; full screens must have the size of
+      # the slot (App Store Connect rejects anything else).
       - name: Check and flatten screenshots
         run: |
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet pillow
-          mkdir -p "$SHOTS" "$PARTS"
+          mkdir -p "$SHOTS"
+          [ -z "$PARTS" ] || mkdir -p "$PARTS"
           "$RUNNER_TEMP/venv/bin/python" - <<'PY'
           import glob, os, re
           from PIL import Image
           results = os.environ["RESULTS"]
           light = os.path.join(results, f"output-{os.environ['PASSED_ATTEMPT']}")
-          dark = os.path.join(results, f"output-dark-{os.environ['DARK_PASSED_ATTEMPT']}")
+          iphone = os.environ["DEVICE"] == "iphone"
           width, height = int(os.environ["SHOT_WIDTH"]), int(os.environ["SHOT_HEIGHT"])
 
           def find(src, pattern):
@@ -386,16 +399,19 @@ jobs:
                             if re.fullmatch(pattern, os.path.basename(p)))
 
           store = find(light, r"\d\d-[a-z0-9-]+\.png")
-          screens = find(light, r"tam-[a-z0-9-]+\.png") + find(dark, r"koyu-[a-z0-9-]+\.png")
-          crops = find(light, r"part-[a-z0-9-]+\.png")
+          screens, crops = [], []
+          if iphone:
+              dark = os.path.join(results, f"output-dark-{os.environ['DARK_PASSED_ATTEMPT']}")
+              screens = find(light, r"tam-[a-z0-9-]+\.png") + find(dark, r"koyu-[a-z0-9-]+\.png")
+              crops = find(light, r"part-[a-z0-9-]+\.png")
           if not store:
               raise SystemExit(f"::error::No store screenshots under {light}")
           names = {os.path.basename(p) for p in screens}
-          for required in ("tam-dynamic-island.png", "tam-canli-etkinlik.png", "koyu-yedek.png"):
+          for required in (("tam-dynamic-island.png", "tam-canli-etkinlik.png", "koyu-yedek.png") if iphone else ()):
               if required not in names:
                   raise SystemExit(f"::error::{required} missing (store-frames.yml needs it)")
           bad, done = [], []
-          # (files, destination, must be a full 6.9" screen)
+          # (files, destination, must be a full screen of the slot)
           for paths, out, full in ((store, os.environ["SHOTS"], True), (screens, os.environ["PARTS"], True),
                                    (crops, os.environ["PARTS"], False)):
               for p in paths:
@@ -416,7 +432,7 @@ jobs:
               s.write(f"### {len(store)} screenshots, {width}×{height}, RGB PNG\n\n")
               for out, name, size in done:
                   s.write(f"- {out}/{name} ({size[0]}×{size[1]})\n")
-              if not crops:
+              if iphone and not crops:
                   s.write("\nNo part-* crops (Maestro cropOn found nothing): store-frames.yml crops the tam-* shots.\n")
           PY
 
@@ -429,6 +445,7 @@ jobs:
           retention-days: 30
 
       - name: Upload the sources of the framed set (store-frames.yml)
+        if: matrix.device == 'iphone'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PARTS }}
@@ -452,7 +469,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: store-screenshots-debug-${{ github.run_number }}-${{ github.run_attempt }}
+          name: store-screenshots-debug-${{ matrix.device }}-${{ github.run_number }}-${{ github.run_attempt }}
           path: ${{ env.RESULTS }}
           if-no-files-found: warn
           retention-days: 7

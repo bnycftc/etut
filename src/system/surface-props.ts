@@ -9,17 +9,18 @@
 
 import { topicName } from '../domain/curriculum';
 import { istanbulTimeOfDay } from '../domain/istanbul-day';
-import type { LiveTimerView } from '../domain/live-timer';
+import type { BlockProgress, LiveTimerView } from '../domain/live-timer';
 import type { PomodoroPhase } from '../domain/pomodoro';
 import type { PlannedNotification } from '../domain/reminders';
 import { type ActiveSession, BACKGROUND_TOLERANCE_MS } from '../domain/timer';
-import type { WidgetEntry } from '../domain/widget-summary';
+import type { CountdownEntry, WidgetEntry } from '../domain/widget-summary';
 import { tr } from '../strings';
-import { formatDuration } from '../ui/format';
+import { formatDuration, topicLabel } from '../ui/format';
+import { SUBJECT_COLORS } from '../ui/subject-colors';
 import type { NotificationText } from './types';
 
 /** SF Symbols used by the Live Activity. */
-export type ActivityIcon = 'book.fill' | 'cup.and.saucer.fill' | 'pause.fill';
+export type ActivityIcon = 'stopwatch.fill' | 'cup.and.saucer.fill' | 'pause.fill';
 
 export interface TimerActivityProps {
   /** Subject, and topic when one was chosen. */
@@ -27,6 +28,17 @@ export interface TimerActivityProps {
   status: string;
   /** SF Symbol shown next to the title and in the compact Dynamic Island. */
   icon: ActivityIcon;
+  /**
+   * The icon in the subject's colour (`subject-colors.ts`): `iconColor` on a light Lock Screen,
+   * `iconColorDark` on a dark one and in the Dynamic Island (always black).
+   */
+  iconColor: string;
+  iconColorDark: string;
+  /** Today's share of the daily goal at the update, 0…1 (the ring); `null` without a goal. */
+  goalRatio: number | null;
+  /** While study time counts towards the unmet goal, the ring fills by itself from `goalFrom` to `goalTo`. */
+  goalFrom: number | null;
+  goalTo: number | null;
   from: number;
   to: number;
   countsDown: boolean;
@@ -53,6 +65,16 @@ export interface TimerActivityProps {
   awayHint: string | null;
   awayFrom: number | null;
   awayTo: number | null;
+  /**
+   * A session started from a plan block (`blockProgress`): `blockLine` ("Plan bloğu · 45 dk") and a
+   * bar that fills by itself from `blockFrom` to `blockTo`, frozen at `blockPausedAt` while paused
+   * (then it shows `blockRatio`). All `null` without a block; an older activity has none at all.
+   */
+  blockLine: string | null;
+  blockFrom: number | null;
+  blockTo: number | null;
+  blockPausedAt: number | null;
+  blockRatio: number | null;
 }
 
 export interface TodayWidgetProps {
@@ -70,6 +92,22 @@ export interface TodayWidgetProps {
   streakLine: string | null;
   /** "YKS’ye 255 gün"; `null` = no exam date, passed, or not certain for this entry. */
   countdownLine: string | null;
+  /** Medium widget: "Sıradaki: Matematik · Türev 45 dk"; `null` = no plan block left today. */
+  nextBlockLine: string | null;
+}
+
+/** Props of the countdown widget "EtutCountdown" (`countdown-widget.tsx`). */
+export interface CountdownWidgetProps {
+  /** Above the days: "YKS’ye"; "Sınav" without an exam date. */
+  title: string;
+  /** Days left (the circular Lock Screen widget); `null` = no number to show. */
+  daysLeft: number | null;
+  /** "255 gün"; `null` = no number to show (`message` instead). */
+  daysText: string | null;
+  /** Instead of the days: "Sınav tarihi ekle", "Sınav bugün", "Güncel sayı için Etüt’ü aç". */
+  message: string | null;
+  /** The one line of the inline Lock Screen widget: "YKS’ye 255 gün", or the message. */
+  inline: string;
 }
 
 function phaseLabel(phase: PomodoroPhase, blockInSet: number, longEvery: number): string {
@@ -85,10 +123,44 @@ function clockTime(ms: number): string {
 }
 
 function phaseIcon(phase: PomodoroPhase | null): ActivityIcon {
-  return phase === 'short_break' || phase === 'long_break' ? 'cup.and.saucer.fill' : 'book.fill';
+  return phase === 'short_break' || phase === 'long_break' ? 'cup.and.saucer.fill' : 'stopwatch.fill';
 }
 
-export function timerActivityProps(session: ActiveSession, view: LiveTimerView): TimerActivityProps {
+/** The daily goal ring, from the widget's entry for now (`widgetTimeline`); the widget draws the same. */
+function goalRing(today: WidgetEntry | null): Pick<TimerActivityProps, 'goalRatio' | 'goalFrom' | 'goalTo'> {
+  if (today === null || today.goalMinutes === null) return { goalRatio: null, goalFrom: null, goalTo: null };
+  const live = today.counting && today.goalReachedAt !== null;
+  return {
+    goalRatio: today.goalRatio,
+    goalFrom: live ? today.at - today.todayMs : null,
+    goalTo: live ? today.goalReachedAt : null,
+  };
+}
+
+/** The plan block bar; all `null` without a block. */
+function blockBar(
+  block: BlockProgress | null,
+): Pick<TimerActivityProps, 'blockLine' | 'blockFrom' | 'blockTo' | 'blockPausedAt' | 'blockRatio'> {
+  if (block === null) return { blockLine: null, blockFrom: null, blockTo: null, blockPausedAt: null, blockRatio: null };
+  return {
+    blockLine: tr.widget.block(block.minutes),
+    blockFrom: block.from,
+    blockTo: block.to,
+    blockPausedAt: block.pausedAt,
+    blockRatio: block.ratio,
+  };
+}
+
+/**
+ * `today`: the widget timeline's entry for now; `null` (no data yet) shows no goal ring.
+ * `block`: the plan block the session was started from (`blockProgress`); `null` = none.
+ */
+export function timerActivityProps(
+  session: ActiveSession,
+  view: LiveTimerView,
+  today: WidgetEntry | null = null,
+  block: BlockProgress | null = null,
+): TimerActivityProps {
   const topic = topicName(session.topicId);
   const title = topic ? `${tr.subject(session.subjectId)} · ${topic}` : tr.subject(session.subjectId);
   const longEvery = session.pomodoro?.config.longEvery ?? 4;
@@ -107,10 +179,14 @@ export function timerActivityProps(session: ActiveSession, view: LiveTimerView):
         : phaseLabel(view.phase, view.blockInSet ?? 1, longEvery);
   const span = clock.to - clock.from;
   const shownAt = clock.pausedAt ?? clock.from;
+  const colors = SUBJECT_COLORS[session.subjectId] ?? SUBJECT_COLORS.diger;
   return {
     title,
     status,
     icon: view.paused ? 'pause.fill' : phaseIcon(view.phase),
+    iconColor: colors.light,
+    iconColorDark: colors.dark,
+    ...goalRing(today),
     from: clock.from,
     to: clock.to,
     countsDown: clock.countsDown,
@@ -132,6 +208,7 @@ export function timerActivityProps(session: ActiveSession, view: LiveTimerView):
     awayHint: view.away === null ? null : tr.liveActivity.awayHint,
     awayFrom: view.away?.clock.from ?? null,
     awayTo: view.away?.clock.to ?? null,
+    ...blockBar(block),
   };
 }
 
@@ -152,8 +229,43 @@ export function todayWidgetProps(entry: WidgetEntry): TodayWidgetProps {
     countdownLine: !entry.countdown
       ? null
       : entry.countdown.daysLeft === 0
-        ? tr.widgetCountdown.today
+        ? entry.countdown.estimated === true
+          ? tr.widgetCountdown.todayEstimated
+          : tr.widgetCountdown.today
         : tr.countdown.days(entry.countdown.examType, entry.countdown.daysLeft),
+    nextBlockLine: !entry.nextBlock
+      ? null
+      : tr.widget.next(tr.subject(entry.nextBlock.subjectId), topicLabel(entry.nextBlock.topicId), entry.nextBlock.minutes),
+  };
+}
+
+export function countdownWidgetProps(entry: CountdownEntry): CountdownWidgetProps {
+  if (entry.examType === null) return emptyCountdownProps();
+  const title = tr.widget.countdownTo(entry.examType);
+  if (entry.daysLeft === null) {
+    return { title, daysLeft: null, daysText: null, message: tr.widget.countdownOpen, inline: tr.widget.countdownOpen };
+  }
+  if (entry.daysLeft === 0) {
+    const today = entry.estimated ? tr.widgetCountdown.todayEstimated : tr.widgetCountdown.today;
+    return { title, daysLeft: 0, daysText: null, message: today, inline: today };
+  }
+  return {
+    title,
+    daysLeft: entry.daysLeft,
+    daysText: tr.widget.countdown(entry.daysLeft),
+    message: null,
+    inline: tr.countdown.days(entry.examType, entry.daysLeft),
+  };
+}
+
+/** No exam date (none set, the exam has passed, no profile yet, or after "Tüm verileri sil"). */
+export function emptyCountdownProps(): CountdownWidgetProps {
+  return {
+    title: tr.widget.countdownNoExam,
+    daysLeft: null,
+    daysText: null,
+    message: tr.widget.addExamDate,
+    inline: tr.widget.addExamDate,
   };
 }
 
@@ -187,5 +299,6 @@ export function emptyWidgetProps(): TodayWidgetProps {
     goalTo: null,
     streakLine: null,
     countdownLine: null,
+    nextBlockLine: null,
   };
 }

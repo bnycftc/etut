@@ -462,7 +462,7 @@ describe('backup version 2: question counts and weekly subject targets', () => {
 
   it('round-trips the counts and targets', () => {
     const file = buildBackupFile(V2, PROFILE, EXPORTED, '0.4.0');
-    expect(file.schemaVersion).toBe(2);
+    expect(file.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
     const back = parsed(serializeBackup(file));
     expect(back).toEqual(file);
     expect(back.sessions[0].questions).toBe(40);
@@ -515,10 +515,9 @@ describe('daily goal history (0.4.1, still version 2)', () => {
   ];
   const WITH_HISTORY: BackupData = { ...DATA, settings: { ...DATA.settings, dailyGoalHistory: HISTORY } };
 
-  it('round-trips the history and keeps the version at 2 (0.4.0 refuses a higher one as too new)', () => {
+  it('round-trips the history (a version 2 field, written by 0.4.1 without a new version)', () => {
     const file = buildBackupFile(WITH_HISTORY, PROFILE, EXPORTED, '0.4.1');
-    expect(file.schemaVersion).toBe(2);
-    expect(BACKUP_SCHEMA_VERSION).toBe(2);
+    expect(file.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
     const back = parsed(serializeBackup(file));
     expect(back).toEqual(file);
     expect(back.settings.dailyGoalHistory).toEqual(HISTORY);
@@ -596,5 +595,51 @@ describe('daily goal history (0.4.1, still version 2)', () => {
     expect(merged.settings.dailyGoalHistory).toEqual(HISTORY);
     expect(mergeBackup(merged, WITH_HISTORY, 'merge')).toEqual(merged);
     expect('dailyGoalHistory' in mergeBackup(DATA, DATA, 'merge').settings).toBe(false);
+  });
+});
+
+describe('backup version 3: study plan availability (0.5.0)', () => {
+  const AVAILABILITY = { 0: 90, 1: 90, 2: 60, 3: 120, 4: 45, 5: 180, 6: 0 } as const;
+  const V3: BackupData = { ...DATA, settings: { ...DATA.settings, availability: { ...AVAILABILITY } } };
+
+  it('writes version 3 and round-trips the availability', () => {
+    const file = buildBackupFile(V3, PROFILE, EXPORTED, '0.5.0');
+    expect(BACKUP_SCHEMA_VERSION).toBe(3);
+    expect(file.schemaVersion).toBe(3);
+    const back = parsed(serializeBackup(file));
+    expect(back).toEqual(file);
+    expect(back.settings.availability).toEqual(AVAILABILITY);
+  });
+
+  it('a version 2 file (0.4.x) still loads, without availability; the key stays out', () => {
+    const v2 = JSON.stringify({ ...buildBackupFile(DATA, PROFILE, EXPORTED, '0.4.2'), schemaVersion: 2 });
+    const back = parsed(v2);
+    expect(back.schemaVersion).toBe(3);
+    expect(back.settings).toEqual(DATA.settings);
+    expect('availability' in back.settings).toBe(false);
+  });
+
+  it('version 2 had no availability: in a version 2 file it is dropped, not trusted', () => {
+    const edited = JSON.stringify({ ...buildBackupFile(V3, PROFILE, EXPORTED, '0.4.2'), schemaVersion: 2 });
+    expect('availability' in parsed(edited).settings).toBe(false);
+  });
+
+  it.each([
+    ['a day above 8 hours', { ...AVAILABILITY, 3: 481 }],
+    ['a negative day', { ...AVAILABILITY, 0: -15 }],
+    ['minutes that are not whole', { ...AVAILABILITY, 1: 30.5 }],
+    ['a missing day', { 0: 60, 1: 60, 2: 60, 3: 60, 4: 60, 5: 60 }],
+    ['not an object', [60, 60, 60, 60, 60, 60, 60]],
+  ])('rejects: %s', (_name, availability) => {
+    const result = parseBackup(fileText({ settings: { ...DATA.settings, availability } }));
+    expect(result.ok ? null : result.error).toBe('invalid');
+  });
+
+  it('merge: the availability on this device stays, the file fills it only when there is none', () => {
+    const device: BackupData = { ...DATA, settings: { ...DATA.settings, availability: { ...AVAILABILITY, 6: 30 } } };
+    expect(mergeBackup(device, V3, 'merge').settings.availability).toEqual({ ...AVAILABILITY, 6: 30 });
+    expect(mergeBackup(DATA, V3, 'merge').settings.availability).toEqual(AVAILABILITY);
+    expect('availability' in mergeBackup(DATA, DATA, 'merge').settings).toBe(false);
+    expect(mergeBackup(device, V3, 'replace').settings.availability).toEqual(AVAILABILITY);
   });
 });

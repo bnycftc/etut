@@ -75,3 +75,37 @@ export function defaultSubject(
   const list = subjectsFor(examType, yksArea);
   return lastUsed !== null && list.includes(lastUsed) ? lastUsed : list[0];
 }
+
+/** Subjects the timer shows before "Tüm dersler". */
+export const QUICK_SUBJECT_COUNT = 6;
+
+/** Subject ids by their latest session, most recently studied first, each once. */
+export function subjectsByRecency(sessions: readonly { subjectId: string; endedAt: number }[]): string[] {
+  const last = new Map<string, number>();
+  for (const s of sessions) {
+    const seen = last.get(s.subjectId);
+    if (seen === undefined || s.endedAt > seen) last.set(s.subjectId, s.endedAt);
+  }
+  return [...last.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id);
+}
+
+/**
+ * The subjects the timer offers before "Tüm dersler": the selected one, then the most recently
+ * studied (`recent`, newest first), topped up in list order; `count` in all. They keep the list
+ * order, so a chip does not move after every session. A list at most one longer than `count` is
+ * shown whole: a "Tüm dersler" chip in place of a single subject would save nothing.
+ */
+export function quickSubjects(
+  list: readonly string[],
+  recent: readonly string[],
+  selected: string,
+  count = QUICK_SUBJECT_COUNT,
+): readonly string[] {
+  if (list.length <= count + 1) return list;
+  const picked = new Set<string>();
+  for (const id of [selected, ...recent, ...list]) {
+    if (picked.size === count) break;
+    if (list.includes(id)) picked.add(id);
+  }
+  return list.filter((id) => picked.has(id));
+}

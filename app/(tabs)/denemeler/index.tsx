@@ -154,8 +154,15 @@ export default function ExamsScreen() {
           {tr.exams.noFormNote}
         </Label>
       ) : (
-        <Button large testID="exams-add" title={tr.exams.add} onPress={() => router.push('/deneme/yeni')} />
+        <Button tall testID="exams-add" title={tr.exams.add} onPress={() => router.push('/deneme/yeni')} />
       )}
+      {/* The official net rule, without saving anything (also with no exams yet). */}
+      <Button
+        testID="exams-net-calc"
+        kind="secondary"
+        title={tr.netCalc.open}
+        onPress={() => router.push('/net-hesapla')}
+      />
 
       {saved !== null ? (
         <Card testID="exams-saved">
@@ -270,7 +277,6 @@ export default function ExamsScreen() {
                 {sectionPoints.some((p) => p.scope === 'brans') ? (
                   <Label variant="small">{tr.exams.chartBransLegend}</Label>
                 ) : null}
-                {target !== null ? <Label variant="small">{tr.exams.chartTargetLegend}</Label> : null}
               </>
             )}
 

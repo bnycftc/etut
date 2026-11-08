@@ -1,0 +1,120 @@
+# q. Örnek verilerle gez (demo modu): onboarding'den örnek verilere, dolu ekranlar, Ayarlar'dan çıkış
+appId: com.bnycftc.etut
+tags:
+  - e2e
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-screen
+    timeout: 60000
+# Step 1: exam and area. Centred: Maestro counts a chip under the fixed bar as visible.
+- scrollUntilVisible:
+    element:
+      id: exam-type-YKS
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: exam-type-YKS
+    retryTapIfNoChange: true
+- scrollUntilVisible:
+    element:
+      id: yks-area-sayisal
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: yks-area-sayisal
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-next
+      enabled: true
+    timeout: 30000
+- tapOn:
+    id: onboarding-next
+# Step 2: the countdown ("YKS’ye N gün", an estimate until the official date is out).
+- extendedWaitUntil:
+    visible:
+      id: onboarding-countdown
+    timeout: 15000
+- takeScreenshot: q-ornek-01-geri-sayim
+- tapOn:
+    id: onboarding-next
+- extendedWaitUntil:
+    visible:
+      id: onboarding-goal-120
+    timeout: 15000
+- tapOn:
+    id: onboarding-next
+# Step 4: the birth year, then "Örnek verilerle gez" (as large as Başla).
+- scrollUntilVisible:
+    element:
+      id: "birth-year-${new Date().getFullYear() - 18}"
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: "birth-year-${new Date().getFullYear() - 18}"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: onboarding-demo
+      enabled: true
+    timeout: 30000
+- takeScreenshot: q-ornek-02-son-adim
+- tapOn:
+    id: onboarding-demo
+    retryTapIfNoChange: true
+- runFlow:
+    file: subflows/ipucu-gec.yaml
+# Sayaç: the example data's daily goal (150 min) and its progress are there from the start.
+- extendedWaitUntil:
+    visible:
+      id: goal-progress
+    timeout: 15000
+- takeScreenshot: q-ornek-03-sayac
+# Denemeler: a full list, with the "Örnek veriler · Çık" band on top.
+- tapOn:
+    id: tab-exams
+- extendedWaitUntil:
+    visible:
+      id: demo-banner
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: exam-item-0
+    direction: DOWN
+    timeout: 20000
+- assertNotVisible:
+    id: exams-empty
+- takeScreenshot: q-ornek-04-denemeler
+# Ayarlar: "Örnek moddan çık" goes back to the student's own (empty) data.
+- tapOn:
+    id: tab-settings
+- scrollUntilVisible:
+    element:
+      id: settings-demo-exit
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: settings-demo-exit
+- extendedWaitUntil:
+    visible:
+      id: settings-demo-enter
+    timeout: 15000
+- assertNotVisible:
+    id: demo-banner
+- tapOn:
+    id: tab-exams
+- scrollUntilVisible:
+    element:
+      id: exams-empty
+    direction: DOWN
+    timeout: 20000
+- assertNotVisible:
+    id: exam-item-0
+- takeScreenshot: q-ornek-05-cikis-bos

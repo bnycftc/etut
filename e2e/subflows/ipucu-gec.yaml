@@ -2,10 +2,12 @@
 appId: com.bnycftc.etut
 ---
 # The tips are a modal: wait for its button rather than the container (see a-ilk-acilis.yaml).
+# Saving the profile and building the tabs can stall for half a minute on the CI simulator: in run
+# 39114266438 the sheet came 31 s (f) and 32 s (d) after the Başla tap, just past a 30 s wait.
 - extendedWaitUntil:
     visible:
       id: tips-skip
-    timeout: 30000
+    timeout: 60000
 - tapOn:
     id: tips-skip
 - extendedWaitUntil:

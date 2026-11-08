@@ -1,11 +1,10 @@
-import { type ReactNode, type Ref, useEffect, useId } from 'react';
+import { type ReactNode, type Ref, useEffect, useState } from 'react';
 import {
-  InputAccessoryView,
-  Keyboard,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   type TextStyle,
@@ -15,7 +14,14 @@ import {
 import { tr } from '../strings';
 import { announce } from './feedback';
 import { Icon, type IconName } from './icon';
-import { MAX_FONT_SCALE, space, useLargeText, usePalette } from './theme';
+import { ScreenTop } from './screen-top';
+import { MAX_FONT_SCALE, space, typography, useLargeText, usePalette } from './theme';
+
+/**
+ * Widest a screen's content gets (pt). On iPad (and any wide window) the content is centred in a
+ * column this wide; the screen background still fills the window.
+ */
+export const CONTENT_MAX_WIDTH = 720;
 
 export function Screen({
   children,
@@ -33,35 +39,53 @@ export function Screen({
       ref={ref}
       testID={testID}
       style={{ flex: 1, backgroundColor: c.background }}
+      // iOS: under a transparent large-title header and the tab bar the content starts below
+      // the bars and scrolls under them; the large title collapses only with this.
+      contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.screen}
       keyboardShouldPersistTaps="handled"
       // iOS: the content can scroll above the open keyboard (a field's "Ekle" is not hidden under it).
-      automaticallyAdjustKeyboardInsets>
+      automaticallyAdjustKeyboardInsets
+      // iOS: under the transparent bar the top of the content is at a negative offset (minus the
+      // bar's height); without this a `scrollTo` there would be cut to 0, under the bar.
+      scrollToOverflowEnabled>
+      <ScreenTop />
       {children}
     </ScrollView>
   );
 }
 
+/**
+ * A surface on the screen background: no hairline, no shadow, 16 pt corners. The `hero` card
+ * (one per screen, the "today" card) is the soft brand tint with 20 pt corners and a 1 pt edge
+ * (`heroBorder`): the tint alone is close to the background in both themes.
+ */
 export function Card({
   children,
   testID,
   tone = 'default',
   outline,
+  tint,
 }: {
   children: ReactNode;
   testID?: string;
-  /** `accent`: soft brand tint (the "today" card). */
-  tone?: 'default' | 'accent';
+  /** `hero`: soft brand tint (the "today" card); `accent` is its older name. */
+  tone?: 'default' | 'hero' | 'accent';
   /** A 2 pt coloured outline (e.g. the running subject). */
   outline?: string;
+  /** Background instead of the surface (the running card's subject tint, `subjectTint`). */
+  tint?: string;
 }) {
   const c = usePalette();
+  const hero = tone !== 'default';
   return (
     <View
       testID={testID}
       style={[
         styles.card,
-        { backgroundColor: tone === 'accent' ? c.accentSoft : c.surface, borderColor: c.border },
+        hero ? styles.cardHero : null,
+        { backgroundColor: tint ?? (hero ? c.accentSoft : c.surface) },
+        hero ? { borderWidth: 1, borderColor: c.heroBorder } : null,
         outline ? { borderColor: outline, borderWidth: 2 } : null,
       ]}>
       {children}
@@ -69,20 +93,34 @@ export function Card({
   );
 }
 
+/**
+ * A titled group of the screen, like an iOS grouped list: the title stands above its content,
+ * outside any card, in muted capitals, with a section's 32 pt above it (cards in a section stay
+ * 16 apart). The content is secondary rows (`ListRow`) on the background, or a `Card`.
+ */
+export function Section({ title, children, testID }: { title: string; children: ReactNode; testID?: string }) {
+  const c = usePalette();
+  return (
+    <View testID={testID} style={styles.section}>
+      <Text
+        accessibilityRole="header"
+        // Read as written, not letter by letter; Turkish capitals (i → İ) on screen.
+        accessibilityLabel={title}
+        style={[styles.sectionTitle, { color: c.textMuted }]}>
+        {title.toLocaleUpperCase('tr-TR')}
+      </Text>
+      {children}
+    </View>
+  );
+}
+
 /** Small round colour mark (subject colour) next to a name. Decorative. */
-export function Dot({ color, size = 10, ring }: { color: string; size?: number; ring?: string }) {
+export function Dot({ color, size = 10 }: { color: string; size?: number }) {
   return (
     <View
       accessible={false}
       importantForAccessibility="no"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: color,
-        borderWidth: ring ? 1.5 : 0,
-        borderColor: ring,
-      }}
+      style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }}
     />
   );
 }
@@ -93,9 +131,12 @@ export function ResponsiveRow({ children }: { children: ReactNode }) {
   return <View style={large ? styles.stack : styles.row}>{children}</View>;
 }
 
-type TextVariant = 'title' | 'heading' | 'body' | 'muted' | 'small';
+type TextVariant = 'display' | 'displaySmall' | 'largeTitle' | 'title' | 'heading' | 'body' | 'muted' | 'small';
 
-/** Titles and headings are announced as headers, so screen readers can jump between them. */
+/**
+ * Titles and headings are announced as headers, so screen readers can jump between them.
+ * `display` / `displaySmall` are hero numbers (rounded, tabular digits; see `typography`).
+ */
 export function Label({
   children,
   variant = 'body',
@@ -125,7 +166,9 @@ export function Label({
   return (
     <Text
       testID={testID}
-      accessibilityRole={variant === 'title' || variant === 'heading' ? 'header' : undefined}
+      accessibilityRole={
+        variant === 'largeTitle' || variant === 'title' || variant === 'heading' ? 'header' : undefined
+      }
       maxFontSizeMultiplier={maxFontSizeMultiplier}
       style={[styles[variant], { color }, style]}>
       {children}
@@ -133,7 +176,16 @@ export function Label({
   );
 }
 
-type ButtonKind = 'primary' | 'secondary' | 'danger';
+/**
+ * `primary`: filled brand blue. `secondary`: tonal (iOS "tinted": soft blue fill, blue label, no
+ * outline; an outline means "can be typed into or picked"). `dangerSoft`: tonal red for a
+ * destructive step that can still be taken back ("Bitir", "Geri al"). `danger`: full red, only
+ * for the final destructive confirmation ("Evet, hepsini sil").
+ */
+type ButtonKind = 'primary' | 'secondary' | 'dangerSoft' | 'danger';
+
+/** Faded, not greyed: a grey fill read like a selected segment. */
+const DISABLED_OPACITY = 0.4;
 
 export function Button({
   title,
@@ -141,6 +193,7 @@ export function Button({
   kind = 'primary',
   disabled = false,
   large = false,
+  tall = false,
   compact = false,
   testID,
   accessibilityLabel,
@@ -150,8 +203,11 @@ export function Button({
   onPress: () => void;
   kind?: ButtonKind;
   disabled?: boolean;
+  /** 72 pt: the timer's own actions (Başla, Duraklat, Bitir). */
   large?: boolean;
-  /** Smaller (44 pt) button that does not stretch, for actions inside a card row. */
+  /** 56 pt: the main action at the top of a list screen ("Deneme ekle"). */
+  tall?: boolean;
+  /** Small 36 pt pill (44 pt touch area) that does not stretch, for actions inside a card row. */
   compact?: boolean;
   testID?: string;
   /** Defaults to `title`. */
@@ -159,22 +215,10 @@ export function Button({
   accessibilityHint?: string;
 }) {
   const c = usePalette();
-  // Disabled: a grey fill with a muted label instead of a faded colour (readable, clearly off).
-  const background = disabled
-    ? c.disabled
-    : kind === 'primary'
-      ? c.primary
-      : kind === 'danger'
-        ? c.dangerFill
-        : c.surface;
-  const color = disabled
-    ? c.textMuted
-    : kind === 'secondary'
-      ? c.text
-      : kind === 'danger'
-        ? c.onDanger
-        : c.onPrimary;
-  const borderColor = disabled ? c.disabled : kind === 'secondary' ? c.controlBorder : background;
+  const background =
+    kind === 'primary' ? c.primary : kind === 'secondary' ? c.secondaryFill : kind === 'dangerSoft' ? c.dangerSoft : c.dangerFill;
+  const color =
+    kind === 'primary' ? c.onPrimary : kind === 'secondary' ? c.accent : kind === 'dangerSoft' ? c.danger : c.onDanger;
   return (
     <Pressable
       testID={testID}
@@ -184,11 +228,18 @@ export function Button({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
+      hitSlop={compact ? 4 : undefined}
       style={({ pressed }) => [
         styles.button,
         large && styles.buttonLarge,
+        tall && styles.buttonTall,
         compact && styles.buttonCompact,
-        { backgroundColor: background, borderColor, opacity: pressed ? 0.8 : 1 },
+        {
+          backgroundColor: background,
+          opacity: disabled ? DISABLED_OPACITY : pressed ? 0.85 : 1,
+          // Pressed: a slight press-in (no animation, so nothing moves with Reduce Motion either).
+          transform: pressed ? [{ scale: 0.98 }] : undefined,
+        },
       ]}>
       <Text style={[styles.buttonText, large && styles.buttonTextLarge, compact && styles.buttonTextCompact, { color }]}>
         {title}
@@ -227,6 +278,137 @@ export function ListRow({
   );
 }
 
+/**
+ * An on/off setting as an iOS row: the name on the left, the system switch on the right
+ * (VoiceOver: "<name>, anahtar, açık/kapalı"), an optional explanation under them. At
+ * accessibility text sizes the name wraps; the switch keeps its own size.
+ */
+export function SwitchRow({
+  label,
+  info,
+  value,
+  onChange,
+  testID,
+}: {
+  label: string;
+  info?: string;
+  value: boolean;
+  onChange: (on: boolean) => void;
+  /** On the switch itself (the control to tap and to read the state of). */
+  testID?: string;
+}) {
+  const c = usePalette();
+  return (
+    <View style={{ gap: space.xs }}>
+      <View style={styles.row}>
+        <Text style={[styles.body, { color: c.text, flex: 1, fontWeight: '600' }]}>{label}</Text>
+        <Switch
+          testID={testID}
+          accessibilityLabel={label}
+          value={value}
+          onValueChange={onChange}
+          // On: the filled brand blue of primary buttons (≥ 3:1 on the card); off: the system grey.
+          trackColor={{ true: c.primary }}
+          // The web preview's switch has its own teal thumb otherwise.
+          {...(Platform.OS === 'web' ? { activeThumbColor: c.onPrimary } : null)}
+        />
+      </View>
+      {info ? <Label variant="small">{info}</Label> : null}
+    </View>
+  );
+}
+
+/**
+ * A closed group under a row that opens it ("Ayrıntı ›"), like iOS's disclosure group: for
+ * settings most students never change. Announced as a button with its expanded state.
+ */
+export function Disclosure({
+  title,
+  children,
+  initiallyOpen = false,
+  testID,
+}: {
+  title: string;
+  children: ReactNode;
+  initiallyOpen?: boolean;
+  testID?: string;
+}) {
+  const c = usePalette();
+  const [open, setOpen] = useState(initiallyOpen);
+  return (
+    <>
+      <Pressable
+        testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen(!open)}
+        style={({ pressed }) => [styles.listRow, { opacity: pressed ? 0.6 : 1 }]}>
+        <Text style={[styles.body, { color: c.accent, flex: 1, fontWeight: '600' }]}>{title}</Text>
+        <Icon name={open ? 'chevronDown' : 'chevron'} color={c.accent} size={16} />
+      </Pressable>
+      {open ? children : null}
+    </>
+  );
+}
+
+/** One of the two buttons of a `PeriodNav`. */
+export interface PeriodStep {
+  /** What the button does, for screen readers ("Önceki hafta"). */
+  title: string;
+  onPress: () => void;
+  disabled?: boolean;
+  testID?: string;
+}
+
+/**
+ * The period on screen (a week, a month, a day) between ‹ and › buttons that step back and
+ * forward. The 44 pt round buttons keep their place at every text size; the name wraps between
+ * them. With `heading` the name is announced as a header (the month on its card).
+ */
+export function PeriodNav({
+  label,
+  labelTestID,
+  heading = false,
+  prev,
+  next,
+}: {
+  label: string;
+  labelTestID?: string;
+  heading?: boolean;
+  prev: PeriodStep;
+  next: PeriodStep;
+}) {
+  const c = usePalette();
+  const step = (s: PeriodStep, icon: IconName) => (
+    <Pressable
+      testID={s.testID}
+      accessibilityRole="button"
+      accessibilityLabel={s.title}
+      accessibilityState={{ disabled: s.disabled === true }}
+      disabled={s.disabled}
+      onPress={s.onPress}
+      style={({ pressed }) => [
+        styles.periodStep,
+        { backgroundColor: c.secondaryFill, opacity: s.disabled ? DISABLED_OPACITY : pressed ? 0.85 : 1 },
+      ]}>
+      <Icon name={icon} color={c.accent} size={18} />
+    </Pressable>
+  );
+  return (
+    <View style={styles.row}>
+      {step(prev, 'chevronLeft')}
+      <Label
+        variant={heading ? 'heading' : 'body'}
+        testID={labelTestID}
+        style={heading ? styles.periodLabel : styles.periodLabelBody}>
+        {label}
+      </Label>
+      {step(next, 'chevron')}
+    </View>
+  );
+}
+
 /** Text button, with an icon or without ("Vazgeç"), for a navigation header ("Geçmiş"). */
 export function HeaderButton({
   icon,
@@ -260,6 +442,8 @@ export function HeaderButton({
  * Selectable chip; announced as a button with its selected state. With `toggle` it is an on/off
  * control instead: announced as a switch ("açık"/"kapalı") named by `accessibilityLabel`.
  * A `badge` (a count) is drawn after the title; say it in `accessibilityLabel` too.
+ * Unselected: outlined surface. Selected: filled, with the subject colour when `color` is given
+ * (the name stays the cue; the colour only repeats it), else the brand blue.
  */
 export function Chip({
   title,
@@ -279,16 +463,17 @@ export function Chip({
   testID?: string;
   accessibilityLabel?: string;
   accessibilityHint?: string;
-  /** Leading colour dot (the subject colour). */
+  /** Leading colour dot (the subject colour), and the fill when selected. */
   color?: string;
   toggle?: boolean;
   badge?: string;
-  /** Grey fill and muted label, like a disabled button. Left out, the chip states nothing about it. */
+  /** Faded like a disabled button. Left out, the chip states nothing about it. */
   disabled?: boolean;
 }) {
   const c = usePalette();
   const state = toggle ? { checked: selected } : { selected };
-  const label = disabled ? c.textMuted : selected ? c.onPrimary : c.text;
+  const fill = selected ? (color ?? c.primary) : c.surface;
+  const label = selected ? (color ? c.onSubject : c.onPrimary) : c.text;
   return (
     <Pressable
       testID={testID}
@@ -304,21 +489,17 @@ export function Chip({
         styles.chip,
         color || badge !== undefined ? styles.chipWithDot : null,
         {
-          backgroundColor: disabled ? c.disabled : selected ? c.primary : c.surface,
-          borderColor: disabled ? c.disabled : selected ? c.primary : c.controlBorder,
+          backgroundColor: fill,
+          borderColor: selected ? fill : c.controlBorder,
+          opacity: disabled ? DISABLED_OPACITY : 1,
         },
       ]}>
-      {color ? <Dot color={color} ring={selected ? c.onPrimary : undefined} /> : null}
+      {/* On its own colour the dot takes the label colour, so the chip keeps its width. */}
+      {color ? <Dot color={selected ? label : color} /> : null}
       <Text style={{ color: label, fontSize: 15 }}>{title}</Text>
       {badge !== undefined ? (
-        <View
-          style={[
-            styles.badge,
-            { backgroundColor: disabled ? c.surface : selected ? c.onPrimary : c.primary },
-          ]}>
-          <Text style={{ color: disabled ? c.textMuted : selected ? c.primary : c.onPrimary, fontSize: 13, fontWeight: '700' }}>
-            {badge}
-          </Text>
+        <View style={[styles.badge, { backgroundColor: selected ? label : c.primary }]}>
+          <Text style={{ color: selected ? fill : c.onPrimary, fontSize: 13, fontWeight: '700' }}>{badge}</Text>
         </View>
       ) : null}
     </Pressable>
@@ -420,9 +601,6 @@ export function Field({
   accessibilityLabel?: string;
 }) {
   const c = usePalette();
-  // The iOS number pad has no return key: a "Bitti" bar above it closes the keyboard.
-  const accessoryId = useId();
-  const ios = Platform.OS === 'ios';
   return (
     <View style={{ flex: 1, gap: 4 }}>
       <Text style={[styles.small, { color: c.textMuted }]} importantForAccessibility="no" accessibilityElementsHidden>
@@ -434,7 +612,11 @@ export function Field({
         value={value}
         onChangeText={onChange}
         onBlur={onBlur}
-        inputAccessoryViewID={ios ? accessoryId : undefined}
+        // The iOS number pad has no return key: the system's own "Bitti" bar above it closes the
+        // keyboard. Not an <InputAccessoryView>: with 0.4.2's layout animations (`easeNextLayout`)
+        // a mounted one crashed the app on Başla (Fabric mounting, E2E run 39160836781).
+        returnKeyType="done"
+        inputAccessoryViewButtonLabel={tr.common.keyboardDone}
         keyboardType={numeric ? 'number-pad' : 'numbers-and-punctuation'}
         inputMode={numeric ? 'numeric' : 'text'}
         maxLength={maxLength}
@@ -442,19 +624,6 @@ export function Field({
         placeholderTextColor={c.textMuted}
         style={[styles.input, { color: c.text, borderColor: c.controlBorder, backgroundColor: c.background }]}
       />
-      {ios ? (
-        <InputAccessoryView nativeID={accessoryId}>
-          <View style={[styles.keyboardBar, { backgroundColor: c.surface, borderColor: c.border }]}>
-            <Button
-              compact
-              testID={testID ? `${testID}-done` : undefined}
-              title={tr.common.keyboardDone}
-              accessibilityLabel={tr.common.keyboardDoneA11y(accessibilityLabel)}
-              onPress={() => Keyboard.dismiss()}
-            />
-          </View>
-        </InputAccessoryView>
-      ) : null}
     </View>
   );
 }
@@ -536,8 +705,9 @@ export function Stepper({
       disabled={disabled}
       onPress={onPress}
       hitSlop={4}
-      style={[styles.stepButton, { borderColor: c.controlBorder, opacity: disabled ? 0.4 : 1 }]}>
-      <Text style={{ color: c.text, fontSize: 18, fontWeight: '600' }} maxFontSizeMultiplier={1.4}>
+      // A button, so tonal like a secondary button (outlines are for what can be typed into or picked).
+      style={[styles.stepButton, { backgroundColor: c.secondaryFill, opacity: disabled ? DISABLED_OPACITY : 1 }]}>
+      <Text style={{ color: c.accent, fontSize: 18, fontWeight: '600' }} maxFontSizeMultiplier={1.4}>
         {symbol}
       </Text>
     </Pressable>
@@ -556,7 +726,14 @@ export function Stepper({
   );
 }
 
-/** Icon, title, short explanation and an optional action, for screens without data yet. */
+/** Size of the soft brand circle of an empty state, and of the symbol in it. */
+const EMPTY_CIRCLE = 72;
+const EMPTY_ICON = 44;
+
+/**
+ * For screens without data yet: the screen's symbol in a soft brand circle (the ring motif of
+ * the icon), a title, one honest line of what will appear, and an optional tonal action.
+ */
 export function EmptyState({
   icon,
   title,
@@ -576,21 +753,25 @@ export function EmptyState({
   const c = usePalette();
   return (
     <Card testID={testID}>
-      {icon || title ? (
-        <View style={styles.row}>
-          {icon ? <Icon name={icon} color={c.accent} size={28} /> : null}
-          {title ? (
-            <Label variant="heading" style={{ flex: 1 }}>
-              {title}
-            </Label>
-          ) : null}
-        </View>
-      ) : null}
-      <Label variant="muted">{body}</Label>
+      <View style={styles.empty}>
+        {icon ? (
+          <View
+            testID={testID ? `${testID}-icon` : undefined}
+            style={[styles.emptyCircle, { backgroundColor: c.accentSoft }]}>
+            <Icon name={icon} color={c.accent} size={EMPTY_ICON} />
+          </View>
+        ) : null}
+        {title ? (
+          <Label variant="heading" style={styles.emptyText}>
+            {title}
+          </Label>
+        ) : null}
+        <Label variant="muted" style={styles.emptyText}>
+          {body}
+        </Label>
+      </View>
       {action && onAction ? (
-        <Row>
-          <Button testID={testID ? `${testID}-action` : undefined} kind="secondary" title={action} onPress={onAction} />
-        </Row>
+        <Button testID={testID ? `${testID}-action` : undefined} kind="secondary" title={action} onPress={onAction} />
       ) : null}
     </Card>
   );
@@ -608,11 +789,14 @@ export interface Bar {
 
 /**
  * Plain vertical bar chart built from Views (no chart library). Screen readers get the values
- * as one summary instead of every bar and label separately.
+ * as one summary instead of every bar and label separately. With a highlighted bar (today, this
+ * week) that one is the brand blue and the others soft (`barSoft`); without one every bar is
+ * `bar`. An empty day is a short `barMuted` stub. Each bar has its value written above it.
  */
 export function BarChart({ bars, height = 140 }: { bars: Bar[]; height?: number }) {
   const c = usePalette();
   const max = Math.max(...bars.map((b) => b.value), 0);
+  const others = bars.some((b) => b.highlight) ? c.barSoft : c.bar;
   const summary = tr.a11y.chart(bars.map((b) => tr.a11y.chartItem(b.label, b.a11yValue ?? b.valueLabel)).join(', '));
   return (
     <View
@@ -632,7 +816,7 @@ export function BarChart({ bars, height = 140 }: { bars: Bar[]; height?: number 
                 height: h,
                 width: '70%',
                 borderRadius: 4,
-                backgroundColor: b.value > 0 ? (b.highlight ? c.accent : c.bar) : c.barMuted,
+                backgroundColor: b.value > 0 ? (b.highlight ? c.accent : others) : c.barMuted,
               }}
             />
             <Text
@@ -649,28 +833,45 @@ export function BarChart({ bars, height = 140 }: { bars: Bar[]; height?: number 
 }
 
 const styles = StyleSheet.create({
-  screen: { padding: space.lg, gap: space.lg, paddingBottom: space.xl * 2 },
-  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: space.lg, gap: space.md },
-  title: { fontSize: 28, fontWeight: '700' },
-  heading: { fontSize: 18, fontWeight: '600' },
-  body: { fontSize: 16, lineHeight: 22 },
-  muted: { fontSize: 15, lineHeight: 21 },
-  small: { fontSize: 13 },
+  // Cards 16 apart; a `Section` adds its own space above to make 32 between sections.
+  screen: {
+    padding: space.lg,
+    gap: space.lg,
+    paddingBottom: space.xl * 2,
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+  },
+  card: { borderRadius: 16, padding: space.lg, gap: space.md },
+  cardHero: { borderRadius: 20 },
+  section: { marginTop: space.xxl - space.lg, gap: space.xs },
+  sectionTitle: { ...typography.section, paddingHorizontal: space.xs, paddingBottom: space.xs },
+  display: typography.display,
+  displaySmall: typography.displaySmall,
+  largeTitle: typography.largeTitle,
+  title: typography.title,
+  heading: typography.heading,
+  body: typography.body,
+  muted: typography.muted,
+  small: typography.small,
   button: {
     minHeight: 48,
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
     borderRadius: 12,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     flexGrow: 1,
   },
   buttonLarge: { minHeight: 72, borderRadius: 16 },
-  buttonCompact: { minHeight: 44, paddingHorizontal: space.md, flexGrow: 0, borderRadius: 10 },
+  buttonTall: { minHeight: 56, borderRadius: 14 },
+  buttonCompact: { minHeight: 36, paddingHorizontal: space.md, paddingVertical: 6, flexGrow: 0, borderRadius: 999 },
   buttonText: { fontSize: 17, fontWeight: '600', textAlign: 'center' },
   buttonTextLarge: { fontSize: 22 },
   buttonTextCompact: { fontSize: 15 },
+  periodStep: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  periodLabel: { flex: 1, textAlign: 'center' },
+  periodLabelBody: { flex: 1, textAlign: 'center', fontWeight: '600' },
   chip: {
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
@@ -699,21 +900,23 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 18,
   },
-  keyboardBar: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: space.md,
-    paddingVertical: space.xs,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
   stepButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  empty: { alignItems: 'center', gap: space.sm },
+  emptyCircle: {
+    width: EMPTY_CIRCLE,
+    height: EMPTY_CIRCLE,
+    borderRadius: EMPTY_CIRCLE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: space.xs,
+  },
+  emptyText: { textAlign: 'center' },
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: space.xs },
   barColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: space.xs },
   barValue: { fontSize: 11 },

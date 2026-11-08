@@ -2,16 +2,21 @@
   "expo": {
     "name": "Etüt",
     "slug": "etut",
-    "version": "0.4.1",
+    "version": "0.5.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "etut",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "icon": {
+        "light": "./assets/icon.png",
+        "dark": "./assets/icon-dark.png",
+        "tinted": "./assets/icon-tinted.png"
+      },
       "bundleIdentifier": "com.bnycftc.etut",
       "appleTeamId": "26322AY3MH",
       "buildNumber": "1",
-      "supportsTablet": false,
+      "supportsTablet": true,
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -54,11 +59,11 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F6F7F9",
+          "backgroundColor": "#F3F5FA",
           "image": "./assets/splash-icon.png",
           "imageWidth": 160,
           "dark": {
-            "backgroundColor": "#0D1117",
+            "backgroundColor": "#0B0F1A",
             "image": "./assets/splash-icon-dark.png"
           }
         }
@@ -80,6 +85,18 @@
                   "systemSmall",
                   "systemMedium",
                   "accessoryRectangular"
+                ]
+              }
+            },
+            {
+              "name": "EtutCountdown",
+              "displayName": "Etüt: Sınav",
+              "description": "Sınavına kalan gün sayısı.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "accessoryCircular",
+                  "accessoryInline"
                 ]
               }
             }

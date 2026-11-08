@@ -14,11 +14,19 @@ tags:
       AGE: "20"
 - tapOn:
     id: tab-settings
+# Centre the line right above the row (the timer card's last line), not the row itself: Maestro's
+# centring swipe can park the row under the collapsed large title, where the tap lands on the
+# navigation bar (run 39114266438: row at y=87, bar ends at y=116). About 120 pt below the centred
+# line, the row stays clear of both the title and the tab bar.
+- scrollUntilVisible:
+    element:
+      id: settings-away-info
+    direction: DOWN
+    centerElement: true
 - scrollUntilVisible:
     element:
       id: settings-reminders
     direction: DOWN
-    centerElement: true
 - assertVisible:
     id: settings-reminders-summary
     text: "Bildirim izni verilmedi; hatırlatıcılar gelmez\\."
@@ -73,11 +81,16 @@ tags:
     timeout: 30000
 - tapOn:
     id: tab-settings
+# As above: centre the line above the row so the row is not under the large title.
+- scrollUntilVisible:
+    element:
+      id: settings-away-info
+    direction: DOWN
+    centerElement: true
 - scrollUntilVisible:
     element:
       id: settings-reminders
     direction: DOWN
-    centerElement: true
 - tapOn:
     id: settings-reminders
 - extendedWaitUntil:

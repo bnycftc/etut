@@ -3,21 +3,30 @@
  * in-memory fakes (SQLite cannot run under Jest); everything else is the app code as shipped.
  */
 
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import {
   AccessibilityInfo,
+  Alert,
+  Animated,
   AppState,
   type AppStateStatus,
   Dimensions,
+  InputAccessoryView,
   Keyboard,
   ScrollView,
+  StyleSheet,
+  Text,
   Vibration,
 } from 'react-native';
 
 import { UNDO_FINISH_MS } from '../domain/finish';
+import { GroupsTeaser } from '../ui/groups-teaser';
+import { useReducedMotion } from '../ui/motion';
+import { subjectColor, subjectTint } from '../ui/subject-colors';
+import { LIGHT } from '../ui/theme';
 
 import type { TopicMark } from '../domain/exam-analysis';
 import type { Profile } from '../domain/profile';
@@ -502,10 +511,86 @@ jest.mock('../storage/db', () => ({
     memory.sessions = [];
   },
 }));
+/** `kvStore()` rows (the study plan's availability). */
+const mockKvRows = new Map<string, string>();
+jest.mock('../storage/kv-store', () => ({
+  isDemo: () => false,
+  // Study plan availability (and anything else on `kvStore()`): an in-memory key-value store.
+  kvStore: () => ({
+    getItemSync: (key: string) => mockKvRows.get(key) ?? null,
+    setItemSync: (key: string, value: string) => {
+      mockKvRows.set(key, value);
+    },
+    removeItemSync: (key: string) => {
+      mockKvRows.delete(key);
+    },
+    clearSync: () => mockKvRows.clear(),
+  }),
+}));
+/**
+ * Demo mode (storage/demo.ts) on the in-memory store: entering keeps the student's own data aside
+ * and writes the real example data (domain/demo-data.ts) in its place; leaving puts it back.
+ */
+const mockDemo: { saved: Record<string, unknown> | null } = { saved: null };
+jest.mock('../storage/demo', () => ({
+  isDemo: () => mockDemo.saved !== null,
+  enterDemo: (profile: Profile, now: number) => {
+    if (mockDemo.saved === null && memory.active !== null) return 'timer_running';
+    if (mockDemo.saved === null) {
+      const { sessions, exams, marks, topicStatuses, dailyGoal, netTargets, examDates, active } = memory;
+      mockDemo.saved = { sessions, exams, marks, topicStatuses, dailyGoal, netTargets, examDates, active };
+    }
+    const { buildDemoData } = jest.requireActual('../domain/demo-data');
+    jest.requireMock('../storage/backup').writeBackupData(buildDemoData(profile, now));
+    memory.active = null;
+    return 'ok';
+  },
+  exitDemo: () => {
+    if (mockDemo.saved === null) return;
+    Object.assign(memory, mockDemo.saved);
+    mockDemo.saved = null;
+  },
+}));
+beforeEach(() => {
+  mockDemo.saved = null;
+});
 
 const APP_DIR = './app';
 
+/**
+ * Onboarding (four steps): the exam (and YKS area), past the countdown and the daily goal, then
+ * the birth year (`null`: none picked yet) on the last step, where Başla and "Örnek verilerle gez" are.
+ */
+function onboardTo(exam: string, birthYear: number | null, area?: string) {
+  fireEvent.press(screen.getByText(exam));
+  if (area !== undefined) fireEvent.press(screen.getByTestId(`yks-area-${area}`));
+  for (let i = 0; i < 3; i++) fireEvent.press(screen.getByTestId('onboarding-next'));
+  if (birthYear !== null) fireEvent.press(screen.getByText(String(birthYear)));
+}
+
+/**
+ * On the device "Tüm verileri sil" asks with the system alert (`Alert.alert`): a spy stands in for
+ * it and its buttons are pressed by their text.
+ */
+const systemAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+beforeEach(() => systemAlert.mockClear());
+function lastAlert() {
+  const call = systemAlert.mock.calls.at(-1);
+  if (call === undefined) throw new Error('no system alert');
+  return { title: call[0], message: call[1], buttons: call[2] ?? [] };
+}
+function alertButton(text: string) {
+  const button = lastAlert().buttons.find((b) => b.text === text);
+  if (button?.onPress === undefined) throw new Error(`no alert button "${text}"`);
+  return button.onPress;
+}
+function pressAlert(text: string) {
+  const onPress = alertButton(text);
+  act(() => onPress());
+}
+
 beforeEach(() => {
+  mockKvRows.clear();
   memory.profile = null;
   memory.active = null;
   memory.sessions = [];
@@ -547,6 +632,9 @@ beforeEach(() => {
 
 it('first launch shows onboarding with no birth year pre-selected', () => {
   renderRouter(APP_DIR, { initialUrl: '/' });
+  expect(screen.getByText('Hazırlandığın sınav')).toBeTruthy();
+  expect(screen.getByTestId('onboarding-step').props.children).toBe('Adım 1/4');
+  onboardTo('YKS', null, 'sayisal');
   expect(screen.getByText('Doğum yılın')).toBeTruthy();
   const start = screen.getByRole('button', { name: 'Başla' });
   expect(start.props.accessibilityState?.disabled ?? start.props['aria-disabled']).toBeTruthy();
@@ -555,30 +643,46 @@ it('first launch shows onboarding with no birth year pre-selected', () => {
 it('completing onboarding opens the timer; an under-15 profile has no groups tab', () => {
   const year = new Date().getUTCFullYear() - 12;
   renderRouter(APP_DIR, { initialUrl: '/' });
-  fireEvent.press(screen.getByText(String(year)));
-  fireEvent.press(screen.getByText('LGS'));
+  onboardTo('LGS', year);
   fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
   expect(memory.profile?.soloOnly).toBe(true);
   // The daily goal was skipped (nothing is pre-selected).
   expect(memory.dailyGoal).toBeNull();
   expect(screen.getByText('Ders seç')).toBeTruthy();
   expect(screen.queryByText('Gruplar')).toBeNull();
+  // Native tabs: the groups tab item (an `RNSTabsScreenIOS` in tests) is hidden, if there at all (K-16).
+  const groupsTab = screen.root.findAll((n) => String(n.type) === 'RNSTabsScreenIOS' && n.props.tabBarItemTestID === 'tab-groups');
+  expect(groupsTab.filter((n) => n.props.hidden !== true)).toEqual([]);
 });
 
 it('onboarding: a daily goal can be picked (optional) and Başla says what is missing', () => {
   const year = new Date().getUTCFullYear() - 20;
   renderRouter(APP_DIR, { initialUrl: '/' });
-  expect(screen.getByTestId('onboarding-missing').props.children).toBe('Başlamak için önce doğduğun yılı seç.');
-  fireEvent.press(screen.getByText(String(year)));
+  const next = () => screen.getByTestId('onboarding-next');
   expect(screen.getByTestId('onboarding-missing').props.children).toBe('Başlamak için sınavını seç.');
+  expect(next().props.accessibilityState.disabled).toBe(true);
   fireEvent.press(screen.getByText('YKS'));
   expect(screen.getByTestId('onboarding-missing').props.children).toBe('Başlamak için alanını seç.');
   fireEvent.press(screen.getByTestId('yks-area-sayisal'));
   expect(screen.queryByTestId('onboarding-missing')).toBeNull();
-  // Tapping the chosen goal again clears it.
+  fireEvent.press(next());
+  // Step 2: the countdown to the exam, an estimate until the official date is out.
+  expect(screen.getByTestId('onboarding-step').props.children).toBe('Adım 2/4');
+  expect(screen.getByTestId('onboarding-countdown').props.children).toMatch(/^YKS’ye \d+ gün$/);
+  fireEvent.press(next());
+  // Step 3: tapping the chosen goal again clears it.
   fireEvent.press(screen.getByTestId('onboarding-goal-120'));
   fireEvent.press(screen.getByTestId('onboarding-goal-120'));
   fireEvent.press(screen.getByTestId('onboarding-goal-240'));
+  fireEvent.press(next());
+  // Step 4: the birth year; Başla says what is missing until it is picked.
+  expect(screen.getByTestId('onboarding-missing').props.children).toBe('Başlamak için önce doğduğun yılı seç.');
+  // Back and forth keeps the answers.
+  fireEvent.press(screen.getByTestId('onboarding-back'));
+  expect(screen.getByTestId('onboarding-goal-240').props.accessibilityState).toMatchObject({ selected: true });
+  fireEvent.press(next());
+  fireEvent.press(screen.getByText(String(year)));
+  expect(screen.queryByTestId('onboarding-missing')).toBeNull();
   fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
   expect(memory.dailyGoal).toBe(240);
   expect(screen.getByTestId('goal-progress').props.children).toBe('Hedef 4 sa 0 dk · %0');
@@ -592,6 +696,22 @@ describe('the moment after Bitir', () => {
       jest.advanceTimersByTime(1000);
     });
   }
+
+  /** The texts in the hero number size (40 pt) on the timer screen. */
+  const displayTexts = () =>
+    screen.root
+      .findAll((n) => typeof n.type === 'string' && StyleSheet.flatten(n.props.style)?.fontSize === 40)
+      .map((n) => n.props.children);
+  /** The muted line of the summary, part by part. */
+  const todayLine = () =>
+    screen
+      .getByTestId('finish-today')
+      .findAll((n) => typeof n.type === 'string' && typeof n.props.children === 'string')
+      .map((n) => n.props.children);
+  /** The colour of the goal ring's first arc (the ring is hidden from screen readers). */
+  const ringColour = () =>
+    StyleSheet.flatten(screen.getByTestId('goal-ring-progress-right', { includeHiddenElements: true }).props.style)
+      .borderBottomColor;
 
   beforeEach(() => {
     memory.profile = ADULT_SAYISAL;
@@ -608,9 +728,25 @@ describe('the moment after Bitir', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     jump(30 * 60_000);
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
-    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 30 dk');
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 30 dk');
+    // The saved time is the hero: "Kaydedildi" small above "30 dk" in the display size; VoiceOver
+    // reads the two as one ("Kaydedildi: 30 dk").
+    const saved = screen.getByTestId('timer-saved');
+    expect(saved.props.accessible).toBe(true);
+    const savedTexts = saved.findAll((n) => typeof n.type === 'string' && typeof n.props.children === 'string');
+    expect(savedTexts.map((n) => n.props.children)).toEqual(['Kaydedildi', '30 dk']);
+    expect(StyleSheet.flatten(savedTexts[1].props.style)).toMatchObject({ fontSize: 40, fontWeight: '800' });
     expect(screen.getByTestId('finish-detail').props.children).toBe('Fizik çalıştın · Hedef: %0 → %50');
+    expect(screen.queryByTestId('finish-goal-reached')).toBeNull();
+    // One hero number and one ring on the card: today's total steps down to the muted line, the
+    // ring shows the day's share of the goal (and still opens the goal sheet).
+    expect(displayTexts()).toEqual(['30 dk']);
     expect(screen.getByTestId('today-total').props.children).toBe('30 dk');
+    expect(StyleSheet.flatten(screen.getByTestId('today-total').props.style)).toMatchObject({ fontSize: 15 });
+    expect(todayLine()).toEqual(['Bugün', '30 dk', '· hedef 1 sa 0 dk']);
+    expect(screen.getAllByTestId('goal-ring')).toHaveLength(1);
+    expect(screen.getByTestId('goal-ring').props.accessibilityValue).toEqual({ text: '%50' });
+    expect(screen.queryByTestId('goal-edit')).toBeNull();
     expect(Haptics.notificationAsync).toHaveBeenCalledWith('success');
     expect(announce).toHaveBeenCalledWith('Kaydedildi: 30 dk. Bugün toplam 30 dk.');
     // The core loop is right there again: the subject stays picked, one tap starts.
@@ -636,7 +772,9 @@ describe('the moment after Bitir', () => {
         expect(screen.getByTestId('finish-undo')).toBeTruthy();
         expect(screen.getByTestId('finish-goal-reached')).toBeTruthy();
         expect(scrollTo).toHaveBeenCalledTimes(1);
-        expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: true });
+        // iOS: the top is minus the transparent large-title bar's height (44 pt in the test renderer,
+        // no safe area), not 0, which would leave the summary's first lines under the bar.
+        expect(scrollTo).toHaveBeenCalledWith({ y: -44, animated: true });
         // The timer screen's own scroll view (the summary sits at the top of its first card).
         const scrolled = scrollTo.mock.contexts[0] as { props: { testID?: string } };
         expect(scrolled.props.testID).toBe('timer-screen');
@@ -649,11 +787,25 @@ describe('the moment after Bitir', () => {
     },
   );
 
+  /** Lets the system answer "Reduce Motion?" the way a view mounted at launch hears it (`useReducedMotion`). */
+  async function systemReducesMotion(value: boolean) {
+    jest.mocked(AccessibilityInfo.isReduceMotionEnabled).mockResolvedValue(value);
+    function Probe() {
+      return <Text testID="probe">{String(useReducedMotion())}</Text>;
+    }
+    // The answer arrives with real timers (as in ring.test.tsx); the test's fake clock is put back.
+    const now = Date.now();
+    jest.useRealTimers();
+    const probe = render(<Probe />);
+    await act(async () => {});
+    expect(screen.getByTestId('probe').props.children).toBe(String(value));
+    probe.unmount();
+    jest.useFakeTimers();
+    jest.setSystemTime(now);
+  }
+
   it('with Reduce Motion the jump back to the summary is not animated', async () => {
-    // The preset's jest.fn: put its implementation back afterwards (mockRestore would clear it).
-    const reduced = jest.mocked(AccessibilityInfo.isReduceMotionEnabled);
-    const original = reduced.getMockImplementation();
-    reduced.mockResolvedValue(true);
+    await systemReducesMotion(true);
     const scrollTo = jest.mocked(ScrollView.prototype.scrollTo);
     try {
       renderRouter(APP_DIR, { initialUrl: '/' });
@@ -662,20 +814,65 @@ describe('the moment after Bitir', () => {
       jump(2 * 60_000);
       scrollTo.mockClear();
       fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
-      expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+      expect(scrollTo).toHaveBeenCalledWith({ y: -44, animated: false });
     } finally {
-      if (original) reduced.mockImplementation(original);
+      screen.unmount();
+      await systemReducesMotion(false);
     }
   });
 
-  it('a session that reaches the goal says so', () => {
+  it('a session that reaches the goal says so, once and without streak talk; the card ring fills to 100 %', () => {
     memory.dailyGoal = 30;
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    const timing = jest.spyOn(Animated, 'timing');
+    // Navigation animates too; the goal ring is the one 600 ms fill to 1.
+    const ringFills = () => timing.mock.calls.filter(([, config]) => config.toValue === 1 && config.duration === 600);
     renderRouter(APP_DIR, { initialUrl: '/' });
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     jump(31 * 60_000);
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
-    expect(screen.getByTestId('finish-goal-reached')).toBeTruthy();
-    expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
+    expect(screen.getByTestId('finish-goal-reached').props.children).toBe('Bugünkü hedef tamam');
+    expect(StyleSheet.flatten(screen.getByTestId('finish-goal-reached').props.style)).toMatchObject({
+      fontSize: 20,
+      fontWeight: '700',
+    });
+    // The streak stays a number on the card; the summary has no streak sentence and no praise.
+    expect(within(screen.getByTestId('finish-summary')).queryByText(/[Ss]eri|tebrik/)).toBeNull();
+    expect(ringFills()).toHaveLength(1);
+    expect(announce).toHaveBeenCalledWith('Kaydedildi: 31 dk. Bugün toplam 31 dk. Bugünkü hedef tamam.');
+    // It is the card's own ring (no second one in the summary): full, in the success colour, with
+    // the seal; the saved time stays the one big number.
+    expect(screen.getAllByTestId('goal-ring')).toHaveLength(1);
+    expect(screen.getByTestId('goal-ring').props.accessibilityValue).toEqual({ text: '%100' });
+    expect(screen.UNSAFE_getByProps({ name: 'checkmark.seal.fill' })).toBeTruthy(); // exactly one
+    expect(ringColour()).toBe(LIGHT.success);
+    expect(displayTexts()).toEqual(['31 dk']);
+    expect(todayLine()).toEqual(['Bugün', '31 dk', '· hedef 30 dk']);
+    // Başla: the summary goes, today's total is the card's big number again with the goal line.
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(screen.queryByTestId('finish-summary')).toBeNull();
+    expect(displayTexts()).toEqual([screen.getByTestId('today-total').props.children]);
+    expect(screen.getByTestId('goal-edit')).toBeTruthy();
+    // The next session of the day does not celebrate again: no fill, no seal.
+    jump(5 * 60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(screen.queryByTestId('finish-goal-reached')).toBeNull();
+    expect(ringFills()).toHaveLength(1);
+    expect(screen.UNSAFE_queryAllByProps({ name: 'checkmark.seal.fill' })).toHaveLength(0);
+    timing.mockRestore();
+    announce.mockRestore();
+  });
+
+  it('the saved tick bounces once it is on screen; "Geri al" is the tonal red step back', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    jump(2 * 60_000);
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    const tick = () => screen.UNSAFE_getByProps({ name: 'checkmark.circle.fill' });
+    expect(tick().props.animationSpec).toBeUndefined();
+    fireEvent(tick(), 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 28, height: 28 } } });
+    expect(tick().props.animationSpec).toEqual({ effect: { type: 'bounce' } });
+    expect(StyleSheet.flatten(screen.getByTestId('finish-undo').props.style).backgroundColor).toBe(LIGHT.dangerSoft);
   });
 
   it('a short session: no "Hedef: %0 → %0", and "1 dakikadan az" on the summary, today and Geçmiş (V-13, V-11)', () => {
@@ -685,7 +882,12 @@ describe('the moment after Bitir', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     jump(40_000);
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
-    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 1 dakikadan az');
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 1 dakikadan az');
+    // Words, not a number: the smaller hero size, so they do not take three lines beside the ring
+    // or break inside "dakikadan" (IOS-05). No text in the 40 pt size then.
+    const saved = within(screen.getByTestId('timer-saved')).getByText('1 dakikadan az');
+    expect(StyleSheet.flatten(saved.props.style)).toMatchObject({ fontSize: 24 });
+    expect(displayTexts()).toEqual([]);
     // 40 s of a 4-hour goal moves nothing visible: the step line is left out.
     expect(screen.getByTestId('finish-detail').props.children).toBe('Fizik çalıştın');
     expect(screen.getByTestId('today-total').props.children).toBe('1 dakikadan az');
@@ -732,7 +934,7 @@ describe('the moment after Bitir', () => {
     expect(screen.getByTestId('finish-undo')).toBeTruthy();
     act(() => jest.advanceTimersByTime(UNDO_FINISH_MS + 1000));
     expect(screen.queryByTestId('finish-undo')).toBeNull();
-    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 2 dk');
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 2 dk');
     expect(memory.sessions).toHaveLength(1);
     // A new session clears the summary.
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
@@ -781,6 +983,55 @@ describe('the moment after Bitir', () => {
   });
 });
 
+describe('the running card', () => {
+  const style = (id: string) => StyleSheet.flatten(screen.getByTestId(id).props.style);
+
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+  });
+
+  it('is tinted with the subject colour; Mola and Bitir are tonal and equally heavy; the status is plain text', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByText('Fizik'));
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(style('timer-card')).toMatchObject({
+      backgroundColor: subjectTint('fizik', LIGHT),
+      borderColor: subjectColor('fizik', LIGHT),
+      borderWidth: 2,
+    });
+    expect(style('timer-pause')).toMatchObject({ backgroundColor: LIGHT.secondaryFill, minHeight: 72 });
+    // Tonal red, not the full red fill of a delete confirmation.
+    expect(style('timer-finish')).toMatchObject({ backgroundColor: LIGHT.dangerSoft, minHeight: 72 });
+    expect(style('timer-clock')).toMatchObject({
+      fontFamily: 'ui-rounded',
+      fontSize: 72,
+      fontWeight: '700',
+      letterSpacing: -2,
+      fontVariant: ['tabular-nums'],
+    });
+    expect(screen.getByTestId('timer-status').props.children).toBe('Çalışıyorsun');
+    expect(style('timer-status')).toMatchObject({ fontSize: 13, fontWeight: '600', color: LIGHT.success });
+
+    fireEvent.press(screen.getByTestId('timer-pause'));
+    expect(screen.getByTestId('timer-status').props.children).toBe('Moladasın');
+    expect(style('timer-status').color).toBe(LIGHT.warning);
+    // Paused: the subject outline gives way to the neutral one; the tint stays.
+    expect(style('timer-card')).toMatchObject({
+      backgroundColor: subjectTint('fizik', LIGHT),
+      borderColor: LIGHT.controlBorder,
+    });
+    expect(style('timer-resume').backgroundColor).toBe(LIGHT.primary);
+  });
+
+  it('pomodoro: the running total is a muted fact, not a green pill', () => {
+    memory.timerMode = 'pomodoro';
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(screen.getByTestId('timer-status').props.children).toMatch(/^Toplam çalışma: /);
+    expect(style('timer-status').color).toBe(LIGHT.textMuted);
+  });
+});
+
 describe('root error screen (V-15)', () => {
   it('a render error shows plain text and "Yeniden dene"; nothing is deleted and retry opens the app', () => {
     memory.profile = ADULT_SAYISAL;
@@ -818,7 +1069,7 @@ describe('root error screen (V-15)', () => {
   });
 });
 
-it('with the group module off a 15+ profile sees the Groups tab (preview only); start, pause, finish saves a session', () => {
+it('with the group module off a 15+ profile does not see the Groups tab; start, pause, finish saves a session', () => {
   memory.profile = {
     birthYear: 2000,
     examType: 'YKS',
@@ -827,7 +1078,9 @@ it('with the group module off a 15+ profile sees the Groups tab (preview only); 
     createdAt: 0,
   };
   renderRouter(APP_DIR, { initialUrl: '/' });
-  expect(screen.getByTestId('tab-groups')).toBeTruthy();
+  // Native tabs: each tab item is an `RNSTabsScreenIOS` in tests; the groups one is hidden, if there at all (0.5.0).
+  const groupsTab = screen.root.findAll((n) => String(n.type) === 'RNSTabsScreenIOS' && n.props.tabBarItemTestID === 'tab-groups');
+  expect(groupsTab.filter((n) => n.props.hidden !== true)).toEqual([]);
   fireEvent.press(screen.getByText('Fizik'));
   fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
   expect(memory.active?.subjectId).toBe('fizik');
@@ -1111,18 +1364,17 @@ describe('manual entry ("elle")', () => {
   });
 
   it('the number boxes show examples, not values, and have a "Bitti" bar that closes the keyboard (IOS-07)', () => {
-    const dismiss = jest.spyOn(Keyboard, 'dismiss');
     renderRouter(APP_DIR, { initialUrl: '/elle-ekle' });
     const hours = screen.getByTestId('manual-duration-hours');
     expect(hours.props.placeholder).toBe('ör. 1');
     expect(screen.getByTestId('manual-duration-minutes').props.placeholder).toBe('ör. 45');
-    // The number pad has no return key: the bar is attached to the box (iOS input accessory).
-    expect(hours.props.inputAccessoryViewID).toEqual(expect.any(String));
-    const done = screen.getByTestId('manual-duration-hours-done');
-    expect(done.props.accessibilityLabel).toBe('Klavyeyi kapat: Süre, Saat');
-    fireEvent.press(done);
-    expect(dismiss).toHaveBeenCalled();
-    dismiss.mockRestore();
+    // The number pad has no return key: the system bar above it with "Bitti", which ends editing
+    // (no <InputAccessoryView>: a mounted one crashed the layout animations on Başla).
+    expect(hours.props.keyboardType).toBe('number-pad');
+    expect(hours.props.inputAccessoryViewButtonLabel).toBe('Bitti');
+    expect(hours.props.returnKeyType).toBe('done');
+    expect(hours.props.inputAccessoryViewID).toBeUndefined();
+    expect(screen.UNSAFE_queryAllByType(InputAccessoryView)).toHaveLength(0);
   });
 
   it('"Saati değiştir" opens the start fields, "Az önce bitti" closes them; another day always asks', () => {
@@ -1784,13 +2036,74 @@ describe('goal, streak and "dünkü sen"', () => {
     memory.dailyGoal = 60;
     renderRouter(APP_DIR, { initialUrl: '/' });
     expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
-    expect(screen.getByTestId('streak').props.children).toBe('Seri: 3 gün');
+    expect(screen.getByTestId('streak').props.accessibilityLabel).toBe('Seri: 3 gün');
     expect(screen.getByTestId('compare-yesterday').props.children).toBe('1 sa 0 dk');
     expect(screen.getByTestId('compare-last-week').props.children).toBe('30 dk');
     expect(screen.getByTestId('compare-line')).toHaveTextContent(
       'Dün bu saate kadar 1 sa 0 dk · Geçen hafta bu zamana kadar 30 dk',
     );
     expect(screen.getByText('1 sa 0 dk elle eklendi')).toBeTruthy();
+  });
+
+  /** The colour of the goal ring's first arc (the ring is hidden from screen readers). */
+  const ringColour = () =>
+    StyleSheet.flatten(screen.getByTestId('goal-ring-progress-right', { includeHiddenElements: true }).props.style)
+      .borderBottomColor;
+
+  it('the Bugün card: the ring and the goal line open the goal sheet; no "Değiştir" button', () => {
+    memory.dailyGoal = 240;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    // The soft tint has its 1 pt edge in light mode too, so the card stands off the page.
+    expect(StyleSheet.flatten(screen.getByTestId('today-card').props.style)).toMatchObject({
+      backgroundColor: LIGHT.accentSoft,
+      borderWidth: 1,
+      borderColor: LIGHT.heroBorder,
+    });
+    expect(screen.getByTestId('today-total').props.children).toBe('1 sa 0 dk');
+    expect(screen.getByTestId('goal-progress').props.children).toBe('Hedef 4 sa 0 dk · %25');
+    expect(screen.queryByText('Değiştir')).toBeNull();
+    expect(ringColour()).toBe(LIGHT.accent);
+    // The track is the soft brand blue (`barSoft`), visible on the card also at 0 %.
+    const track = screen
+      .getByTestId('goal-ring-progress', { includeHiddenElements: true })
+      .findAll((n) => typeof n.type === 'string' && StyleSheet.flatten(n.props.style)?.borderColor === LIGHT.barSoft);
+    expect(track).toHaveLength(1);
+    // The goal line is the control for screen readers: its words, then what a tap does.
+    const line = screen.getByTestId('goal-edit');
+    expect(line.props.accessibilityRole).toBe('button');
+    expect(line.props.accessibilityLabel).toBe('Hedef 4 sa 0 dk · %25');
+    expect(line.props.accessibilityHint).toBe('Günlük hedefi değiştir');
+    // A 13 pt line: its touch area reaches 44 pt above and below it.
+    const slop = line.props.hitSlop as { top: number; bottom: number };
+    expect(16 + slop.top + slop.bottom).toBeGreaterThanOrEqual(44);
+    fireEvent.press(line);
+    expect(screen.getByTestId('goal-sheet')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    expect(screen.queryByTestId('goal-sheet')).toBeNull();
+    // A tap on the ring does the same; it is announced with the share reached.
+    const ring = screen.getByTestId('goal-ring');
+    expect(ring.props.accessibilityRole).toBe('button');
+    expect(ring.props.accessibilityLabel).toBe('Günlük hedef');
+    expect(ring.props.accessibilityValue).toEqual({ text: '%25' });
+    expect(ring.props.accessibilityHint).toBe('Günlük hedefi değiştir');
+    fireEvent.press(ring);
+    expect(screen.getByTestId('goal-sheet')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('goal-preset-60'));
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    // Reached: the ring turns to the success colour.
+    expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
+    expect(ringColour()).toBe(LIGHT.success);
+  });
+
+  it('the streak is a compact badge with the rest-day rule, without flame or loss language', () => {
+    memory.dailyGoal = 60;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    const badge = screen.getByTestId('streak');
+    expect(badge.props.accessibilityLabel).toBe('Seri: 3 gün');
+    expect(badge).toHaveTextContent('3 gün', { exact: true });
+    expect(screen.getByTestId('streak-rest').props.children).toBe('Haftada 1 dinlenme günü hakkın var');
+    expect(screen.getByTestId('streak-info')).toBeTruthy();
+    expect(screen.queryByText(/bozul|kaybet|kaçır/i)).toBeNull();
   });
 
   it('the first days show no comparison; later only the past that holds study time', () => {
@@ -1817,10 +2130,12 @@ describe('goal, streak and "dünkü sen"', () => {
     expect(memory.dailyGoal).toBe(195);
     fireEvent.press(screen.getByTestId('goal-sheet-done'));
     expect(screen.queryByTestId('goal-sheet')).toBeNull();
-    // Still on the timer screen, now with progress and streak.
+    // Still on the timer screen, now with progress. No day met 3 sa 15 dk yet: no streak badge
+    // (never a "0 gün") and no rest-day rule under it.
     expect(screen.getByTestId('timer-start')).toBeTruthy();
     expect(screen.getByTestId('goal-progress').props.children).toBe('Hedef 3 sa 15 dk · %30');
-    expect(screen.getByTestId('streak')).toBeTruthy();
+    expect(screen.queryByTestId('streak')).toBeNull();
+    expect(screen.queryByTestId('streak-rest')).toBeNull();
     fireEvent.press(screen.getByTestId('goal-edit'));
     fireEvent.press(screen.getByTestId('goal-sheet-off'));
     expect(memory.dailyGoal).toBeNull();
@@ -1930,6 +2245,12 @@ describe('pomodoro mode', () => {
 
   it('settings change the pomodoro lengths within limits', () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    // A preset is in use (the default 25/5): the single lengths are closed under "Ayrıntı".
+    expect(screen.queryByTestId('settings-pomodoro-workMin-plus')).toBeNull();
+    const details = screen.getByTestId('settings-pomodoro-details');
+    expect(details.props.accessibilityState).toEqual({ expanded: false });
+    fireEvent.press(details);
+    expect(screen.getByTestId('settings-pomodoro-details').props.accessibilityState).toEqual({ expanded: true });
     fireEvent.press(screen.getByTestId('settings-pomodoro-workMin-plus'));
     expect(memory.pomodoroConfig.workMin).toBe(30);
     fireEvent.press(screen.getByTestId('settings-pomodoro-longEvery-minus'));
@@ -1946,6 +2267,7 @@ describe('pomodoro mode', () => {
     expect([selected('25-5'), selected('50-10'), selected('90-15')]).toEqual([false, true, false]);
     fireEvent.press(screen.getByTestId('settings-pomodoro-preset-90-15'));
     expect(memory.pomodoroConfig).toEqual({ workMin: 90, shortBreakMin: 15, longBreakMin: 30, longEvery: 2 });
+    fireEvent.press(screen.getByTestId('settings-pomodoro-details'));
     fireEvent.press(screen.getByTestId('settings-pomodoro-workMin-minus'));
     expect(memory.pomodoroConfig.workMin).toBe(85);
     expect([selected('25-5'), selected('50-10'), selected('90-15')]).toEqual([false, false, false]);
@@ -1963,8 +2285,10 @@ describe('exam countdown', () => {
 
   it('home shows the days left to the estimated YKS date', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
-    expect(screen.getByTestId('countdown').props.children).toBe('YKS’ye 258 gün');
-    expect(screen.getByText('tahmini')).toBeTruthy();
+    // One muted line; read out as a sentence.
+    expect(screen.getByTestId('countdown').props.children).toBe('YKS · 258 gün · tahmini');
+    expect(screen.getByTestId('countdown').props.accessibilityLabel).toBe('YKS’ye 258 gün, tahmini tarih');
+    expect(screen.getByTestId('countdown-info')).toBeTruthy();
   });
 
   it('the student can set the exact date and go back to the estimate', () => {
@@ -2021,8 +2345,9 @@ describe('exam countdown', () => {
   it('a custom date is shown on the home screen without "tahmini"', () => {
     memory.examDates.YKS = '2027-06-26';
     renderRouter(APP_DIR, { initialUrl: '/' });
-    expect(screen.getByTestId('countdown').props.children).toBe('YKS’ye 265 gün');
-    expect(screen.queryByText('tahmini')).toBeNull();
+    expect(screen.getByTestId('countdown').props.children).toBe('YKS · 265 gün');
+    expect(screen.getByTestId('countdown').props.accessibilityLabel).toBe('YKS’ye 265 gün');
+    expect(screen.queryByTestId('countdown-info')).toBeNull();
   });
 });
 
@@ -2030,18 +2355,16 @@ describe('K-17: age declaration after deleting all data', () => {
   it('the under-15 record survives "delete all" and blocks a 15+ declaration', () => {
     const year = new Date().getUTCFullYear();
     renderRouter(APP_DIR, { initialUrl: '/' });
-    fireEvent.press(screen.getByText(String(year - 12)));
-    fireEvent.press(screen.getByText('LGS'));
+    onboardTo('LGS', year - 12);
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     expect(memory.youngestBirthYear).toBe(year - 12);
     act(() => router.push('/ayarlar'));
     fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    pressAlert('Evet, hepsini sil');
     expect(memory.profile).toBeNull();
     expect(memory.youngestBirthYear).toBe(year - 12);
 
-    fireEvent.press(screen.getByText(String(year - 20)));
-    fireEvent.press(screen.getByText('LGS'));
+    onboardTo('LGS', year - 20);
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     expect(memory.profile).toBeNull();
     expect(screen.getByTestId('onboarding-age-blocked')).toBeTruthy();
@@ -2056,6 +2379,7 @@ describe('K-17: age declaration after deleting all data', () => {
   it('birth years are part of the page; older ones one tap away; nothing pre-selected (K-15)', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
     const year = new Date().getUTCFullYear();
+    onboardTo('KPSS', null);
     expect(screen.getByTestId(`birth-year-${year - 8}`)).toBeTruthy();
     expect(screen.getByTestId(`birth-year-${year - 30}`)).toBeTruthy();
     expect(screen.queryByTestId(`birth-year-${year - 31}`)).toBeNull();
@@ -2065,7 +2389,6 @@ describe('K-17: age declaration after deleting all data', () => {
     fireEvent.press(screen.getByTestId('birth-year-more'));
     expect(screen.queryByTestId('birth-year-more')).toBeNull();
     fireEvent.press(screen.getByTestId(`birth-year-${year - 45}`));
-    fireEvent.press(screen.getByText('KPSS'));
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     expect(memory.profile).toMatchObject({ birthYear: year - 45, examType: 'KPSS' });
   });
@@ -2075,11 +2398,10 @@ describe('K-17: age declaration after deleting all data', () => {
     const deleteAll = () => {
       act(() => router.push('/ayarlar'));
       fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
-      fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+      pressAlert('Evet, hepsini sil');
     };
     const declare = (birthYear: number) => {
-      fireEvent.press(screen.getByText(String(birthYear)));
-      fireEvent.press(screen.getByText('KPSS'));
+      onboardTo('KPSS', birthYear);
       fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     };
     renderRouter(APP_DIR, { initialUrl: '/' });
@@ -2147,9 +2469,9 @@ describe('other screens render', () => {
   it('settings: delete all data returns to onboarding', () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
   fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
-  fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+  pressAlert('Evet, hepsini sil');
     expect(memory.profile).toBeNull();
-    expect(screen.getByText('Doğum yılın')).toBeTruthy();
+    expect(screen.getByText('Hazırlandığın sınav')).toBeTruthy();
   });
 
   it('"Önce yedek al" in the delete dialog shares the backup and deletes nothing; deleting stays a choice of its own', async () => {
@@ -2167,22 +2489,23 @@ describe('other screens render', () => {
     ];
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
     fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
+    const backupFirst = alertButton('Önce yedek al');
     await act(async () => {
-      fireEvent.press(screen.getByRole('button', { name: 'Önce yedek al' }));
+      backupFirst();
     });
     expect(memory.shared).toHaveLength(1);
     expect(memory.shared[0].name).toMatch(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/);
     expect(JSON.parse(memory.shared[0].content)).toMatchObject({ format: 'etut-yedek', sessions: [{ id: 'a' }] });
     expect(memory.lastBackupAt).not.toBeNull();
-    // The share sheet does not tell whether the file was saved: the note says so.
-    expect(screen.getByTestId('settings-delete-all-backup-note').props.children).toBe(
-      'Yedek dosyası hazırlandı. Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez.',
+    // The share sheet does not tell whether the file was saved: the question comes back and says so.
+    expect(systemAlert).toHaveBeenCalledTimes(2);
+    expect(lastAlert().message).toMatch(
+      /\n\nYedek dosyası hazırlandı\. Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez\.$/,
     );
-    // Nothing deleted, the dialog still open.
+    // Nothing deleted, the question still open.
     expect(memory.profile).not.toBeNull();
     expect(memory.sessions).toHaveLength(1);
-    expect(screen.getByTestId('settings-delete-all-dialog')).toBeTruthy();
-    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    pressAlert('Evet, hepsini sil');
     expect(memory.profile).toBeNull();
   });
 });
@@ -2196,6 +2519,7 @@ describe('subjects and papers follow the exam and YKS area', () => {
   it('Sayısal: no literature or foreign language on the timer, only TYT and AYT Sayısal papers', () => {
     memory.profile = ADULT_SAYISAL;
     renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('subjects-all'));
     const subjects = ids('subject-');
     expect(subjects).toEqual(expect.arrayContaining(['matematik', 'fizik', 'turkce', 'tarih']));
     expect(subjects).not.toContain('edebiyat');
@@ -2212,12 +2536,53 @@ describe('subjects and papers follow the exam and YKS area', () => {
     expect(memory.profile).toEqual({ ...ADULT_SAYISAL, yksArea: 'esit_agirlik' });
     expect(screen.getByTestId('settings-exam-saved')).toBeTruthy();
     act(() => router.push('/'));
-    // EA: the AYT subjects of the area first, TYT Fizik stays, no foreign language.
+    // EA: the AYT subjects of the area first, TYT Fizik stays (behind "Tüm dersler"), no foreign language.
     expect(ids('subject-').slice(0, 5)).toEqual(['matematik', 'geometri', 'edebiyat', 'tarih', 'cografya']);
+    fireEvent.press(screen.getByTestId('subjects-all'));
     expect(ids('subject-')).toContain('fizik');
     expect(ids('subject-')).not.toContain('yabanci_dil');
     act(() => router.push('/deneme/yeni'));
     expect(ids('exam-kind-')).toEqual(['TYT', 'AYT_EA']);
+  });
+
+  it('"Ders seç": six chips (the recent subjects, in list order) and "Tüm dersler" for the rest', () => {
+    memory.profile = ADULT_SAYISAL;
+    const studied = (id: string, subjectId: string, endedAt: number): CompletedSession => ({
+      id,
+      subjectId,
+      topicId: null,
+      startedAt: endedAt - 30 * 60_000,
+      endedAt,
+      pauses: [],
+      durationMs: 30 * 60_000,
+      source: 'timer',
+    });
+    const now = Date.now();
+    memory.sessions = [studied('a', 'tarih', now - 2 * 86_400_000), studied('b', 'din', now - 86_400_000)];
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    // Matematik (selected: first of the list), Tarih and Din (studied lately), topped up in list order.
+    expect(ids('subject-')).toEqual(['matematik', 'geometri', 'fizik', 'kimya', 'tarih', 'din']);
+    const more = screen.getByTestId('subjects-all');
+    expect(more.props.accessibilityLabel).toBe('Tüm dersler');
+    expect(more.props.accessibilityHint).toBe('5 ders daha gösterir');
+    fireEvent.press(more);
+    expect(ids('subject-')).toHaveLength(11);
+    expect(screen.queryByTestId('subjects-all')).toBeNull();
+    // The selected chip is filled with its subject colour (the name stays on it).
+    fireEvent.press(screen.getByTestId('subject-felsefe'));
+    const chip = screen.getByTestId('subject-felsefe');
+    expect(chip.props.accessibilityState).toMatchObject({ selected: true });
+    expect(StyleSheet.flatten(chip.props.style).backgroundColor).toBe(subjectColor('felsefe', LIGHT));
+    expect(chip).toHaveTextContent('Felsefe');
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(memory.active?.subjectId).toBe('felsefe');
+  });
+
+  it('a short list (LGS, 7 subjects) is shown whole, without "Tüm dersler"', () => {
+    memory.profile = { ...ADULT_SAYISAL, examType: 'LGS', yksArea: null };
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(ids('subject-')).toHaveLength(7);
+    expect(screen.queryByTestId('subjects-all')).toBeNull();
   });
 
   it('switching to a non-YKS exam drops the area', () => {
@@ -2294,46 +2659,114 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
   }
   const contains = (node: Node, testID: string) => node.findAll((n) => n.props.testID === testID).length > 0;
 
-  it('first-use tips: only the text scrolls, Geç and İleri stay on the card below it, stacked', () => {
+  /**
+   * A form sheet's content has no height of its own (react-native-screens leaves out `bottom: 0`)
+   * and the library sizes the scroll view it finds to the sheet. As the sheet's root it fills the
+   * sheet; nested in a padded `flex: 1` view it was set to the screen's frame (IOS-02: an empty
+   * half-height sheet, text without margins).
+   */
+  function expectSheetRoot(testID: string) {
+    const root = screen.getByTestId(testID);
+    expect(root.type).toBe('RCTScrollView');
+    const style = RN.StyleSheet.flatten(root.props.style) ?? {};
+    expect(style.flex).toBeUndefined();
+    expect(style.padding).toBeUndefined();
+    expect(RN.StyleSheet.flatten(root.props.contentContainerStyle)).toMatchObject({ padding: 24 });
+    // No laid-out view of the app between the sheet's route and its scroll view.
+    let n = root.parent;
+    while (n !== null && typeof n.type !== 'string') n = n.parent;
+    expect(n === null || !RN.StyleSheet.flatten(n.props.style)?.padding).toBe(true);
+  }
+
+  it.each([1, 3])('text size %d: the daily goal sheet is one scroll view with the presets, the fine tune and Tamam (IOS-02)', (fontScale) => {
+    textSize(fontScale);
+    memory.profile = ADULT_SAYISAL;
+    memory.dailyGoal = 120;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('goal-edit'));
+    expectSheetRoot('goal-sheet');
+    const sheet = screen.getByTestId('goal-sheet');
+    for (const id of ['goal-preset-60', 'goal-preset-360', 'goal-sheet-minus', 'goal-sheet-off', 'goal-sheet-done']) {
+      expect(contains(sheet, id)).toBe(true);
+    }
+    fireEvent.press(screen.getByTestId('goal-preset-180'));
+    expect(memory.dailyGoal).toBe(180);
+    fireEvent.press(screen.getByTestId('goal-sheet-done'));
+    expect(screen.queryByTestId('goal-sheet')).toBeNull();
+  });
+
+  it.each([
+    [1, 'row'],
+    [3, 'column'],
+  ])('text size %d: a "Yakında" feature puts its symbol beside / above its text: %s', (fontScale, direction) => {
+    textSize(fontScale);
+    // The preview has no tab while the module is off (0.5.0): rendered on its own.
+    render(<GroupsTeaser profile={ADULT_SAYISAL} />);
+    for (const key of ['invite', 'live', 'weekly', 'cheers']) {
+      const feature = screen.getByTestId(`groups-teaser-${key}`);
+      expect(RN.StyleSheet.flatten(feature.props.style).flexDirection ?? 'column').toBe(direction);
+    }
+    // Above its symbol the text has the card's whole width: no `flex: 1` column beside it.
+    const body = screen.getByText(/İstediğinde görünmez çalışırsın\./);
+    let column = body.parent;
+    while (column !== null && typeof column.type !== 'string') column = column.parent;
+    expect(RN.StyleSheet.flatten(column?.props.style)?.flex).toBe(fontScale === 1 ? 1 : undefined);
+  });
+
+  it('first-use tips: the sheet is one scroll view with the step and Geç / İleri, stacked at large text (IOS-02)', () => {
     textSize(3);
     memory.tipsSeen = false;
     memory.profile = ADULT_SAYISAL;
+    const scrollTo = jest.mocked(ScrollView.prototype.scrollTo);
     renderRouter(APP_DIR, { initialUrl: '/' });
+    expectSheetRoot('tips-card');
     const card = screen.getByTestId('tips-card');
-    const scroll = screen.getByTestId('tips-scroll');
-    expect(contains(card, 'tips-scroll')).toBe(true);
-    expect(contains(scroll, 'tips-step-title')).toBe(true);
-    for (const id of ['tips-skip', 'tips-next']) {
-      expect(contains(card, id)).toBe(true);
-      expect(contains(scroll, id)).toBe(false);
-    }
+    for (const id of ['tips-step-title', 'tips-skip', 'tips-next']) expect(contains(card, id)).toBe(true);
     expect(directions(screen.getByTestId('tips-skip'))[0]).toBe('column');
-    // A tap outside the card is one more way out (not for VoiceOver, which stays on the card).
-    fireEvent.press(screen.getByTestId('tips-backdrop', { includeHiddenElements: true }));
+    // Each step starts from the top of the sheet.
+    scrollTo.mockClear();
+    fireEvent.press(screen.getByTestId('tips-next'));
+    expect(screen.getByTestId('tips-step-title').props.children).toBe('Uygulamadan çıkarsan');
+    expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+    // Swiping the sheet down is one more way out (the route goes; no button pressed).
+    act(() => router.back());
     expect(screen.queryByTestId('tips-card')).toBeNull();
     expect(memory.tipsSeen).toBe(true);
   });
 
-  it('"Tüm verileri sil": only the text and "Önce yedek al" scroll; Vazgeç, then the delete button, stay below it', () => {
-    textSize(3);
+  it('"Tüm verileri sil" is the system alert: "Önce yedek al", Vazgeç, then the destructive delete', () => {
     memory.profile = ADULT_SAYISAL;
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
     fireEvent.press(screen.getByTestId('settings-delete-all'));
-    const dialog = screen.getByTestId('settings-delete-all-dialog');
-    const scroll = screen.getByTestId('settings-delete-all-scroll');
-    expect(contains(scroll, 'settings-delete-all-backup')).toBe(true);
-    for (const id of ['settings-delete-all-cancel', 'settings-delete-all-confirm']) {
-      expect(contains(dialog, id)).toBe(true);
-      expect(contains(scroll, id)).toBe(false);
-    }
-    const order = dialog
-      .findAll((n) => typeof n.type === 'string' && typeof n.props.testID === 'string')
-      .map((n) => n.props.testID);
-    expect(order.indexOf('settings-delete-all-cancel')).toBeLessThan(order.indexOf('settings-delete-all-confirm'));
-    // A tap outside the dialog cancels (not for VoiceOver, which stays on the dialog).
-    fireEvent.press(screen.getByTestId('settings-delete-all-backdrop', { includeHiddenElements: true }));
-    expect(screen.queryByTestId('settings-delete-all-dialog')).toBeNull();
+    // The system alert scales with the text size by itself; its delete button is marked destructive.
+    const { title, message, buttons } = lastAlert();
+    expect(title).toBe('Tüm verileri sil');
+    expect(message).toMatch(/^Çalışma kayıtların.*geri alınamaz\.\n\n15 yaş altı beyanı/);
+    expect(buttons.map((b) => [b.text, b.style])).toEqual([
+      ['Önce yedek al', undefined],
+      ['Vazgeç', 'cancel'],
+      ['Evet, hepsini sil', 'destructive'],
+    ]);
     expect(memory.profile).not.toBeNull();
+  });
+
+  it.each([1, 3])('text size %d: the ‹ › week buttons stay on either side of the week, which wraps between them', (fontScale) => {
+    textSize(fontScale);
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    const prev = screen.getByTestId('weekly-prev');
+    const next = screen.getByTestId('weekly-next');
+    // Icon buttons do not clip at any size, so the row never stacks; the week's name takes the rest.
+    expect(directions(prev)[0]).toBe('row');
+    expect(directions(next)[0]).toBe('row');
+    let row = next.parent;
+    while (row !== null && typeof row.type !== 'string') row = row.parent;
+    expect(row !== null && contains(row, 'weekly-prev')).toBe(true);
+    const label = row?.findAll((n) => typeof n.type === 'string' && RN.StyleSheet.flatten(n.props.style)?.flex === 1) ?? [];
+    expect(label).toHaveLength(1);
+    // Named for screen readers by what they do (the arrows are only drawn).
+    expect(prev.props.accessibilityLabel).toBe('Önceki hafta');
+    expect(next.props.accessibilityLabel).toBe('Sonraki hafta');
   });
 
   /** Flattened style of the nearest laid-out row or column around a node. */
@@ -2345,26 +2778,13 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
     return undefined;
   }
 
-  it('text size 3: the tab header title grows no further than its bar (IOS-03)', () => {
-    textSize(3);
-    memory.profile = ADULT_SAYISAL;
-    renderRouter(APP_DIR, { initialUrl: '/' });
-    const title = screen.getAllByText('Sayaç').find((n) => n.props.role === 'heading');
-    expect(title?.props.maxFontSizeMultiplier).toBe(1.3);
-  });
-
   it.each([1, 2])(
     'text size %d: label and value rows wrap at word boundaries instead of squeezing a word (IOS-04)',
     (fontScale) => {
       textSize(fontScale);
       memory.profile = ADULT_SAYISAL;
-      renderRouter(APP_DIR, { initialUrl: '/' });
-      // "YKS’ye 244 gün" keeps its natural width; "tahmini · Nedir?" moves below when it does not fit.
-      const countdown = screen.getByTestId('countdown');
-      expect(lineOf(countdown)).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap' });
-      expect(RN.StyleSheet.flatten(countdown.props.style)).toMatchObject({ flexGrow: 1, flexShrink: 1 });
-      expect(RN.StyleSheet.flatten(countdown.props.style).flex).toBeUndefined();
-      act(() => router.push('/ayarlar'));
+      // (The timer's countdown is one muted line of its own on 0.4.2: nothing beside it to squeeze it.)
+      renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
       const exam = screen.getByTestId('settings-exam-current');
       expect(lineOf(exam)).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap' });
       expect(RN.StyleSheet.flatten(screen.getByText('Sınav').props.style).flex).toBeUndefined();
@@ -2406,11 +2826,25 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
   it.each([
     [1, 'row'],
     [2, 'column'],
-  ])('text size %d: the two week buttons are laid out in a %s', (fontScale, direction) => {
+  ])('text size %d: Mola and Bitir, then the saved time and the goal ring, sit in a %s', (fontScale, direction) => {
     textSize(fontScale);
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z'));
     memory.profile = ADULT_SAYISAL;
-    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
-    expect(directions(screen.getByTestId('weekly-next'))[0]).toBe(direction);
+    memory.dailyGoal = 60;
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+    expect(directions(screen.getByTestId('timer-finish'))[0]).toBe(direction);
+    act(() => {
+      jest.setSystemTime(Date.now() + 2 * 60_000);
+      jest.advanceTimersByTime(1000);
+    });
+    fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
+    expect(directions(screen.getByTestId('goal-ring'))[0]).toBe(direction);
+    // "Geri al" has a line of its own at the end of the summary.
+    expect(directions(screen.getByTestId('finish-undo'))[0]).toBe('row');
+    // At any size VoiceOver reads the saved time as one element.
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 2 dk');
   });
 
   it.each([
@@ -2423,6 +2857,147 @@ describe('accessibility text sizes (iOS Larger Text)', () => {
     renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
     // At large text the label gets its own line above − value +.
     expect(directions(screen.getByTestId('settings-goal-minus')).slice(0, 2)).toEqual(['row', direction]);
+  });
+});
+
+describe('Örnek verilerle gez (demo mode)', () => {
+  const year = new Date().getUTCFullYear();
+
+  it('from onboarding: the profile is saved, Denemeler, Haftalık and Karne are full, the band shows; Çık empties them', async () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    onboardTo('YKS', year - 18, 'sayisal');
+    // Same size and weight as Başla.
+    expect(screen.getByTestId('onboarding-demo').props.style).toEqual(screen.getByTestId('onboarding-start').props.style);
+    await act(async () => fireEvent.press(screen.getByTestId('onboarding-demo')));
+    expect(memory.profile).toMatchObject({ examType: 'YKS', yksArea: 'sayisal', birthYear: year - 18 });
+    expect(memory.sessions.length).toBeGreaterThan(0);
+
+    act(() => router.push('/denemeler'));
+    expect(screen.getAllByTestId('demo-banner').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('exam-item-0')).toBeTruthy();
+    expect(screen.queryByTestId('exams-empty')).toBeNull();
+    act(() => router.push('/haftalik'));
+    expect(screen.queryByTestId('weekly-empty')).toBeNull();
+    act(() => router.push('/karne/matematik'));
+    expect(screen.getByTestId('report-total').props.children).not.toBe('0 dk');
+
+    act(() => router.push('/denemeler'));
+    fireEvent.press(screen.getAllByTestId('demo-exit')[0]);
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+    expect(screen.getByTestId('exams-empty')).toBeTruthy();
+    expect(memory.sessions).toEqual([]);
+    // The profile stays: only the example data went.
+    expect(memory.profile).toMatchObject({ examType: 'YKS', birthYear: year - 18 });
+  });
+
+  it('settings: in and out; the band only in demo mode', async () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+    expect(screen.queryByTestId('settings-demo-exit')).toBeNull();
+    await act(async () => fireEvent.press(screen.getByTestId('settings-demo-enter')));
+    // It opens the timer on the example data.
+    expect(screen.getByTestId('timer-start')).toBeTruthy();
+    act(() => router.push('/ayarlar'));
+    expect(screen.getAllByTestId('demo-banner').length).toBeGreaterThan(0);
+    fireEvent.press(screen.getByTestId('settings-demo-exit'));
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+    expect(screen.getByTestId('settings-demo-enter')).toBeTruthy();
+    expect(memory.sessions).toEqual([]);
+  });
+
+  it('system surfaces show the example data in demo mode and the real data again after leaving', async () => {
+    memory.profile = ADULT_SAYISAL;
+    memory.dailyGoal = 60;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await act(async () => fireEvent.press(screen.getByTestId('settings-demo-enter')));
+    // The widget: the example goal (150 dk) and the example plan's next block.
+    const demoWidget = memory.widget[0].props;
+    expect(demoWidget.goalLine).not.toBeNull();
+    expect(demoWidget.goalLine).not.toMatch(/1 sa|60 dk/);
+    expect(demoWidget.nextBlockLine).not.toBeNull();
+    // A block started from the example plan shows as a Live Activity (review notes, steps 3–4).
+    await act(async () => fireEvent.press(screen.getByTestId('plan-block-start-0')));
+    expect(memory.active).not.toBeNull();
+    expect(memory.liveActivities).toHaveLength(1);
+    expect(memory.liveActivityRecord?.sessionId).toBe(memory.active?.id);
+
+    await act(async () => fireEvent.press(screen.getAllByTestId('demo-exit')[0]));
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+    expect(memory.active).toBeNull();
+    // No session in the real data: the Live Activity ends; the widget shows the real day again.
+    expect(memory.liveActivities).toEqual([]);
+    expect(memory.liveActivityRecord).toBeNull();
+    expect(memory.widget[0].props).not.toEqual(demoWidget);
+    expect(memory.widget[0].props.total).toBe('0 dk');
+    expect(memory.widget[0].props.goalLine).toMatch(/1 sa|60 dk/);
+  });
+
+  it('a running timer of their own: "Örnek verilerle gez" is refused with a short note', async () => {
+    memory.profile = ADULT_SAYISAL;
+    const { startSession } = jest.requireActual('../domain/timer');
+    memory.active = startSession('own', 'fizik', Date.now() - 60_000);
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await act(async () => fireEvent.press(screen.getByTestId('settings-demo-enter')));
+    expect(screen.getByTestId('settings-demo-timer-running').props.children).toBe(
+      'Sayaç çalışırken örnek verilere geçilemez. Önce oturumunu bitir.',
+    );
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+    expect(memory.active?.id).toBe('own');
+  });
+
+  it('backup is off in demo mode; "delete all" leaves demo mode and keeps the profile', async () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await act(async () => fireEvent.press(screen.getByTestId('settings-demo-enter')));
+    act(() => router.push('/yedek'));
+    expect(screen.getByTestId('backup-demo-disabled').props.children).toBe('Örnek modda yedek alınmaz.');
+    for (const id of ['backup-export', 'backup-import', 'csv-sessions', 'csv-exams']) {
+      expect(screen.getByTestId(id).props.accessibilityState.disabled).toBe(true);
+    }
+    fireEvent.press(screen.getByTestId('backup-export'));
+    expect(memory.shared).toEqual([]);
+
+    await act(async () => router.push('/ayarlar'));
+    expect(screen.queryByRole('button', { name: 'Tüm verileri sil' })).toBeNull();
+    fireEvent.press(screen.getByRole('button', { name: 'Örnek verileri sil ve örnek moddan çık' }));
+    // It says what happens in demo mode: the example data goes, the student's own stays.
+    expect(lastAlert().title).toBe('Örnek verileri sil ve örnek moddan çık');
+    expect(lastAlert().message).toBe(
+      'Örnek veriler bu cihazdan silinir ve kendi kayıtlarına dönersin. Kendi kayıtların silinmez.',
+    );
+    expect(lastAlert().message).not.toMatch(/profilin|geri alınamaz/);
+    // "Önce yedek al" is refused too: the example data must not leave as a real-looking backup.
+    await act(async () => pressAlert('Önce yedek al'));
+    expect(memory.shared).toEqual([]);
+    expect(lastAlert().message).toMatch(/Örnek modda yedek alınmaz\.$/);
+    pressAlert('Evet, örnek verileri sil');
+    expect(screen.queryByTestId('demo-banner')).toBeNull();
+    expect(memory.profile).toEqual(ADULT_SAYISAL);
+    expect(screen.getByTestId('settings-demo-enter')).toBeTruthy();
+    // Out of demo mode the row is the real one again.
+    expect(screen.getByRole('button', { name: 'Tüm verileri sil' })).toBeTruthy();
+  });
+
+  it('the exam and area are not changed in demo mode: the choices are off, with a short note', async () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    await act(async () => fireEvent.press(screen.getByTestId('settings-demo-enter')));
+    act(() => router.push('/ayarlar'));
+    expect(screen.getByTestId('settings-exam-demo-locked').props.children).toBe(
+      'Örnek modda sınav ve alan değiştirilmez; önce örnek moddan çık.',
+    );
+    for (const id of ['settings-exam-type-LGS', 'settings-yks-area-sozel', 'settings-exam-save']) {
+      expect(screen.getByTestId(id).props.accessibilityState.disabled).toBe(true);
+    }
+    fireEvent.press(screen.getByTestId('settings-exam-type-LGS'));
+    fireEvent.press(screen.getByTestId('settings-exam-save'));
+    expect(memory.profile).toEqual(ADULT_SAYISAL);
+    expect(screen.queryByTestId('settings-exam-saved')).toBeNull();
+
+    fireEvent.press(screen.getByTestId('settings-demo-exit'));
+    expect(screen.queryByTestId('settings-exam-demo-locked')).toBeNull();
+    expect(screen.getByTestId('settings-exam-type-LGS').props.accessibilityState.disabled).toBeFalsy();
   });
 });
 
@@ -2593,7 +3168,7 @@ describe('backup and restore', () => {
     expect(memory.shared).toHaveLength(1);
     expect(memory.shared[0].name).toMatch(/^etut-yedek-\d{4}-\d{2}-\d{2}\.json$/);
     const file = JSON.parse(memory.shared[0].content);
-    expect(file).toMatchObject({ format: 'etut-yedek', schemaVersion: 2, sessions: [{ id: 'a' }] });
+    expect(file).toMatchObject({ format: 'etut-yedek', schemaVersion: 3, sessions: [{ id: 'a' }] });
     expect(screen.getByTestId('backup-message')).toBeTruthy();
   });
 
@@ -2746,13 +3321,17 @@ describe('about and legal texts', () => {
 
   it('the short notice is reachable from onboarding before anything is saved', () => {
     renderRouter(APP_DIR, { initialUrl: '/' });
-    // It sits right above Başla.
-    const buttons = screen.getAllByRole('button').map((b) => b.props.testID);
+    // On every step; on the first one right above İleri.
+    let buttons = screen.getAllByRole('button').map((b) => b.props.testID);
+    expect(buttons.indexOf('onboarding-privacy')).toBe(buttons.indexOf('onboarding-next') - 1);
+    onboardTo('KPSS', null);
+    // On the last step right above Başla.
+    buttons = screen.getAllByRole('button').map((b) => b.props.testID);
     expect(buttons.indexOf('onboarding-privacy')).toBe(buttons.indexOf('onboarding-start') - 1);
     fireEvent.press(screen.getByTestId('onboarding-privacy'));
     expect(screen.getByTestId('legal-aydinlatma')).toBeTruthy();
     expect(screen.getAllByText('Aydınlatma metni').length).toBeGreaterThan(0);
-    expect(screen.getByText('Son güncelleme: 31 Ekim 2026')).toBeTruthy();
+    expect(screen.getByText('Son güncelleme: 3 Kasım 2026')).toBeTruthy();
     expect(memory.profile).toBeNull();
   });
 
@@ -2784,6 +3363,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
   }
 
   it('the Live Activity starts with the timer, follows pause/resume and ends with "Bitir"', async () => {
+    memory.dailyGoal = 120;
     renderRouter(APP_DIR, { initialUrl: '/' });
     fireEvent.press(screen.getByText('Fizik'));
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
@@ -2797,6 +3377,14 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
       from: memory.active?.startedAt,
     });
     expect(memory.liveActivityRecord?.sessionId).toBe(memory.active?.id);
+    // The goal ring counts with the clock towards the 2 h goal; nothing saved today yet.
+    const started = memory.active?.startedAt ?? 0;
+    expect(memory.liveActivities[0]).toMatchObject({
+      icon: 'stopwatch.fill',
+      goalRatio: 0,
+      goalFrom: started,
+      goalTo: started + 2 * 3_600_000,
+    });
 
     fireEvent.press(screen.getByRole('button', { name: 'Mola' }));
     await settle();
@@ -3065,7 +3653,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     expect(memory.widget[0].props).toMatchObject({ title: 'Bugün', countingFrom: null, goalLine: 'Hedef 1 sa 0 dk' });
     expect(memory.widget[0].props.streakLine).toMatch(/^Seri: \d+ gün$/);
     fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    pressAlert('Evet, hepsini sil');
     await settle();
     expect(memory.widget).toHaveLength(1);
     expect(memory.widget[0].props).toMatchObject({ total: '0 dk', goalLine: null, streakLine: null });
@@ -3082,8 +3670,8 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     expect(screen.getByTestId('reminders-permission-missing')).toBeTruthy();
     // Neutral wording: asking is not granting.
     expect(screen.getByRole('button', { name: 'Bildirim izni iste' })).toBeTruthy();
-    expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.checked).toBe(false);
-    fireEvent.press(screen.getByTestId('reminder-daily-toggle'));
+    expect(screen.getByTestId('reminder-daily-toggle').props.value).toBe(false);
+    fireEvent(screen.getByTestId('reminder-daily-toggle'), 'valueChange', true);
     await settle();
     // The explanation lists what will be on: only the requested daily reminder, the others stay off.
     expect(screen.getByTestId('notification-permission-item-daily').props.children).toBe(
@@ -3101,15 +3689,15 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     fireEvent.press(screen.getByTestId('notification-permission-allow'));
     await settle();
     expect(memory.permissionRequests).toBe(1);
-    expect(screen.getByTestId('reminder-daily-toggle').props.accessibilityState.checked).toBe(true);
+    expect(screen.getByTestId('reminder-daily-toggle').props.value).toBe(true);
     expect(screen.getByTestId('reminder-daily-time').props.children).toBe('20:00');
     fireEvent.press(screen.getByTestId('reminder-daily-hour-plus'));
     fireEvent.press(screen.getByTestId('reminder-daily-minute-minus'));
     expect(screen.getByTestId('reminder-daily-time').props.children).toBe('20:45');
     await settle();
     expect(memory.planned.some((n) => n.kind === 'daily')).toBe(true);
-    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.checked).toBe(false);
-    expect(screen.getByTestId('reminder-pomodoro-toggle').props.accessibilityState.checked).toBe(false);
+    expect(screen.getByTestId('reminder-long-toggle').props.value).toBe(false);
+    expect(screen.getByTestId('reminder-pomodoro-toggle').props.value).toBe(false);
   });
 
   it('a refused permission keeps the app working and the reminders silent', async () => {
@@ -3157,16 +3745,16 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     act(() => router.push('/hatirlaticilar'));
     await settle();
     // Shown as they are: off. Turning one on explains first, even with the permission granted.
-    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.checked).toBe(false);
-    fireEvent.press(screen.getByTestId('reminder-long-toggle'));
+    expect(screen.getByTestId('reminder-long-toggle').props.value).toBe(false);
+    fireEvent(screen.getByTestId('reminder-long-toggle'), 'valueChange', true);
     await settle();
     expect(screen.getByTestId('notification-permission-item-longSession')).toBeTruthy();
     fireEvent.press(screen.getByTestId('notification-permission-allow'));
     await settle();
     expect(memory.remindersConfirmed).toBe(true);
-    expect(screen.getByTestId('reminder-long-toggle').props.accessibilityState.checked).toBe(true);
+    expect(screen.getByTestId('reminder-long-toggle').props.value).toBe(true);
     // Only that one: the pomodoro reminder stays off until it is turned on by itself.
-    expect(screen.getByTestId('reminder-pomodoro-toggle').props.accessibilityState.checked).toBe(false);
+    expect(screen.getByTestId('reminder-pomodoro-toggle').props.value).toBe(false);
     const kinds = memory.planned.map((n) => n.kind);
     expect(kinds).toContain('long_session');
     expect(kinds).not.toContain('pomodoro');
@@ -3180,7 +3768,7 @@ describe('system surfaces: Live Activity, widget, reminders', () => {
     await settle();
     expect(memory.planned.some((n) => n.kind === 'daily')).toBe(true);
     fireEvent.press(screen.getByRole('button', { name: 'Tüm verileri sil' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Evet, hepsini sil' }));
+    pressAlert('Evet, hepsini sil');
     await settle();
     expect(memory.remindersConfirmed).toBe(false);
     expect(memory.planned).toEqual([]);
@@ -3295,7 +3883,7 @@ describe('timer and data safety', () => {
     fireEvent.press(screen.getByTestId('finish-away-credit'));
     expect(memory.active).toBeNull();
     expect(memory.sessions[0].durationMs).toBe(61 * MIN);
-    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 1 sa 1 dk');
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 1 sa 1 dk');
   });
 
   it('… "Molaydı" saves it without the time away; "Vazgeç" keeps the timer running', () => {
@@ -3875,7 +4463,7 @@ describe('ders karnesi, soru sayısı, ders hedefi, aylık görünüm', () => {
     });
     fireEvent.press(screen.getByRole('button', { name: 'Bitir' }));
     // Saved without waiting for the count; "Geri al" is still there.
-    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 30 dk');
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 30 dk');
     expect(screen.getByTestId('finish-undo')).toBeTruthy();
     expect(memory.sessions[0].questions).toBeUndefined();
 
@@ -4019,7 +4607,9 @@ describe('ders karnesi, soru sayısı, ders hedefi, aylık görünüm', () => {
     ];
     memory.netTargets = { 'TYT:matematik': 30 };
     renderRouter(APP_DIR, { initialUrl: '/karne/matematik' });
-    expect(screen.getByText('Kesik çizgi: hedef net.')).toBeTruthy();
+    expect(screen.queryByText('Kesik çizgi: hedef net.')).toBeNull();
+    expect(screen.getByTestId('report-net-TYT-matematik-target').props.children).toBe('Hedef 30');
+    expect(screen.getByTestId('report-net-TYT-matematik').props.accessibilityLabel).toContain('hedef 30 net');
     fireEvent.press(screen.getByTestId('report-subject-diger'));
     expect(screen.getByTestId('report-exams-empty').props.children).toBe('Bu dersin deneme formunda ayrı bir testi yok.');
   });
@@ -4159,7 +4749,6 @@ describe('accessibility names on key screens', () => {
     '/haftalik',
     '/gecmis',
     '/hakkinda',
-    '/gruplar',
   ])('%s: every control has a role and a name of its own', (url) => {
     renderRouter(APP_DIR, { initialUrl: url });
     const found = controls();
@@ -4178,9 +4767,9 @@ describe('accessibility names on key screens', () => {
   it.each([
     ['an adult', 2000],
     ['a 15–17 student (with the parent part)', 2009],
-  ])('/gruplar, the "Yakında" preview for %s: nothing to press, every heading its own', (_who, birthYear) => {
-    memory.profile = { ...ADULT_SAYISAL, birthYear };
-    renderRouter(APP_DIR, { initialUrl: '/gruplar' });
+  ])('the "Yakında" preview for %s: nothing to press, every heading its own', (_who, birthYear) => {
+    // The preview has no tab while the module is off (0.5.0): rendered on its own.
+    render(<GroupsTeaser profile={{ ...ADULT_SAYISAL, birthYear }} />);
     const teaser = screen.getByTestId('groups-teaser');
     const own = (node: Node) => typeof node.type === 'string' && (isInput(node) || ACTIONABLE.has(roleOf(node) as string));
     expect(teaser.findAll(own).map(idOf)).toEqual([]);
@@ -4208,6 +4797,25 @@ describe('accessibility names on key screens', () => {
         fireEvent.press(screen.getByTestId('subject-matematik'));
         fireEvent.press(screen.getByTestId('topic-picker-toggle'));
         expect(screen.getByTestId('topic-tyt.matematik.fonksiyonlar').props.accessibilityLabel).toBe('TYT Fonksiyonlar');
+      },
+    ],
+    [
+      '/ right after a Bitir that reached the goal, with its topic to mark',
+      () => {
+        renderRouter(APP_DIR, { initialUrl: '/' });
+        fireEvent.press(screen.getByTestId('subject-fizik'));
+        fireEvent.press(screen.getByTestId('topic-picker-toggle'));
+        fireEvent.press(screen.getByTestId('topic-tyt.fizik.basinc'));
+        fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
+        act(() => {
+          jest.setSystemTime(Date.now() + 61 * 60_000);
+          jest.advanceTimersByTime(1000);
+        });
+        fireEvent.press(screen.getByTestId('timer-finish'));
+        // The summary with everything it can hold: the ring, the topic marks, the count, Geri al.
+        for (const id of ['finish-goal-reached', 'goal-ring', 'finish-topic-done', 'finish-questions-save', 'finish-undo']) {
+          expect(screen.getByTestId(id)).toBeTruthy();
+        }
       },
     ],
   ])('%s: every control has a name of its own', (_, open) => {
@@ -4239,13 +4847,15 @@ describe('accessibility names on key screens', () => {
     // The note under "Önce yedek al" in the delete dialog.
     act(() => router.push('/ayarlar'));
     fireEvent.press(screen.getByTestId('settings-delete-all'));
+    const backupFirst = alertButton('Önce yedek al');
     await act(async () => {
-      fireEvent.press(screen.getByTestId('settings-delete-all-backup'));
+      backupFirst();
     });
     // The fixture's two-section TYT exams do not fit the TYT tables, so the note also says they would
-    // be skipped on restore; what is checked here is that the note is read out.
-    expect(announce).toHaveBeenLastCalledWith(
-      expect.stringMatching(/^Yedek dosyası hazırlandı\..*Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez\.$/),
+    // be skipped on restore; what is checked here is that it reaches the system alert, which
+    // VoiceOver reads by itself.
+    expect(lastAlert().message).toMatch(
+      /Yedek dosyası hazırlandı\..*Silmeden önce dosyayı bir yere kaydettiğinden emin ol; Etüt bunu kontrol edemez\.$/,
     );
     announce.mockRestore();
   });
@@ -4275,8 +4885,7 @@ describe('accessibility names on key screens', () => {
     memory.profile = null;
     memory.youngestBirthYear = year - 12;
     renderRouter(APP_DIR, { initialUrl: '/' });
-    fireEvent.press(screen.getByText(String(year - 20)));
-    fireEvent.press(screen.getByText('KPSS'));
+    onboardTo('KPSS', year - 20);
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     fireEvent.press(screen.getByRole('button', { name: 'Başla' }));
     const blocked = screen.getByTestId('onboarding-age-blocked').props.children;
@@ -4287,12 +4896,11 @@ describe('accessibility names on key screens', () => {
   it('reminder toggles are switches named by their reminder', () => {
     memory.reminderPrefs = { daily: { enabled: true, hour: 20, minute: 0 }, longSession: { enabled: false, hours: 3 } };
     renderRouter(APP_DIR, { initialUrl: '/hatirlaticilar' });
+    // The system switch (VoiceOver: "<name>, anahtar, açık/kapalı"); its state is the switch itself.
     const daily = screen.getByRole('switch', { name: 'Günlük çalışma hatırlatıcısı' });
     expect(daily.props.testID).toBe('reminder-daily-toggle');
-    expect(daily.props.accessibilityState).toEqual({ checked: true });
-    expect(screen.getByRole('switch', { name: 'Uzun oturum uyarısı' }).props.accessibilityState).toEqual({ checked: false });
-    // The visible text stays "Açık" / "Kapalı".
-    expect(textOf(daily)).toBe('Açık');
+    expect(daily.props.value).toBe(true);
+    expect(screen.getByRole('switch', { name: 'Uzun oturum uyarısı' }).props.value).toBe(false);
   });
 
   it('topic marks name their topic, with the paper where TYT and AYT share a name', () => {
@@ -4529,5 +5137,153 @@ describe('App Store rating dialog (X-7)', () => {
     await flush();
     expect(memory.active).not.toBeNull();
     expect(mockReview.requests).toBe(0);
+  });
+});
+
+describe('Halka screens: settings rows, weekly tiles, onboarding brand', () => {
+  const RN = jest.requireActual<typeof import('react-native')>('react-native');
+  const studied = (id: string, subjectId: string, startIso: string, minutes: number): CompletedSession => ({
+    id,
+    subjectId,
+    topicId: null,
+    startedAt: Date.parse(startIso),
+    endedAt: Date.parse(startIso) + minutes * 60_000,
+    pauses: [],
+    durationMs: minutes * 60_000,
+    source: 'timer',
+  });
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // Wednesday 12:00 Istanbul
+  });
+
+  it('settings: section titles stand above their cards; screens open from rows, deleting is a tonal button', () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    // Titles are headers outside the cards, written in capitals and read as written.
+    for (const title of ['Profil', 'Günlük hedef', 'Pomodoro', 'Sayaç çalışırken', 'Hatırlatıcılar', 'Veriler', 'Yardım']) {
+      expect(screen.getByRole('header', { name: title })).toBeTruthy();
+    }
+    expect(screen.getByText('SAYAÇ ÇALIŞIRKEN')).toBeTruthy();
+    // Rows that open a screen are buttons named by their title (with a chevron), not tonal buttons.
+    for (const id of ['settings-reminders', 'settings-open-backup', 'settings-open-guide', 'settings-show-tips', 'settings-open-about']) {
+      const row = screen.getByTestId(id);
+      expect(row.props.accessibilityRole).toBe('button');
+      expect(RN.StyleSheet.flatten(row.props.style)?.backgroundColor).toBeUndefined();
+    }
+    expect(RN.StyleSheet.flatten(screen.getByTestId('settings-delete-all').props.style).backgroundColor).toBe(LIGHT.dangerSoft);
+  });
+
+  it('settings: the note on what "Nasıl çalışır" covers sits right under that row, not under "Turu yeniden göster" (V-14)', () => {
+    memory.profile = ADULT_SAYISAL;
+    renderRouter(APP_DIR, { initialUrl: '/ayarlar' });
+    const section = screen.getByTestId('settings-open-guide').parent;
+    let host = section;
+    while (host !== null && typeof host.type !== 'string') host = host.parent;
+    const order = (host?.findAll((n) => typeof n.type === 'string' && (n.props.testID?.startsWith('settings-') || n.props.children === 'Sayaç, net, seri ve yedek kısaca nasıl işliyor.')) ?? [])
+      .map((n) => n.props.testID ?? 'note')
+      .filter((id, i, all) => all.indexOf(id) === i);
+    expect(order).toEqual(['settings-open-guide', 'note', 'settings-show-tips']);
+  });
+
+  it('weekly: the four tiles are each read as "name: value"', () => {
+    memory.profile = ADULT_SAYISAL;
+    memory.sessions = [
+      studied('a', 'matematik', '2026-10-05T07:00:00Z', 60),
+      studied('b', 'fizik', '2026-10-06T07:00:00Z', 120),
+    ];
+    renderRouter(APP_DIR, { initialUrl: '/haftalik' });
+    expect(screen.getByLabelText('Toplam: 3 sa 0 dk')).toBeTruthy();
+    expect(screen.getByLabelText('Çalıştığın gün: 2/7')).toBeTruthy();
+    expect(screen.getByLabelText('Çalıştığın günlerde ortalama: 1 sa 30 dk')).toBeTruthy();
+    expect(screen.getByLabelText('En çok: 6 Ekim 2026 · 2 sa 0 dk')).toBeTruthy();
+  });
+
+  it('onboarding: the ring brand band on top, Başla fixed under the scrolling page, nothing pre-selected (K-15)', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    let page = screen.getByTestId('onboarding-screen');
+    expect(within(page).getByTestId('onboarding-brand')).toBeTruthy();
+    // The title grows like a header, not without limit: at accessibility sizes it left no question
+    // on the first screen (IOS-10).
+    expect(within(page).getByRole('header', { name: 'Etüt’e hoş geldin' }).props.maxFontSizeMultiplier).toBe(1.3);
+    expect(within(page).queryByTestId('onboarding-next')).toBeNull();
+    expect(screen.getAllByRole('button').filter((b) => b.props.accessibilityState?.selected === true)).toEqual([]);
+    onboardTo('KPSS', null);
+    page = screen.getByTestId('onboarding-screen');
+    expect(within(page).queryByTestId('onboarding-start')).toBeNull();
+    expect(within(page).queryByTestId('onboarding-demo')).toBeNull();
+    expect(screen.getByTestId('onboarding-start').props.accessibilityState.disabled).toBe(true);
+    expect(screen.getByTestId('onboarding-demo').props.accessibilityState.disabled).toBe(true);
+    expect(screen.getAllByRole('button').filter((b) => b.props.accessibilityState?.selected === true)).toEqual([]);
+  });
+});
+
+describe('study plan (0.5.0)', () => {
+  beforeEach(() => {
+    memory.profile = ADULT_SAYISAL;
+    jest.useFakeTimers();
+    jest.setSystemTime(Date.parse('2026-10-07T09:00:00Z')); // Wednesday, 12:00 Istanbul
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  /** All plain texts under a node. */
+  const texts = (testID: string) =>
+    screen
+      .getByTestId(testID)
+      .findAll((n) => typeof n.type === 'string' && typeof n.props.children === 'string')
+      .map((n) => n.props.children as string);
+
+  it('day one with no data: "Bugünün planı" lists real subjects and topics, and "Başlat" starts that subject', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    expect(within(screen.getByTestId('plan-card')).getByText('Bugünün planı')).toBeTruthy();
+    const first = texts('plan-block-0');
+    // "<Ders> · <dk> dk" and "<Konu> · <neden>": a real topic name from the curriculum, not an id.
+    expect(first[0]).toMatch(/^.+ · \d+ dk$/);
+    expect(first[1]).toMatch(/^[A-ZÇĞİÖŞÜ].* · .+$/);
+    expect(first[1]).not.toMatch(/tyt\.|ayt\./);
+    expect(screen.getByTestId('plan-progress').props.children).toMatch(/^0\/\d+ tamam$/);
+    fireEvent.press(screen.getByTestId('plan-block-start-0'));
+    expect(memory.active).not.toBeNull();
+    expect(memory.active?.topicId).toEqual(expect.any(String));
+    // While the timer runs the card is out of the way.
+    expect(screen.queryByTestId('plan-card')).toBeNull();
+  });
+
+  it('the Plan tab opens on the week: 7 days, the phase and the weekly total', () => {
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    act(() => router.push('/plan'));
+    expect(screen.getByTestId('plan-week')).toBeTruthy();
+    for (let d = 0; d < 7; d++) expect(screen.getByTestId(`plan-day-${d}`)).toBeTruthy();
+    expect(screen.getByTestId('plan-phase').props.children).toBe('Öğrenme dönemi');
+    // Default availability without a daily goal: 5 × 120 + 2 × 180 dk = 16 sa.
+    expect(screen.getByTestId('plan-week-total').props.children).toBe('Haftalık toplam: 16 sa 0 dk');
+    fireEvent.press(screen.getByTestId('plan-refresh'));
+    expect(screen.getByTestId('plan-week')).toBeTruthy();
+  });
+
+  it('a stepper changes the availability: stored at once, the weekly total follows', () => {
+    renderRouter(APP_DIR, { initialUrl: '/plan' });
+    fireEvent.press(screen.getByTestId('plan-availability-0-plus'));
+    expect(JSON.parse(mockKvRows.get('etut.studyAvailability.v1') ?? 'null')).toEqual({
+      0: 135, 1: 120, 2: 120, 3: 120, 4: 120, 5: 180, 6: 180,
+    });
+    expect(screen.getByTestId('plan-week-total').props.children).toBe('Haftalık toplam: 16 sa 15 dk');
+    fireEvent.press(screen.getByTestId('plan-availability-6-minus'));
+    expect(screen.getByTestId('plan-week-total').props.children).toBe('Haftalık toplam: 16 sa 0 dk');
+  });
+
+  it('a daily goal above 8 hours: the default week is capped at 8 hours and "−" is stored', () => {
+    memory.dailyGoal = 600;
+    renderRouter(APP_DIR, { initialUrl: '/plan' });
+    // Mon–Sat 480 dk, Sunday off: 6 × 8 sa.
+    expect(screen.getByTestId('plan-week-total').props.children).toBe('Haftalık toplam: 48 sa 0 dk');
+    fireEvent.press(screen.getByTestId('plan-availability-0-minus'));
+    expect(JSON.parse(mockKvRows.get('etut.studyAvailability.v1') ?? 'null')).toEqual({
+      0: 465, 1: 480, 2: 480, 3: 480, 4: 480, 5: 480, 6: 0,
+    });
+    expect(screen.getByTestId('plan-week-total').props.children).toBe('Haftalık toplam: 47 sa 45 dk');
   });
 });

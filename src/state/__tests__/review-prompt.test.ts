@@ -13,6 +13,12 @@ const mockReview = {
   failRequest: false,
 };
 
+/** Demo mode (storage/demo.ts) is off here: the student's own data only. */
+jest.mock('../../storage/demo', () => ({
+  isDemo: () => false,
+  enterDemo: () => 'ok',
+  exitDemo: () => {},
+}));
 jest.mock('../../storage/review-kv', () => ({
   loadReviewAskedAt: () => {
     if (mockReview.failRead) throw new Error('kv-store unavailable');

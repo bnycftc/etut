@@ -9,6 +9,7 @@ import { AppState } from 'react-native';
 
 import type { Profile } from '../domain/profile';
 import { type ReviewMoment, shouldAskForReview } from '../domain/review-prompt';
+import { isDemo } from '../storage/demo';
 import { loadReviewAskedAt, storeReviewAskedAt } from '../storage/review-kv';
 import { storeReview } from '../system/store-review';
 import { useAppState } from './app-state';
@@ -16,6 +17,8 @@ import { useAppState } from './app-state';
 /** `moment` is read inside the try: a failure while reading it (e.g. counting exams) stays silent too. */
 export async function askForReviewIfDue(profile: Profile | null, sessionActive: boolean, moment: () => ReviewMoment) {
   try {
+    // Example data ("Örnek verilerle gez") is no moment of the student's own: never asked then.
+    if (isDemo()) return;
     const now = Date.now();
     const check = {
       profile,

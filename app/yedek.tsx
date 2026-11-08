@@ -23,7 +23,7 @@ import { pickTextFile, type ShareResult, shareTextFile } from '@/storage/file-io
 import { loadReplaceUndo, storeReplaceUndo } from '@/storage/kv';
 import { tr } from '@/strings';
 import { LastBackupLabel } from '@/ui/backup-reminder';
-import { Button, Card, Chip, ChipRow, Label, Screen } from '@/ui/components';
+import { Button, Card, Chip, ChipRow, Label, Screen, Section } from '@/ui/components';
 import { formatDay } from '@/ui/format';
 import { usePalette } from '@/ui/theme';
 
@@ -44,7 +44,7 @@ function formatMoment(ms: number): string {
 
 /** Backup to a JSON file, restore from it (merge or replace), and CSV export. */
 export default function BackupScreen() {
-  const { createBackup, importBackup, undoReplace, dataVersions, notifyDataChanged } = useAppState();
+  const { createBackup, importBackup, undoReplace, dataVersions, notifyDataChanged, demo } = useAppState();
   const c = usePalette();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -200,6 +200,12 @@ export default function BackupScreen() {
   return (
     <Screen testID="backup-screen">
       <Label variant="muted">{tr.backup.info}</Label>
+      {/* Example data (demo mode) is not the student's: nothing is backed up, restored or exported. */}
+      {demo ? (
+        <Label testID="backup-demo-disabled" style={{ color: c.danger }}>
+          {tr.demo.backupDisabled}
+        </Label>
+      ) : null}
 
       {message !== null ? <Label testID="backup-message" live>{message}</Label> : null}
       {error !== null ? (
@@ -208,7 +214,7 @@ export default function BackupScreen() {
         </Label>
       ) : null}
 
-      {undo !== null && undoable && pending === null ? (
+      {undo !== null && undoable && pending === null && !demo ? (
         <Card testID="backup-undo-card">
           <Label variant="heading">{tr.backupSafety.undoTitle}</Label>
           <Label variant="muted">{tr.backupSafety.undoInfo(formatMoment(undo.createdAt))}</Label>
@@ -263,11 +269,11 @@ export default function BackupScreen() {
 
       <Card>
         <LastBackupLabel testID="backup-last" note />
-        <Button testID="backup-export" title={tr.backup.export} disabled={busy} onPress={exportBackup} />
-        <Button testID="backup-import" kind="secondary" title={tr.backup.import} disabled={busy} onPress={pick} />
+        <Button testID="backup-export" title={tr.backup.export} disabled={busy || demo} onPress={exportBackup} />
+        <Button testID="backup-import" kind="secondary" title={tr.backup.import} disabled={busy || demo} onPress={pick} />
       </Card>
 
-      {pending !== null && preview !== null ? (
+      {pending !== null && preview !== null && !demo ? (
         <Card testID="backup-preview">
           <Label testID="backup-preview-counts">{tr.backup.picked(preview.sessions, preview.exams, preview.topics)}</Label>
           {skipped > 0 ? (
@@ -327,24 +333,25 @@ export default function BackupScreen() {
         </Card>
       ) : null}
 
-      <Card>
-        <Label variant="heading">{tr.backup.csvTitle}</Label>
-        <Label variant="muted">{tr.backup.csvInfo}</Label>
-        <Button
-          testID="csv-sessions"
-          kind="secondary"
-          title={tr.backup.csvSessions}
-          disabled={busy}
-          onPress={() => exportCsv('sessions')}
-        />
-        <Button
-          testID="csv-exams"
-          kind="secondary"
-          title={tr.backup.csvExams}
-          disabled={busy}
-          onPress={() => exportCsv('exams')}
-        />
-      </Card>
+      <Section title={tr.backup.csvTitle}>
+        <Card>
+          <Label variant="muted">{tr.backup.csvInfo}</Label>
+          <Button
+            testID="csv-sessions"
+            kind="secondary"
+            title={tr.backup.csvSessions}
+            disabled={busy || demo}
+            onPress={() => exportCsv('sessions')}
+          />
+          <Button
+            testID="csv-exams"
+            kind="secondary"
+            title={tr.backup.csvExams}
+            disabled={busy || demo}
+            onPress={() => exportCsv('exams')}
+          />
+        </Card>
+      </Section>
     </Screen>
   );
 }

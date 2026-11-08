@@ -31,7 +31,7 @@ export const DATA_CONTROLLER = {
 };
 
 /** Date shown as "Son güncelleme" on the legal texts. */
-export const LEGAL_UPDATED = '31 Ekim 2026';
+export const LEGAL_UPDATED = '3 Kasım 2026';
 
 export interface LegalSection {
   heading: string;
@@ -51,8 +51,10 @@ const C = DATA_CONTROLLER;
  */
 // [AVUKAT TEYİDİ] Liste dosyanın gerçek içeriğine göre tamamlandı (alan, son ders, dosya bilgisi).
 // [AVUKAT TEYİDİ] 0.4.1: hedef geçmişi eklendi (hedefin değiştirildiği günler ve değerleri, `dailyGoalHistory`).
+// [AVUKAT TEYİDİ] 0.5.0: haftalık müsaitlik eklendi (haftanın her günü için kaç dakika çalışabileceğin,
+// `availability`, yedek şeması 3). Plan kendisi saklanmaz; bu dakikalardan her açılışta yeniden hesaplanır.
 const BACKUP_CONTENTS =
-  'Yedek dosyasında doğum yılın, sınav türün ve alanın, tüm çalışma kayıtların (soru sayıları dahil), deneme netlerin ve analizlerin, konu işaretlerin, günlük hedefin (ve hangi gün kaça değiştirdiğin), derslere koyduğun haftalık hedefler, hedef netlerin, sınav tarihlerin, sayacı en son başlattığın ders, sayaç türün ve pomodoro ayarların, bir de dosyanın oluşturulduğu zaman ve uygulama sürümü bulunur. CSV dosyaları çalışma kayıtlarını (girdiysen soru sayısıyla) ve denemeleri içerir.';
+  'Yedek dosyasında doğum yılın, sınav türün ve alanın, tüm çalışma kayıtların (soru sayıları dahil), deneme netlerin ve analizlerin, konu işaretlerin, günlük hedefin (ve hangi gün kaça değiştirdiğin), derslere koyduğun haftalık hedefler, hedef netlerin, sınav tarihlerin, haftanın hangi günü kaç dakika çalışabileceğin (plan için), sayacı en son başlattığın ders, sayaç türün ve pomodoro ayarların, bir de dosyanın oluşturulduğu zaman ve uygulama sürümü bulunur. CSV dosyaları çalışma kayıtlarını (girdiysen soru sayısıyla) ve denemeleri içerir.';
 
 const legalDocs = {
   aydinlatma: {
@@ -71,7 +73,13 @@ const legalDocs = {
           // [AVUKAT TEYİDİ] 0.4.1 (X-7): "uygulamanın App Store puanlama penceresini en son ne zaman istediği"
           // eklendi (Gizlilik §2'de de). Yalnız bu telefonda durur, yedeğe girmez; tek amacı pencereyi 120 günde
           // bir kezden sık istememek. "Ne için?" cümlesi bu amacı ayrıca anmıyor; yeterli mi.
-          'Doğum yılın (yalnız yıl), sınav türün ve alanın; çalışma oturumların (ders, konu, başlangıç ve bitiş zamanı, molalar ve uygulamadan çıktığın süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı); konu ilerlemen; deneme netlerin ve analizlerin; günlük hedefin ve hedefini hangi gün kaça değiştirdiğin, derslere koyduğun haftalık hedefler, hedef netlerin ve sınav tarihin; sayaç ayarların (pomodoro, ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihlerin, en son ne zaman yedek dosyası oluşturduğun, yedek hatırlatmasını ne zaman kapattığın ve uygulamanın App Store puanlama penceresini en son ne zaman istediği.',
+          // [AVUKAT TEYİDİ] 0.5.0: "haftanın hangi günü kaç dakika çalışabileceğin" eklendi (haftalık plan
+          // için; yedeğe girer). Haftalık plan saklanmaz, bu dakikalardan ve kayıtlarından yeniden hesaplanır.
+          // [AVUKAT TEYİDİ] 0.5.0: "Örnek verilerle gez" modu: uygulama kendi ürettiği örnek kayıtları ayrı
+          // dosyalarda tutar, bunlar öğrenciye ait değildir ve moddan çıkınca silinir; kişisel veri sayılmadığı
+          // varsayımıyla ayrı bir kategori olarak yazılmadı, yalnız bu cümleyle anıldı. Yeterli mi.
+          'Doğum yılın (yalnız yıl), sınav türün ve alanın; çalışma oturumların (ders, konu, başlangıç ve bitiş zamanı, molalar ve uygulamadan çıktığın süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı); konu ilerlemen; deneme netlerin ve analizlerin; günlük hedefin ve hedefini hangi gün kaça değiştirdiğin, derslere koyduğun haftalık hedefler, hedef netlerin ve sınav tarihin; haftanın hangi günü kaç dakika çalışabileceğin (haftalık planın bundan hesaplanır, planın kendisi saklanmaz); sayaç ayarların (pomodoro, ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihlerin, en son ne zaman yedek dosyası oluşturduğun, yedek hatırlatmasını ne zaman kapattığın ve uygulamanın App Store puanlama penceresini en son ne zaman istediği.',
+          '“Örnek verilerle gez” dersen uygulama kendi ürettiği örnek kayıtları ayrı dosyalarda tutar; bunlar sana ait bilgi değildir ve örnek moddan çıkınca silinir.',
           // [AVUKAT TEYİDİ] Toplama yöntemi (KVKK m.10/1-ç; `docs/hukuk/kvkk/01` zorunlu unsur): otomatik
           // (cihazda) ve otomatik olmayan (e-posta) ayrımı bu cümleyle yeterli mi.
           'Bu bilgiler, uygulamayı kullanırken senin girdiklerinden ve sayacın tuttuğu zamanlardan oluşur; uygulama onları otomatik olarak bu telefona kaydeder. Bize e-postayla yazarsan yazdıkların bize elektronik ortamda, kısmen otomatik yollarla ulaşır.',
@@ -163,11 +171,19 @@ const legalDocs = {
           // [AVUKAT TEYİDİ] 0.4.1: hedef geçmişi eklendi (hedefin değiştirildiği günler ve değerleri).
           // [AVUKAT TEYİDİ] 0.4.1 (X-7): puanlama penceresinin en son istendiği zaman eklendi; bkz. Aydınlatma
           // "Uygulama ne kaydediyor?" notu.
-          'Doğum yılı (yaş kuralı için), sınav türü ve alan (ders ve konu listesi için), çalışma oturumları (ders, konu, zamanlar, molalar ve uygulama dışında geçen süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı), konu ilerlemesi, deneme netleri ve analizleri, günlük hedef ve hedefin değiştirildiği günler ile değerleri, derslere koyduğun haftalık hedefler, hedef netler, sınav tarihi, pomodoro ve sayaç ayarları (ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihleri, son yedek dosyasının oluşturulma zamanı, yedek hatırlatmasının kapatıldığı zaman ve App Store puanlama penceresinin en son istendiği zaman.',
+          // [AVUKAT TEYİDİ] 0.5.0: haftalık müsaitlik (gün başına dakika) ve "Örnek verilerle gez" cümlesi
+          // eklendi; bkz. Aydınlatma "Uygulama ne kaydediyor?" notları.
+          'Doğum yılı (yaş kuralı için), sınav türü ve alan (ders ve konu listesi için), çalışma oturumları (ders, konu, zamanlar, molalar ve uygulama dışında geçen süreler, “elle” bilgisi, istersen girdiğin çözülen soru sayısı), konu ilerlemesi, deneme netleri ve analizleri, günlük hedef ve hedefin değiştirildiği günler ile değerleri, derslere koyduğun haftalık hedefler, hedef netler, sınav tarihi, haftanın hangi günü kaç dakika çalışabileceğin (haftalık plan için; planın kendisi saklanmaz, her açılışta yeniden hesaplanır), pomodoro ve sayaç ayarları (ekranı açık tutma, uygulamadan çıkınca ne olacağı), hatırlatıcı tercihleri, son yedek dosyasının oluşturulma zamanı, yedek hatırlatmasının kapatıldığı zaman ve App Store puanlama penceresinin en son istendiği zaman.',
+          '“Örnek verilerle gez” modunda uygulamanın kendi ürettiği örnek kayıtlar ayrı dosyalarda durur; sana ait değildir ve moddan çıkınca silinir.',
           'Yedekten “Değiştir” ile yükleme yaparsan, geri alabilmen için önceki verilerinin bir kopyası bir gün boyunca bu telefonda kalır (5. bölüm).',
           // [AVUKAT TEYİDİ] Widget koşulu kaldırıldı (uygulama bu alana her değişiklikte yazar) ve kilit ekranı
           // sayacının gösterdiği ders ve konu adı eklendi.
-          'iPhone’da uygulama, widget gösterebilsin diye bugünkü süre, hedef, seri ve sınavına kalan gün bilgisini, widget eklemesen de, widget’ın okuyabildiği ortak bir alanda yine bu telefonda tutar. Sayaç açıkken kilit ekranında ve Dynamic Island’da ders ve konu adı görünür.',
+          // [AVUKAT TEYİDİ] 0.5.0: ortak alana planın sıradaki bloğu (ders, konu, dakika) da yazılıyor; kilit
+          // ekranı sayacında bloğun ilerlemesi görünüyor.
+          // [AVUKAT TEYİDİ] 0.5.0: iPad
+          // [AVUKAT TEYİDİ] 0.5.0: demo yüzeyleri ("Örnek verilerle gez" açıkken widget ve kilit ekranı örnek
+          // verileri gösterir; moddan çıkınca kendi verin yeniden yazılır).
+          'iPhone ve iPad’de uygulama, widget gösterebilsin diye bugünkü süre, hedef, seri, sınavına kalan gün ve planındaki sıradaki bloğun (ders, konu, dakika) bilgisini, widget eklemesen de, widget’ın okuyabildiği ortak bir alanda yine bu cihazda tutar. Sayaç açıkken kilit ekranında ve Dynamic Island’da ders ve konu adı, bir plan bloğundan başlattıysan bloğun ilerlemesi görünür. “Örnek verilerle gez” açıkken bu alana örnek veriler yazılır; örnek moddan çıkınca yerini yine kendi verin alır.',
           'Uygulama ad, e-posta, telefon, okul, konum, rehber, fotoğraf ve reklam kimliği hiç sormaz ve toplamaz.',
         ],
       },
@@ -341,6 +357,13 @@ const examTypes: Record<ExamType, string> = {
   DIGER: 'Diğer',
 };
 
+/** "YKS’ye 258 gün" — every built-in exam name ends in "S", so the suffix is "’ye". */
+const countdownDays = (examType: ExamType, days: number): string =>
+  examType === 'DIGER' ? `Sınavına ${days} gün` : `${examTypes[examType]}’ye ${days} gün`;
+
+/** The day's one celebration after Bitir: shown under the saved time and read out with it. */
+const finishGoalReached = 'Bugünkü hedef tamam';
+
 const yksAreas: Record<YksArea, string> = {
   sayisal: 'Sayısal',
   esit_agirlik: 'Eşit Ağırlık',
@@ -399,10 +422,8 @@ export const tr = {
     cancel: 'Vazgeç',
     save: 'Kaydet',
     delete: 'Sil',
-    /** The bar above the number pad (it has no return key). */
+    /** The button of the system bar above the number pad (it has no return key). */
     keyboardDone: 'Bitti',
-    /** Its screen-reader name: which box it closes the keyboard of (`Klavyeyi kapat: Süre, Saat`). */
-    keyboardDoneA11y: (field: string) => `Klavyeyi kapat: ${field}`,
   },
 
   /** Root error screen (app/_layout.tsx ErrorBoundary): nothing is deleted, nothing is sent. */
@@ -432,6 +453,36 @@ export const tr = {
     start: 'Başla',
     ageBlocked: 'Bu doğum yılı bu cihazda kaydedilemiyor. Seçimini kontrol edip yeniden dene.',
     privacyLink: 'Bilgilerin nasıl saklanıyor?',
+    /** Four short steps: exam, countdown, daily goal, birth year. */
+    step: (n: number, total: number) => `Adım ${n}/${total}`,
+    next: 'İleri',
+    back: 'Geri',
+    countdownTitle: 'Sınavına kalan süre',
+    countdownHint: 'Tarihi sonra Ayarlar’dan da değiştirebilirsin.',
+    countdownNone: 'Bu sınav için hazır bir tarih yok. İstersen tarihini gir; geri sayım Sayaç ekranında görünür.',
+    changeDate: 'Tarihi değiştir',
+    /** Equal to Başla on the last step. */
+    demo: 'Örnek verilerle gez',
+    demoHint: 'Uygulamayı önce örnek verilerle tanıyabilirsin; kendi kayıtların ayrı kalır, istediğin an çıkarsın.',
+  },
+
+  /** Demo mode ("Örnek verilerle gez"): example data in files of its own; the student's own is never touched. */
+  demo: {
+    banner: 'Örnek veriler',
+    exit: 'Çık',
+    exitA11y: 'Örnek verilerden çık',
+    enter: 'Örnek verilerle gez',
+    enterInfo: 'Dolu bir uygulama nasıl görünür, örnek verilerle bak. Kendi kayıtların ayrı kalır, değişmez.',
+    leave: 'Örnek moddan çık',
+    leaveInfo: 'Şu an örnek verileri görüyorsun. Çıkınca kendi kayıtlarına dönersin; örnek veriler silinir.',
+    timerRunning: 'Sayaç çalışırken örnek verilere geçilemez. Önce oturumunu bitir.',
+    backupDisabled: 'Örnek modda yedek alınmaz.',
+    /** Ayarlar → profile: the exam and area are the student's own, not changed from the example data. */
+    examLocked: 'Örnek modda sınav ve alan değiştirilmez; önce örnek moddan çık.',
+    /** "Tüm verileri sil" in demo mode: only the example data goes (storage/wipe.ts). */
+    deleteAll: 'Örnek verileri sil ve örnek moddan çık',
+    deleteAllConfirm: 'Örnek veriler bu cihazdan silinir ve kendi kayıtlarına dönersin. Kendi kayıtların silinmez.',
+    deleteAllYes: 'Evet, örnek verileri sil',
   },
 
   timer: {
@@ -440,6 +491,9 @@ export const tr = {
     todayQuestions: (n: number) => `· ${n} soru`,
     history: 'Geçmiş',
     pickSubject: 'Ders seç',
+    /** After the recently studied subjects: shows the rest of the list. */
+    allSubjects: 'Tüm dersler',
+    allSubjectsHint: (more: number) => `${more} ders daha gösterir`,
     start: 'Başla',
     pause: 'Mola',
     resume: 'Devam',
@@ -524,6 +578,10 @@ export const tr = {
     met: 'Bugünkü hedefini tutturdun.',
     set: 'Günlük hedef koy',
     streak: (days: number) => `Seri: ${days} gün`,
+    /** The compact streak badge on the timer's "Bugün" card (read out as `streak`). */
+    streakBadge: (days: number) => `${days} gün`,
+    /** Under the badge: the rule, never a warning (one missed day a week keeps the streak). */
+    restRule: 'Haftada 1 dinlenme günü hakkın var',
     restUsed: 'Bu haftaki dinlenme günün kullanıldı.',
     restFree: 'Bu hafta 1 dinlenme günü hakkın var.',
     turnOff: 'Hedefi kapat',
@@ -534,10 +592,17 @@ export const tr = {
   },
 
   countdown: {
-    /** "YKS'ye 258 gün" — every built-in exam name ends in "S", so the suffix is "'ye". */
-    days: (examType: ExamType, days: number) =>
-      examType === 'DIGER' ? `Sınavına ${days} gün` : `${examTypes[examType]}’ye ${days} gün`,
+    /** "YKS’ye 258 gün" (the widget). */
+    days: countdownDays,
+    /** The one muted line on the timer's "Bugün" card: "YKS · 258 gün · tahmini". */
+    line: (examType: ExamType, days: number, estimated: boolean) =>
+      `${examType === 'DIGER' ? 'Sınav' : examTypes[examType]} · ${days} gün${estimated ? ' · tahmini' : ''}`,
+    /** What a screen reader says for `line`: "YKS’ye 258 gün, tahmini tarih". */
+    lineA11y: (examType: ExamType, days: number, estimated: boolean) =>
+      `${countdownDays(examType, days)}${estimated ? ', tahmini tarih' : ''}`,
     today: 'Sınav günü bugün. Başarılar!',
+    /** The exam day by the built-in estimate: it may not be the real day. */
+    todayEstimated: 'Tahmini sınav günü bugün. Başarılar!',
     estimated: 'tahmini',
     custom: 'senin girdiğin tarih',
     settingsTitle: 'Sınav tarihi',
@@ -578,8 +643,9 @@ export const tr = {
   weekly: {
     title: 'Haftalık özet',
     range: (from: string, to: string) => `${from} – ${to}`,
-    prev: '‹ Önceki hafta',
-    next: 'Sonraki hafta ›',
+    /** Screen-reader names of the ‹ › buttons around the week. */
+    prev: 'Önceki hafta',
+    next: 'Sonraki hafta',
     total: 'Toplam',
     previousWeek: (duration: string) => `Önceki hafta: ${duration}`,
     subjects: 'Ders dağılımı',
@@ -587,8 +653,59 @@ export const tr = {
     streak: 'Seri',
     goalDays: (n: number) => `Hedefi tutturduğun gün: ${n}/7`,
     activeDays: (n: number) => `Çalıştığın gün: ${n}/7`,
+    /** The 2 × 2 tiles at the top of the week; each is read as one "label: value" (`activeDays` for the days). */
+    tileDays: 'Çalıştığın gün',
+    tileDaysValue: (n: number) => `${n}/7`,
+    tileAverage: 'Ortalama',
+    tileAverageA11y: (duration: string) => `Çalıştığın günlerde ortalama: ${duration}`,
+    tileBest: 'En çok',
+    tileBestA11y: (day: string, duration: string) => `En çok: ${day} · ${duration}`,
+    tileA11y: (label: string, value: string) => `${label}: ${value}`,
+    /** An empty week's average and best day. */
+    tileNone: '–',
     manual: (duration: string) => `Elle eklenen: ${duration}`,
     percent: (p: number) => `%${p}`,
+  },
+
+  /** Weekly study plan (`domain/study-plan.ts`): the Plan tab and the "Bugünün planı" card. */
+  plan: {
+    tab: 'Plan',
+    today: 'Bugünün planı',
+    /** Muted line under the card title: how many of today's blocks are covered by today's study. */
+    todayProgress: (done: number, total: number) => `${done}/${total} tamam`,
+    week: 'Bu hafta',
+    weekTotal: (duration: string) => `Haftalık toplam: ${duration}`,
+    dayTotal: (duration: string) => `${duration}`,
+    phaseLearn: 'Öğrenme dönemi',
+    phaseMixed: 'Karışık dönem',
+    phaseReview: 'Tekrar dönemi',
+    /** Days left to the exam, counted from the week's Monday; `null` = no date. */
+    daysLeft: (n: number) => (n < 0 ? 'Sınav tarihi geçti' : n === 0 ? 'Sınav bu hafta' : `Sınava ${n} gün`),
+    availability: 'Müsait olduğun süre',
+    availabilityInfo: 'Her gün çalışabileceğin süreyi seç; plan bu sürelere göre kurulur. 25 dakikanın altındaki gün dinlenme günü olur.',
+    availabilityValue: (minutes: number) => (minutes === 0 ? 'Dinlenme' : `${minutes} dk`),
+    availabilityA11y: (day: string) => `${day} müsait süre`,
+    refresh: 'Planı yenile',
+    refreshed: 'Plan yenilendi',
+    rest: 'Bugün dinlenme günü: planında bugün için çalışma yok. Yine de çalışmak istersen aşağıdan bir ders seçebilirsin.',
+    restDay: 'Dinlenme günü',
+    /** One block: `Matematik · 45 dk`. */
+    blockTitle: (subject: string, minutes: number) => `${subject} · ${minutes} dk`,
+    /** The block's second line: topic (if any) and why it is in the plan. */
+    blockDetail: (topic: string | null, reason: string) => (topic === null ? reason : `${topic} · ${reason}`),
+    blockDone: 'Tamam',
+    reason: {
+      review: 'tekrar lazım dediğin konu',
+      missed: 'denemelerde kaçırdığın konu',
+      next: 'sıradaki konu',
+      target: 'haftalık ders hedefin',
+      examDay: 'deneme günü: süre tutarak soru çöz',
+      balance: 'dersler arası denge',
+    },
+    start: 'Başlat',
+    startA11y: (subject: string, topic: string | null, minutes: number) =>
+      `${topic === null ? subject : `${subject}, ${topic}`}, ${minutes} dakika: sayacı başlat`,
+    doneA11y: 'tamamlandı',
   },
 
   pomodoro: {
@@ -624,6 +741,8 @@ export const tr = {
     preset: (work: number, short: number) => `${work}/${short}`,
     presetA11y: (work: number, short: number) => `${work} dakika çalışma, ${short} dakika mola`,
     reset: 'Varsayılana dön',
+    /** Opens the durations under the presets (a closed group, like iOS's disclosure). */
+    details: 'Ayrıntı',
   },
 
   topicPicker: {
@@ -705,8 +824,9 @@ export const tr = {
     scope: 'Deneme türü',
     section: 'Ders',
     date: 'Deneme tarihi',
-    prevDay: '‹ Önceki gün',
-    nextDay: 'Sonraki gün ›',
+    /** Screen-reader names of the ‹ › buttons around the day. */
+    prevDay: 'Önceki gün',
+    nextDay: 'Sonraki gün',
     correct: 'Doğru',
     wrong: 'Yanlış',
     /** Screen-reader name of a count box: which section it belongs to. */
@@ -746,7 +866,10 @@ export const tr = {
     chartSingle: (last: string) => `Son deneme: ${last} net. Bir deneme daha ekleyince eğilim görünür.`,
     chartChange: (last: string, change: string) => `Son deneme: ${last} net · öncekinden ${change}`,
     chartBransLegend: 'Dolu nokta genel, içi boş nokta branş denemesi.',
-    chartTargetLegend: 'Kesik çizgi: hedef net.',
+    /** The target band in a net chart, written at its right end. */
+    chartTarget: (net: string) => `Hedef ${net}`,
+    /** The target in the chart's spoken summary. */
+    chartTargetA11y: (net: string) => `hedef ${net} net`,
     /** Confirmation on the list right after "Kaydet" in the new-exam form. */
     saved: (net: string) => `${net} net kaydedildi`,
     savedAnalysisHint: 'Kitapçık elindeyse şimdi analize başla; değilse sonra bu sekmeden de başlayabilirsin.',
@@ -754,6 +877,54 @@ export const tr = {
     savedDismissA11y: 'Kaydedildi bilgisini kapat',
     /** The list shows the newest exams first, a page at a time. */
     showMore: 'Daha fazla göster',
+  },
+
+  netCalc: {
+    title: 'Net hesapla',
+    /** The button on the exams tab and the line in "Nasıl çalışır". */
+    open: 'Net hesapla',
+    guideLink: 'Net nasıl hesaplanır?',
+    kind: 'Sınav',
+    correct: 'Doğru',
+    wrong: 'Yanlış',
+    net: 'net',
+    total: 'Toplam net',
+    saveAsExam: 'Deneme olarak kaydet',
+    /** The rule in one line, read from net.ts (4 for YKS/KPSS, 3 for LGS). */
+    hint: (wrongsPerCorrect: number) =>
+      `Her derste net = doğru − yanlış/${wrongsPerCorrect}. Boş bıraktığın sorular neti etkilemez. Burada hiçbir şey kaydedilmez.`,
+    /** Screen-reader name of a count box: which section it belongs to. */
+    countLabel: (section: string, what: string) => `${section}, ${what}`,
+    sectionA11y: (section: string, net: string) => `${section}: ${net} net`,
+    close: 'Kapat',
+  },
+
+  topicDetail: {
+    title: 'Konu',
+    /** `Matematik · TYT` */
+    source: (subject: string, paper: string) => `${subject} · ${paper}`,
+    totalTime: 'Toplam süre',
+    sessionCount: (n: number) => `${n} oturum`,
+    lastStudied: 'Son çalışma',
+    never: 'Henüz çalışılmadı',
+    wrongBlank: 'Denemelerde yanlış · boş',
+    wrongBlankValue: (wrong: number, blank: number) => `${wrong} yanlış · ${blank} boş`,
+    examCount: (n: number) => (n === 0 ? 'Analizlerde bu konu henüz işaretlenmedi.' : `${n} denemenin analizinden`),
+    mark: 'Durum',
+    sessions: 'Son oturumlar',
+    sessionsEmpty: 'Bu konuda kayıtlı oturum yok.',
+    /** `4 Kasım 2026 · 45 dk` */
+    sessionLine: (day: string, duration: string) => `${day} · ${duration}`,
+    study: 'Bu konuyu çalış',
+    studyBusy: 'Sayaç çalışırken yeni bir oturum başlatılamaz.',
+    notFound: 'Konu bulunamadı.',
+    /** Konular: only the "tekrar lazım" topics. */
+    filterReview: 'Yalnız tekrar lazım',
+    filterReviewEmpty: 'Bu derste “Tekrar lazım” işaretli konu yok.',
+    /** Screen-reader hint of a topic row on Konular. */
+    openHint: 'Konunun ayrıntısını açar',
+    /** Progress of one paper on Konular: `TYT: %40`. */
+    paperProgressA11y: (paper: string) => `${paper} ilerlemesi`,
   },
 
   analysis: {
@@ -845,7 +1016,8 @@ export const tr = {
    */
   reminders: {
     title: 'Hatırlatıcılar',
-    open: 'Hatırlatıcılar',
+    /** The row under the "Hatırlatıcılar" section title in Ayarlar. */
+    open: 'Hatırlatıcıları ayarla',
     summaryOff: 'Bildirim izni verilmedi; hatırlatıcılar gelmez.',
     summaryOn: (count: number) => (count === 0 ? 'Açık hatırlatıcı yok.' : `${count} hatırlatıcı açık.`),
     info: 'Hatırlatıcılar bu cihazda kurulur; hiçbir sunucuya bir şey gönderilmez. Uygulama açıkken yalnız uzun oturum uyarısı gösterilir.',
@@ -855,8 +1027,6 @@ export const tr = {
       'Bildirim izni kapalı. Telefonun Ayarlar uygulamasından Etüt’ün bildirimlerini açabilirsin.',
     openSettings: 'Ayarları aç',
     unsupported: 'Bu cihazda hatırlatıcı yok.',
-    on: 'Açık',
-    off: 'Kapalı',
     longSession: 'Uzun oturum uyarısı',
     longSessionInfo: (hours: number) =>
       `Sayaç ${hours} saat boyunca duraklatılmadan açık kalırsa “Hâlâ çalışıyor musun?” diye sorar. Pomodoro molaları sayacı duraklatmaz.`,
@@ -942,6 +1112,21 @@ export const tr = {
     goal: (goal: string) => `Hedef ${goal}`,
     goalMet: 'Hedef tamam',
     running: 'Sayaç açık',
+    /** Medium widget: the first plan block not done yet ("Sıradaki: Matematik · Türev 45 dk"). */
+    next: (subject: string, topic: string | null, minutes: number) =>
+      `Sıradaki: ${topic === null ? subject : `${subject} · ${topic}`} ${minutes} dk`,
+    /** Live Activity, a session started from a plan block: the label of the block bar. */
+    block: (minutes: number) => `Plan bloğu · ${minutes} dk`,
+    /** Countdown widget "EtutCountdown": the days under the exam name ("255 gün"). */
+    countdown: (days: number) => `${days} gün`,
+    /** Countdown widget title above the days: "YKS’ye", "Sınavına". */
+    countdownTo: (examType: ExamType) => (examType === 'DIGER' ? 'Sınavına' : `${examTypes[examType]}’ye`),
+    /** Countdown widget title without an exam date. */
+    countdownNoExam: 'Sınav',
+    /** Countdown widget without an exam date (none set, or the exam has passed). */
+    addExamDate: 'Sınav tarihi ekle',
+    /** Countdown widget after the last day the app wrote ahead: the number would be stale. */
+    countdownOpen: 'Güncel sayı için Etüt’ü aç',
   },
 
   /** One-time card on the timer screen after the first Bitir (iOS); steps: guide.lockScreen.widgetSteps. */
@@ -1433,17 +1618,21 @@ export const tr = {
   /** Timer screen layout (shortcuts, goal on the home card). */
   home: {
     shortcuts: 'Kısayollar',
-    goalEdit: 'Değiştir',
+    /** Hint of the goal line (and ring) on the "Bugün" card: a tap opens the goal sheet. */
     goalEditA11y: 'Günlük hedefi değiştir',
   },
 
   /** The short summary after "Bitir". */
   finish: {
+    /** Small line above the saved time (the time itself is the big number). */
+    savedTitle: 'Kaydedildi',
     studied: (subject: string) => `${subject} çalıştın`,
     studiedTopic: (subject: string, topic: string) => `${subject} · ${topic}`,
     goalStep: (before: number, after: number) => `Hedef: %${before} → %${after}`,
-    goalReached: 'Bugünkü hedefe ulaştın, tebrikler!',
-    streak: (days: number) => `Serin ${days} gün oldu.`,
+    /** Once, in the summary of the session that reached the daily goal: positive, no streak talk. */
+    goalReached: finishGoalReached,
+    /** After today's total on the summary's muted line: "Bugün 3 sa 5 dk · hedef 3 sa 0 dk". */
+    todayGoal: (goal: string) => `· hedef ${goal}`,
     undo: 'Geri al',
     undoHint: 'Kaydı siler, sayaç kaldığı yerden devam eder.',
     /** "Geri al" after a topic chip below was tapped: the mark goes back too. */
@@ -1451,7 +1640,8 @@ export const tr = {
     undone: 'Geri alındı. Sayaç kaldığı yerden devam ediyor.',
     /** "Bitti" / "Tekrar lazım" (topics.done / topics.review) for the session's topic. */
     topicMark: 'Konuyu işaretle (isteğe bağlı)',
-    announce: (saved: string, today: string) => `${saved}. Bugün toplam ${today}.`,
+    announce: (saved: string, today: string, goalReached: boolean) =>
+      `${saved}. Bugün toplam ${today}.${goalReached ? ` ${finishGoalReached}.` : ''}`,
     /** The session started before midnight: it counts whole towards that day. */
     addedToYesterday: 'Dünün çalışmasına eklendi.',
   },
@@ -1567,9 +1757,8 @@ export const tr = {
     showTips: 'Turu yeniden göster',
   },
 
-  /** "Nedir?" next to a term; opens its section of "Nasıl çalışır". */
+  /** The (i) button next to a term; opens its section of "Nasıl çalışır". */
   infoLink: {
-    title: 'Nedir?',
     a11y: (term: string) => `${term} nedir?`,
     estimated: '“Tahmini” tarih',
     manual: '“Elle” etiketi',
@@ -1580,7 +1769,7 @@ export const tr = {
   /** "Nasıl çalışır": short, plain explanations of the rules (each matches its domain module). */
   guide: {
     title: 'Nasıl çalışır',
-    intro: 'Etüt’ün kuralları kısaca. Bir terimin yanındaki “Nedir?” seni buradaki ilgili bölüme getirir.',
+    intro: 'Etüt’ün kuralları kısaca. Bir terimin yanındaki “i” simgesi seni buradaki ilgili bölüme getirir.',
     close: 'Kapat',
     timer: {
       title: 'Sayaç ve uzakta kuralı',
@@ -1643,7 +1832,7 @@ export const tr = {
     goal: {
       title: 'Günlük hedef',
       paragraphs: (minMinutes: number, maxHours: number) => [
-        `Günlük hedefi istersen koyarsın: ${minMinutes} dakika ile ${maxHours} saat arasında. Sayaç ekranındaki çubuk bugünkü sürenin hedefe oranını gösterir; elle eklediğin süre de sayılır.`,
+        `Günlük hedefi istersen koyarsın: ${minMinutes} dakika ile ${maxHours} saat arasında. Sayaç ekranındaki halka bugünkü sürenin hedefe oranını gösterir; halkaya ya da altındaki hedef satırına dokunarak hedefi değiştirebilirsin. Elle eklediğin süre de sayılır.`,
         'Hedefi değiştirirsen yeni hedef bugünden itibaren geçerli olur; önceki her gün, o gün geçerli olan hedefle sayılır. Böylece hedefini yükseltmek serini bozmaz. Hedefi kapatırsan seri gösterilmez.',
       ],
     },
@@ -1800,8 +1989,9 @@ export const tr = {
   /** Monthly calendar on the weekly screen. */
   monthly: {
     title: 'Aylık görünüm',
-    prev: '‹ Önceki ay',
-    next: 'Sonraki ay ›',
+    /** Screen-reader names of the ‹ › buttons around the month. */
+    prev: 'Önceki ay',
+    next: 'Sonraki ay',
     month: (year: number, month: number) => `${months[month - 1] ?? ''} ${year}`,
     total: (duration: string) => `Toplam: ${duration}`,
     studyDays: (n: number, of: number) => `Çalıştığın gün: ${n}/${of}`,
@@ -1820,5 +2010,7 @@ export const tr = {
   /** Exam countdown line on the Home Screen widget (the days text is `countdown.days`). */
   widgetCountdown: {
     today: 'Sınav bugün',
+    /** The exam day by the built-in estimate, worded as on the timer's card (`countdown.todayEstimated`). */
+    todayEstimated: 'Tahmini sınav günü bugün',
   },
 } as const;

@@ -70,6 +70,17 @@ jest.mock('../kv', () => {
   };
 });
 
+// The study plan's availability (kv-store), as the targets above.
+jest.mock('../study-plan', () => {
+  let availability: unknown = null;
+  return {
+    loadAvailability: () => availability,
+    saveAvailability: (a: unknown) => {
+      availability = a === null ? null : { ...(a as object) };
+    },
+  };
+});
+
 const T0 = Date.parse('2026-10-01T07:00:00Z');
 
 const DATA: BackupData = {
@@ -275,5 +286,27 @@ describe('backup storage, daily goal history (real SQL)', () => {
     writeBackupData(DATA);
     expect(readBackupData()).toEqual(DATA);
     expect('dailyGoalHistory' in readBackupData().settings).toBe(false);
+  });
+});
+
+describe('backup storage, study plan availability (version 3, real SQL)', () => {
+  const WITH_AVAILABILITY: BackupData = {
+    ...DATA,
+    settings: { ...DATA.settings, availability: { 0: 90, 1: 90, 2: 60, 3: 120, 4: 45, 5: 180, 6: 0 } },
+  };
+
+  it('is written and read back exactly, through a file too', () => {
+    writeBackupData(WITH_AVAILABILITY);
+    expect(readBackupData()).toEqual(WITH_AVAILABILITY);
+    const result = parseBackup(serializeBackup(buildBackupFile(readBackupData(), null, T0 + 86_400_000, 'test')));
+    if (!result.ok) throw new Error(result.error);
+    writeBackupData(mergeBackup(readBackupData(), result.file, 'replace'));
+    expect(readBackupData()).toEqual(WITH_AVAILABILITY);
+  });
+
+  it('a file without one (version 2) clears the availability on the device', () => {
+    writeBackupData(WITH_AVAILABILITY);
+    writeBackupData(DATA);
+    expect('availability' in readBackupData().settings).toBe(false);
   });
 });

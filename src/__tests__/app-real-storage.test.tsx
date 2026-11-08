@@ -14,12 +14,13 @@
 import { act, fireEvent, screen, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
-import { AccessibilityInfo, AppState, type AppStateStatus } from 'react-native';
+import { AccessibilityInfo, Alert, AppState, type AppStateStatus } from 'react-native';
 
 import { UNDO_FINISH_MS } from '../domain/finish';
 import type { Profile } from '../domain/profile';
 import type { CompletedSession } from '../domain/timer';
 import { getDb } from '../storage/db';
+import { enterDemo, exitDemo, isDemo } from '../storage/demo';
 import * as kv from '../storage/kv';
 import { getExamMarks, getMockExam, listMockExams, saveExamAnalysis, saveMockExam } from '../storage/mock-exams';
 import { allSessions, saveSession } from '../storage/sessions';
@@ -64,6 +65,11 @@ jest.mock('expo-sqlite', () => {
         },
       };
     },
+    // Demo mode deletes its files (storage/demo.ts): the database and the kv-store file.
+    deleteDatabaseSync: (name: string) => {
+      files.delete(name);
+      jest.requireMock('expo-sqlite/kv-store').mockKvFiles.delete(name);
+    },
   };
 });
 
@@ -87,6 +93,7 @@ jest.mock('expo-sqlite/kv-store', () => {
     clearSync() {
       this.rows.clear();
     }
+    closeSync() {}
   }
   return { __esModule: true, default: new SQLiteStorage(), SQLiteStorage, mockKvFiles: files };
 });
@@ -192,6 +199,27 @@ const { mockOpened } = jest.requireMock('expo-sqlite') as {
 const mainKv = () => mockKvFiles.get('ExpoSQLiteStorage')!;
 
 const APP_DIR = './app';
+
+/**
+ * On the device "Tüm verileri sil" asks with the system alert (`Alert.alert`): a spy stands in for
+ * it and its buttons are pressed by their text.
+ */
+const systemAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+beforeEach(() => systemAlert.mockClear());
+function lastAlert() {
+  const call = systemAlert.mock.calls.at(-1);
+  if (call === undefined) throw new Error('no system alert');
+  return { title: call[0], message: call[1], buttons: call[2] ?? [] };
+}
+function alertButton(text: string) {
+  const button = lastAlert().buttons.find((b) => b.text === text);
+  if (button?.onPress === undefined) throw new Error(`no alert button "${text}"`);
+  return button.onPress;
+}
+function pressAlert(text: string) {
+  const onPress = alertButton(text);
+  act(() => onPress());
+}
 // The first render loads every route of the app.
 jest.setTimeout(60_000);
 const MIN = 60_000;
@@ -281,10 +309,10 @@ describe('"Tüm verileri sil" on the real storage', () => {
 
     act(() => router.push('/ayarlar'));
     fireEvent.press(screen.getByTestId('settings-delete-all'));
-    fireEvent.press(screen.getByTestId('settings-delete-all-confirm'));
+    pressAlert('Evet, hepsini sil');
     await settle();
 
-    expect(screen.getByTestId('onboarding-start')).toBeTruthy();
+    expect(screen.getByTestId('onboarding-screen')).toBeTruthy();
     // kv-store: every key gone (Storage.clearSync), file compacted on its own connection.
     expect([...mainKv().keys()]).toEqual([]);
     const kvConnection = mockOpened.find((o) => o.name === 'ExpoSQLiteStorage');
@@ -419,7 +447,7 @@ describe('exam countdown from the stored date', () => {
   it('the day before: one day left; the day after: the date has passed', () => {
     kv.storeCustomExamDate('YKS', '2026-10-08');
     renderRouter(APP_DIR, { initialUrl: '/' });
-    expect(screen.getByTestId('countdown').props.children).toBe('YKS’ye 1 gün');
+    expect(screen.getByTestId('countdown').props.children).toBe('YKS · 1 gün');
     // After midnight Istanbul (21:00 UTC) the exam is today, a day later it has passed.
     at(Date.parse('2026-10-07T21:00:30Z'));
     act(() => jest.advanceTimersByTime(60_000));
@@ -439,8 +467,8 @@ describe('built-in exam date after the exam', () => {
   it('the day after YKS the countdown goes on to next year’s estimate, not "passed"', () => {
     jest.setSystemTime(Date.parse('2027-06-21T06:00:00Z'));
     renderRouter(APP_DIR, { initialUrl: '/' });
-    expect(screen.getByTestId('countdown').props.children).toBe('YKS’ye 362 gün');
-    expect(screen.getByText('tahmini')).toBeTruthy();
+    expect(screen.getByTestId('countdown').props.children).toBe('YKS · 362 gün · tahmini');
+    expect(screen.getByTestId('countdown').props.accessibilityLabel).toBe('YKS’ye 362 gün, tahmini tarih');
     expect(screen.queryByTestId('countdown-passed')).toBeNull();
   });
 });
@@ -458,7 +486,7 @@ describe('daily goal history on the real storage', () => {
     }
     kv.storeDailyGoal(60, '2026-10-01');
     renderRouter(APP_DIR, { initialUrl: '/' });
-    expect(screen.getByTestId('streak').props.children).toBe('Seri: 3 gün');
+    expect(screen.getByTestId('streak').props.accessibilityLabel).toBe('Seri: 3 gün');
 
     fireEvent.press(screen.getByTestId('goal-edit'));
     fireEvent.press(screen.getByTestId('goal-preset-120'));
@@ -469,7 +497,7 @@ describe('daily goal history on the real storage', () => {
       { from: '2026-10-01', minutes: 60 },
       { from: '2026-10-07', minutes: 120 },
     ]);
-    expect(screen.getByTestId('streak').props.children).toBe('Seri: 3 gün');
+    expect(screen.getByTestId('streak').props.accessibilityLabel).toBe('Seri: 3 gün');
     // The widget (already on the new goal) counts the same way.
     expect(mockSurfaces.widget[0].props.goalLine).toContain('2 sa');
     expect(mockSurfaces.widget[0].props.streakLine).toBe('Seri: 3 gün');
@@ -498,7 +526,7 @@ describe('daily goal history on the real storage', () => {
       { from: '2026-10-08', minutes: 120 },
     ]);
     expect(screen.getByTestId('goal-progress').props.children).toBe('Bugünkü hedefini tutturdun.');
-    expect(screen.getByTestId('streak').props.children).toBe('Seri: 1 gün');
+    expect(screen.getByTestId('streak').props.accessibilityLabel).toBe('Seri: 1 gün');
     // The widget judges today by today's goal too.
     expect(mockSurfaces.widget[0].props.goalLine).toBe('Hedef tamam');
     act(() => router.push('/ayarlar'));
@@ -688,13 +716,13 @@ describe('timer on the real storage', () => {
     start();
     at(startAt + 75 * MIN); // Wed 00:45
     finish();
-    expect(screen.getByTestId('timer-saved').props.children).toBe('Kaydedildi: 1 sa 15 dk');
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 1 sa 15 dk');
     expect(screen.getByTestId('finish-yesterday').props.children).toBe('Dünün çalışmasına eklendi.');
     // Nothing of it on today's goal, so no "Hedef: %0 → %0".
     expect(screen.getByTestId('finish-detail').props.children).not.toContain('Hedef:');
     expect(screen.getByTestId('today-total').props.children).toBe('0 dk');
     // Tuesday met the 75 min goal with this one session; Wednesday is not over.
-    expect(screen.getByTestId('streak').props.children).toBe('Seri: 1 gün');
+    expect(screen.getByTestId('streak').props.accessibilityLabel).toBe('Seri: 1 gün');
 
     const id = allSessions()[0].id;
     act(() => router.push('/gecmis'));
@@ -885,7 +913,7 @@ describe('timer on the real storage', () => {
     // 60 + 70 minutes: over the 2-hour goal.
     expect(screen.getByTestId('finish-goal-reached')).toBeTruthy();
     expect(screen.getByTestId('finish-detail').props.children).not.toContain('Hedef:');
-    expect(announce).toHaveBeenCalledWith('Kaydedildi: 1 sa 10 dk. Bugün toplam 2 sa 10 dk.');
+    expect(announce).toHaveBeenCalledWith('Kaydedildi: 1 sa 10 dk. Bugün toplam 2 sa 10 dk. Bugünkü hedef tamam.');
     announce.mockRestore();
   });
 
@@ -1097,5 +1125,44 @@ describe('system surfaces are not rewritten with the same content', () => {
       updates: before.updates + 2,
       widget: before.widget + 2,
     });
+  });
+});
+
+describe('demo mode on the real storage', () => {
+  it('a session timed on example data stays there; the real sessions and goal are the same after leaving', () => {
+    const own = {
+      id: 'own',
+      subjectId: 'kimya',
+      topicId: null,
+      startedAt: T0 - 2 * HOUR,
+      endedAt: T0 - HOUR,
+      pauses: [],
+      durationMs: HOUR,
+      source: 'timer' as const,
+    };
+    saveSession(own, T0);
+    kv.storeDailyGoal(60, '2026-10-07');
+    const realKv = [...mainKv().entries()];
+
+    expect(enterDemo(ADULT, T0)).toBe('ok');
+    expect(allSessions().length).toBeGreaterThan(60);
+    renderRouter(APP_DIR, { initialUrl: '/' });
+    fireEvent.press(screen.getByTestId('subject-fizik'));
+    start();
+    at(T0 + 30 * MIN);
+    finish();
+    expect(screen.getByTestId('timer-saved').props.accessibilityLabel).toBe('Kaydedildi: 30 dk');
+    expect(allSessions().some((s) => s.subjectId === 'fizik' && s.startedAt === T0)).toBe(true);
+    expect(kv.loadDailyGoal()).toBe(150);
+
+    exitDemo();
+    expect(isDemo()).toBe(false);
+    expect(allSessions()).toEqual([own]);
+    expect(kv.loadDailyGoal()).toBe(60);
+    expect(kv.loadActiveSession()).toBeNull();
+    // The subject picked in demo mode was stored there, not here.
+    expect(kv.loadLastSubject()).toBeNull();
+    expect(Object.fromEntries(mainKv())).toMatchObject(Object.fromEntries(realKv));
+    expect(mockKvFiles.has('etut-demo-kv')).toBe(false);
   });
 });

@@ -10,11 +10,12 @@
  * extension runtime lacks (`widget-free-identifiers.test.ts`).
  */
 
-import type { TimerActivityProps, TodayWidgetProps } from '../surface-props';
+import type { CountdownWidgetProps, TimerActivityProps, TodayWidgetProps } from '../surface-props';
 import type { HomeWidgetAdapter, LiveActivityAdapter } from '../types';
 
 jest.mock('../ios/timer-activity', () => ({ TimerActivity: 'timer-activity-layout' }));
 jest.mock('../ios/today-widget', () => ({ TodayWidget: 'today-widget-layout' }));
+jest.mock('../ios/countdown-widget', () => ({ CountdownWidget: 'countdown-widget-layout' }));
 
 interface MockInstance {
   updates: { props: unknown; staleDate: Date | undefined }[];
@@ -183,7 +184,10 @@ describe('Home Screen widget (home-widget.ios.ts)', () => {
   it('registers "EtutToday" and writes the timeline with dates', () => {
     const widget = loadWidget();
     expect(widget.supported).toBe(true);
-    expect(mockKit.created).toEqual([{ name: 'EtutToday', layout: 'today-widget-layout' }]);
+    expect(mockKit.created).toEqual([
+      { name: 'EtutToday', layout: 'today-widget-layout' },
+      { name: 'EtutCountdown', layout: 'countdown-widget-layout' },
+    ]);
     widget.setTimeline([
       { at: T, props: WIDGET },
       { at: T + 3_600_000, props: WIDGET },
@@ -194,6 +198,19 @@ describe('Home Screen widget (home-widget.ios.ts)', () => {
         { date: new Date(T + 3_600_000), props: WIDGET },
       ],
     ]);
+  });
+
+  it('writes the countdown timeline without null fields (UserDefaults rejects NSNull)', () => {
+    const widget = loadWidget();
+    const props: CountdownWidgetProps = { title: 'Sınav', daysLeft: null, daysText: null, message: 'Sınav tarihi ekle', inline: 'Sınav tarihi ekle' };
+    widget.setCountdownTimeline?.([{ at: T, props }]);
+    expect(mockKit.timelines).toEqual([
+      [{ date: new Date(T), props: { title: 'Sınav', message: 'Sınav tarihi ekle', inline: 'Sınav tarihi ekle' } }],
+    ]);
+    widget.setCountdownTimeline?.([]);
+    expect(mockKit.timelines).toHaveLength(1);
+    mockKit.failTimeline = true;
+    expect(() => widget.setCountdownTimeline?.([{ at: T, props }])).not.toThrow();
   });
 
   it('an empty timeline is not written (the widget keeps its content)', () => {
