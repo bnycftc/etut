@@ -234,7 +234,9 @@ jobs:
                   sub, has_item = s, True
                   break
           if sub is None:
-              open_subs = [s for s in subs if s["attributes"].get("state") == "READY_FOR_REVIEW"]
+              # An UNRESOLVED_ISSUES submission whose item was removed (asc-review-unlock.yml, to edit
+              # screenshots) gets the version back as a new item; a second submission is refused.
+              open_subs = [s for s in subs if s["attributes"].get("state") in ("READY_FOR_REVIEW", "UNRESOLVED_ISSUES")]
               sub = open_subs[0] if open_subs else None
           print("plan:", f"resubmit {sub['id']} ({sub['attributes'].get('state')}) with its existing item" if has_item
                 else (f"add this version to open submission {sub['id']}" if sub else "create a new submission with this version"))

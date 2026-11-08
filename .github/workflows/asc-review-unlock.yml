@@ -1,0 +1,123 @@
+# Takes an Etüt version out of its rejected review submission so that screenshots and the build can
+# be changed again. After a rejection the version stays an item of the UNRESOLVED_ISSUES submission
+# in state READY_FOR_REVIEW, and App Store Connect refuses screenshot writes in that state
+# ("Can't Create Screenshot while Ready For Review", 2026-11-08). Two actions:
+#   remove-item:       DELETE the version's reviewSubmissionItem (the submission stays; asc-submit.yml
+#                      adds the version back and resubmits). Reversible.
+#   cancel-submission: PATCH the submission canceled=true (asc-submit.yml then creates a new one).
+# apply=false only prints the plan. Same API key secrets as asc-status.yml; nothing else is written.
+name: ASC review unlock
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version string
+        required: true
+        default: "0.5.0"
+      action:
+        description: remove-item | cancel-submission
+        required: true
+        default: remove-item
+      apply:
+        description: Write; false = dry run
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  unlock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Unlock
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          VERSION: ${{ inputs.version }}
+          ACTION: ${{ inputs.action }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import base64, os, sys, time, jwt, requests
+          raw = os.environ["ASC_PRIVATE_KEY"]
+          key = raw if "BEGIN PRIVATE KEY" in raw else base64.b64decode(raw).decode()
+          now = int(time.time())
+          token = jwt.encode(
+              {"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 600, "aud": "appstoreconnect-v1"},
+              key, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+          api = "https://api.appstoreconnect.apple.com/v1"
+          auth = {"Authorization": "Bearer " + token}
+          APP = "6818980777"
+          VERSION = os.environ["VERSION"]
+          ACTION = os.environ["ACTION"]
+          APPLY = os.environ["APPLY"] == "true"
+          if ACTION not in ("remove-item", "cancel-submission"):
+              sys.exit(f"unknown action {ACTION}")
+          print("mode:", "APPLY (writes)" if APPLY else "DRY RUN (no writes)", "| action:", ACTION)
+
+          def errors(r):
+              try:
+                  return [(e.get("code"), e.get("title"), e.get("detail")) for e in r.json().get("errors", [])]
+              except ValueError:
+                  return []
+
+          def call(method, path, body=None, params=None):
+              r = requests.request(method, api + path, headers=auth, json=body, params=params, timeout=30)
+              if r.status_code >= 400:
+                  sys.exit(f"{method} {path}: HTTP {r.status_code} {errors(r)}")
+              return r.json() if r.content else {}
+
+          def version_state():
+              vs = call("GET", f"/apps/{APP}/appStoreVersions",
+                        params={"filter[versionString]": VERSION, "filter[platform]": "IOS"})["data"]
+              if len(vs) != 1:
+                  sys.exit(f"expected one App Store version {VERSION}, found {len(vs)}")
+              v = vs[0]
+              return v, v["attributes"].get("appVersionState") or v["attributes"].get("appStoreState")
+
+          ver, state = version_state()
+          print(f"version {VERSION}: id {ver['id']}, state {state}")
+
+          # The submission that holds this version as an item.
+          subs = call("GET", f"/apps/{APP}/reviewSubmissions", params={"limit": 10})["data"]
+          found = []
+          for s in subs:
+              st = s["attributes"].get("state")
+              items = call("GET", f"/reviewSubmissions/{s['id']}/items",
+                           params={"include": "appStoreVersion", "limit": 50})["data"]
+              for it in items:
+                  vid = (((it.get("relationships") or {}).get("appStoreVersion") or {}).get("data") or {}).get("id")
+                  print(f"submission {s['id']}: state {st}; item {it['id']}: state {it['attributes'].get('state')}, "
+                        f"version {'this one' if vid == ver['id'] else vid}")
+                  if vid == ver["id"] and st in ("UNRESOLVED_ISSUES", "READY_FOR_REVIEW"):
+                      found.append((s, it))
+          if len(found) != 1:
+              sys.exit(f"expected this version as an item of one open or rejected submission, found {len(found)}")
+          sub, item = found[0]
+          plan = (f"DELETE /reviewSubmissionItems/{item['id']} (submission {sub['id']} stays {sub['attributes'].get('state')})"
+                  if ACTION == "remove-item" else f"PATCH /reviewSubmissions/{sub['id']} canceled=true")
+          print("plan:", plan)
+          if not APPLY:
+              print("dry run, nothing written")
+              sys.exit(0)
+
+          if ACTION == "remove-item":
+              call("DELETE", f"/reviewSubmissionItems/{item['id']}")
+              print("item removed")
+          else:
+              done = call("PATCH", f"/reviewSubmissions/{sub['id']}", {"data": {"type": "reviewSubmissions",
+                          "id": sub["id"], "attributes": {"canceled": True}}})["data"]
+              print(f"submission canceled: state {done['attributes'].get('state')}")
+
+          time.sleep(5)
+          ver, state = version_state()
+          print(f"version {VERSION} now: state {state}")
+          s = call("GET", f"/reviewSubmissions/{sub['id']}")["data"]
+          items = call("GET", f"/reviewSubmissions/{sub['id']}/items", params={"limit": 50})["data"]
+          print(f"submission {sub['id']} now: state {s['attributes'].get('state')}, items {len(items)}")
+          PY
