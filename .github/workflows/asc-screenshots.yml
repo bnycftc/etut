@@ -293,8 +293,11 @@ jobs:
               return get(f"/{SETS}/{set_id}/{ITEMS}", {"limit": "50"})["data"]
 
           # ---- Editable App Store version and its tr localization ----
+          # READY_FOR_REVIEW: a complete version that is not in a submission (a rejected version
+          # goes back to it after its metadata is edited); App Store Connect lets screenshots be
+          # changed in that state, as for 0.5.0 on 2026-11-08.
           EDITABLE_VERSION = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED",
-                              "METADATA_REJECTED", "INVALID_BINARY"}
+                              "METADATA_REJECTED", "INVALID_BINARY", "READY_FOR_REVIEW"}
           versions = get(f"/apps/{APP}/appStoreVersions", {"filter[platform]": "IOS", "limit": "50"})["data"]
           def version_state(v):
               return v["attributes"].get("appVersionState") or v["attributes"].get("appStoreState")
