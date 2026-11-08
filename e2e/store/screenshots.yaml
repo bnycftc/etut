@@ -148,9 +148,14 @@ tags:
     timeout: 15000
 - tapOn:
     id: net-calc-correct-turkce
+# Typing before the number pad is up can be lost (see s-net-hesapla).
+- waitForAnimationToEnd:
+    timeout: 5000
 - inputText: "31"
 - tapOn:
     id: net-calc-wrong-turkce
+- waitForAnimationToEnd:
+    timeout: 5000
 - inputText: "6"
 - scrollUntilVisible:
     element:
@@ -160,11 +165,24 @@ tags:
     timeout: 20000
 - tapOn:
     id: net-calc-correct-matematik
+- waitForAnimationToEnd:
+    timeout: 5000
 - inputText: "27"
 - tapOn:
     id: net-calc-wrong-matematik
+- waitForAnimationToEnd:
+    timeout: 5000
 - inputText: "7"
-- hideKeyboard
+# The number pad has no return key: the system's own "Bitti" bar above it closes it (see s-net-hesapla).
+- runFlow:
+    when:
+      visible:
+        text: "Bitti"
+    commands:
+      - tapOn:
+          text: "Bitti"
+      - waitForAnimationToEnd:
+          timeout: 5000
 - extendedWaitUntil:
     visible:
       id: net-calc-net-matematik
