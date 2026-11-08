@@ -284,10 +284,13 @@ tags:
 - tapOn:
     id: mode-pomodoro
     retryTapIfNoChange: true
+# The plan card is above the mode chips. After the chip tap the button sits under the status bar
+# (y 22, "visible" to Maestro); a tap there is iOS's scroll-to-top and starts nothing (run
+# 42461229904). Scrolling up with centring brings it into the middle of the screen.
 - scrollUntilVisible:
     element:
       id: plan-block-start-0
-    direction: DOWN
+    direction: UP
     centerElement: true
     timeout: 20000
 - tapOn:
