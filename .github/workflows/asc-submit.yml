@@ -213,6 +213,29 @@ jobs:
 
           print("App Privacy: not readable via the API; it must be published in App Store Connect")
 
+          # ---- Review submission plan ----
+          # A rejected submission stays in UNRESOLVED_ISSUES with this version as its item; after the fix
+          # (new build, reply) it is resubmitted as a whole ("Resubmit to App Review"), not replaced:
+          # a second submission for the same version is refused by the API.
+          subs = []
+          for st in ("UNRESOLVED_ISSUES", "READY_FOR_REVIEW"):
+              subs += call("GET", "/reviewSubmissions", params={"filter[app]": APP, "filter[platform]": "IOS",
+                                                                "filter[state]": st})["data"]
+          sub, has_item = None, False
+          for s in subs:
+              items = call("GET", f"/reviewSubmissions/{s['id']}/items")["data"]
+              ids = [((it.get("relationships") or {}).get("appStoreVersion") or {}).get("data", {}).get("id") for it in items]
+              print(f"submission {s['id']}: state {s['attributes'].get('state')}, items {len(items)}, "
+                    f"has this version: {ver['id'] in ids}")
+              if ver["id"] in ids:
+                  sub, has_item = s, True
+                  break
+          if sub is None:
+              open_subs = [s for s in subs if s["attributes"].get("state") == "READY_FOR_REVIEW"]
+              sub = open_subs[0] if open_subs else None
+          print("plan:", f"resubmit {sub['id']} ({sub['attributes'].get('state')}) with its existing item" if has_item
+                else (f"add this version to open submission {sub['id']}" if sub else "create a new submission with this version"))
+
           if missing:
               print("\nMISSING before submission:\n  " + "\n  ".join(missing))
           else:
@@ -227,16 +250,19 @@ jobs:
               call("PATCH", f"/appStoreVersions/{ver['id']}/relationships/build",
                    {"data": {"type": "builds", "id": build["id"]}})
               print(f"attached build {BUILD} to {VERSION}")
-          # Reuse an open (not yet submitted) submission left by an earlier failed run.
-          open_subs = call("GET", "/reviewSubmissions", params={"filter[app]": APP, "filter[platform]": "IOS",
-                                                                "filter[state]": "READY_FOR_REVIEW"})["data"]
-          sub = open_subs[0] if open_subs else call("POST", "/reviewSubmissions", {"data": {"type": "reviewSubmissions",
-                     "attributes": {"platform": "IOS"},
-                     "relationships": {"app": {"data": {"type": "apps", "id": APP}}}}})["data"]
-          print(f"review submission: {'reused open one' if open_subs else 'created'}")
-          call("POST", "/reviewSubmissionItems", {"data": {"type": "reviewSubmissionItems",
-               "relationships": {"reviewSubmission": {"data": {"type": "reviewSubmissions", "id": sub["id"]}},
-                                 "appStoreVersion": {"data": {"type": "appStoreVersions", "id": ver["id"]}}}}})
+          # Resubmit the rejected submission that already holds this version; otherwise reuse an open
+          # (not yet submitted) submission left by an earlier failed run, or create one.
+          if sub is None:
+              sub = call("POST", "/reviewSubmissions", {"data": {"type": "reviewSubmissions",
+                         "attributes": {"platform": "IOS"},
+                         "relationships": {"app": {"data": {"type": "apps", "id": APP}}}}})["data"]
+              print("review submission: created")
+          else:
+              print(f"review submission: {'resubmitting' if has_item else 'reused open one'} {sub['id']}")
+          if not has_item:
+              call("POST", "/reviewSubmissionItems", {"data": {"type": "reviewSubmissionItems",
+                   "relationships": {"reviewSubmission": {"data": {"type": "reviewSubmissions", "id": sub["id"]}},
+                                     "appStoreVersion": {"data": {"type": "appStoreVersions", "id": ver["id"]}}}}})
           done = call("PATCH", f"/reviewSubmissions/{sub['id']}", {"data": {"type": "reviewSubmissions",
                       "id": sub["id"], "attributes": {"submitted": True}}})["data"]
           print(f"submitted for review: state {done['attributes'].get('state')}")
