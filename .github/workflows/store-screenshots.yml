@@ -316,7 +316,7 @@ jobs:
         run: |
           mkdir -p "$RESULTS"
           run_flow() {
-            maestro --device "$SIM_UDID" test e2e/store/screenshots.yaml \
+            maestro --device "$SIM_UDID" test -e DEVICE="$DEVICE" e2e/store/screenshots.yaml \
               --format junit \
               --output "$RESULTS/report-$1.xml" \
               --test-output-dir "$RESULTS/output-$1" \

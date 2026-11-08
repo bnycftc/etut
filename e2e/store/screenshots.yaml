@@ -134,76 +134,83 @@ tags:
 - takeScreenshot: 02-net-grafigi
 
 # --- 05 Net hesapla (TYT, the first paper, is preselected) ---
-- scrollUntilVisible:
-    element:
-      id: exams-net-calc
-    direction: UP
-    timeout: 20000
-- tapOn:
-    id: exams-net-calc
-    retryTapIfNoChange: true
-- extendedWaitUntil:
-    visible:
-      id: net-calc
-    timeout: 15000
-- tapOn:
-    id: net-calc-correct-turkce
-# Typing before the number pad is up can be lost (see s-net-hesapla).
-- waitForAnimationToEnd:
-    timeout: 5000
-- inputText: "31"
-- tapOn:
-    id: net-calc-wrong-turkce
-- waitForAnimationToEnd:
-    timeout: 5000
-- inputText: "6"
-- scrollUntilVisible:
-    element:
-      id: net-calc-correct-matematik
-    direction: DOWN
-    centerElement: true
-    timeout: 20000
-- tapOn:
-    id: net-calc-correct-matematik
-- waitForAnimationToEnd:
-    timeout: 5000
-- inputText: "27"
-- tapOn:
-    id: net-calc-wrong-matematik
-- waitForAnimationToEnd:
-    timeout: 5000
-- inputText: "7"
-# The number pad has no return key: the system's own "Bitti" bar above it closes it (see s-net-hesapla).
+# iPhone only: on the iPad the sheet is a centred card that moves with the keyboard, and the run
+# lost it after the second field (run 42459289973). The iPad set goes without this shot. The
+# workflow passes DEVICE (iphone | ipad).
 - runFlow:
     when:
-      visible:
-        text: "Bitti"
+      true: ${DEVICE != 'ipad'}
     commands:
+      - scrollUntilVisible:
+          element:
+            id: exams-net-calc
+          direction: UP
+          timeout: 20000
       - tapOn:
-          text: "Bitti"
+          id: exams-net-calc
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: net-calc
+          timeout: 15000
+      - tapOn:
+          id: net-calc-correct-turkce
+      # Typing before the number pad is up can be lost (see s-net-hesapla).
       - waitForAnimationToEnd:
           timeout: 5000
-- extendedWaitUntil:
-    visible:
-      id: net-calc-net-matematik
-      text: "25.*"
-    timeout: 10000
-    optional: true
-- scrollUntilVisible:
-    element:
-      id: net-calc-net-turkce
-    direction: UP
-    timeout: 20000
-- waitForAnimationToEnd:
-    timeout: 3000
-- takeScreenshot: 05-net-hesapla
-- scrollUntilVisible:
-    element:
-      id: net-calc-close
-    direction: DOWN
-    timeout: 20000
-- tapOn:
-    id: net-calc-close
+      - inputText: "31"
+      - tapOn:
+          id: net-calc-wrong-turkce
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - inputText: "6"
+      - scrollUntilVisible:
+          element:
+            id: net-calc-correct-matematik
+          direction: DOWN
+          centerElement: true
+          timeout: 20000
+      - tapOn:
+          id: net-calc-correct-matematik
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - inputText: "27"
+      - tapOn:
+          id: net-calc-wrong-matematik
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - inputText: "7"
+      # The number pad has no return key: the system's own "Bitti" bar above it closes it (see s-net-hesapla).
+      - runFlow:
+          when:
+            visible:
+              text: "Bitti"
+          commands:
+            - tapOn:
+                text: "Bitti"
+            - waitForAnimationToEnd:
+                timeout: 5000
+      - extendedWaitUntil:
+          visible:
+            id: net-calc-net-matematik
+            text: "25.*"
+          timeout: 10000
+          optional: true
+      - scrollUntilVisible:
+          element:
+            id: net-calc-net-turkce
+          direction: UP
+          timeout: 20000
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - takeScreenshot: 05-net-hesapla
+      - scrollUntilVisible:
+          element:
+            id: net-calc-close
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          id: net-calc-close
 
 # --- 03 Ders karnesi: net charts and the most missed topics (last subject) ---
 - launchApp
@@ -262,10 +269,12 @@ tags:
 # the Notification Center is pulled down.
 
 # --- 04 Running timer: pomodoro, started from the first block of today's plan ---
+# In demo mode today's plan card sits above the timer's own start button, which is then below the
+# fold on an iPhone (run 42459289973): wait for the screen, the scrolls below find the rest.
 - launchApp
 - extendedWaitUntil:
     visible:
-      id: timer-start
+      id: timer-screen
     timeout: 30000
 - scrollUntilVisible:
     element:
