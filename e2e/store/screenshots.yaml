@@ -1,8 +1,8 @@
 # App Store ekran görüntüleri (iPhone 6.9" ve iPad 13"; aynı akış iki cihazda): onboarding'in son
 # adımında "Örnek verilerle gez" ile demo moduna uygulamanın içinden girilir (yedek dosyası yok),
 # sonra mağaza görüntüleri alınır. Yalnız .github/workflows/store-screenshots.yml çalıştırır: o iş
-# durum çubuğunu 9:41'e sabitler, açık modu seçer, Pazar günü çalışmaz (örnek planda Pazar dinlenme
-# günü: "Bugünün planı" boş olur ve 04'teki "Başlat" bloğu bulunmaz).
+# durum çubuğunu 9:41'e sabitler, açık modu seçer, İstanbul saatiyle 04:00'dan önce çalışmaz (örnek
+# plan haftanın yedi gününde blok taşır, Pazar dahil; 04'teki "Başlat" bloğu her gün bulunur).
 # Mağaza görüntüleri "NN-ad" adını taşır, dosya adı sırası mağaza sırasıdır:
 #   01 Bugünün planı · 02 net grafiği · 03 ders karnesi (en çok yanlış yapılan konular)
 #   04 çalışan sayaç (pomodoro, plandan başlatılmış) · 05 Net hesapla · 06 Konular · 07 Plan sekmesi
